@@ -123,6 +123,7 @@ function respawn() {
   player.rupees = Math.max(0, player.rupees - 10);  // small death penalty
   clampCam(true);
   spawnEnemiesForMap(0);
+  spawnVillagersForMap(0);
   showMsg('💀 Defeated! Returned to start (-10 rupees)', 3000);
 }
 
@@ -159,7 +160,7 @@ function killEnemy(e) {
       }
     }
     const dropName = drop ? `${SWORD_ELEMENTS[drop].icon} ${SWORD_ELEMENTS[drop].label} Sword` : null;
-    const msg = '🏆 THE FOREST LICH IS DEFEATED! +6 Max HP'
+    const msg = `🏆 THE ${e.name} IS DEFEATED! +6 Max HP`
               + (dropName ? ` and ${dropName}!` : '!');
     showMsg(msg, 0);
   } else {
@@ -170,6 +171,13 @@ function killEnemy(e) {
   if (cm && cm.type === 'village' && !cm.activated && enemies.every(en => en.dead)) {
     if (activateVillage(cm)) {
       minimapDirty = true;
+      spawnVillagersForMap(currentMapId);
+      // Saving a village seals every never-used border with single-transition
+      // dead-ends, bounding the world to what the player has touched. The forest
+      // village seals the forest (its open exits still lead into the desert);
+      // the desert village caps the desert region.
+      if (cm.biome === 'desert') sealDesertRegion();
+      else                       sealUnusedTransitions();
       showMsg('🏘️ The village awakens! Find the 🛏️ inn and 🏪 general store.', 5000);
     }
   }
@@ -193,8 +201,9 @@ function tryTransition() {
     return;
   }
 
-  // Snapshot the current map's enemy state before leaving
+  // Snapshot the current map's enemy + villager state before leaving
   saveEnemyStateToMap(currentMapId);
+  saveVillagersToMap(currentMapId);
 
   const nextId = getOrCreateNeighbor(dir);
   if (nextId == null) return;
@@ -206,8 +215,13 @@ function tryTransition() {
     nm.visited = true;
     mapsVisited++;
     mapSequence.push(nextId);
+    // Count desert overworld maps. After 20 of them, the next new area becomes
+    // the desert village (see createDesertMap). The region is sealed only once
+    // that village's boss is cleared (see the activation block below).
+    if (nm.type === 'desert') desertsVisited++;
   }
   spawnEnemiesForMap(nextId);
+  spawnVillagersForMap(nextId);
 
   // Place player just inside the opposite edge, preserving lateral position
   if (dir === 'left')        player.x = MCOLS - 2;
@@ -273,9 +287,9 @@ function handlePickup(bnx, bny, map) {
     const sp = screenPX(bnx, bny);
     spawnParticle(sp.x, sp.y, '#aaffaa', 16, 4);
   }
-  // Village shops — stepping on the door opens the modal.
-  if (map[bny][bnx] === T.INN_DOOR)   { openInnModal();   return; }
-  if (map[bny][bnx] === T.STORE_DOOR) { openStoreModal(); return; }
+  // Shop doors are now just walkable entrances — the actual interaction lives
+  // on the innkeeper / shopkeeper inside the building (press SPACE next to
+  // them). Stepping on the door is a no-op.
   // The Hero's Cache — one-time +2 Sword / +2 Armor pickup at the back of a cave.
   if (map[bny][bnx] === T.LARGE_CHEST && !currentMap().openedChests.has(`big_${bnx},${bny}`)) {
     currentMap().openedChests.add(`big_${bnx},${bny}`);
@@ -300,6 +314,7 @@ function tryCaveTransition() {
   // Step onto a tunnel in the overworld → enter (or re-enter) the linked cave
   if (t === T.CAVE_ENTRANCE && cm.type !== 'cave') {
     saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
     const sourceId = currentMapId;
     const sourceX = player.x, sourceY = player.y;
     cm.caveLinks = cm.caveLinks || {};
@@ -315,6 +330,7 @@ function tryCaveTransition() {
     // Land one tile NORTH of the CAVE_EXIT so we don't immediately re-trigger it.
     player.x = cx; player.y = cy + 7;
     spawnEnemiesForMap(caveId);
+    spawnVillagersForMap(caveId);
     transitionCooldown = 400;
     minimapDirty = true;
     clampCam(true);
@@ -326,6 +342,7 @@ function tryCaveTransition() {
   // Step onto the cave exit → return to source map at the tunnel tile
   if (t === T.CAVE_EXIT && cm.type === 'cave') {
     saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
     currentMapId = cm.returnMapId;
     const srcMap = worldMaps[currentMapId].map;
     // Prefer one tile south of the tunnel; if that's solid, scan adjacent
@@ -347,6 +364,7 @@ function tryCaveTransition() {
     }
     player.x = tx; player.y = ty;
     spawnEnemiesForMap(currentMapId);
+    spawnVillagersForMap(currentMapId);
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);

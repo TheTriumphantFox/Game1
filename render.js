@@ -55,10 +55,320 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#999'; ctx.beginPath(); ctx.arc(x+s/2,y+s/2,s*0.38,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = '#aaa'; ctx.beginPath(); ctx.arc(x+s/2-3,y+s/2-3,s*0.2,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = '#666'; ctx.beginPath(); ctx.arc(x+s/2+4,y+s/2+3,s*0.12,0,Math.PI*2); ctx.fill(); break;
-    case T.FLOWER:
-      ctx.fillStyle = '#4a8a3a'; ctx.fillRect(x,y,s,s);
-      ctx.fillStyle = '#ff88aa'; ctx.beginPath(); ctx.arc(x+s/2,y+s/2,5,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(x+s/2,y+s/2,2,0,Math.PI*2); ctx.fill(); break;
+    case T.FLOWER: {
+      // ── Grass base (static — doesn't sway) ─────────────────────────────
+      ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#4d9a4d';
+      for (let i = 0; i < 3; i++) {
+        const bx = x + ((col * 7 + row * 11 + i * 3) % 7) * s / 8;
+        const by = y + ((col * 5 + row * 13 + i * 7) % 7) * s / 8;
+        ctx.fillRect(bx, by, 1, 3);
+      }
+      ctx.fillStyle = '#2a5a2a';
+      ctx.fillRect(x + s*0.08, y + s*0.88, 3, 2);
+      ctx.fillRect(x + s*0.85, y + s*0.82, 3, 2);
+
+      // ── Subtle wind sway applied to the whole flower-head layer below ──
+      // Per-tile phase so a field of flowers doesn't sway in unison.
+      const swayPhase = Date.now() / 1500 + col * 0.31 + row * 0.73;
+      const swayX = Math.sin(swayPhase) * s * 0.045;
+      const swayY = Math.cos(swayPhase * 1.3) * s * 0.018;
+      ctx.save();
+      ctx.translate(swayX, swayY);
+
+      // Pick one of 8 flower variants based on tile coordinates (stable per tile)
+      const variant = ((col * 73) ^ (row * 41)) & 7;
+      const cx = x + s/2, cy = y + s/2;
+
+      switch (variant) {
+        case 0: {  // Pink daisy — stem + leaf + layered shaded petals
+          // Stem
+          ctx.fillStyle = '#1a5a1a';
+          ctx.fillRect(x + s*0.48, y + s*0.50, s*0.04, s*0.38);
+          // Leaf
+          ctx.fillStyle = '#2a7a2a';
+          ctx.beginPath();
+          ctx.ellipse(x + s*0.38, y + s*0.68, s*0.09, s*0.045, -0.4, 0, Math.PI*2);
+          ctx.fill();
+          ctx.strokeStyle = '#1a4a14';
+          ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(x + s*0.31, y + s*0.68); ctx.lineTo(x + s*0.45, y + s*0.66);
+          ctx.stroke();
+
+          // Use a higher head position than tile centre — flower sits above the stem
+          const hcx = x + s/2, hcy = y + s*0.36;
+
+          // 8 outer petals (slight elongation for a soft, full look)
+          ctx.fillStyle = '#aa3a77';        // outer shadow
+          for (let i = 0; i < 8; i++) {
+            const a = i * Math.PI / 4;
+            const px = hcx + Math.cos(a) * s*0.15;
+            const py = hcy + Math.sin(a) * s*0.15;
+            ctx.beginPath();
+            ctx.ellipse(px, py, s*0.10, s*0.07, a, 0, Math.PI*2);
+            ctx.fill();
+          }
+          // 8 brighter petal faces, offset toward upper-left for a "lit from above" feel
+          ctx.fillStyle = '#ff7ab8';
+          for (let i = 0; i < 8; i++) {
+            const a = i * Math.PI / 4;
+            const px = hcx + Math.cos(a) * s*0.13 - 0.5;
+            const py = hcy + Math.sin(a) * s*0.13 - 0.5;
+            ctx.beginPath();
+            ctx.ellipse(px, py, s*0.075, s*0.05, a, 0, Math.PI*2);
+            ctx.fill();
+          }
+          // Specular petal tips
+          ctx.fillStyle = 'rgba(255,210,230,0.7)';
+          for (let i = 0; i < 8; i += 2) {
+            const a = i * Math.PI / 4;
+            const px = hcx + Math.cos(a) * s*0.17;
+            const py = hcy + Math.sin(a) * s*0.17;
+            ctx.beginPath();
+            ctx.arc(px, py, s*0.02, 0, Math.PI*2);
+            ctx.fill();
+          }
+          // Yellow centre with darker pollen ring
+          ctx.fillStyle = '#cc8800';
+          ctx.beginPath(); ctx.arc(hcx, hcy, s*0.085, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ffdd33';
+          ctx.beginPath(); ctx.arc(hcx, hcy, s*0.065, 0, Math.PI*2); ctx.fill();
+          // Pollen dots
+          ctx.fillStyle = '#aa5500';
+          for (let i = 0; i < 5; i++) {
+            const a = i * Math.PI * 2 / 5;
+            ctx.fillRect(hcx + Math.cos(a) * s*0.03 - 0.5,
+                         hcy + Math.sin(a) * s*0.03 - 0.5, 1.5, 1.5);
+          }
+          // Centre highlight
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(hcx - s*0.02, hcy - s*0.02, s*0.015, 0, Math.PI*2);
+          ctx.fill();
+          break;
+        }
+        case 1: {  // Red tulip
+          ctx.fillStyle = '#1a5a1a';
+          ctx.fillRect(x + s*0.48, y + s*0.46, s*0.04, s*0.40);
+          ctx.fillStyle = '#2a7a2a';
+          ctx.beginPath();
+          ctx.ellipse(x + s*0.38, y + s*0.66, s*0.12, s*0.05, -0.4, 0, Math.PI*2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(x + s*0.62, y + s*0.74, s*0.10, s*0.04, 0.4, 0, Math.PI*2);
+          ctx.fill();
+          // Tulip bell
+          ctx.fillStyle = '#bb2244';
+          ctx.beginPath();
+          ctx.moveTo(x + s*0.32, y + s*0.46);
+          ctx.bezierCurveTo(x + s*0.28, y + s*0.18, x + s*0.72, y + s*0.18, x + s*0.68, y + s*0.46);
+          ctx.bezierCurveTo(x + s*0.60, y + s*0.42, x + s*0.40, y + s*0.42, x + s*0.32, y + s*0.46);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#ee4466';
+          ctx.beginPath();
+          ctx.ellipse(x + s*0.42, y + s*0.30, s*0.05, s*0.10, -0.1, 0, Math.PI*2);
+          ctx.fill();
+          ctx.fillStyle = '#882233';
+          ctx.beginPath();
+          ctx.ellipse(x + s*0.58, y + s*0.32, s*0.04, s*0.10, 0.1, 0, Math.PI*2);
+          ctx.fill();
+          break;
+        }
+        case 2: {  // Blue bellflower cluster
+          ctx.fillStyle = '#1a5a1a';
+          ctx.fillRect(x + s*0.30, y + s*0.45, s*0.03, s*0.45);
+          ctx.fillRect(x + s*0.50, y + s*0.32, s*0.03, s*0.58);
+          ctx.fillRect(x + s*0.70, y + s*0.40, s*0.03, s*0.50);
+          // 3 bells
+          const bells = [
+            { x: 0.32, y: 0.42, r: 0.085 },
+            { x: 0.52, y: 0.28, r: 0.110 },
+            { x: 0.72, y: 0.36, r: 0.080 }
+          ];
+          for (const b of bells) {
+            ctx.fillStyle = '#3355cc';
+            ctx.beginPath(); ctx.arc(x + s*b.x, y + s*b.y, s*b.r, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#5577ee';
+            ctx.beginPath(); ctx.arc(x + s*b.x - 1, y + s*b.y - 1, s*b.r * 0.55, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#aabbff';
+            ctx.beginPath(); ctx.arc(x + s*b.x - 2, y + s*b.y - 2, s*b.r * 0.25, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ffee88';
+            ctx.fillRect(x + s*b.x - 0.5, y + s*b.y + s*b.r*0.4, 1.5, 1.5);
+          }
+          break;
+        }
+        case 3: {  // White-purple cluster
+          const flowers = [
+            { x: 0.22, y: 0.32, color: '#bb88ee' },
+            { x: 0.62, y: 0.24, color: '#ffffff' },
+            { x: 0.38, y: 0.55, color: '#dd99dd' },
+            { x: 0.76, y: 0.62, color: '#ffffff' },
+            { x: 0.18, y: 0.78, color: '#aa66cc' },
+            { x: 0.56, y: 0.80, color: '#ffeeff' }
+          ];
+          for (const f of flowers) {
+            ctx.fillStyle = f.color;
+            ctx.beginPath(); ctx.arc(x + s*f.x, y + s*f.y, s*0.07, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ffdd00';
+            ctx.fillRect(x + s*f.x - 1, y + s*f.y - 1, 2, 2);
+          }
+          break;
+        }
+        case 4: {  // Sunflower
+          // Wide stem
+          ctx.fillStyle = '#1a5a1a';
+          ctx.fillRect(x + s*0.47, y + s*0.50, s*0.06, s*0.40);
+          // Big leaves
+          ctx.fillStyle = '#2a7a2a';
+          ctx.beginPath();
+          ctx.ellipse(x + s*0.30, y + s*0.65, s*0.16, s*0.06, -0.3, 0, Math.PI*2);
+          ctx.fill();
+          // Head sits just above the tile centre. Use a tile-relative y so the
+          // head stays anchored when the camera scrolls (the previous code
+          // multiplied cy by 0.85, which scaled with y and made the head drift).
+          const headY = y + s * 0.42;
+          // 8 yellow petals
+          ctx.fillStyle = '#ffbb22';
+          for (let i = 0; i < 8; i++) {
+            const a = i * Math.PI / 4;
+            ctx.save();
+            ctx.translate(cx + Math.cos(a) * s*0.16, headY + Math.sin(a) * s*0.16);
+            ctx.rotate(a);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, s*0.10, s*0.06, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+          }
+          // Bright inner petal layer
+          ctx.fillStyle = '#ffdd44';
+          for (let i = 0; i < 8; i++) {
+            const a = i * Math.PI / 4 + Math.PI / 8;
+            ctx.beginPath();
+            ctx.arc(cx + Math.cos(a) * s*0.13, headY + Math.sin(a) * s*0.13, s*0.05, 0, Math.PI*2);
+            ctx.fill();
+          }
+          // Brown seeded center
+          ctx.fillStyle = '#5a2a08';
+          ctx.beginPath(); ctx.arc(cx, headY, s*0.11, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#7a4418';
+          ctx.beginPath(); ctx.arc(cx, headY, s*0.08, 0, Math.PI*2); ctx.fill();
+          // Seed dots
+          ctx.fillStyle = '#3a1c04';
+          for (let i = 0; i < 6; i++) {
+            const a = i * Math.PI / 3;
+            ctx.fillRect(cx + Math.cos(a) * s*0.04 - 0.5, headY + Math.sin(a) * s*0.04 - 0.5, 1.5, 1.5);
+          }
+          break;
+        }
+        case 5: {  // Yellow daffodils
+          ctx.fillStyle = '#1a5a1a';
+          ctx.fillRect(x + s*0.48, y + s*0.55, s*0.04, s*0.35);
+          ctx.fillStyle = '#2a7a2a';
+          ctx.beginPath();
+          ctx.ellipse(x + s*0.62, y + s*0.72, s*0.10, s*0.04, 0.3, 0, Math.PI*2);
+          ctx.fill();
+          // 5 yellow petals
+          const fcx = x + s*0.50, fcy = y + s*0.40;
+          ctx.fillStyle = '#ffee44';
+          for (let i = 0; i < 5; i++) {
+            const a = i * Math.PI * 2 / 5 - Math.PI / 2;
+            ctx.save();
+            ctx.translate(fcx + Math.cos(a) * s*0.13, fcy + Math.sin(a) * s*0.13);
+            ctx.rotate(a + Math.PI / 2);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, s*0.06, s*0.10, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+          }
+          // Orange trumpet
+          ctx.fillStyle = '#ee7711';
+          ctx.beginPath(); ctx.arc(fcx, fcy, s*0.08, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#cc5500';
+          ctx.beginPath(); ctx.arc(fcx, fcy, s*0.05, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ffcc66';
+          ctx.beginPath(); ctx.arc(fcx - 1, fcy - 1, s*0.025, 0, Math.PI*2); ctx.fill();
+          break;
+        }
+        case 6: {  // Red rose
+          // Stem with leaf
+          ctx.fillStyle = '#1a4a1a';
+          ctx.fillRect(x + s*0.49, y + s*0.45, s*0.04, s*0.45);
+          ctx.fillStyle = '#2a6a2a';
+          ctx.beginPath();
+          ctx.ellipse(x + s*0.38, y + s*0.72, s*0.09, s*0.05, -0.3, 0, Math.PI*2);
+          ctx.fill();
+          // Layered red rose
+          const rcx = x + s*0.50, rcy = y + s*0.36;
+          ctx.fillStyle = '#5a1122';
+          ctx.beginPath(); ctx.arc(rcx, rcy, s*0.18, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#992244';
+          ctx.beginPath(); ctx.arc(rcx, rcy, s*0.14, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#cc3355';
+          ctx.beginPath(); ctx.arc(rcx, rcy, s*0.10, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ee5577';
+          ctx.beginPath(); ctx.arc(rcx - 1, rcy - 1, s*0.06, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ff8899';
+          ctx.beginPath(); ctx.arc(rcx - 2, rcy - 2, s*0.025, 0, Math.PI*2); ctx.fill();
+          // Suggest petal seams
+          ctx.strokeStyle = '#3a0a14';
+          ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(rcx, rcy - s*0.10); ctx.lineTo(rcx, rcy + s*0.10);
+          ctx.moveTo(rcx - s*0.10, rcy); ctx.lineTo(rcx + s*0.10, rcy);
+          ctx.stroke();
+          break;
+        }
+        case 7: {  // Mixed wildflower cluster — full petals + leaves
+          const flowers = [
+            { x: 0.22, y: 0.32, color: '#ff66aa', tip: '#ffaadd' },
+            { x: 0.70, y: 0.26, color: '#ffdd44', tip: '#ffffaa' },
+            { x: 0.36, y: 0.62, color: '#aa66dd', tip: '#ccaaff' },
+            { x: 0.78, y: 0.66, color: '#66bbff', tip: '#aaddff' },
+            { x: 0.16, y: 0.78, color: '#ff9966', tip: '#ffccaa' },
+            { x: 0.58, y: 0.82, color: '#dd44aa', tip: '#ff99cc' }
+          ];
+          // Stems
+          ctx.fillStyle = '#2a6a2a';
+          for (const f of flowers) {
+            ctx.fillRect(x + s*f.x - 0.5, y + s*f.y, 1, s * (0.92 - f.y));
+          }
+          // Small leaves on a few stems
+          ctx.fillStyle = '#3a7a2a';
+          [flowers[0], flowers[2], flowers[4]].forEach(f => {
+            ctx.beginPath();
+            ctx.ellipse(x + s*(f.x - 0.04), y + s*(f.y + 0.18), s*0.04, s*0.02, -0.3, 0, Math.PI*2);
+            ctx.fill();
+          });
+          // 5-petal pseudo-blooms with brighter highlight + yellow centre
+          for (const f of flowers) {
+            ctx.fillStyle = f.color;
+            for (let i = 0; i < 5; i++) {
+              const a = i * Math.PI * 2 / 5 - Math.PI / 2;
+              ctx.beginPath();
+              ctx.arc(x + s*f.x + Math.cos(a) * s*0.038,
+                      y + s*f.y + Math.sin(a) * s*0.038,
+                      s*0.035, 0, Math.PI*2);
+              ctx.fill();
+            }
+            // Soft tip highlight
+            ctx.fillStyle = f.tip;
+            ctx.beginPath();
+            ctx.arc(x + s*f.x - 1, y + s*f.y - 1, s*0.025, 0, Math.PI*2);
+            ctx.fill();
+            // Bright centre dot
+            ctx.fillStyle = '#ffee00';
+            ctx.beginPath();
+            ctx.arc(x + s*f.x, y + s*f.y, s*0.022, 0, Math.PI*2);
+            ctx.fill();
+          }
+          break;
+        }
+      }
+
+      // Restore the sway transform
+      ctx.restore();
+      break; }
     case T.DUNGEON_DOOR: {
       ctx.fillStyle = '#220033'; ctx.fillRect(x,y,s,s);
       const pulse = Math.sin(Date.now()/300) * 2;
@@ -77,14 +387,371 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#888'; ctx.beginPath(); ctx.arc(x+s/2,y+s/2,s*0.38,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = '#aaa'; ctx.beginPath(); ctx.arc(x+s/2-3,y+s/2-3,s*0.15,0,Math.PI*2); ctx.fill(); break;
     case T.TORCH: {
-      ctx.fillStyle = '#884400'; ctx.fillRect(x+s/2-2,y+6,4,8);
-      const tf = Math.sin(Date.now()/150 + col + row*2);
-      ctx.fillStyle = '#ff8800'; ctx.beginPath(); ctx.arc(x+s/2,y+4+tf,4,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#ffcc00'; ctx.beginPath(); ctx.arc(x+s/2,y+3+tf*0.5,2,0,Math.PI*2); ctx.fill();
+      // Pulsing animation timer + a faster flicker for individual flame jitter
+      const tt = Date.now();
+      const flicker = (Math.sin(tt / 80 + col * 1.7 + row * 1.3) * 0.5 + 0.5);
+      const sway    = Math.sin(tt / 120 + col + row * 2) * 0.7;
+
+      // ── Soft warm halo (extends past the tile so it lights its neighbours)
+      const glow = ctx.createRadialGradient(x + s/2, y + s*0.25, 0,
+                                            x + s/2, y + s*0.25, s * 0.95);
+      glow.addColorStop(0, `rgba(255, 200, 90, ${0.40 + flicker * 0.25})`);
+      glow.addColorStop(0.6, `rgba(255, 160, 60, ${0.15 + flicker * 0.08})`);
+      glow.addColorStop(1, 'rgba(255, 160, 60, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - s*0.45, y - s*0.45, s * 1.9, s * 1.9);
+
+      // ── Stone pedestal base
+      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x + s*0.24, y + s*0.92, s*0.52, s*0.05);  // shadow
+      ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x + s*0.26, y + s*0.78, s*0.48, s*0.16);  // body
+      ctx.fillStyle = '#7a7a7a'; ctx.fillRect(x + s*0.26, y + s*0.78, s*0.48, s*0.04);  // top edge
+      ctx.fillStyle = '#444';    ctx.fillRect(x + s*0.26, y + s*0.86, s*0.48, s*0.02);  // middle band
+
+      // ── Wooden post (with darker right edge for depth)
+      ctx.fillStyle = '#3a1c08'; ctx.fillRect(x + s*0.43, y + s*0.40, s*0.14, s*0.42);
+      ctx.fillStyle = '#6a3a18'; ctx.fillRect(x + s*0.43, y + s*0.40, s*0.08, s*0.42);
+      ctx.fillStyle = '#8a5028'; ctx.fillRect(x + s*0.44, y + s*0.40, s*0.03, s*0.42);
+
+      // ── Gold bands wrapping the post
+      ctx.fillStyle = '#e0b040';
+      ctx.fillRect(x + s*0.41, y + s*0.50, s*0.18, s*0.05);
+      ctx.fillRect(x + s*0.41, y + s*0.66, s*0.18, s*0.05);
+      ctx.fillStyle = '#ffd070';
+      ctx.fillRect(x + s*0.41, y + s*0.50, s*0.18, s*0.02);
+      ctx.fillRect(x + s*0.41, y + s*0.66, s*0.18, s*0.02);
+
+      // ── Brazier cup at top (dark iron with rim highlight)
+      ctx.fillStyle = '#2a1408'; ctx.fillRect(x + s*0.26, y + s*0.32, s*0.48, s*0.16);
+      ctx.fillStyle = '#5a3a18'; ctx.fillRect(x + s*0.26, y + s*0.32, s*0.48, s*0.04);   // rim
+      ctx.fillStyle = '#8a5a28'; ctx.fillRect(x + s*0.26, y + s*0.32, s*0.48, s*0.015);  // rim highlight
+      ctx.fillStyle = '#1a0a04'; ctx.fillRect(x + s*0.30, y + s*0.36, s*0.40, s*0.10);   // interior shadow
+      // Glowing ember bed inside the cup
+      ctx.fillStyle = `rgba(255, 120, 40, ${0.55 + flicker * 0.3})`;
+      ctx.fillRect(x + s*0.30, y + s*0.42, s*0.40, s*0.05);
+
+      // ── Multi-layer flame ──
+      const flameTop = y + s*0.04 - flicker * s*0.04;        // tip Y
+      const flameBase = y + s*0.32;                          // bottom of flame
+      const cxF = x + s/2 + sway * s*0.02;                   // gentle horizontal sway
+
+      // Outer flame (deep red-orange)
+      ctx.fillStyle = `rgba(255, 110, 30, ${0.75 + flicker * 0.2})`;
+      ctx.beginPath();
+      ctx.moveTo(cxF, flameTop);
+      ctx.bezierCurveTo(cxF + s*0.20, y + s*0.16, cxF + s*0.18, flameBase, cxF, flameBase);
+      ctx.bezierCurveTo(cxF - s*0.18, flameBase, cxF - s*0.20, y + s*0.16, cxF, flameTop);
+      ctx.closePath();
+      ctx.fill();
+
+      // Mid flame (orange-yellow)
+      ctx.fillStyle = `rgba(255, 180, 60, ${0.85 + flicker * 0.15})`;
+      ctx.beginPath();
+      ctx.moveTo(cxF, flameTop + s*0.04);
+      ctx.bezierCurveTo(cxF + s*0.13, y + s*0.18, cxF + s*0.12, flameBase, cxF, flameBase);
+      ctx.bezierCurveTo(cxF - s*0.12, flameBase, cxF - s*0.13, y + s*0.18, cxF, flameTop + s*0.04);
+      ctx.closePath();
+      ctx.fill();
+
+      // Inner flame (bright yellow)
+      ctx.fillStyle = `rgba(255, 230, 130, 0.95)`;
+      ctx.beginPath();
+      ctx.ellipse(cxF, y + s*0.22 - flicker * s*0.02, s*0.06, s*0.12, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // White-hot core
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(cxF, y + s*0.24 - flicker * s*0.015, s*0.025, s*0.05, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // ── Floating embers spawning above the flame
+      for (let i = 0; i < 4; i++) {
+        const phase = ((tt / 700) + i * 0.27 + col * 0.13 + row * 0.19) % 1;
+        const ex = cxF + Math.sin(tt / 180 + i * 1.7) * s * 0.12;
+        const ey = y + s*0.22 - phase * s * 0.35;
+        const alpha = (1 - phase) * 0.85;
+        ctx.fillStyle = `rgba(255, ${130 + Math.floor(phase * 100)}, 40, ${alpha})`;
+        ctx.fillRect(ex - 1, ey - 1, 2, 2);
+      }
       break; }
     case T.STATUE:
       ctx.fillStyle = '#aaa'; ctx.fillRect(x+4,y+2,s-8,s-4);
       ctx.fillStyle = '#999'; ctx.beginPath(); ctx.arc(x+s/2,y+4,5,0,Math.PI*2); ctx.fill(); break;
+    case T.BED: {
+      // Wooden floor base
+      ctx.fillStyle = '#9a7550'; ctx.fillRect(x, y, s, s);
+      // Dark wooden frame
+      ctx.fillStyle = '#3a1c08';
+      ctx.fillRect(x + s*0.06, y + s*0.14, s*0.88, s*0.76);
+      // Bedposts at four corners
+      ctx.fillStyle = '#2a1004';
+      ctx.fillRect(x + s*0.04, y + s*0.10, s*0.10, s*0.10);
+      ctx.fillRect(x + s*0.86, y + s*0.10, s*0.10, s*0.10);
+      ctx.fillRect(x + s*0.04, y + s*0.84, s*0.10, s*0.10);
+      ctx.fillRect(x + s*0.86, y + s*0.84, s*0.10, s*0.10);
+      // Mattress
+      ctx.fillStyle = '#e8e0f0';
+      ctx.fillRect(x + s*0.12, y + s*0.20, s*0.76, s*0.62);
+      // Pillow at the top (north end)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + s*0.18, y + s*0.24, s*0.64, s*0.18);
+      ctx.strokeStyle = '#cccccc';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x + s*0.18, y + s*0.24, s*0.64, s*0.18);
+      // Blanket (covers lower portion)
+      ctx.fillStyle = '#8a3a66';
+      ctx.fillRect(x + s*0.12, y + s*0.46, s*0.76, s*0.36);
+      // Blanket fold/seam
+      ctx.fillStyle = '#a8508a';
+      ctx.fillRect(x + s*0.12, y + s*0.46, s*0.76, s*0.04);
+      // Blanket stripes
+      ctx.fillStyle = '#a85088';
+      ctx.fillRect(x + s*0.14, y + s*0.58, s*0.72, 1);
+      ctx.fillRect(x + s*0.14, y + s*0.68, s*0.72, 1);
+      ctx.fillRect(x + s*0.14, y + s*0.78, s*0.72, 1);
+      break; }
+    case T.TABLE: {
+      // Wooden floor base
+      ctx.fillStyle = '#9a7550'; ctx.fillRect(x, y, s, s);
+      // Tabletop (wide rounded rectangle)
+      ctx.fillStyle = '#6a3a18';
+      ctx.fillRect(x + s*0.10, y + s*0.24, s*0.80, s*0.42);
+      // Wood-grain highlights
+      ctx.fillStyle = '#7d4a22';
+      ctx.fillRect(x + s*0.10, y + s*0.24, s*0.80, s*0.06);
+      ctx.fillStyle = '#4a2208';
+      ctx.fillRect(x + s*0.10, y + s*0.34, s*0.80, 1);
+      ctx.fillRect(x + s*0.10, y + s*0.50, s*0.80, 1);
+      ctx.fillRect(x + s*0.10, y + s*0.62, s*0.80, 1);
+      // Table legs
+      ctx.fillStyle = '#3a1c08';
+      ctx.fillRect(x + s*0.16, y + s*0.66, s*0.06, s*0.26);
+      ctx.fillRect(x + s*0.78, y + s*0.66, s*0.06, s*0.26);
+      // Centrepiece: candle in a small holder
+      ctx.fillStyle = '#ccc';   // holder plate
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.50, y + s*0.36, s*0.10, s*0.035, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#eeeec0';  // candle shaft
+      ctx.fillRect(x + s*0.48, y + s*0.26, s*0.04, s*0.10);
+      // Flame
+      const ft = Math.sin(Date.now() / 220 + col * 1.7 + row * 1.1);
+      ctx.fillStyle = `rgba(255, 180, 60, 0.95)`;
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.50, y + s*0.22 - ft*0.5, s*0.025, s*0.05, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 240, 160, 0.95)';
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.50, y + s*0.23 - ft*0.3, s*0.012, s*0.025, 0, 0, Math.PI*2);
+      ctx.fill();
+      break; }
+    case T.CHAIR: {
+      // Wooden floor base
+      ctx.fillStyle = '#9a7550'; ctx.fillRect(x, y, s, s);
+      // Backrest (top half)
+      ctx.fillStyle = '#5a2a10';
+      ctx.fillRect(x + s*0.30, y + s*0.16, s*0.40, s*0.06);
+      // Backrest verticals
+      ctx.fillStyle = '#6a3618';
+      ctx.fillRect(x + s*0.32, y + s*0.22, s*0.05, s*0.30);
+      ctx.fillRect(x + s*0.46, y + s*0.22, s*0.05, s*0.30);
+      ctx.fillRect(x + s*0.62, y + s*0.22, s*0.05, s*0.30);
+      // Seat cushion
+      ctx.fillStyle = '#7a4a22';
+      ctx.fillRect(x + s*0.26, y + s*0.50, s*0.48, s*0.16);
+      // Seat top edge
+      ctx.fillStyle = '#a06030';
+      ctx.fillRect(x + s*0.26, y + s*0.50, s*0.48, s*0.04);
+      // Legs
+      ctx.fillStyle = '#3a1c08';
+      ctx.fillRect(x + s*0.28, y + s*0.66, s*0.06, s*0.26);
+      ctx.fillRect(x + s*0.66, y + s*0.66, s*0.06, s*0.26);
+      break; }
+    case T.FIREPLACE: {
+      // Wooden floor base
+      ctx.fillStyle = '#9a7550'; ctx.fillRect(x, y, s, s);
+      // Stone hearth — outer light grey
+      ctx.fillStyle = '#7a7a78';
+      ctx.fillRect(x + s*0.04, y + s*0.04, s*0.92, s*0.92);
+      // Stone pattern — slightly irregular blocks
+      ctx.fillStyle = '#5a5a58';
+      ctx.fillRect(x + s*0.06, y + s*0.10, s*0.30, s*0.04);
+      ctx.fillRect(x + s*0.40, y + s*0.06, s*0.26, s*0.04);
+      ctx.fillRect(x + s*0.70, y + s*0.10, s*0.24, s*0.04);
+      // Inner firebox (dark void)
+      ctx.fillStyle = '#1a0a04';
+      ctx.fillRect(x + s*0.18, y + s*0.30, s*0.64, s*0.60);
+      // Iron pot crossbar
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.18, y + s*0.32);
+      ctx.lineTo(x + s*0.82, y + s*0.32);
+      ctx.stroke();
+      // Cooking pot
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x + s*0.34, y + s*0.34, s*0.32, s*0.16);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + s*0.34, y + s*0.50, s*0.32, s*0.04);
+      // Pot handle (curve)
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x + s*0.50, y + s*0.34, s*0.18, Math.PI, 0);
+      ctx.stroke();
+      // Animated flame inside the firebox
+      const tt = Date.now();
+      const flick = Math.sin(tt / 100 + col * 1.7 + row * 1.1) * 0.5 + 0.5;
+      // Outer red
+      ctx.fillStyle = `rgba(220, 60, 20, ${0.85 + flick * 0.15})`;
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.28, y + s*0.88);
+      ctx.bezierCurveTo(x + s*0.20, y + s*0.66, x + s*0.50, y + s*0.55 - flick*2, x + s*0.50, y + s*0.55);
+      ctx.bezierCurveTo(x + s*0.50, y + s*0.55 - flick*2, x + s*0.80, y + s*0.66, x + s*0.72, y + s*0.88);
+      ctx.closePath(); ctx.fill();
+      // Mid orange
+      ctx.fillStyle = `rgba(255, 160, 40, ${0.90 + flick * 0.10})`;
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.34, y + s*0.88);
+      ctx.bezierCurveTo(x + s*0.30, y + s*0.72, x + s*0.50, y + s*0.62, x + s*0.50, y + s*0.62);
+      ctx.bezierCurveTo(x + s*0.50, y + s*0.62, x + s*0.70, y + s*0.72, x + s*0.66, y + s*0.88);
+      ctx.closePath(); ctx.fill();
+      // Yellow core
+      ctx.fillStyle = `rgba(255, 230, 130, 0.95)`;
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.50, y + s*0.78, s*0.06, s*0.10, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Glowing logs at base
+      ctx.fillStyle = '#aa4400';
+      ctx.fillRect(x + s*0.24, y + s*0.86, s*0.20, 3);
+      ctx.fillRect(x + s*0.56, y + s*0.86, s*0.20, 3);
+      // Warm glow halo spilling out
+      const glow = ctx.createRadialGradient(x + s*0.5, y + s*0.7, 1, x + s*0.5, y + s*0.7, s*0.7);
+      glow.addColorStop(0, `rgba(255, 180, 80, ${0.30 + flick * 0.15})`);
+      glow.addColorStop(1, 'rgba(255, 180, 80, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - s*0.2, y - s*0.2, s*1.4, s*1.4);
+      break; }
+    case T.COBBLESTONE: {
+      // Dark grout base
+      ctx.fillStyle = '#2c2c2a'; ctx.fillRect(x, y, s, s);
+      // Four irregular cobble stones, sizes and positions jittered by tile
+      // coords so adjacent tiles aren't identical.
+      const j = ((col * 113 + row * 71) & 15) / 16;
+      const stones = [
+        { cx: 0.25 + j * 0.04, cy: 0.24,         w: 0.27, h: 0.24, c: '#6e6e6c' },
+        { cx: 0.72,             cy: 0.30 + j*0.05, w: 0.22, h: 0.22, c: '#828280' },
+        { cx: 0.30,             cy: 0.72,         w: 0.26, h: 0.22, c: '#5e5e5c' },
+        { cx: 0.74 - j * 0.04,  cy: 0.70,         w: 0.22, h: 0.22, c: '#787876' },
+      ];
+      for (const sn of stones) {
+        ctx.fillStyle = sn.c;
+        ctx.beginPath();
+        ctx.ellipse(x + s*sn.cx, y + s*sn.cy, s*sn.w, s*sn.h, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+      // Soft top-left highlights — fakes light source
+      ctx.fillStyle = 'rgba(190,190,185,0.45)';
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.22, y + s*0.20, s*0.10, s*0.05, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.69, y + s*0.27, s*0.08, s*0.04, 0, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.MARBLE: {
+      // Polished cream marble base
+      ctx.fillStyle = '#e8e4d8'; ctx.fillRect(x, y, s, s);
+      // Soft top highlight (sheen)
+      ctx.fillStyle = 'rgba(255, 250, 240, 0.45)';
+      ctx.fillRect(x + 1, y + 1, s - 2, s * 0.32);
+      // Pseudo-random veining — pick one of a handful of vein paths so
+      // adjacent tiles aren't identical but the pattern stays coherent.
+      const seed = ((col * 73) ^ (row * 41)) & 7;
+      ctx.strokeStyle = 'rgba(110, 105, 90, 0.55)';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      if      (seed === 0) { ctx.moveTo(x + s*0.10, y + s*0.20); ctx.lineTo(x + s*0.70, y + s*0.85); }
+      else if (seed === 1) { ctx.moveTo(x + s*0.30, y);          ctx.lineTo(x + s*0.85, y + s*0.60); }
+      else if (seed === 2) { ctx.moveTo(x,           y + s*0.50); ctx.lineTo(x + s,      y + s*0.62); }
+      else if (seed === 3) { ctx.moveTo(x + s*0.20, y + s*0.90); ctx.lineTo(x + s*0.60, y + s*0.10); }
+      else if (seed === 4) { ctx.moveTo(x + s*0.70, y + s*0.20); ctx.lineTo(x + s*0.50, y + s*0.95); }
+      // 5/6/7: no vein (smooth tile)
+      ctx.stroke();
+      // Grout lines between tiles for the "tiled plaza" feel
+      ctx.strokeStyle = 'rgba(170, 165, 150, 0.55)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1);
+      break; }
+    case T.FOUNTAIN_WATER: {
+      // Dark inset basin
+      ctx.fillStyle = '#0e2a66'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#1d4d99'; ctx.fillRect(x+1, y+1, s-2, s-2);
+      // Three layered ripples flowing outward — different speeds + offsets
+      // give the impression of continuous circulating water.
+      const t = Date.now() / 230;
+      for (let layer = 0; layer < 3; layer++) {
+        const phase = t * (1 - layer * 0.18) + col * 0.55 + row * 0.45 + layer * 1.4;
+        const yOff = Math.sin(phase) * (1.5 - layer * 0.3);
+        const alpha = 0.45 - layer * 0.13;
+        ctx.fillStyle = `rgba(170, 215, 255, ${alpha})`;
+        ctx.fillRect(x + 2, y + s*0.22 + layer * s*0.22 + yOff, s - 4, 1.5);
+      }
+      // Foam highlights — pseudo-random sparkles
+      const sparkle = Math.sin(t * 1.6 + col * 1.7 + row * 1.3) * 0.5 + 0.5;
+      if (sparkle > 0.72) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(x + s*0.3 + (col % 3) * 3, y + s*0.42 + (row % 3) * 3, 2, 2);
+        ctx.fillRect(x + s*0.7 - (col % 2) * 3, y + s*0.6, 1.5, 1.5);
+      }
+      break; }
+    case T.FOUNTAIN_SPOUT: {
+      // Stone pedestal base
+      ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x+s*0.12, y+s*0.55, s*0.76, s*0.40);
+      ctx.fillStyle = '#888';    ctx.fillRect(x+s*0.12, y+s*0.55, s*0.76, s*0.06);
+      ctx.fillStyle = '#bbb';    ctx.fillRect(x+s*0.18, y+s*0.55, s*0.64, s*0.02);
+      ctx.fillStyle = '#444';    ctx.fillRect(x+s*0.12, y+s*0.92, s*0.76, s*0.05);
+      // Upper basin (smaller round bowl)
+      ctx.fillStyle = '#aaa'; ctx.fillRect(x+s*0.22, y+s*0.42, s*0.56, s*0.10);
+      ctx.fillStyle = '#888'; ctx.fillRect(x+s*0.22, y+s*0.50, s*0.56, s*0.04);
+      ctx.fillStyle = '#ccc'; ctx.fillRect(x+s*0.22, y+s*0.42, s*0.56, s*0.02);
+      // Spout neck
+      ctx.fillStyle = '#888'; ctx.fillRect(x+s*0.44, y+s*0.32, s*0.12, s*0.12);
+
+      // Water jet — vertical column with pulsing height
+      const t = Date.now() / 260;
+      const jet = Math.abs(Math.sin(t * 1.6)) * 0.35 + 0.55;   // 0.55–0.90
+      const jetH = s * jet;
+      // Soft glow around the jet
+      const glow = ctx.createRadialGradient(x+s/2, y+s*0.30-jetH*0.25, 1,
+                                            x+s/2, y+s*0.30-jetH*0.25, s*0.7);
+      glow.addColorStop(0, 'rgba(150,200,255,0.45)');
+      glow.addColorStop(1, 'rgba(150,200,255,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - s*0.3, y - jetH, s*1.6, jetH + s*0.5);
+      // Vertical core
+      ctx.fillStyle = 'rgba(140, 200, 255, 0.85)';
+      ctx.fillRect(x + s*0.45, y + s*0.30 - jetH, s*0.10, jetH);
+      // Brighter inner core
+      ctx.fillStyle = 'rgba(220, 240, 255, 0.95)';
+      ctx.fillRect(x + s*0.47, y + s*0.30 - jetH, s*0.06, jetH);
+      // Top burst — droplets arcing outward
+      for (let i = 0; i < 8; i++) {
+        const angle = -Math.PI/2 + (i / 7) * Math.PI - Math.PI/2;
+        const phase = (t * 2.2 + i * 0.7) % 1;
+        const r = phase * s * 0.55;
+        const dx = Math.cos(angle) * r;
+        const dy = -Math.abs(Math.sin(angle)) * r + (phase * phase) * s * 0.35;
+        const alpha = (1 - phase) * 0.9;
+        ctx.fillStyle = `rgba(180, 220, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(x + s/2 + dx, y + s*0.30 - jetH + dy, s*0.05, 0, Math.PI*2);
+        ctx.fill();
+      }
+      // Water trickle down the sides of the upper basin
+      const trick = Math.sin(t * 3) * 0.5 + 0.5;
+      ctx.fillStyle = `rgba(140, 200, 255, ${0.6 + trick * 0.3})`;
+      ctx.fillRect(x + s*0.24, y + s*0.50, s*0.03, s*0.08);
+      ctx.fillRect(x + s*0.74, y + s*0.50, s*0.03, s*0.08);
+      break; }
     case T.SHRINE:
       ctx.fillStyle = '#336633'; ctx.fillRect(x,y,s,s);
       ctx.fillStyle = '#55aa55'; ctx.fillRect(x+3,y+3,s-6,s-6);
@@ -262,6 +929,60 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fill();
       ctx.fillStyle = opened ? '#332211' : '#ffffff';
       ctx.fillRect(x+s/2-s*0.02, y+s/2-s*0.02, s*0.04, s*0.12);
+      break; }
+    case T.SAND: {
+      // Warm sand base with a few darker grain specks for texture.
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#b89456';
+      ctx.fillRect(x + ((col * 7 + row * 5) % 7), y + ((col * 3 + row * 11) % 7), 2, 2);
+      ctx.fillRect(x + s - 5 - ((col * 13) % 4), y + s - 4 - ((row * 7) % 4), 2, 2);
+      ctx.fillStyle = '#e6c890';
+      ctx.fillRect(x + s/2 - 1, y + s/2 - 1, 2, 2);
+      break; }
+    case T.DUNE: {
+      // Sand base with a soft curved highlight to suggest a dune crest.
+      ctx.fillStyle = '#c89858'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#e8c890';
+      ctx.beginPath();
+      ctx.arc(x + s/2, y + s*0.65, s*0.42, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = '#a87838';
+      ctx.fillRect(x + s*0.15, y + s*0.7, s*0.7, 2);
+      break; }
+    case T.OASIS_WATER: {
+      // Brighter turquoise pool with a small shimmer wave.
+      const w = Math.sin(Date.now()/500 + col*0.6 + row*0.4);
+      ctx.fillStyle = '#2a88cc'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#66bbee'; ctx.fillRect(x+2, y+s*0.3+w*2, s*0.45, 3);
+      ctx.fillStyle = '#aaddff'; ctx.fillRect(x+s*0.5, y+s*0.6-w*2, s*0.35, 2);
+      break; }
+    case T.CACTUS: {
+      // Sand backdrop so cacti read against a desert palette regardless of
+      // where they land. Trunk + two arms + dotted spines.
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#2d6a2d';
+      ctx.fillRect(x + s*0.42, y + s*0.18, s*0.16, s*0.74);
+      ctx.fillRect(x + s*0.18, y + s*0.45, s*0.20, s*0.10);
+      ctx.fillRect(x + s*0.18, y + s*0.30, s*0.06, s*0.20);
+      ctx.fillRect(x + s*0.62, y + s*0.55, s*0.20, s*0.10);
+      ctx.fillRect(x + s*0.76, y + s*0.40, s*0.06, s*0.20);
+      ctx.fillStyle = '#5aaa5a';
+      ctx.fillRect(x + s*0.46, y + s*0.22, s*0.04, s*0.66);
+      ctx.fillStyle = '#ffffaa';
+      ctx.fillRect(x + s*0.50, y + s*0.20, 2, 2);
+      ctx.fillRect(x + s*0.50, y + s*0.85, 2, 2);
+      break; }
+    case T.BONES: {
+      // Sand backdrop + a small bleached skull-and-rib silhouette.
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#f0e8c8';
+      ctx.beginPath(); ctx.arc(x + s*0.35, y + s*0.45, s*0.16, 0, Math.PI*2); ctx.fill();
+      ctx.fillRect(x + s*0.48, y + s*0.50, s*0.40, 2);
+      ctx.fillRect(x + s*0.48, y + s*0.62, s*0.30, 2);
+      ctx.fillRect(x + s*0.48, y + s*0.74, s*0.22, 2);
+      ctx.fillStyle = '#5a4a30';
+      ctx.fillRect(x + s*0.30, y + s*0.42, 2, 2);
+      ctx.fillRect(x + s*0.38, y + s*0.42, 2, 2);
       break; }
   }
 }
@@ -1139,6 +1860,62 @@ function drawEnemy(e, ts) {
       ctx.beginPath(); ctx.arc(px + s*0.10, orbY, s*0.04, 0, Math.PI*2); ctx.fill();
       break;
     }
+    case 'mummy_lord': {
+      // Amber boss aura
+      if (e.boss) {
+        const auraR = s*0.65 + Math.sin(Date.now()/220) * s*0.04;
+        const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, auraR);
+        aura.addColorStop(0, 'rgba(230, 180, 60, 0.45)');
+        aura.addColorStop(1, 'rgba(230, 180, 60, 0)');
+        ctx.fillStyle = aura;
+        ctx.fillRect(cx - auraR, cy - auraR, auraR*2, auraR*2);
+      }
+      // Bandaged body
+      ctx.fillStyle = e.color;
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.26, py + s*0.32);
+      ctx.lineTo(px + s*0.74, py + s*0.32);
+      ctx.lineTo(px + s*0.70, py + s*0.92);
+      ctx.lineTo(px + s*0.30, py + s*0.92);
+      ctx.closePath(); ctx.fill();
+      // Bandage wrap lines (sway slightly so it reads as cloth)
+      ctx.strokeStyle = 'rgba(120,90,40,0.55)';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 5; i++) {
+        const wy = py + s*(0.40 + i*0.11) + Math.sin(Date.now()/300 + phase + i) * s*0.01;
+        ctx.beginPath();
+        ctx.moveTo(px + s*0.28, wy);
+        ctx.lineTo(px + s*0.72, wy + s*0.03);
+        ctx.stroke();
+      }
+      // Crossed arm bandages
+      ctx.strokeStyle = 'rgba(120,90,40,0.7)';
+      ctx.beginPath(); ctx.moveTo(px + s*0.30, py + s*0.44); ctx.lineTo(px + s*0.70, py + s*0.62); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px + s*0.70, py + s*0.44); ctx.lineTo(px + s*0.30, py + s*0.62); ctx.stroke();
+      // Head (wrapped, with an exposed face slit)
+      ctx.fillStyle = '#e8d8a8';
+      ctx.beginPath(); ctx.arc(cx, py + s*0.24, s*0.22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(120,90,40,0.5)';
+      ctx.fillRect(px + s*0.30, py + s*0.16, s*0.40, s*0.02);
+      ctx.fillRect(px + s*0.30, py + s*0.30, s*0.40, s*0.02);
+      // Pharaoh nemes headdress — gold band with blue stripes
+      ctx.fillStyle = '#ffcc33';
+      ctx.fillRect(px + s*0.26, py + s*0.06, s*0.48, s*0.07);
+      ctx.fillStyle = '#2a6ac0';
+      for (let i = 0; i < 4; i++) ctx.fillRect(px + s*0.29 + i*s*0.12, py + s*0.06, s*0.04, s*0.07);
+      // Lappets framing the face
+      ctx.fillStyle = '#ffcc33';
+      ctx.fillRect(px + s*0.22, py + s*0.12, s*0.06, s*0.26);
+      ctx.fillRect(px + s*0.72, py + s*0.12, s*0.06, s*0.26);
+      // Glowing eyes
+      ctx.fillStyle = `rgba(120,220,200,${0.7 + flap * 0.3})`;
+      ctx.fillRect(px + s*0.38, py + s*0.22, s*0.08, s*0.05);
+      ctx.fillRect(px + s*0.54, py + s*0.22, s*0.08, s*0.05);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(px + s*0.40, py + s*0.23, s*0.03, s*0.03);
+      ctx.fillRect(px + s*0.56, py + s*0.23, s*0.03, s*0.03);
+      break;
+    }
     default: {
       // Generic fallback: a stylized blob with eyes
       ctx.fillStyle = e.color;
@@ -1371,6 +2148,14 @@ function drawMinimap() {
   ctx.fillText('▲', mx+Math.floor(EXIT_COL*scale),      my+6);
   ctx.fillText('▼', mx+Math.floor(EXIT_COL*scale),      my+mh-1);
 
+  // Villager dots — only meaningful in an active village
+  if (typeof villagers !== 'undefined') {
+    ctx.fillStyle = '#88ddff';
+    villagers.forEach(v => {
+      ctx.fillRect(mx + Math.floor(v.x * scale), my + Math.floor(v.y * scale), 2, 2);
+    });
+  }
+
   // Active-village shop markers (I = inn, $ = store) — always on top of fog
   const cm = currentMap();
   if (cm && cm.activated) {
@@ -1443,6 +2228,11 @@ function render() {
   enemies.filter(e => !e.dead).forEach(e => {
     if (!isFoggy(mapObj, e.x, e.y)) drawEnemy(e, ts);
   });
+  if (typeof villagers !== 'undefined') {
+    villagers.forEach(v => {
+      if (!isFoggy(mapObj, v.x, v.y)) drawVillager(v, ts);
+    });
+  }
   drawPlayer(ts);
 
   // Particles
@@ -1472,18 +2262,6 @@ function render() {
     ctx.fillText(d.val, sp.x, y);
   });
   ctx.textAlign = 'left';
-  ctx.restore();
-
-  // Exit arrows on screen edges (always visible)
-  ctx.save();
-  const arrowSz = Math.round(ts * 0.8);
-  ctx.fillStyle = 'rgba(255,255,0,0.7)';
-  ctx.font = `${arrowSz}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText('▶', PW - arrowSz*0.7, PH/2 + arrowSz*0.35);
-  ctx.fillText('◀', arrowSz*0.7,       PH/2 + arrowSz*0.35);
-  ctx.fillText('▲', PW/2,               arrowSz*0.9);
-  ctx.fillText('▼', PW/2,               PH - arrowSz*0.1);
   ctx.restore();
 
   if (showMinimap) drawMinimap();

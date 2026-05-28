@@ -105,6 +105,18 @@ function doSwordSwing() {
       if (e.hp <= 0) killEnemy(e);
     }
   });
+
+  // Cut down soft foliage in the swing. Flowers and mushrooms have 1 HP, so a
+  // single swing clears them back to grass. Same 3x3 zone as the enemy hit.
+  const map = mapData();
+  const ctc = Math.round(tx), ctr = Math.round(ty);
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    const tr = ctr + dr, tc = ctc + dc;
+    if (tr > 0 && tr < MROWS - 1 && tc > 0 && tc < MCOLS - 1 &&
+        (map[tr][tc] === T.FLOWER || map[tr][tc] === T.MUSHROOM)) {
+      map[tr][tc] = T.GRASS;
+    }
+  }
 }
 
 // ─── Enemy AI step ────────────────────────────────────────────────────────────

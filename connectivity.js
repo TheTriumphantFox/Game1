@@ -5,8 +5,9 @@
 //   2. Seal remaining unreachable passable tiles as TREE so the player isn't
 //      teased by visible but unreachable terrain.
 
-function ensureConnectivity(m, preserveFloor) {
+function ensureConnectivity(m, preserveFloor, sealTile) {
   const W = MCOLS, H = MROWS;
+  const seal = sealTile === undefined ? T.TREE : sealTile;
   const reachable = new Uint8Array(W * H);
   const stack = [];
 
@@ -17,7 +18,8 @@ function ensureConnectivity(m, preserveFloor) {
     if (c < 0 || r < 0 || c >= W || r >= H) return false;
     const t = m[r][c];
     return !(t === T.TREE || t === T.WATER || t === T.WALL || t === T.ROCK ||
-             t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE);
+             t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
+             t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT);
   };
 
   // Tiles we must keep reachable even if it means carving a path to them.
@@ -97,7 +99,7 @@ function ensureConnectivity(m, preserveFloor) {
       if (reachable[r * W + c]) continue;
       if (!passable(c, r)) continue;
       if (isInteresting(m[r][c])) continue;  // can't connect, but at least don't seal
-      m[r][c] = T.TREE;
+      m[r][c] = seal;
     }
   }
 }

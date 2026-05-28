@@ -20,6 +20,7 @@ const DND_ENEMIES = {
   pixie:     { name: 'Pixie Swarm',     hp: 7,   spd: 400,  dmg: 1,  xp: 50,    color: '#88aaff', size: 0.5,  ranged: true, cr: '1/4' },
   displacer: { name: 'Displacer Beast', hp: 85,  spd: 500,  dmg: 7,  xp: 1800,  color: '#554488', size: 1.1,  cr: 3 },
   lich_boss: { name: 'FOREST LICH',     hp: 350, spd: 600,  dmg: 14, xp: 33000, color: '#6600cc', size: 1.5,  ranged: true, boss: true, cr: 'Boss' },
+  mummy_lord: { name: 'MUMMY LORD',     hp: 420, spd: 650,  dmg: 16, xp: 41000, color: '#c89858', size: 1.5,  ranged: true, boss: true, cr: 'Boss' },
 };
 
 // Difficulty curve — picks from progressively harder pools as the player
@@ -44,11 +45,17 @@ function getEnemyPool(depth) {
 // connectivity enforcement (see connectivity.js), any non-solid tile is also
 // reachable from a map exit, so this guarantees no orphaned spawns.
 function makeEnemyDefs(depth, mapType, map) {
-  const pool = getEnemyPool(depth);
-  // Forest maps spawn a flat 20 enemies regardless of depth. The village
-  // keeps its arena-balanced size (depth-based + boss).
+  // Forest = tier 1, desert = tier 2 (the region after the forest village).
+  // Both villages mark every spawn as "tier 1.5" — 2x stats and bigger — and
+  // add a boss: Forest Lich for the forest village, Mummy Lord for the desert.
+  const isVillage = mapType === 'village' || mapType === 'desert_village';
+  const isDesertBiome = mapType === 'desert' || mapType === 'desert_village';
+  const pool = isDesertBiome ? ENEMY_POOLS[2] : ENEMY_POOLS[1];
+  const tier15 = isVillage;
+  // Forest and desert overworld maps spawn a flat 20 enemies regardless of
+  // depth. Villages keep an arena-balanced size (depth-based + boss).
   const baseCount = 4 + Math.floor(depth / 2);
-  const count = mapType === 'village' ? baseCount : 20;
+  const count = isVillage ? baseCount : 20;
   const defs = [];
   const spread = 20;        // keep enemies away from map edges
   const MAX_TRIES = 60;     // search budget per spawn
@@ -60,7 +67,7 @@ function makeEnemyDefs(depth, mapType, map) {
       const x = rnd(spread, MCOLS - spread);
       const y = rnd(spread, MROWS - spread);
       if (!map || !isSolid(map, x, y)) {
-        defs.push({ type, x, y });
+        defs.push(tier15 ? { type, x, y, tier15: true } : { type, x, y });
         placed = true;
         break;
       }
@@ -71,7 +78,7 @@ function makeEnemyDefs(depth, mapType, map) {
     if (!placed) continue;
   }
 
-  if (mapType === 'village') {
+  if (isVillage) {
     let bx = Math.floor(MCOLS / 2), by = Math.floor(MROWS / 2) - 10;
     if (map && isSolid(map, bx, by)) {
       // Spiral outward for a passable tile near the intended boss arena.
@@ -87,7 +94,7 @@ function makeEnemyDefs(depth, mapType, map) {
         }
       }
     }
-    defs.push({ type: 'lich_boss', x: bx, y: by });
+    defs.push({ type: mapType === 'desert_village' ? 'mummy_lord' : 'lich_boss', x: bx, y: by });
   }
   return defs;
 }
@@ -115,13 +122,21 @@ function spawnEnemiesForMap(mid) {
     // First visit — instantiate fresh from defs
     enemies = rm.enemyDefs.map((def, i) => {
       const base = DND_ENEMIES[def.type] || DND_ENEMIES.goblin;
+      // Village "tier 1.5": double HP/damage/XP and grow 1.5x.
+      const hpMul  = def.tier15 ? 2   : 1;
+      const dmgMul = def.tier15 ? 2   : 1;
+      const xpMul  = def.tier15 ? 2   : 1;
+      const sizeMul = def.tier15 ? 1.5 : 1;
+      const hp = base.hp * hpMul;
       return {
         id: i, type: def.type, x: def.x, y: def.y,
-        hp: base.hp, maxHp: base.hp,
-        spd: base.spd, dmg: base.dmg, xp: base.xp,
-        color: base.color, size: base.size || 1,
-        name: base.name, ranged: base.ranged || false,
+        hp, maxHp: hp,
+        spd: base.spd, dmg: base.dmg * dmgMul, xp: base.xp * xpMul,
+        color: base.color, size: (base.size || 1) * sizeMul,
+        name: def.tier15 ? `Greater ${base.name}` : base.name,
+        ranged: base.ranged || false,
         boss: base.boss || false,
+        tier15: !!def.tier15,
         timer: Math.random() * base.spd,
         dead: false,
         shootTimer: Math.random() * 1500 + 500

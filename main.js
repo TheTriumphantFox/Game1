@@ -33,11 +33,16 @@ function update(dt) {
   const actX = keys['x'] || keys['X'];
   const actC = keys['c'] || keys['C'];
 
-  if (actZ && attackCooldown <= 0) {
+  // Weapons are sheathed inside an active village — the boss is dead, the
+  // shops are open, no swinging swords or chucking bombs in town.
+  const cm = currentMap();
+  const weaponsLocked = cm && cm.type === 'village' && cm.activated;
+
+  if (actZ && attackCooldown <= 0 && !weaponsLocked) {
     attackCooldown = 280;
     doSwordSwing();
   }
-  if (actX && bowCooldown <= 0) {
+  if (actX && bowCooldown <= 0 && !weaponsLocked) {
     bowCooldown = 350;
     player.weapon = 'bow';
     firePlayerArrow();
@@ -45,7 +50,7 @@ function update(dt) {
   // 'C' uses whichever item is currently selected in the inventory ring of the
   // radial menu (defaults to Bomb). useSelectedInventoryItem returns the
   // cooldown to apply so hold-to-spam respects per-item rate limits.
-  if (actC && bombCooldown <= 0) {
+  if (actC && bombCooldown <= 0 && !weaponsLocked) {
     bombCooldown = useSelectedInventoryItem();
   }
 
@@ -54,6 +59,7 @@ function update(dt) {
   stepEnemyRanged(dt);
   stepProjectiles(dt, map);
   stepEnemies(dt, map);
+  stepVillagers(dt, map);
   stepDrops(dt);
   stepParticles(dt);
   tickCamera(dt);   // smooth scroll toward target each frame
@@ -100,6 +106,19 @@ document.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight') { e.preventDefault(); radialNavItem( 1); return; }
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); radialActivateSelected(); return; }
     return;
+  }
+  // Space-bar inside an active village talks to the nearest villager
+  // instead of swinging. Weapons are sheathed in town anyway, so the only
+  // thing space could fire here would be a no-op.
+  if (e.key === ' ' && !e.repeat) {
+    const cm2 = currentMap();
+    if (cm2 && cm2.type === 'village' && cm2.activated &&
+        typeof tryVillagerInteraction === 'function') {
+      if (tryVillagerInteraction()) {
+        e.preventDefault();
+        return;
+      }
+    }
   }
   setKey(e.key, true);
   if (e.key === 'Tab') { e.preventDefault(); if (!e.repeat) showMinimap = !showMinimap; }
@@ -158,6 +177,7 @@ requestAnimationFrame(() => {
   initWorld();
   revealAround(currentMap(), player.x, player.y, 12);
   spawnEnemiesForMap(0);
+  spawnVillagersForMap(0);
   clampCam(true);
   updateHUD();
   showMsg('🌲 You awaken in the Enchanted Forest… find the village after 20 maps!', 4000);

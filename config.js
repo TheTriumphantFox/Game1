@@ -24,7 +24,10 @@ const T = {
   DEEP_WATER:12, LAVA:13, BRIDGE:14, PILLAR:15, TORCH:16, STATUE:17,
   SHRINE:18, MUSHROOM:19, FERN:20,
   CAVE_ENTRANCE:21, CAVE_EXIT:22, LARGE_CHEST:23, CAVE_FLOOR:24,
-  INN_DOOR:25, STORE_DOOR:26
+  INN_DOOR:25, STORE_DOOR:26,
+  FOUNTAIN_WATER:27, FOUNTAIN_SPOUT:28, MARBLE:29, COBBLESTONE:30,
+  BED:31, TABLE:32, CHAIR:33, FIREPLACE:34,
+  CACTUS:35, DUNE:36, OASIS_WATER:37, BONES:38
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -39,6 +42,10 @@ const TILE_COLORS = {
   [T.CAVE_ENTRANCE]: '#0a0a0a', [T.CAVE_EXIT]: '#332266',
   [T.LARGE_CHEST]: '#cc8800', [T.CAVE_FLOOR]: '#3a2a1a',
   [T.INN_DOOR]: '#aa3322', [T.STORE_DOOR]: '#33aa55',
+  [T.FOUNTAIN_WATER]: '#3366cc', [T.FOUNTAIN_SPOUT]: '#888888',
+  [T.MARBLE]: '#e8e4d8', [T.COBBLESTONE]: '#7a7a78',
+  [T.BED]: '#8a4480', [T.TABLE]: '#6a3a18', [T.CHAIR]: '#5a2a10', [T.FIREPLACE]: '#3a3a3a',
+  [T.CACTUS]: '#3a7a3a', [T.DUNE]: '#c89858', [T.OASIS_WATER]: '#2a88cc', [T.BONES]: '#e8e0c0',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.

@@ -25,14 +25,16 @@ function buildSaveData() {
     player,
     currentMapId,
     mapsVisited,
+    desertsVisited,
     mapSequence,
     worldGrid,
     worldMapsLite: worldMaps.map(m => ({
       id: m.id, gx: m.gx, gy: m.gy,
-      name: m.name, type: m.type, depth: m.depth,
+      name: m.name, type: m.type, biome: m.biome, depth: m.depth,
       openedChests: Array.from(m.openedChests),
       visited: m.visited,
       savedEnemies: m.savedEnemies || null,
+      savedVillagers: m.savedVillagers || null,
       fog: m.fog ? Array.from(m.fog) : null,
       mapTiles: m.visited ? encodeMap(m.map) : null,
       // Cave linkage — only set for caves and source maps that opened one.
@@ -77,6 +79,7 @@ function applyLoadData(data) {
   player.renderY = player.y;
   currentMapId = data.currentMapId;
   mapsVisited = data.mapsVisited || 0;
+  desertsVisited = data.desertsVisited || 0;
   mapSequence = data.mapSequence || [];
   worldGrid = data.worldGrid || {};
 
@@ -85,21 +88,28 @@ function applyLoadData(data) {
   transitionCooldown = 0; moveTimer = 0;
   player.invincible = 0; player.swordTimer = 0;
   enemies = []; projectiles = []; particles = []; damageNumbers = []; drops = [];
+  villagers = [];
   minimapCanvases = {}; minimapDirty = true;
 
   worldMaps = data.worldMapsLite.map(lite => {
     const md = lite.mapTiles
       ? decodeMap(lite.mapTiles)
-      : lite.type === 'village' ? buildVillageMap()
+      : lite.type === 'village' ? buildVillageMap(lite.biome === 'desert' ? 'desert' : 'forest')
       : lite.type === 'cave'    ? buildCaveMap()
+      : lite.type === 'desert'  ? buildDesertMap(lite.id, lite.depth)
       :                            buildForestMap(lite.id, lite.depth);
+    // The desert village shares type 'village' but needs the Mummy Lord + tier-2
+    // spawns, so derive a distinct discriminator for makeEnemyDefs.
+    const enemyType = (lite.type === 'village' && lite.biome === 'desert')
+      ? 'desert_village' : lite.type;
     const obj = {
       id: lite.id, gx: lite.gx || 0, gy: lite.gy || 0,
-      name: lite.name, type: lite.type, depth: lite.depth,
-      map: md, enemyDefs: makeEnemyDefs(lite.depth, lite.type, md),
+      name: lite.name, type: lite.type, biome: lite.biome, depth: lite.depth,
+      map: md, enemyDefs: makeEnemyDefs(lite.depth, enemyType, md),
       openedChests: new Set(lite.openedChests),
       visited: lite.visited,
-      savedEnemies: lite.savedEnemies || null
+      savedEnemies: lite.savedEnemies || null,
+      savedVillagers: lite.savedVillagers || null
     };
     if (lite.fog) obj.fog = new Uint8Array(lite.fog);
     if (lite.returnMapId != null) {
@@ -121,6 +131,7 @@ function applyLoadData(data) {
   }
 
   spawnEnemiesForMap(currentMapId);
+  spawnVillagersForMap(currentMapId);
   clampCam(true);
   revealAround(currentMap(), player.x, player.y, 12);
   updateHUD();
@@ -152,7 +163,7 @@ function renderSlotList() {
 
       const metaSpan = document.createElement('div');
       metaSpan.className = 'save-slot-meta';
-      metaSpan.textContent = `Lv${meta.level} · Map ${meta.mapsVisited}/21 · ${meta.date}`;
+      metaSpan.textContent = `Lv${meta.level} · Map ${meta.mapsVisited}/42 · ${meta.date}`;
 
       const btns = document.createElement('div');
       btns.className = 'save-slot-btns';
@@ -295,11 +306,13 @@ function newGame() {
   attackCooldown = 0; bowCooldown = 0; bombCooldown = 0;
   transitionCooldown = 0; moveTimer = 0;
   enemies = []; projectiles = []; particles = []; damageNumbers = [];
+  villagers = [];
   minimapCanvases = {}; minimapDirty = true;
 
   initWorld();
   revealAround(currentMap(), player.x, player.y, 12);
   spawnEnemiesForMap(0);
+  spawnVillagersForMap(0);
   clampCam(true);
   updateHUD();
   document.getElementById('save-status').textContent = '';
