@@ -174,6 +174,9 @@ function loop(ts) {
 // Defer first resize so the bottom bars have measurable offsetHeight values.
 requestAnimationFrame(() => {
   resizeCanvas();
+  // Fill in starting inventory pieces that needed SWORD_ELEMENTS (loaded after
+  // player.js). Idempotent on reload — newGame / applyLoadData re-seed too.
+  applyStartingInventory(player);
   initWorld();
   revealAround(currentMap(), player.x, player.y, 12);
   spawnEnemiesForMap(0);

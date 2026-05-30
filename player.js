@@ -1,5 +1,39 @@
 // ─── Player state and movement ────────────────────────────────────────────────
 
+// Inventory cap shared by every stackable item (rupees, potions, herbals,
+// trophies, and each entry in player.arrows). Starting amount given to a fresh
+// player for every item (and every elemental arrow / sword). Stats like
+// maxHp / swordLevel / bowLevel / armor are progression — not items — and are
+// intentionally not capped here.
+const ITEM_CAP = 128;
+const STARTING_ITEM_AMOUNT = 64;
+
+// Cap-respecting increment for a scalar inventory key. Returns the amount
+// actually added (may be less than `n` when the cap clamps).
+function addItem(key, n) {
+  const before = player[key] || 0;
+  player[key] = Math.min(ITEM_CAP, before + n);
+  return player[key] - before;
+}
+
+// Cap-respecting increment for elemental arrow counts.
+function addArrow(elemId, n) {
+  player.arrows = player.arrows || {};
+  const before = player.arrows[elemId] || 0;
+  player.arrows[elemId] = Math.min(ITEM_CAP, before + n);
+  return player.arrows[elemId] - before;
+}
+
+// Fill in starting inventory that depends on SWORD_ELEMENTS (which loads after
+// player.js). Called from boot and newGame once every script has loaded.
+function applyStartingInventory(p) {
+  if (typeof SWORD_ELEMENTS === 'undefined') return;
+  const ids = Object.keys(SWORD_ELEMENTS);
+  p.swordElements = ids.slice();   // grant every elemental sword
+  p.arrows = { plain: STARTING_ITEM_AMOUNT };
+  for (const id of ids) p.arrows[id] = STARTING_ITEM_AMOUNT;
+}
+
 let player = {
   x: EXIT_COL, y: EXIT_ROW,
   // Smoothed sub-tile position used for rendering only. Game logic still
@@ -7,12 +41,16 @@ let player = {
   // same rate as the camera so the player stays visually centered.
   renderX: EXIT_COL, renderY: EXIT_ROW,
   hp: 8, maxHp: 8,
-  rupees: 0, level: 1, xp: 0, xpNext: 500,
+  rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
-  potions: 0,
+  potions: STARTING_ITEM_AMOUNT,
+  herbals: STARTING_ITEM_AMOUNT,
+  // Trophy / crafting collectibles dropped by specific enemies.
+  fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
+  bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
   // The collection of elemental swords the player owns (each id from
   // SWORD_ELEMENTS in elements.js). Elemental swords are now specific weapons
   // — they don't stack on the base sword. Only one is wielded at a time.
@@ -127,13 +165,55 @@ function respawn() {
   showMsg('💀 Defeated! Returned to start (-10 rupees)', 3000);
 }
 
+// ─── Per-enemy-type loot table ────────────────────────────────────────────────
+// Each kill rolls its drops independently after the universal HP-heart roll.
+// "arrows" drops carry an `element` id; the element is chosen at kill time so
+// the player sees the icon/colour on the ground sprite.
+function randomElementId() {
+  if (typeof SWORD_ELEMENTS === 'undefined') return null;
+  const ids = Object.keys(SWORD_ELEMENTS);
+  return ids.length ? ids[Math.floor(Math.random() * ids.length)] : null;
+}
+function rollEnemyTypeDrops(e) {
+  const rx = Math.round(e.x), ry = Math.round(e.y);
+  const drop = (extra) =>
+    drops.push({ x: rx, y: ry, life: 10000, bob: 0, collected: false, ...extra });
+  // All arrow drops are 5-packs. Plain bundles leave `element` null; elemental
+  // bundles pick a random element at kill time so the ground sprite shows it.
+  const dropPlainArrows    = () => drop({ type: 'arrows', val: 5, element: null });
+  const dropElementalArrows = () => {
+    const el = randomElementId();
+    if (el) drop({ type: 'arrows', val: 5, element: el });
+  };
+  switch (e.type) {
+    case 'wolf':
+      if (Math.random() < 0.50) drop({ type: 'fang',   val: 1 });
+      break;
+    case 'goblin':
+      if (Math.random() < 0.20) drop({ type: 'finger', val: 1 });
+      break;
+    case 'skeleton':
+      if (Math.random() < 0.20) drop({ type: 'bone',   val: 1 });
+      if (Math.random() < 0.50) dropPlainArrows();
+      break;
+    case 'dryad':
+      if (Math.random() < 0.10) drop({ type: 'potion', val: 1 });
+      break;
+    case 'pixie':
+      if (Math.random() < 0.05) drop({ type: 'wing',   val: 1 });
+      if (Math.random() < 0.50) dropPlainArrows();
+      if (Math.random() < 0.03) dropElementalArrows();
+      break;
+  }
+}
+
 // ─── Kill enemy ───────────────────────────────────────────────────────────────
 function killEnemy(e) {
   e.dead = true;
   const sp = screenPX(e.x, e.y);
   spawnParticle(sp.x, sp.y, e.color, 14, 5);
   spawnParticle(sp.x, sp.y, '#ffcc00', 6, 3);
-  player.rupees += Math.floor(e.maxHp * 0.1) + 1;
+  addItem('rupees', Math.floor(e.maxHp * 0.1) + 1);
   gainXP(e.xp);
   // 40% chance to drop an HP heart (1d4)
   if (Math.random() < 0.40) {
@@ -144,6 +224,7 @@ function killEnemy(e) {
       life: 10000, bob: 0, collected: false
     });
   }
+  rollEnemyTypeDrops(e);
   if (e.boss) {
     player.defeatedBoss = true;
     // Boss drops: +6 max HP (permanent, fully heals) and one random elemental
@@ -261,7 +342,7 @@ function handlePickup(bnx, bny, map) {
     const roll = Math.random();
     let reward;
     if (roll < 0.3) {
-      player.rupees += 10 + Math.floor(Math.random() * 25);
+      addItem('rupees', 10 + Math.floor(Math.random() * 25));
       reward = '💎 Found Rupees!';
     } else if (roll < 0.55) {
       player.hp = player.maxHp;
@@ -273,7 +354,7 @@ function handlePickup(bnx, bny, map) {
       gainXP(300);
       reward = '📜 Ancient Scroll! +300 XP';
     } else {
-      player.potions++;
+      addItem('potions', 1);
       reward = `🧪 Health Potion! (now carrying ${player.potions}) — press P to drink`;
     }
     showMsg(reward, 3000);

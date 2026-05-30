@@ -28,6 +28,19 @@ const radialMouse = { x: 0, y: 0 };
 // All rings share the same radius so swapping rings doesn't visibly resize.
 const RADIAL_RADIUS = 150;
 
+// Passive drop items (rupees, herbals, monster trophies). They have no action —
+// they're displayed for at-a-glance inventory tracking. Kept in one table so
+// the inventory ring stays a single source of truth for "everything the player
+// can pick up off the ground."
+const PASSIVE_DROPS = [
+  { type: 'rupees',  icon: '💎', label: 'Rupees',  key: 'rupees'  },
+  { type: 'herbals', icon: '🌿', label: 'Herbal',  key: 'herbals' },
+  { type: 'fangs',   icon: '🦷', label: 'Fang',    key: 'fangs'   },
+  { type: 'fingers', icon: '🫳', label: 'Finger',  key: 'fingers' },
+  { type: 'bones',   icon: '🦴', label: 'Bone',    key: 'bones'   },
+  { type: 'wings',   icon: '🪶', label: 'Wing',    key: 'wings'   },
+];
+
 const RADIAL_RINGS = [
   { name: 'inventory', radius: RADIAL_RADIUS, getItems: () => {
       const items = [];
@@ -42,6 +55,15 @@ const RADIAL_RINGS = [
         val: () => '∞',
         dmg: () => String(7 + (player.swordLevel || 1)),
         action: () => { player.weapon = 'bomb'; placePlayerBomb(); } });
+      // Every other drop type the player can collect — shown whenever stock > 0
+      // so the ring reflects the actual inventory without empty placeholders.
+      for (const d of PASSIVE_DROPS) {
+        const n = player[d.key] || 0;
+        if (n <= 0) continue;
+        items.push({ type: d.type, icon: d.icon, label: d.label,
+          val: () => 'x' + (player[d.key] || 0),
+          action: null });
+      }
       return items;
     }},
   { name: 'armor', radius: RADIAL_RADIUS, getItems: () => {
@@ -77,7 +99,8 @@ const RADIAL_RINGS = [
       }
       return items;
     }},
-  // Ranged — base bow + one slot per elemental arrow type currently in stock.
+  // Ranged — base bow + plain-arrow stock + one slot per elemental arrow type
+  // currently in stock.
   { name: 'arrows', radius: RADIAL_RADIUS, getItems: () => {
       const bowDmg = (player.bowLevel || 1) * 2 + 1;
       const items = [
@@ -88,7 +111,17 @@ const RADIAL_RINGS = [
           isActive: () => player.weapon === 'bow' && !player.activeArrowElement }
       ];
       const arrows = player.arrows || {};
+      // Plain arrows are a real drop now — surface their count so the player
+      // can see when they're about to run dry.
+      if ((arrows.plain || 0) > 0) {
+        items.push({ type: 'bow_plain', icon: '➳', label: 'Plain Arrow',
+          val: () => 'x' + (player.arrows.plain || 0),
+          dmg: () => String(bowDmg),
+          action: () => { player.weapon = 'bow'; player.activeArrowElement = null; },
+          isActive: () => player.weapon === 'bow' && !player.activeArrowElement });
+      }
       for (const id of Object.keys(arrows)) {
+        if (id === 'plain') continue;
         const count = arrows[id] || 0;
         if (count <= 0) continue;
         const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[id] : null;

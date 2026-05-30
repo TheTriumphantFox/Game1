@@ -33,12 +33,26 @@ function updateHUD() {
   document.getElementById('roomName').textContent = currentMap().name;
   document.getElementById('mapcount').textContent = `${mapsVisited}`;
   document.getElementById('potions').textContent = player.potions || 0;
+  document.getElementById('herbals').textContent = player.herbals || 0;
 
   // Active weapon highlight (sword / bow)
   ['sword', 'bow'].forEach(w => {
     document.getElementById('ws-' + w).className =
       'weapon-slot' + (player.weapon === w ? ' weapon-active' : '');
   });
+  // The sword slot label changes to reflect the currently wielded elemental
+  // sword (or the plain "Sword" when none is equipped). Mirrors the bow label
+  // logic below.
+  const swordSlot = document.getElementById('ws-sword');
+  if (swordSlot) {
+    const se = player.activeSwordElement;
+    if (se && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[se]) {
+      const elem = SWORD_ELEMENTS[se];
+      swordSlot.textContent = `⚔️${elem.icon} ${elem.label} Sword [Z]`;
+    } else {
+      swordSlot.textContent = '⚔️ Sword [Z]';
+    }
+  }
   // The bow slot label changes to reflect the currently nocked elemental
   // arrow (or "Bow" when none is selected / out of arrows).
   const bowSlot = document.getElementById('ws-bow');

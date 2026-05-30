@@ -52,6 +52,10 @@ function makeEnemyDefs(depth, mapType, map) {
   const isDesertBiome = mapType === 'desert' || mapType === 'desert_village';
   const pool = isDesertBiome ? ENEMY_POOLS[2] : ENEMY_POOLS[1];
   const tier15 = isVillage;
+  // Forest map enemies are vulnerable to necrotic damage (handled at hit
+  // time in doSwordSwing). Doesn't apply to the forest village or the
+  // desert biome.
+  const necroticVuln = mapType === 'forest';
   // Forest and desert overworld maps spawn a flat 20 enemies regardless of
   // depth. Villages keep an arena-balanced size (depth-based + boss).
   const baseCount = 4 + Math.floor(depth / 2);
@@ -67,7 +71,10 @@ function makeEnemyDefs(depth, mapType, map) {
       const x = rnd(spread, MCOLS - spread);
       const y = rnd(spread, MROWS - spread);
       if (!map || !isSolid(map, x, y)) {
-        defs.push(tier15 ? { type, x, y, tier15: true } : { type, x, y });
+        const def = { type, x, y };
+        if (tier15) def.tier15 = true;
+        if (necroticVuln) def.necroticVuln = true;
+        defs.push(def);
         placed = true;
         break;
       }
@@ -137,6 +144,7 @@ function spawnEnemiesForMap(mid) {
         ranged: base.ranged || false,
         boss: base.boss || false,
         tier15: !!def.tier15,
+        necroticVuln: !!def.necroticVuln,
         timer: Math.random() * base.spd,
         dead: false,
         shootTimer: Math.random() * 1500 + 500

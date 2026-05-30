@@ -132,6 +132,14 @@ function createSealedNeighbor(sourceId, direction) {
   const enemyDefs = makeEnemyDefs(depth, region, mapTiles);
   const namePool = isDesert ? DESERT_NAMES : FOREST_NAMES;
   const name = namePool[Math.floor(Math.random() * namePool.length)] + ' (Dead End)';
+  // 1-exit dead-ends reward the detour with a Hero's Cache. The map builder
+  // already placed a regular CHEST in a clearing and connectivity guarantees
+  // it's reachable from the single exit — just upgrade that tile in place.
+  for (let r = 0; r < MROWS; r++) {
+    for (let c = 0; c < MCOLS; c++) {
+      if (mapTiles[r][c] === T.CHEST) { mapTiles[r][c] = T.LARGE_CHEST; }
+    }
+  }
   worldMaps.push({
     id: newId, gx: ngx, gy: ngy, name, type: region, depth,
     map: mapTiles, enemyDefs, openedChests: new Set(),

@@ -166,10 +166,10 @@ function buyElementalArrows(id) {
   if (!SWORD_ELEMENTS[id]) return;
   if (player.rupees < ARROW_PACK_COST) return;
   player.rupees -= ARROW_PACK_COST;
-  player.arrows = player.arrows || {};
-  player.arrows[id] = (player.arrows[id] || 0) + ARROW_PACK_SIZE;
+  const gained = addArrow(id, ARROW_PACK_SIZE);
   const elem = SWORD_ELEMENTS[id];
-  showMsg(`🛒 Bought ${ARROW_PACK_SIZE} ${elem.icon} ${elem.label} Arrows (x${player.arrows[id]} total)`, 3000);
+  const tail = gained < ARROW_PACK_SIZE ? ` — quiver capped at ${ITEM_CAP}` : '';
+  showMsg(`🛒 Bought ${gained} ${elem.icon} ${elem.label} Arrows (x${player.arrows[id]} total)${tail}`, 3000);
   renderStoreContents();
   updateHUD();
 }
@@ -179,7 +179,7 @@ function sellElementalArrow(id) {
   player.arrows = player.arrows || {};
   if ((player.arrows[id] || 0) <= 0) return;
   player.arrows[id]--;
-  player.rupees += ARROW_SELL_VALUE;
+  addItem('rupees', ARROW_SELL_VALUE);
   if (player.arrows[id] <= 0 && player.activeArrowElement === id) {
     player.activeArrowElement = null;
   }
@@ -199,7 +199,7 @@ function sellElementalSword(id) {
   player.swordElements = owned;
   // If the player was wielding this sword, fall back to the base sword
   if (player.activeSwordElement === id) player.activeSwordElement = null;
-  player.rupees += ELEMENTAL_SELL_VALUE;
+  addItem('rupees', ELEMENTAL_SELL_VALUE);
   showMsg(`💰 Sold ${elem.icon} ${elem.label} Sword for ${ELEMENTAL_SELL_VALUE} rupees`, 3000);
   renderStoreContents();
   updateHUD();

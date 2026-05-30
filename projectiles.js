@@ -8,6 +8,15 @@ let damageNumbers = [];
 // Pickup items dropped on the ground (e.g. HP hearts from killed enemies).
 let drops = [];
 
+// Visual metadata for enemy-trophy drops. Shared by stepDrops (pickup particles
+// and message) and drawDrop (ground sprite glow / glyph).
+const TROPHY_META = {
+  fang:   { icon: '🦷', label: 'Fang',   color: '#f0eedd' },
+  finger: { icon: '🫳', label: 'Finger', color: '#d8a070' },
+  bone:   { icon: '🦴', label: 'Bone',   color: '#f4ead8' },
+  wing:   { icon: '🪶', label: 'Wing',   color: '#aaccff' },
+};
+
 function spawnParticle(wx, wy, color, n = 6, size = 3) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -20,6 +29,29 @@ function spawnParticle(wx, wy, color, n = 6, size = 3) {
       size: size * (0.5 + Math.random())
     });
   }
+}
+
+// Forest-enemy necrotic vulnerability: 50% chance per hit to take an extra
+// floor(level/5) d4 of necrotic damage. `level` is swordLevel for sword
+// swings and bowLevel for arrows. No-op when the enemy isn't flagged, when
+// the level threshold isn't met, or the roll fails.
+function rollNecroticVuln(e, level) {
+  if (!e.necroticVuln || typeof SWORD_ELEMENTS === 'undefined') return;
+  const dice = Math.floor((level || 0) / 5);
+  if (dice <= 0 || Math.random() >= 0.5) return;
+  let necDmg = 0;
+  for (let d = 0; d < dice; d++) necDmg += 1 + Math.floor(Math.random() * 4);
+  e.hp -= necDmg;
+  const necElem = SWORD_ELEMENTS.necrotic;
+  damageNumbers.push({
+    entity: e,
+    val: `${necElem.icon}${necDmg}`,
+    color: necElem.color,
+    life: 1100,
+    rise: -16
+  });
+  const esp = screenPX(e.x, e.y);
+  spawnParticle(esp.x, esp.y, necElem.color, 4, 2);
 }
 
 // Convert tile coordinates to canvas pixel coordinates (camera-relative).
@@ -35,15 +67,25 @@ function firePlayerArrow() {
   // If an elemental arrow is nocked AND there's at least one of that type
   // available, consume it. Otherwise fall back to a plain arrow (and reset
   // the nocked element so the radial menu doesn't keep claiming it's active).
+  // Plain arrows are now a real inventory item (player.arrows.plain); when
+  // stock hits zero the shot is suppressed instead of firing for free.
   let element = null;
+  player.arrows = player.arrows || {};
   const active = player.activeArrowElement;
-  if (active && player.arrows && (player.arrows[active] || 0) > 0) {
+  if (active && (player.arrows[active] || 0) > 0) {
     element = active;
     player.arrows[active]--;
     if (player.arrows[active] <= 0) {
       // Auto-fall-back when we run dry on the active type
       player.activeArrowElement = null;
     }
+  } else {
+    // Plain arrow path — consume from stock.
+    if ((player.arrows.plain || 0) <= 0) {
+      showMsg('🏹 Out of arrows!', 1200);
+      return;
+    }
+    player.arrows.plain--;
   }
   const elemColor = (element && typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[element]?.color : null;
   projectiles.push({
@@ -82,6 +124,10 @@ function doSwordSwing() {
       e.hp -= baseDmg;
       damageNumbers.push({ entity: e, val: baseDmg, color: '#ff4444', life: 1000, rise: 0 });
 
+      // Forest enemies are vulnerable to necrotic damage: 50% chance per hit
+      // to take an extra 1d4 necrotic per 5 sword levels (none below Lv5).
+      rollNecroticVuln(e, player.swordLevel);
+
       // Elemental damage — ONLY the currently equipped elemental sword adds
       // its 1d4 hit. (Elemental swords are specific weapons; switching swords
       // changes which element applies, instead of stacking all owned elements.)
@@ -108,13 +154,21 @@ function doSwordSwing() {
 
   // Cut down soft foliage in the swing. Flowers and mushrooms have 1 HP, so a
   // single swing clears them back to grass. Same 3x3 zone as the enemy hit.
+  // Cut flowers have a 50% chance to leave behind a Herbal pickup.
   const map = mapData();
   const ctc = Math.round(tx), ctr = Math.round(ty);
   for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
     const tr = ctr + dr, tc = ctc + dc;
-    if (tr > 0 && tr < MROWS - 1 && tc > 0 && tc < MCOLS - 1 &&
-        (map[tr][tc] === T.FLOWER || map[tr][tc] === T.MUSHROOM)) {
-      map[tr][tc] = T.GRASS;
+    if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
+    const tile = map[tr][tc];
+    if (tile !== T.FLOWER && tile !== T.MUSHROOM) continue;
+    map[tr][tc] = T.GRASS;
+    if (tile === T.FLOWER && Math.random() < 0.50) {
+      drops.push({
+        type: 'herbal', val: 1,
+        x: tc, y: tr,
+        life: 10000, bob: 0, collected: false
+      });
     }
   }
 }
@@ -267,6 +321,9 @@ function stepProjectiles(dt, map) {
           const esp = screenPX(e.x, e.y);
           damageNumbers.push({ entity: e, val: p.dmg, color: '#ff4444', life: 1000, rise: 0 });
           spawnParticle(esp.x, esp.y, p.color || '#ddaa44', 4, 2);
+          // Forest enemies: 50% chance per arrow hit to take an extra 1d4
+          // necrotic per 5 bow levels (none below Lv5).
+          rollNecroticVuln(e, player.bowLevel);
           // Elemental arrow: extra 1d4 of its element
           if (p.element && typeof SWORD_ELEMENTS !== 'undefined') {
             const elem = SWORD_ELEMENTS[p.element];
@@ -318,11 +375,44 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#ffaacc', 6, 2);
         if (gained > 0) showMsg(`❤️ +${gained} HP`, 1500);
       } else if (d.type === 'rupee') {
-        player.rupees += d.val;
+        addItem('rupees', d.val);
         const sp = screenPX(d.x, d.y);
         spawnParticle(sp.x, sp.y, '#22cc44', 10, 3);
         spawnParticle(sp.x, sp.y, '#aaffcc', 6, 2);
         showMsg(`💎 +${d.val} Rupee`, 1500);
+      } else if (d.type === 'herbal') {
+        addItem('herbals', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#5fbf3a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#aaff88', 6, 2);
+        showMsg(`🌿 +${d.val} Herbal (now ${player.herbals})`, 1500);
+      } else if (d.type === 'fang' || d.type === 'finger' ||
+                 d.type === 'bone' || d.type === 'wing') {
+        // Enemy trophy collectibles. Inventory key is the plural of the drop
+        // type (fangs, fingers, bones, wings).
+        const key = d.type + 's';
+        addItem(key, d.val);
+        const meta = TROPHY_META[d.type];
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, meta.color, 10, 3);
+        showMsg(`${meta.icon} +${d.val} ${meta.label} (now ${player[key]})`, 1500);
+      } else if (d.type === 'potion') {
+        addItem('potions', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#ff66aa', 10, 3);
+        spawnParticle(sp.x, sp.y, '#ffccdd', 6, 2);
+        showMsg(`🧪 +${d.val} Health Potion (now ${player.potions})`, 1500);
+      } else if (d.type === 'arrows') {
+        // Plain arrows: d.element is null/'plain' → stocks player.arrows.plain.
+        // Elemental arrows: d.element is the SWORD_ELEMENTS id.
+        const el = d.element || 'plain';
+        addArrow(el, d.val);
+        const elem = (el !== 'plain' && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[el])
+          || { label: '', icon: '🏹', color: '#ddaa44' };
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, elem.color, 10, 3);
+        const label = el === 'plain' ? 'Arrow' : (elem.label + ' Arrow');
+        showMsg(`${elem.icon} +${d.val} ${label}${d.val > 1 ? 's' : ''} (x${player.arrows[el]})`, 1800);
       }
       d.collected = true;
     }

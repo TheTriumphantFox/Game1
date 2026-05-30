@@ -55,12 +55,17 @@ const DEFAULT_PLAYER = {
   x: EXIT_COL, y: EXIT_ROW,
   renderX: EXIT_COL, renderY: EXIT_ROW,
   hp: 8, maxHp: 8,
-  rupees: 0, level: 1, xp: 0, xpNext: 500,
+  rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
-  potions: 0,
+  potions: STARTING_ITEM_AMOUNT,
+  herbals: STARTING_ITEM_AMOUNT,
+  fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
+  bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
+  // swordElements / arrows are populated by applyStartingInventory() at boot
+  // and on newGame, once SWORD_ELEMENTS has loaded.
   swordElements: [],
   activeSwordElement: null,
   arrows: {},
@@ -296,13 +301,18 @@ function newGame() {
   if (!confirm('Start a new game? Unsaved progress will be lost.')) return;
   Object.assign(player, {
     x: EXIT_COL, y: EXIT_ROW,
-    hp: 8, maxHp: 8, rupees: 0, level: 1, xp: 0, xpNext: 500,
+    hp: 8, maxHp: 8,
+    rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
     swordTimer: 0, swordDir: { x: 0, y: -1 }, invincible: 0,
-    weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0, potions: 0,
+    weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
+    potions: STARTING_ITEM_AMOUNT, herbals: STARTING_ITEM_AMOUNT,
+    fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
+    bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
     swordElements: [], activeSwordElement: null,
     arrows: {}, activeArrowElement: null,
     defeatedBoss: false
   });
+  applyStartingInventory(player);
   attackCooldown = 0; bowCooldown = 0; bombCooldown = 0;
   transitionCooldown = 0; moveTimer = 0;
   enemies = []; projectiles = []; particles = []; damageNumbers = [];

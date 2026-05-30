@@ -1009,6 +1009,17 @@ function drawPlayer(ts) {
 
   ctx.save();
 
+  // ── Low-HP danger state (≤3 HP): pulsing red glow + flash ──
+  // dangerPulse oscillates 0→1; the glow rides on shadowBlur so the whole
+  // sprite gets a red aura, and a red overlay flashes on top below.
+  const lowHp = player.hp > 0 && player.hp <= 3;
+  let dangerPulse = 0;
+  if (lowHp) {
+    dangerPulse = 0.5 + 0.5 * Math.sin(Date.now() / 140);
+    ctx.shadowColor = `rgba(255,40,40,${(0.55 + 0.45 * dangerPulse).toFixed(3)})`;
+    ctx.shadowBlur = s * (0.30 + 0.40 * dangerPulse);
+  }
+
   // Shadow ellipse
   ctx.fillStyle = 'rgba(0,0,0,0.40)';
   ctx.beginPath();
@@ -1236,6 +1247,17 @@ function drawPlayer(ts) {
     ctx.beginPath();
     ctx.arc(tipX, tipY, 2.4, 0, Math.PI*2);
     ctx.fill();
+  }
+
+  // ── Low-HP red flash overlay (drawn last so it tints the whole sprite) ──
+  if (lowHp) {
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.16 + 0.26 * dangerPulse;
+    ctx.fillStyle = '#ff2020';
+    ctx.beginPath();
+    ctx.arc(sx + s/2, sy + s*0.48 + bob, s*0.46, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   ctx.restore();
@@ -1982,7 +2004,21 @@ function drawDrop(d, ts) {
   ctx.save();
 
   // Soft glow tinted to the drop type
-  const glowColor = d.type === 'rupee' ? '40,220,90' : '255,120,160';
+  const trophy = (typeof TROPHY_META !== 'undefined') ? TROPHY_META[d.type] : null;
+  const arrowElem = (d.type === 'arrows' && typeof SWORD_ELEMENTS !== 'undefined' && d.element)
+    ? SWORD_ELEMENTS[d.element] : null;
+  const hexToRGB = (h) => {
+    const n = parseInt((h || '#ffffff').slice(1), 16);
+    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  };
+  const glowColor =
+    d.type === 'rupee'  ? '40,220,90'   :
+    d.type === 'herbal' ? '120,210,80'  :
+    d.type === 'potion' ? '255,120,180' :
+    arrowElem           ? hexToRGB(arrowElem.color) :
+    d.type === 'arrows' ? '221,170,68' :  // plain arrows: warm tan/wood
+    trophy              ? hexToRGB(trophy.color) :
+                          '255,120,160';
   const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, ts * 0.42);
   glow.addColorStop(0, `rgba(${glowColor},0.55)`);
   glow.addColorStop(1, `rgba(${glowColor},0)`);
@@ -2053,6 +2089,63 @@ function drawDrop(d, ts) {
     ctx.lineTo(cx - w * 0.05, cy - h * 0.25);
     ctx.closePath();
     ctx.fill();
+  } else if (d.type === 'herbal') {
+    // Leafy sprig: a brown stem with three teardrop leaves
+    const s = ts * 0.18 * pulse;
+    ctx.strokeStyle = '#5a3a1a';
+    ctx.lineWidth = Math.max(1, ts * 0.04);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + s * 0.9);
+    ctx.lineTo(cx, cy - s * 0.9);
+    ctx.stroke();
+    // Three leaves: top, lower-left, lower-right
+    const leaf = (lx, ly, rot) => {
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(rot);
+      ctx.fillStyle = '#3f9a3a';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.55, s * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1f5a1f';
+      ctx.lineWidth = Math.max(1, ts * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.5, 0);
+      ctx.lineTo(s * 0.5, 0);
+      ctx.stroke();
+      ctx.restore();
+    };
+    leaf(cx,             cy - s * 0.75, 0);
+    leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
+    leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
+  } else if (trophy || d.type === 'potion' || d.type === 'arrows') {
+    // Trophy items + potion + arrow bundle: render as a glyph centered on the
+    // tile. Arrow drops show the elemental icon and the count; trophy/potion
+    // drops show their thematic icon.
+    const icon =
+      d.type === 'arrows' ? (arrowElem ? arrowElem.icon : '🏹') :
+      d.type === 'potion' ? '🧪' :
+      trophy.icon;
+    const size = Math.round(ts * 0.42 * pulse);
+    ctx.font = `${size}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(icon, cx, cy);
+    if (d.type === 'arrows' && d.val > 1) {
+      // Stack count badge in the lower-right
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.font = `bold ${Math.round(ts * 0.22)}px monospace`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const lbl = 'x' + d.val;
+      ctx.strokeText(lbl, cx + ts * 0.12, cy + ts * 0.18);
+      ctx.fillText(lbl, cx + ts * 0.12, cy + ts * 0.18);
+    }
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
   }
 
   ctx.restore();
