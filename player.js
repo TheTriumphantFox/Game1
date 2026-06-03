@@ -633,5 +633,18 @@ function stepPlayerMovement() {
   }
   clampCam();
   revealAround(currentMap(), player.x, player.y, 12);
-  if (!tryCaveTransition()) tryTransition();
+  if (!tryPortalInteraction() && !tryCaveTransition()) tryTransition();
+}
+
+// Stepping onto the cabin's PORTAL tile opens the destination-select modal.
+// Movement is paused via portalOpen while the modal is up.
+function tryPortalInteraction() {
+  if (transitionCooldown > 0) return false;
+  const map = mapData();
+  const t = map[player.y][player.x];
+  if (t !== T.PORTAL) return false;
+  if (typeof openPortalModal !== 'function') return false;
+  if (typeof portalOpen !== 'undefined' && portalOpen) return true;
+  openPortalModal();
+  return true;
 }

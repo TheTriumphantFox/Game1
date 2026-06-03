@@ -816,6 +816,34 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.arc(x+s/2, y+s/2, s*0.08, 0, Math.PI*2);
       ctx.fill();
       break; }
+    case T.PORTAL: {
+      // Cabin fast-travel portal — a vertical violet arch on the floor.
+      ctx.fillStyle = '#9a7550'; ctx.fillRect(x,y,s,s);
+      const pulse = (Math.sin(Date.now()/220) * 0.5 + 0.5);
+      // Outer halo
+      const halo = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.9);
+      halo.addColorStop(0, `rgba(180,120,255,${0.45 + pulse*0.25})`);
+      halo.addColorStop(1, 'rgba(180,120,255,0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(x-s*0.4, y-s*0.4, s*1.8, s*1.8);
+      // Stone frame (arch)
+      ctx.fillStyle = '#3a2a4a';
+      ctx.fillRect(x+s*0.10, y+s*0.10, s*0.80, s*0.80);
+      // Swirling violet portal disc
+      const grad = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.40);
+      grad.addColorStop(0, '#ffeeff');
+      grad.addColorStop(0.45, '#cc77ff');
+      grad.addColorStop(1, '#3a1066');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x+s/2, y+s/2, s*0.35 + pulse*2, 0, Math.PI*2);
+      ctx.fill();
+      // Sparkle core
+      ctx.fillStyle = `rgba(255,255,255,${0.6 + pulse*0.4})`;
+      ctx.beginPath();
+      ctx.arc(x+s/2, y+s/2, s*0.08, 0, Math.PI*2);
+      ctx.fill();
+      break; }
     case T.INN_DOOR: {
       // Pulsing warm halo so the inn is visible from across the map.
       const pulse = (Math.sin(Date.now()/280) * 0.5 + 0.5);

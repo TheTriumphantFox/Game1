@@ -356,10 +356,13 @@ function buildDesertMap(seed, depth, openSides) {
 function activateVillage(mapObj) {
   if (!mapObj || mapObj.activated) return false;
   const m = mapObj.map;
+  // Reserve the NW inner-ring house for the fast-travel portal so it never gets
+  // a stationary shopkeeper. Its door is excluded from the shop pool below.
+  const pl = villagePortalLayout();
   const doors = [];
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.DOOR) doors.push({ r, c });
+      if (m[r][c] === T.DOOR && !(r === pl.doorR && c === pl.doorC)) doors.push({ r, c });
   if (doors.length < 4) return false;
   // Shuffle (Fisher–Yates) and pick the first four for inn + store + herbalist
   // + blacksmith.
@@ -371,6 +374,10 @@ function activateVillage(mapObj) {
   m[doors[1].r][doors[1].c] = T.STORE_DOOR;
   m[doors[2].r][doors[2].c] = T.HERB_DOOR;
   m[doors[3].r][doors[3].c] = T.SMITH_DOOR;
+  // The village is now cleared — open the fast-travel portal in the reserved
+  // NW house. (Stamped over interior FLOOR, which is already reachable via the
+  // house door, so no connectivity re-run is needed.)
+  m[pl.portalR][pl.portalC] = T.PORTAL;
   mapObj.activated = true;
   // Remember where the player can come back to
   mapObj.innDoor = doors[0];
@@ -434,6 +441,10 @@ function buildStarterHouseMap() {
 
   // A storage chest tucked in the SW corner
   m[r2 - 2][c1 + 2] = T.CHEST;
+
+  // Fast-travel portal — opposite the chest, in the SE corner of the cabin.
+  // Step onto it to open the destinations menu (see tryPortalInteraction).
+  m[r2 - 2][c2 - 2] = T.PORTAL;
 
   // South-only exit: cut the standard 5-wide PATH gate at the map border
   // first, then stamp a DOOR tile dead-centre on it so the room visibly has
@@ -889,5 +900,28 @@ function buildVillageMap(biome) {
   // preserveFloor=true so house interiors aren't sealed as border tiles
   ensureConnectivity(m, true, BORDER);
 
+  // Note: the fast-travel portal is NOT placed here. A village only gains a
+  // portal once it is cleared of monsters — see activateVillage, which stamps
+  // it into the NW inner-ring house at activation time.
   return m;
+}
+
+// Layout of the village's portal house — the NW inner-ring house. Coordinates
+// mirror buildVillageMap's house grid so activateVillage can reserve that
+// house (keep it shopkeeper-free) and stamp the portal once the village is
+// cleared.
+function villagePortalLayout() {
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  const hw = 16, hh = 12;
+  const HOUSE_W = hw + 1;
+  const INNER_GAP = 7;
+  const NORTH_ROW  = midR - 14 - hh;                      // 49
+  const CENTRE_COL = midC - Math.floor(hw / 2);           // 67
+  const WEST_COL   = CENTRE_COL - HOUSE_W - INNER_GAP;    // 43
+  return {
+    portalR: NORTH_ROW + 4,
+    portalC: WEST_COL + Math.floor(hw / 2),
+    doorR:   NORTH_ROW + hh,
+    doorC:   WEST_COL + Math.floor(hw / 2),
+  };
 }

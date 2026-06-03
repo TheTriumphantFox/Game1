@@ -129,6 +129,44 @@ function createOverworldMap(id, gx, gy, regionIdx) {
 function createForestMap(id, gx, gy) { return createOverworldMap(id, gx, gy, 0); }
 function createDesertMap(id, gx, gy) { return createOverworldMap(id, gx, gy, 1); }
 
+// Find an existing village map for `regionIdx`, or -1 if none has been built.
+function findRegionVillageId(regionIdx) {
+  for (let i = 0; i < worldMaps.length; i++) {
+    const m = worldMaps[i];
+    if (m && m.type === 'village' && m.regionIdx === regionIdx) return i;
+  }
+  return -1;
+}
+
+// DEV fast-travel: return the village id for `regionIdx` as an ACTIVE (cleared)
+// village — building it on demand if the player hasn't reached that region yet,
+// then activating it so it is monster-free and carries a portal. Demand-built
+// villages live off the walkable (gx, gy) grid (not registered in worldGrid) so
+// they only exist as portal destinations and never interfere with overworld
+// neighbor generation.
+function getOrCreateActiveRegionVillage(regionIdx) {
+  let id = findRegionVillageId(regionIdx);
+  if (id < 0) {
+    const region = REGIONS[regionIdx];
+    if (!region) return -1;
+    id = worldMaps.length;
+    const mapTiles = buildVillageMap(region.id);
+    worldMaps.push({
+      id, gx: 10000 + regionIdx, gy: 10000,   // off-grid; not in worldGrid
+      name: region.villageName,
+      type: 'village', biome: region.id, regionIdx,
+      map: mapTiles, enemyDefs: makeEnemyDefs(20, `${region.id}_village`, mapTiles),
+      openedChests: new Set(),
+      visited: true, depth: 20, devSpawned: true
+    });
+  }
+  const obj = worldMaps[id];
+  // Dev: force-clear the village so it has a portal and no monsters.
+  if (!obj.activated) activateVillage(obj);
+  obj.savedEnemies = [];   // monster-free on (re)entry
+  return id;
+}
+
 // Build a one-shot cave map that returns to (returnMapId, returnX, returnY).
 // Caves are not part of the (gx, gy) grid — they're only reachable via a
 // CAVE_ENTRANCE tile on the source map.

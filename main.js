@@ -89,6 +89,10 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeShopModals();
     return;   // shop modal swallows gameplay input
   }
+  if (typeof portalOpen !== 'undefined' && portalOpen) {
+    if (e.key === 'Escape') closePortalModal();
+    return;   // portal modal swallows gameplay input
+  }
   // 'V' toggles the radial inventory menu (works whether open or closed)
   if (e.key === 'v' || e.key === 'V') {
     e.preventDefault();

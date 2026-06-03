@@ -49,7 +49,9 @@ const T = {
   LUMINOUS_FLOOR:55, LUMINOUS_CRYSTAL:56,            // luminous region
   BLIGHT:57, BLIGHTED_WALL:58,                       // necrotic region
   SLUDGE:59, POISON_WALL:60,                         // poison region
-  MANA_FLOOR:61, MANA_CRYSTAL:62                     // mana region
+  MANA_FLOOR:61, MANA_CRYSTAL:62,                    // mana region
+  // Cabin fast-travel portal. Step onto it to open the destination menu.
+  PORTAL:63
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -83,6 +85,7 @@ const TILE_COLORS = {
   [T.BLIGHT]: '#3a2a3a',          [T.BLIGHTED_WALL]: '#1a0a1a',
   [T.SLUDGE]: '#5a7a2a',          [T.POISON_WALL]: '#2a4a18',
   [T.MANA_FLOOR]: '#5a3a8a',      [T.MANA_CRYSTAL]: '#aa66ee',
+  [T.PORTAL]: '#aa66ff',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.
