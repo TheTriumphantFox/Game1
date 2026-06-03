@@ -1,6 +1,10 @@
 // ─── Map generators ───────────────────────────────────────────────────────────
-// Two map types: forest (procedural) and village (fixed layout for the boss).
-// Both call ensureConnectivity at the end to guarantee no orphaned content.
+// Regions are linear: forest → fire (desert) → water → ice → earth → air →
+// lightning → luminous → necrotic → poison → mana. Each region is 20 overworld
+// maps + 1 boss village, defined declaratively in REGIONS below. Forest and
+// fire (desert) keep their bespoke buildForestMap / buildDesertMap builders
+// for the richer art; the seven later regions share the generic
+// buildRegionMap which palette-swaps a desert-style layout.
 
 // Pool of evocative names — depth number appended for clarity in the HUD.
 const FOREST_NAMES = [
@@ -18,6 +22,82 @@ const DESERT_NAMES = [
   'Dust Devil Plains', 'Sunstruck Ruins', 'Forgotten Oasis', 'Buzzard Gulch',
   'Quicksand Basin', 'Obsidian Spires', 'Ember Reach', 'Skeleton Mesa'
 ];
+
+// Each REGIONS entry fully describes one elemental region:
+//   id           short string identifier (also the world map `biome`)
+//   element      sword-element id this region thematically grants
+//   border       solid wall tile that frames every map (wraps the playfield)
+//   ground       open passable tile carved out of the border by the builder
+//   decoration   sparse passable tile scattered onto ground for texture
+//   accent       hazard / water-feature tile (water, lava, ice patch, etc.)
+//   names        20 evocative location names appended with depth `[N]`
+//   villageName  fixed name shown when the region's boss arena is generated
+//   enemyTier    index into ENEMY_POOLS for non-village spawns
+//   boss         DND_ENEMIES key spawned in the region's village
+//
+// The first two entries (forest, fire) keep their bespoke builders, but the
+// table still drives village palette, enemy pool, names, and progression order.
+const REGIONS = [
+  { id:'forest',    element:null,        border:T.TREE,            ground:T.GRASS,          decoration:T.FLOWER,   accent:T.WATER,       names:FOREST_NAMES, villageName:'Village of the Lost',     enemyTier:1, boss:'lich_boss'      },
+  { id:'fire',      element:'fire',      border:T.CACTUS,          ground:T.SAND,           decoration:T.BONES,    accent:T.LAVA,        names:DESERT_NAMES, villageName:'Oasis of the Damned',     enemyTier:2, boss:'mummy_lord'     },
+  { id:'water',     element:'water',     border:T.DEEP_WATER,      ground:T.SAND,           decoration:T.WATER,    accent:T.WATER,       names:[
+      'Tidepool Reach','Coral Strait','Lagoon Hollow','Brinepath','Surfbreak Sands',
+      'Kelpforest Crossing','Saltspray Cove','Mermaid Atoll','Drowned Ruins','Pearl Banks',
+      'Stormtide Beach','Anemone Flats','Sunken Causeway','Crashing Shoals','Riftwater Pass',
+      'Driftwood Cay','Shellwhisper Bay','Algae Maze','Whirlpool Basin','Abyssal Edge'
+    ], villageName:'Tideborn Refuge',           enemyTier:2, boss:'kraken_boss'    },
+  { id:'ice',       element:'ice',       border:T.GLACIER,         ground:T.SNOW,           decoration:T.ICE,      accent:T.WATER,       names:[
+      'Frostbite Plain','Glacier Pass','Crystal Tundra','Snowdrift Hollow','Frozen Glade',
+      'Hoarfrost Reach','Icefall Crossing','Permafrost Maze','Blizzard Pass','Glacial Ruins',
+      'Aurora Shelf','Frost-veined Hollow','Sleet Basin','Wintervale','Cryomire',
+      'Brittle Crag','Diamond Dust Plain','Spire of Ice','Snowblind Crossing','Glasslake'
+    ], villageName:'Frostfast Hold',            enemyTier:3, boss:'frost_titan'    },
+  { id:'earth',     element:null,        border:T.MOUNTAIN,        ground:T.PATH,           decoration:T.MUD,      accent:T.ROCK,        names:[
+      'Granite Pass','Boulder Hollow','Quarry Trail','Stoneroot Glen','Slatefall Reach',
+      'Earthcrack Maze','Cinder Ridge','Marble Vein','Mudbog Crossing','Tremor Basin',
+      'Old Roads','Tumulus Field','Caveborn Path','Sediment Flats','Mossy Crag',
+      'Sunken Plateau','Iron Gulch','Echo Canyon','Magmaroot Hollow','Petrified Grove'
+    ], villageName:'Stoneheart Burrow',         enemyTier:3, boss:'gaia_colossus'  },
+  { id:'air',       element:'wind',      border:T.CLOUDWALL,       ground:T.CLOUD,          decoration:T.CLOUD,    accent:T.WATER,       names:[
+      'Skywharf','Cumulus Crossing','Zephyr Vault','Updraft Reach','Drifting Bastion',
+      'Thunderhead Pass','Mist-veiled Path','Featherfall Hollow','Cirrus Ribbon','Stratos Spine',
+      'Galewall','Wisp Field','Halcyon Reach','Stormthrone Approach','Falcon Roost',
+      'Cloudbreak','Sky-stair','High Tundra','Whispering Currents','Aetherwake'
+    ], villageName:'Stormcrown Aerie',          enemyTier:4, boss:'wind_djinn'     },
+  { id:'lightning', element:null,        border:T.STORM_CLOUD,     ground:T.STORM_GROUND,   decoration:T.ROCK,     accent:T.LAVA,        names:[
+      'Sparkfen','Voltaic Plain','Thunderfork Pass','Stormglass Reach','Static Maze',
+      'Galvanic Hollow','Arcwire Crossing','Lichtning Field','Tesla Spires','Surge Basin',
+      'Brimwire','Ferrum Edge','Crackleway','Boltcaster Ridge','Shockmarsh',
+      'Magnet Crag','Glasspowder Plain','Filament Gardens','Plasma Bowl','Coronet'
+    ], villageName:'Voltheart Bastion',         enemyTier:4, boss:'storm_lord'     },
+  { id:'luminous',  element:'luminous',  border:T.LUMINOUS_CRYSTAL, ground:T.LUMINOUS_FLOOR, decoration:T.MUSHROOM, accent:T.WATER, names:[
+      'Sunhalo Reach','Dawnlit Field','Prism Garden','Goldenmoss Hollow','Halo Pass',
+      'Bright Causeway','Aureate Steps','Lambent Glade','Daystar Crossing','Lustrous Vault',
+      'Beacon Plain','Argent Maze','Lumenrise','Suncast Ridge','Mirrorbright Atrium',
+      'Effulgent Brook','Coronal Field','Glimmerwash','Radiant Apse','Shining Sanctum'
+    ], villageName:'Solarspire Sanctum',        enemyTier:4, boss:'seraph_judge'   },
+  { id:'necrotic',  element:'necrotic',  border:T.BLIGHTED_WALL,   ground:T.BLIGHT,         decoration:T.BONES,    accent:T.LAVA,        names:[
+      'Witherfen','Boneyard Crossing','Pall Glade','Hollow Reach','Decay Plain',
+      'Shroudwood','Mourner\'s Pass','Cinderash Field','Gravesong Maze','Black Marrow',
+      'Pall-veiled Ruins','Tomb-iron Reach','Carrion Flats','Sepulchre Trail','Funeral Causeway',
+      'Witch-light Hollow','Coffinroot','Wraithmire','Reliquary Ribs','Last Rites Plain'
+    ], villageName:'Ossuary of the Pale King',  enemyTier:5, boss:'death_knight'   },
+  { id:'poison',    element:'poison',    border:T.POISON_WALL,     ground:T.SLUDGE,         decoration:T.MUSHROOM, accent:T.DEEP_WATER,  names:[
+      'Venomvale','Toxic Bog','Spore Pass','Mireheart','Slime Reach',
+      'Acidlake Crossing','Foulweed Hollow','Plague Trail','Hexbog Maze','Murkfen',
+      'Rotwood Edge','Stagnant Causeway','Bilegrove','Cankerstump','Pestilent Field',
+      'Snake-fang Hollow','Greenfog Reach','Necrosis Plain','Bubble Marsh','Witherwart'
+    ], villageName:'Mire-warden Citadel',       enemyTier:5, boss:'hydra_queen'    },
+  { id:'mana',      element:null,        border:T.MANA_CRYSTAL,    ground:T.MANA_FLOOR,     decoration:T.FLOWER, accent:T.DEEP_WATER, names:[
+      'Arcanum Reach','Spellwell Plain','Sigil Garden','Channeled Pass','Aether Field',
+      'Glyphvein Maze','Lifeweave Hollow','Runestone Crossing','Conduit Spire','Resonant Bowl',
+      'Astral Causeway','Mage-glass Plateau','Echo Lattice','Filigree Field','Mantra Plain',
+      'Distortion Reach','Astral Wash','Crystal Choir','Theurgy Trail','Heartmoon'
+    ], villageName:'Heartstone Conclave',       enemyTier:5, boss:'archmage_void'  },
+];
+
+// Quick lookup helper.
+function regionById(id) { return REGIONS.find(r => r.id === id) || REGIONS[0]; }
 
 // ─── Forest map ───────────────────────────────────────────────────────────────
 // Starts as wall-to-wall trees, then carves open regions, paths, water features,
@@ -269,9 +349,10 @@ function buildDesertMap(seed, depth, openSides) {
 }
 
 // ─── Village activation ──────────────────────────────────────────────────────
-// Called when the player clears every enemy in a village map. Converts two
-// random house doors into an INN_DOOR and a STORE_DOOR so the player can spend
-// their rupees. Idempotent — re-entering the cleared village keeps the doors.
+// Called when the player clears every enemy in a village map. Converts four
+// random house doors into an INN_DOOR, a STORE_DOOR, a HERB_DOOR, and a
+// SMITH_DOOR so the player can rest, shop, trade ingredients, and buy armor.
+// Idempotent — re-entering the cleared village keeps the doors.
 function activateVillage(mapObj) {
   if (!mapObj || mapObj.activated) return false;
   const m = mapObj.map;
@@ -279,24 +360,89 @@ function activateVillage(mapObj) {
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
       if (m[r][c] === T.DOOR) doors.push({ r, c });
-  if (doors.length < 2) return false;
-  // Shuffle (Fisher–Yates) and pick the first two for inn + store
+  if (doors.length < 4) return false;
+  // Shuffle (Fisher–Yates) and pick the first four for inn + store + herbalist
+  // + blacksmith.
   for (let i = doors.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [doors[i], doors[j]] = [doors[j], doors[i]];
   }
   m[doors[0].r][doors[0].c] = T.INN_DOOR;
   m[doors[1].r][doors[1].c] = T.STORE_DOOR;
+  m[doors[2].r][doors[2].c] = T.HERB_DOOR;
+  m[doors[3].r][doors[3].c] = T.SMITH_DOOR;
   mapObj.activated = true;
   // Remember where the player can come back to
   mapObj.innDoor = doors[0];
   mapObj.storeDoor = doors[1];
+  mapObj.herbDoor = doors[2];
+  mapObj.smithDoor = doors[3];
   // Rename so the HUD reflects the change
   if (!/Active/.test(mapObj.name)) mapObj.name = mapObj.name + ' (Active)';
   // Reveal the whole village so the player can find the new doors immediately.
   if (!mapObj.fog) mapObj.fog = new Uint8Array(MROWS * MCOLS);
   mapObj.fog.fill(1);
   return true;
+}
+
+// ─── Starter house map ───────────────────────────────────────────────────────
+// A small, furnished one-room house used as the game's starting map. The
+// playable area is a 21×16 room hugging the south border so the room's south
+// wall coincides with the map's south exit — walking south out the door
+// triggers the normal map transition into forest [2]. Everything outside the
+// room is wrapped in T.TREE so it's solid and never gets rendered.
+//
+// Furnishings (north-up):
+//   ┌────────────────────┐
+//   │ 🛏  🛏              │   bed in the NW corner
+//   │ 🛏  🛏    🔥        │   fireplace against the north wall
+//   │                    │
+//   │       T            │   table with chairs flanking it
+//   │      C T C         │
+//   │       C            │
+//   │   📦                │   chest in the SW
+//   └─────D──────────────┘   door at south-centre = map's south exit
+function buildStarterHouseMap() {
+  const m = makeTile(MROWS, MCOLS, T.TREE);
+  const HW = 21, HH = 16;
+  const r1 = MROWS - 1 - HH;                    // north interior wall row
+  const c1 = Math.floor(MCOLS / 2) - Math.floor(HW / 2);
+  const r2 = MROWS - 1;                         // south wall == map border
+  const c2 = c1 + HW;
+
+  // Walls + interior floor
+  setRect(m, r1, c1, r2, c2, T.WALL);
+  setRect(m, r1 + 1, c1 + 1, r2 - 1, c2 - 1, T.FLOOR);
+
+  // Corner torches for ambience
+  m[r1 + 1][c1 + 1] = T.TORCH;
+  m[r1 + 1][c2 - 1] = T.TORCH;
+
+  // Bed in the NW (2 tiles stacked vertically)
+  m[r1 + 2][c1 + 2] = T.BED;
+  m[r1 + 3][c1 + 2] = T.BED;
+
+  // Fireplace against the north wall, east side
+  m[r1 + 2][c2 - 3] = T.FIREPLACE;
+
+  // Dining table + flanking chairs near the room centre
+  const tr = r1 + Math.floor(HH / 2) + 1;
+  const tc = c1 + Math.floor(HW / 2);
+  m[tr][tc]     = T.TABLE;
+  m[tr][tc - 2] = T.CHAIR;
+  m[tr][tc + 2] = T.CHAIR;
+
+  // A storage chest tucked in the SW corner
+  m[r2 - 2][c1 + 2] = T.CHEST;
+
+  // South-only exit: cut the standard 5-wide PATH gate at the map border
+  // first, then stamp a DOOR tile dead-centre on it so the room visibly has
+  // one obvious way out. Walking onto either the door or the flanking PATH
+  // tiles triggers the normal map transition to forest [2].
+  cutExits(m, false, false, false, true);
+  m[r2][EXIT_COL] = T.DOOR;
+
+  return m;
 }
 
 // ─── Cave map ─────────────────────────────────────────────────────────────────
@@ -319,8 +465,9 @@ function buildCaveMap() {
   setRect(m, cy - half + 1, cx - half + 1, cy + half - 2, cx + half - 2, T.CAVE_FLOOR);
   // Player landing spot (bottom of chamber) holds the CAVE_EXIT
   m[cy + half - 2][cx] = T.CAVE_EXIT;
-  // Large chest at the back
-  m[cy - half + 3][cx] = T.LARGE_CHEST;
+  // Large chest at the back — 2 tiles wide (anchor at cx, extension at cx+1)
+  m[cy - half + 3][cx]     = T.LARGE_CHEST;
+  m[cy - half + 3][cx + 1] = T.LARGE_CHEST_R;
   // Atmosphere: torches at the corners
   m[cy - half + 1][cx - half + 1] = T.TORCH;
   m[cy - half + 1][cx + half - 2] = T.TORCH;
@@ -329,12 +476,122 @@ function buildCaveMap() {
   return m;
 }
 
+// ─── Generic elemental region map ────────────────────────────────────────────
+// Palette-swap of buildDesertMap for the seven later elemental regions (water,
+// ice, earth, air, lightning, luminous, necrotic, poison, mana). Takes a
+// region object from REGIONS — that supplies border/ground/decoration/accent
+// tiles and everything else here is identical structure to the desert builder.
+function buildRegionMap(seed, depth, openSides, region) {
+  const open = openSides || { left: true, right: true, up: true, down: true };
+  const BORDER = region.border, GROUND = region.ground;
+  const DECOR = region.decoration, ACCENT = region.accent;
+  const m = makeTile(MROWS, MCOLS, BORDER);
+
+  // Phase 1: carve open ground patches across the map
+  const patchCount = 60 + depth * 2;
+  for (let i = 0; i < patchCount; i++) {
+    const pr = rnd(5, MROWS - 6), pc = rnd(5, MCOLS - 6);
+    const pw = rnd(3, 10), ph = rnd(3, 10);
+    setRect(m, pr, pc, Math.min(pr + ph, MROWS - 2), Math.min(pc + pw, MCOLS - 2), GROUND);
+  }
+
+  // Phase 2: main paths from centre to each open exit
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  if (open.up)    drunkWalk(m, midR, midC, 1,         EXIT_COL,   T.PATH, 1);
+  if (open.down)  drunkWalk(m, midR, midC, MROWS - 2, EXIT_COL,   T.PATH, 1);
+  if (open.left)  drunkWalk(m, midR, midC, EXIT_ROW,  1,          T.PATH, 1);
+  if (open.right) drunkWalk(m, midR, midC, EXIT_ROW,  MCOLS - 2,  T.PATH, 1);
+  for (let i = 0; i < 6; i++) {
+    const r1 = rnd(10, MROWS - 10), c1 = rnd(10, MCOLS - 10);
+    const r2 = rnd(10, MROWS - 10), c2 = rnd(10, MCOLS - 10);
+    drunkWalk(m, r1, c1, r2, c2, GROUND, 1);
+  }
+
+  // Phase 3: special clearings (homes for chests / shrines)
+  const clearings = [];
+  for (let i = 0; i < 8; i++) {
+    const cr = rnd(15, MROWS - 15), cc = rnd(15, MCOLS - 15);
+    const cw = rnd(8, 16), ch = rnd(8, 16);
+    setRect(m, cr, cc, Math.min(cr + ch, MROWS - 2), Math.min(cc + cw, MCOLS - 2), GROUND);
+    clearings.push({ r: cr + Math.floor(ch / 2), c: cc + Math.floor(cw / 2) });
+  }
+
+  // Phase 4: accent features (water pools, lava pits, ice patches, etc.) with
+  // bridges across them so the map stays traversable.
+  const accentCount = 2 + Math.floor(depth / 4);
+  for (let i = 0; i < accentCount; i++) {
+    const ar = rnd(20, MROWS - 25), ac = rnd(20, MCOLS - 25);
+    const sz = rnd(5, 10);
+    const ar2 = Math.min(ar + sz, MROWS - 2), ac2 = Math.min(ac + sz, MCOLS - 2);
+    setRect(m, ar, ac, ar2, ac2, ACCENT);
+    const bridgeR = Math.floor((ar + ar2) / 2);
+    setRow(m, bridgeR, Math.max(1, ac - 1), Math.min(MCOLS - 2, ac2 + 1), T.BRIDGE);
+  }
+
+  // Phase 5: scattered rocks (bombable cover) — palette stays neutral.
+  for (let i = 0; i < 80 + depth; i++) {
+    const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
+    if ((m[rr][rc] === GROUND || m[rr][rc] === T.PATH) && Math.random() < 0.3) {
+      m[rr][rc] = T.ROCK;
+    }
+  }
+
+  // Phase 6: decorations strewn across open ground.
+  scatter(m, DECOR, 200);
+
+  // Phase 7: pick the chest spot now and defer the actual write until after
+  // any later path carving so corridors can't overwrite it.
+  const chestSpot = clearings.length
+    ? clearings[Math.floor(Math.random() * clearings.length)]
+    : null;
+
+  // Phase 8: occasional shrine (full HP heal) — flanked by torches.
+  if (clearings.length > 0 && Math.random() < 0.4) {
+    const cl = clearings[Math.floor(Math.random() * clearings.length)];
+    m[cl.r][cl.c] = T.SHRINE;
+    if (cl.c > 0)         m[cl.r][cl.c - 1] = T.TORCH;
+    if (cl.c < MCOLS - 1) m[cl.r][cl.c + 1] = T.TORCH;
+  }
+
+  // Phase 9: rare ruins at deeper depths.
+  if (depth > 5 && Math.random() < 0.5) {
+    const dr = rnd(30, MROWS - 40), dc = rnd(30, MCOLS - 40);
+    const tooCloseToExit = Math.abs(dr - EXIT_ROW) < 8 || Math.abs(dc - EXIT_COL) < 8;
+    if (!tooCloseToExit) {
+      setRect(m, dr, dc, dr + 6, dc + 8, T.FLOOR);
+      m[dr + 3][dc + 4] = T.DUNGEON_DOOR;
+      m[dr][dc] = T.PILLAR;       m[dr][dc + 8] = T.PILLAR;
+      m[dr + 6][dc] = T.PILLAR;   m[dr + 6][dc + 8] = T.PILLAR;
+      m[dr + 1][dc + 3] = T.TORCH; m[dr + 1][dc + 5] = T.TORCH;
+    }
+  }
+
+  // Ensure exit corridors reach interior
+  cutExits(m, open.left, open.right, open.up, open.down);
+  if (open.left)  drunkWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    T.PATH, 1);
+  if (open.right) drunkWalk(m, EXIT_ROW, MCOLS - 2,   EXIT_ROW, midC,    T.PATH, 1);
+  if (open.up)    drunkWalk(m, 1,           EXIT_COL, midR,     EXIT_COL, T.PATH, 1);
+  if (open.down)  drunkWalk(m, MROWS - 2,   EXIT_COL, midR,     EXIT_COL, T.PATH, 1);
+
+  // Final border lock + re-cut exits
+  for (let c = 0; c < MCOLS; c++) { m[0][c] = BORDER; m[MROWS - 1][c] = BORDER; }
+  for (let r = 0; r < MROWS; r++) { m[r][0] = BORDER; m[r][MCOLS - 1] = BORDER; }
+  cutExits(m, open.left, open.right, open.up, open.down);
+
+  if (chestSpot) m[chestSpot.r][chestSpot.c] = T.CHEST;
+
+  // Seal any orphan passable pockets with the region's border tile so the
+  // visual matches the surrounding wall instead of leaking forest TREE.
+  ensureConnectivity(m, false, BORDER);
+  return m;
+}
+
 // ─── Desert village map ─────────────────────────────────────────────────────
 // Thin wrapper: the same fixed village layout rendered with a desert palette
 // (cactus border, sand ground, bone decorations). Used as the boss arena at the
 // end of the desert region.
 function buildDesertVillageMap() {
-  return buildVillageMap('desert');
+  return buildVillageMap('fire');
 }
 
 // ─── Village map ──────────────────────────────────────────────────────────────
@@ -342,10 +599,13 @@ function buildDesertVillageMap() {
 // a central fountain plaza. `biome` selects the palette: 'forest' (trees +
 // grass + flowers) or 'desert' (cacti + sand + bones).
 function buildVillageMap(biome) {
-  const isDesert = biome === 'desert';
-  const BORDER = isDesert ? T.CACTUS : T.TREE;   // perimeter wall tile
-  const GROUND = isDesert ? T.SAND   : T.GRASS;  // open ground tile
-  const DECOR  = isDesert ? T.BONES  : T.FLOWER; // scattered ground decoration
+  // Resolve the region's palette. `biome` is a region id ('forest', 'fire',
+  // 'water', ...). Legacy 'desert' callers map to 'fire'.
+  const regionId = biome === 'desert' ? 'fire' : (biome || 'forest');
+  const region = regionById(regionId);
+  const BORDER = region.border;
+  const GROUND = region.ground;
+  const DECOR  = region.decoration;
   const m = makeTile(MROWS, MCOLS, T.PATH);
 
   // Perimeter border (forest/cactus hugging the village)
@@ -488,6 +748,21 @@ function buildVillageMap(biome) {
   m[midR][midC - 5] = T.TORCH; m[midR][midC + 5] = T.TORCH;
   m[midR - 5][midC - 5] = T.TORCH; m[midR - 5][midC + 5] = T.TORCH;
   m[midR + 5][midC - 5] = T.TORCH; m[midR + 5][midC + 5] = T.TORCH;
+
+  // ─── Boss chest: 2×2 King's Hoard ───────────────────────────────────────
+  // Placed on the marble plaza, south of the fountain so the player can
+  // clearly see it on approach from the south exit. Anchor (TL) at
+  // (midR+6, midC-1); the four tiles span rows midR+6..midR+7 and cols
+  // midC-1..midC. All four tiles sit inside the 21×21 marble plaza
+  // (midR±10, midC±10) and clear of the 7×7 fountain colonnade (midR±3).
+  const bcr = midR + 6, bcc = midC - 1;
+  m[bcr    ][bcc    ] = T.BOSS_CHEST_TL;
+  m[bcr    ][bcc + 1] = T.BOSS_CHEST_TR;
+  m[bcr + 1][bcc    ] = T.BOSS_CHEST_BL;
+  m[bcr + 1][bcc + 1] = T.BOSS_CHEST_BR;
+  // Flanking torches for dramatic effect
+  m[bcr    ][bcc - 2] = T.TORCH;
+  m[bcr    ][bcc + 3] = T.TORCH;
 
   // ─── Replace dirt: turn every remaining PATH tile into ground ───────────
   // Forest villages look green (grass); desert villages look sandy (sand).

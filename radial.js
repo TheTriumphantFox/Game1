@@ -1,37 +1,42 @@
 // ─── Radial inventory menu ───────────────────────────────────────────────────
-// Opens with 'I' (or Escape to close). Three concentric rings emerge from the
-// player and contain:
-//   • Inner   ring → Inventory items (Health Potion)
-//   • Middle  ring → Armor
-//   • Outer   ring → Weapons (Sword / Bow / Bomb)
+// Opens with 'V' (or Escape to close). One ring is visible at a time; the player
+// cycles five flat rings and picks an item within each:
 //
-// Hovering a slot highlights it; clicking activates its action. Clicking
-// outside any slot closes the menu.
+//   Rings (cycle ▲ prev / ▼ next, empty rings skipped):
+//     • swords     → base sword + each owned elemental sword
+//     • arrows     → bow + plain & elemental arrows
+//     • consumables→ Bomb + Health Potion
+//     • drops      → passive pickups (rupees, herbals, fangs, …)
+//     • armor      → Armor (only when the player has some)
+//
+//   ◀ / ▶  → previous / next item within the current ring (wraps)
+//   ▲ / ▼  → previous / next ring
+//
+// Navigating auto-equips the highlighted weapon — no Enter needed. Consumables
+// (potion drink / bomb drop) are skipped by auto-equip and fired only on an
+// explicit Enter / click, or via the C quick-use key.
 
 let radialMenuOpen = false;
 let radialMenuOpenTime = 0;
-// Only one ring is visible at a time; arrow keys navigate.
-//   ▲ / ▼  → previous / next ring (inner → middle → outer, wraps)
-//   ◀ / ▶  → previous / next item within the ring (wraps)
-//   Enter  → activate selected item
-let radialRingIndex = 0;
-let radialItemIndex = 0;
-// Persisted across menu opens: which inventory item the player picked last,
-// stored by *type* (not index) so the selection survives items being filtered
-// out of the inventory ring (e.g. running out of potions). `C` activates the
-// inventory item with this type when it's currently in the ring.
+let radialRingIndex = 0;     // index into RADIAL_RINGS
+let radialItemIndex = 0;     // selected item within the current ring
+// The consumable bound to the C quick-use key + HUD [C] slot, stored by *type*
+// so it survives the item going out of stock. Defaults to Bomb; updated whenever
+// the player highlights a consumable in any ring.
 let inventorySelectionType = 'bomb';
+// Per-ring highlight memory, keyed by ring name and stored by item type so
+// switching rings (or reopening the menu) restores the last item chosen there
+// instead of snapping back to index 0.
+const ringSelectionType = {};
+
 const radialMouse = { x: 0, y: 0 };
 
-// Each ring is a function returning live items so the values track player state
-// without us having to rebuild on every change.
-// All rings share the same radius so swapping rings doesn't visibly resize.
+// All rings share one radius so swapping rings doesn't visibly resize.
 const RADIAL_RADIUS = 150;
 
 // Passive drop items (rupees, herbals, monster trophies). They have no action —
-// they're displayed for at-a-glance inventory tracking. Kept in one table so
-// the inventory ring stays a single source of truth for "everything the player
-// can pick up off the ground."
+// they're displayed for at-a-glance inventory tracking. Kept in one table so the
+// drops ring stays a single source of truth for "everything off the ground."
 const PASSIVE_DROPS = [
   { type: 'rupees',  icon: '💎', label: 'Rupees',  key: 'rupees'  },
   { type: 'herbals', icon: '🌿', label: 'Herbal',  key: 'herbals' },
@@ -41,39 +46,10 @@ const PASSIVE_DROPS = [
   { type: 'wings',   icon: '🪶', label: 'Wing',    key: 'wings'   },
 ];
 
+// Each ring is a function returning live items so values track player state
+// without us having to rebuild on every change.
 const RADIAL_RINGS = [
-  { name: 'inventory', radius: RADIAL_RADIUS, getItems: () => {
-      const items = [];
-      // Potions only listed when the player actually carries one.
-      if ((player.potions || 0) > 0) {
-        items.push({ type: 'potion', icon: '🧪', label: 'Health Potion',
-          val: () => 'x' + (player.potions || 0),
-          action: () => usePotion() });
-      }
-      // Bombs are an infinite resource and stay listed.
-      items.push({ type: 'bomb',   icon: '💣', label: 'Bomb',
-        val: () => '∞',
-        dmg: () => String(7 + (player.swordLevel || 1)),
-        action: () => { player.weapon = 'bomb'; placePlayerBomb(); } });
-      // Every other drop type the player can collect — shown whenever stock > 0
-      // so the ring reflects the actual inventory without empty placeholders.
-      for (const d of PASSIVE_DROPS) {
-        const n = player[d.key] || 0;
-        if (n <= 0) continue;
-        items.push({ type: d.type, icon: d.icon, label: d.label,
-          val: () => 'x' + (player[d.key] || 0),
-          action: null });
-      }
-      return items;
-    }},
-  { name: 'armor', radius: RADIAL_RADIUS, getItems: () => {
-      // No armor → nothing to show. Empty rings are skipped during navigation.
-      if (!player.armor || player.armor <= 0) return [];
-      return [{ type: 'armor', icon: '🛡', label: 'Armor',
-        val: () => '+' + (player.armor || 0),
-        action: null }];
-    }},
-  // Melee — base sword + each owned elemental sword.
+  // ── Swords: base sword + each owned elemental sword ──────────────────────────
   { name: 'swords', radius: RADIAL_RADIUS, getItems: () => {
       const lv = player.swordLevel || 1;
       const items = [
@@ -83,8 +59,7 @@ const RADIAL_RINGS = [
           action: () => { player.weapon = 'sword'; player.activeSwordElement = null; },
           isActive: () => player.weapon === 'sword' && !player.activeSwordElement }
       ];
-      const owned = player.swordElements || [];
-      for (const id of owned) {
+      for (const id of (player.swordElements || [])) {
         const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[id] : null;
         if (!elem) continue;
         items.push({
@@ -99,8 +74,7 @@ const RADIAL_RINGS = [
       }
       return items;
     }},
-  // Ranged — base bow + plain-arrow stock + one slot per elemental arrow type
-  // currently in stock.
+  // ── Bow / arrows: base bow + plain stock + one slot per elemental arrow ───────
   { name: 'arrows', radius: RADIAL_RADIUS, getItems: () => {
       const bowDmg = (player.bowLevel || 1) * 2 + 1;
       const items = [
@@ -111,8 +85,6 @@ const RADIAL_RINGS = [
           isActive: () => player.weapon === 'bow' && !player.activeArrowElement }
       ];
       const arrows = player.arrows || {};
-      // Plain arrows are a real drop now — surface their count so the player
-      // can see when they're about to run dry.
       if ((arrows.plain || 0) > 0) {
         items.push({ type: 'bow_plain', icon: '➳', label: 'Plain Arrow',
           val: () => 'x' + (player.arrows.plain || 0),
@@ -137,27 +109,112 @@ const RADIAL_RINGS = [
         });
       }
       return items;
-    }}
+    }},
+  // ── Consumables: every consumable except arrows (Bomb + Health Potion) ───────
+  { name: 'consumables', radius: RADIAL_RADIUS, getItems: () => {
+      const items = [
+        { type: 'bomb', icon: '💣', label: 'Bomb',
+          val: () => '∞',
+          dmg: () => String(7 + (player.swordLevel || 1)),
+          consumable: true,
+          action: () => { player.weapon = 'bomb'; placePlayerBomb(); },
+          isActive: () => player.weapon === 'bomb' }
+      ];
+      if ((player.potions || 0) > 0) {
+        items.push({ type: 'potion', icon: '🧪', label: 'Health Potion',
+          val: () => 'x' + (player.potions || 0),
+          consumable: true,
+          action: () => usePotion() });
+      }
+      return items;
+    }},
+  // ── Drops: passive pickups the player has collected ──────────────────────────
+  { name: 'drops', radius: RADIAL_RADIUS, getItems: () => {
+      const items = [];
+      for (const d of PASSIVE_DROPS) {
+        const n = player[d.key] || 0;
+        if (n <= 0) continue;
+        items.push({ type: d.type, icon: d.icon, label: d.label,
+          val: () => 'x' + (player[d.key] || 0),
+          action: null });
+      }
+      return items;
+    }},
+  // ── Armor: base armor pad + each owned elemental armor ──────────────────────
+  // The base entry just summarizes flat armor; the elemental entries are
+  // equippable — picking one halves incoming damage of that element.
+  { name: 'armor', radius: RADIAL_RADIUS, getItems: () => {
+      const items = [];
+      if (player.armor && player.armor > 0) {
+        items.push({ type: 'armor', icon: '🛡', label: 'Armor',
+          val: () => '+' + (player.armor || 0),
+          action: () => { player.activeArmorElement = null; },
+          isActive: () => !player.activeArmorElement });
+      } else {
+        // Always offer an "unequip" slot so the player can drop their
+        // elemental armor even without any flat armor points.
+        items.push({ type: 'armor', icon: '🛡', label: 'No Armor',
+          val: () => '—',
+          action: () => { player.activeArmorElement = null; },
+          isActive: () => !player.activeArmorElement });
+      }
+      for (const id of (player.armorElements || [])) {
+        const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[id] : null;
+        if (!elem) continue;
+        items.push({
+          type: 'armor_' + id,
+          icon: '🛡' + elem.icon,
+          label: elem.label + ' Armor',
+          val: () => '−50% ' + elem.icon,
+          action: () => { player.activeArmorElement = id; },
+          isActive: () => player.activeArmorElement === id
+        });
+      }
+      return items;
+    }},
 ];
 
-// Index into the current inventory ring items of the saved selection type,
-// or 0 if that type isn't currently listed.
-function inventoryIndexForSelection() {
-  const items = RADIAL_RINGS[0].getItems();
-  const idx = items.findIndex(it => it.type === inventorySelectionType);
+// ─── Current ring helpers ──────────────────────────────────────────────────────
+function radialCurrentRing()  { return RADIAL_RINGS[radialRingIndex]; }
+function radialCurrentItems() { return radialCurrentRing().getItems(); }
+function radialCurrentName()  { return radialCurrentRing().name; }
+
+// ─── Selection memory ──────────────────────────────────────────────────────────
+// Index into `items` of the ring's saved selection type, or 0 if absent.
+function indexForSelectionName(items, name) {
+  const idx = items.findIndex(it => it.type === ringSelectionType[name]);
   return idx >= 0 ? idx : 0;
+}
+// Remember the highlighted item for its ring, and bind the C quick-use key when
+// it's a consumable (so C keeps firing whatever consumable was last selected).
+function rememberSelection(name, item) {
+  if (!item) return;
+  ringSelectionType[name] = item.type;
+  if (item.consumable) inventorySelectionType = item.type;
+}
+
+// Find an item by type across all rings (used by the C key / HUD [C] slot).
+function radialFindItem(type) {
+  for (const ring of RADIAL_RINGS) {
+    const it = ring.getItems().find(i => i.type === type);
+    if (it) return it;
+  }
+  return null;
 }
 
 function toggleRadialMenu() {
   if (radialMenuOpen) { closeRadialMenu(); return; }
   radialMenuOpen = true;
   radialMenuOpenTime = Date.now();
-  // Find the first ring with items so we never open on an empty ring.
-  radialRingIndex = 0;
-  for (let i = 0; i < RADIAL_RINGS.length; i++) {
-    if (RADIAL_RINGS[i].getItems().length > 0) { radialRingIndex = i; break; }
+  // Reopen on the last-used ring; if it's since emptied, fall back to the first
+  // ring that still has items so we never open on an empty ring.
+  if (RADIAL_RINGS[radialRingIndex].getItems().length === 0) {
+    for (let i = 0; i < RADIAL_RINGS.length; i++) {
+      if (RADIAL_RINGS[i].getItems().length > 0) { radialRingIndex = i; break; }
+    }
   }
-  radialItemIndex = (radialRingIndex === 0) ? inventoryIndexForSelection() : 0;
+  const items = RADIAL_RINGS[radialRingIndex].getItems();
+  radialItemIndex = indexForSelectionName(items, RADIAL_RINGS[radialRingIndex].name);
   if (typeof clearAllKeys === 'function') clearAllKeys();
 }
 
@@ -168,35 +225,47 @@ function closeRadialMenu() {
 }
 
 // ─── Keyboard navigation ──────────────────────────────────────────────────────
+// Cycle to the next/previous non-empty ring (▲ = -1, ▼ = +1).
 function radialNavRing(delta) {
   if (!radialMenuOpen) return;
   const N = RADIAL_RINGS.length;
-  // Skip rings with zero items.
   let idx = radialRingIndex;
   for (let i = 0; i < N; i++) {
     idx = ((idx + delta) % N + N) % N;
     if (RADIAL_RINGS[idx].getItems().length > 0) break;
   }
   radialRingIndex = idx;
-  radialItemIndex = (radialRingIndex === 0) ? inventoryIndexForSelection() : 0;
+  const items = RADIAL_RINGS[idx].getItems();
+  radialItemIndex = indexForSelectionName(items, RADIAL_RINGS[idx].name);
   radialMenuOpenTime = Date.now();   // replay emerge animation for the new ring
+  radialAutoPick();
 }
 
 function radialNavItem(delta) {
   if (!radialMenuOpen) return;
-  const items = RADIAL_RINGS[radialRingIndex].getItems();
+  const items = radialCurrentItems();
   const N = items.length;
   if (N === 0) return;
   radialItemIndex = ((radialItemIndex + delta) % N + N) % N;
-  // Persist inventory-ring selection (by type) so the C key works across
-  // any future changes to the inventory list.
-  if (radialRingIndex === 0) inventorySelectionType = items[radialItemIndex].type;
+  rememberSelection(radialCurrentName(), items[radialItemIndex]);
+  radialAutoPick();
+}
+
+// Auto-equip the highlighted item so navigating it "picks" it without Enter.
+// Consumables (potions) and world-affecting items (bombs) are excluded — they'd
+// be used up just by scrolling past — so they stay merely selected and are fired
+// only on an explicit Enter/click or the C key.
+function radialAutoPick() {
+  const item = radialCurrentItems()[radialItemIndex];
+  if (item && item.action && !item.consumable) {
+    item.action();
+    updateHUD();
+  }
 }
 
 function radialActivateSelected() {
   if (!radialMenuOpen) return;
-  const items = RADIAL_RINGS[radialRingIndex].getItems();
-  const item = items[radialItemIndex];
+  const item = radialCurrentItems()[radialItemIndex];
   if (item && item.action) {
     item.action();
     updateHUD();
@@ -206,13 +275,9 @@ function radialActivateSelected() {
 // Called by the C key in the game loop. Returns ms of cooldown so the gameplay
 // timer can throttle hold-to-spam (matches the old bomb behaviour).
 function useSelectedInventoryItem() {
-  const items = RADIAL_RINGS[0].getItems();
-  // Prefer the persisted-by-type selection; if that item isn't currently in
-  // the inventory ring (e.g. potion ran out), fall back to the first listed
-  // item so the C key isn't silently dead. The HUD's [C] slot already does
-  // the same fallback so behaviour stays consistent.
-  let item = items.find(it => it.type === inventorySelectionType);
-  if (!item) item = items[0];
+  // Resolve the C-bound consumable; fall back to Bomb so the key is never dead.
+  let item = radialFindItem(inventorySelectionType);
+  if (!item || !item.consumable) item = radialFindItem('bomb');
   if (!item) return 0;
   if (item.type === 'potion') {
     const before = player.potions;
@@ -239,7 +304,7 @@ function radialSlots() {
   const ease = radialEase();
   const pcx = (player.renderX - camC + 0.5) * TILE_PX;
   const pcy = (player.renderY - camR + 0.5) * TILE_PX;
-  const ring = RADIAL_RINGS[radialRingIndex];
+  const ring = radialCurrentRing();
   const items = ring.getItems();
   const r = ring.radius * ease;
   const N = items.length;
@@ -284,9 +349,8 @@ function radialOnClick(e) {
   const slot = radialHoveredSlot();
   if (slot) {
     radialItemIndex = slot.index;   // sync keyboard selection to mouse
-    if (radialRingIndex === 0) inventorySelectionType = slot.item.type;
-    if (slot.item.action) slot.item.action();
-    updateHUD();
+    rememberSelection(radialCurrentName(), slot.item);
+    if (slot.item.action) { slot.item.action(); updateHUD(); }
   } else {
     closeRadialMenu();
   }
@@ -301,7 +365,7 @@ function drawRadialMenu() {
   const ease = radialEase();
   const pcx = (player.renderX - camC + 0.5) * TILE_PX;
   const pcy = (player.renderY - camR + 0.5) * TILE_PX;
-  const ring = RADIAL_RINGS[radialRingIndex];
+  const ring = radialCurrentRing();
 
   ctx.save();
 
@@ -324,12 +388,11 @@ function drawRadialMenu() {
   for (const slot of slots) {
     const isHover    = hovered === slot;
     const isSelected = slot.selected;
-    // Each weapon slot can declare its own "active" predicate so we can
-    // distinguish e.g. base-sword vs Fire-sword vs Ice-sword.
-    const activeWeapon = slot.ring === 'weapons' &&
-      (typeof slot.item.isActive === 'function'
-        ? slot.item.isActive()
-        : player.weapon === slot.item.type);
+    // Each weapon item declares its own "active" predicate so we can distinguish
+    // base-sword vs Fire-sword, bow vs arrow type, equipped bomb, etc.
+    const activeWeapon = typeof slot.item.isActive === 'function'
+      ? slot.item.isActive()
+      : false;
 
     // Selection / hover glow
     if (isSelected || isHover) {
@@ -406,7 +469,7 @@ function drawRadialMenu() {
   ctx.fillStyle = 'rgba(255,220,120,0.85)';
   ctx.fillText('▲', pcx, pcy - 32);
 
-  // Ring name (e.g. "INVENTORY")
+  // Ring name (e.g. "SWORDS")
   ctx.font = 'bold 13px monospace';
   ctx.lineWidth = 3;
   ctx.strokeStyle = '#000';
@@ -414,13 +477,13 @@ function drawRadialMenu() {
   ctx.fillStyle = '#ffd070';
   ctx.fillText(ring.name.toUpperCase(), pcx, pcy - 14);
 
-  // Ring index (1/3)
+  // Ring index (1/5)
   ctx.font = '10px monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.fillText(`${radialRingIndex + 1}/${RADIAL_RINGS.length}`, pcx, pcy);
 
   // Selected item label
-  const selItem = ring.getItems()[radialItemIndex];
+  const selItem = radialCurrentItems()[radialItemIndex];
   if (selItem) {
     ctx.font = 'bold 12px monospace';
     ctx.strokeStyle = '#000';
@@ -439,7 +502,7 @@ function drawRadialMenu() {
   ctx.font = '11px monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.textAlign = 'center';
-  ctx.fillText('▲▼ ring   ◀▶ item   Enter select   V/Esc close', PW / 2, PH - 24);
+  ctx.fillText('▲▼ ring   ◀▶ item   Enter use   V/Esc close', PW / 2, PH - 24);
 
   ctx.restore();
 }

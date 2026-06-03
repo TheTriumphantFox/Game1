@@ -47,6 +47,34 @@ body {
   flex-shrink: 0;
 }
 
+/* Large transient banner for map/area messages. Fixed to the viewport so it
+   floats over the canvas, centered within the top third of the screen. */
+#map-banner {
+  position: fixed;
+  top: 16%;                       /* sits inside the top third */
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 60;
+  max-width: 90vw;
+  padding: 14px 28px;
+  text-align: center;
+  font-size: clamp(22px, 3.4vw, 40px);
+  font-weight: 700;
+  line-height: 1.25;
+  color: #f4f8e8;
+  text-shadow: 0 2px 6px #000, 0 0 10px rgba(0,0,0,0.85);
+  background: rgba(8, 15, 8, 0.72);
+  border: 2px solid #2a5a2a;
+  border-radius: 10px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+#map-banner.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* Game canvas fills remaining space */
 canvas {
   display: block;

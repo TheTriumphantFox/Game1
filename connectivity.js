@@ -19,7 +19,12 @@ function ensureConnectivity(m, preserveFloor, sealTile) {
     const t = m[r][c];
     return !(t === T.TREE || t === T.WATER || t === T.WALL || t === T.ROCK ||
              t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
-             t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT);
+             t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
+             t === T.CACTUS || t === T.OASIS_WATER ||
+             // Elemental region borders
+             t === T.GLACIER || t === T.MOUNTAIN || t === T.CLOUDWALL ||
+             t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||
+             t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL);
   };
 
   // Tiles we must keep reachable even if it means carving a path to them.
@@ -28,6 +33,9 @@ function ensureConnectivity(m, preserveFloor, sealTile) {
   const isInteresting = (t) =>
     t === T.CHEST || t === T.SHRINE || t === T.TORCH ||
     t === T.DUNGEON_DOOR || t === T.DOOR ||
+    t === T.LARGE_CHEST || t === T.LARGE_CHEST_R ||
+    t === T.BOSS_CHEST_TL || t === T.BOSS_CHEST_TR ||
+    t === T.BOSS_CHEST_BL || t === T.BOSS_CHEST_BR ||
     (preserveFloor && t === T.FLOOR);
 
   // Seed the flood from each of the four exit tiles

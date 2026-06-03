@@ -17,6 +17,14 @@
 <div id="store-modal-overlay" class="shop-overlay">
   <div id="store-modal" class="shop-modal"></div>
 </div>
+<!-- Herbalist modal -->
+<div id="herb-modal-overlay" class="shop-overlay">
+  <div id="herb-modal" class="shop-modal"></div>
+</div>
+<!-- Blacksmith modal -->
+<div id="smith-modal-overlay" class="shop-overlay">
+  <div id="smith-modal" class="shop-modal"></div>
+</div>
 
 <!-- Save / Load modal -->
 <div id="save-modal-overlay">
@@ -39,17 +47,19 @@
     <span style="margin-left:6px">💰<span id="rupees">0</span></span>
     <span>⚔️Lv<span id="level">1</span></span>
     <span style="color:#88aaff">XP:<span id="xp">0</span>/<span id="xpnext">500</span></span>
-    <span style="color:#ff88aa">🧪<span id="potions">0</span></span>
-    <span style="color:#9ed68a">🌿<span id="herbals">0</span></span>
-    <span style="color:#aada">🗺️Map <span id="mapcount">1</span>/42</span>
     <span style="margin-left:auto;color:#8c8" id="roomName">Forest Clearing</span>
   </div>
-  <div id="msg-bar">🌲 Deep in the Enchanted Forest… find your way through.</div>
+  <div id="msg-bar"></div>
   <canvas id="c"></canvas>
+  <!-- Large transient banner for map/area messages — overlays the top third
+       of the screen, centered. Driven by showMapMsg() in ui.js. -->
+  <div id="map-banner"></div>
   <div id="weapon-bar">
     <span class="weapon-slot weapon-active" id="ws-sword">⚔️ Sword [Z]</span>
     <span class="weapon-slot" id="ws-bow">🏹 Bow [X]</span>
     <span class="weapon-slot" id="ws-bomb">💣 Bomb [C]</span>
+    <span class="weapon-slot" id="ws-armor" style="display:none"></span>
+    <span class="weapon-slot" id="ws-interact" style="display:none"></span>
     <span style="margin-left:auto;color:#557">Tab: Minimap</span>
   </div>
   <div id="ctrl-bar">

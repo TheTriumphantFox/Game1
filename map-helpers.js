@@ -27,6 +27,15 @@ function rnd(a, b) {
   return a + Math.floor(Math.random() * (b - a + 1));
 }
 
+// True if `t` is any tile belonging to a chest (single, large 1×2, or boss
+// 2×2). Chests are solid objects — the player opens them by bumping, not by
+// standing on them — so this is shared by isSolid and the bump-to-open logic.
+function isChestTile(t) {
+  return t === T.CHEST || t === T.LARGE_CHEST || t === T.LARGE_CHEST_R ||
+         t === T.BOSS_CHEST_TL || t === T.BOSS_CHEST_TR ||
+         t === T.BOSS_CHEST_BL || t === T.BOSS_CHEST_BR;
+}
+
 // Returns true if the tile at (c, r) blocks movement.
 // Used both by movement code and the connectivity flood-fill.
 function isSolid(map, c, r) {
@@ -35,7 +44,12 @@ function isSolid(map, c, r) {
   return t === T.TREE || t === T.WATER || t === T.WALL || t === T.ROCK ||
          t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
          t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
-         t === T.CACTUS || t === T.OASIS_WATER;
+         t === T.CACTUS || t === T.OASIS_WATER ||
+         // Elemental region borders (solid)
+         t === T.GLACIER || t === T.MOUNTAIN || t === T.CLOUDWALL ||
+         t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||
+         t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL ||
+         isChestTile(t);
 }
 
 // Drunk-walk path carving. Biases toward the target but takes random detours,

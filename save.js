@@ -26,11 +26,13 @@ function buildSaveData() {
     currentMapId,
     mapsVisited,
     desertsVisited,
+    currentRegionIdx,
+    regionMapsVisited,
     mapSequence,
     worldGrid,
     worldMapsLite: worldMaps.map(m => ({
       id: m.id, gx: m.gx, gy: m.gy,
-      name: m.name, type: m.type, biome: m.biome, depth: m.depth,
+      name: m.name, type: m.type, biome: m.biome, regionIdx: m.regionIdx, depth: m.depth,
       openedChests: Array.from(m.openedChests),
       visited: m.visited,
       savedEnemies: m.savedEnemies || null,
@@ -45,7 +47,9 @@ function buildSaveData() {
       // Village activation state
       activated: m.activated || false,
       innDoor: m.innDoor || undefined,
-      storeDoor: m.storeDoor || undefined
+      storeDoor: m.storeDoor || undefined,
+      herbDoor: m.herbDoor || undefined,
+      smithDoor: m.smithDoor || undefined
     }))
   };
 }
@@ -62,6 +66,7 @@ const DEFAULT_PLAYER = {
   bowLevel: 1, swordLevel: 1, armor: 0,
   potions: STARTING_ITEM_AMOUNT,
   herbals: STARTING_ITEM_AMOUNT,
+  mushrooms: STARTING_ITEM_AMOUNT,
   fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
   bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
   // swordElements / arrows are populated by applyStartingInventory() at boot
@@ -70,6 +75,8 @@ const DEFAULT_PLAYER = {
   activeSwordElement: null,
   arrows: {},
   activeArrowElement: null,
+  armorElements: [],
+  activeArmorElement: null,
   defeatedBoss: false
 };
 
@@ -85,6 +92,13 @@ function applyLoadData(data) {
   currentMapId = data.currentMapId;
   mapsVisited = data.mapsVisited || 0;
   desertsVisited = data.desertsVisited || 0;
+  currentRegionIdx = data.currentRegionIdx || 0;
+  regionMapsVisited = data.regionMapsVisited || {};
+  // Back-fill region counters for older saves so progression keeps working.
+  for (let i = 0; i < REGIONS.length; i++) {
+    if (regionMapsVisited[i] === undefined) regionMapsVisited[i] = 0;
+  }
+  if (desertsVisited && !regionMapsVisited[1]) regionMapsVisited[1] = desertsVisited;
   mapSequence = data.mapSequence || [];
   worldGrid = data.worldGrid || {};
 
@@ -97,19 +111,32 @@ function applyLoadData(data) {
   minimapCanvases = {}; minimapDirty = true;
 
   worldMaps = data.worldMapsLite.map(lite => {
+    // Resolve which region this map belongs to. Newer saves include `regionIdx`
+    // directly; older saves are biome-string-based and may use 'desert' for the
+    // fire region.
+    const biome = lite.biome === 'desert' ? 'fire' : lite.biome;
+    const regionIdx = (typeof lite.regionIdx === 'number')
+      ? lite.regionIdx
+      : Math.max(0, REGIONS.findIndex(r => r.id === biome));
+    const region = REGIONS[regionIdx] || REGIONS[0];
+
     const md = lite.mapTiles
       ? decodeMap(lite.mapTiles)
-      : lite.type === 'village' ? buildVillageMap(lite.biome === 'desert' ? 'desert' : 'forest')
+      : lite.type === 'village' ? buildVillageMap(region.id)
       : lite.type === 'cave'    ? buildCaveMap()
-      : lite.type === 'desert'  ? buildDesertMap(lite.id, lite.depth)
-      :                            buildForestMap(lite.id, lite.depth);
-    // The desert village shares type 'village' but needs the Mummy Lord + tier-2
-    // spawns, so derive a distinct discriminator for makeEnemyDefs.
-    const enemyType = (lite.type === 'village' && lite.biome === 'desert')
-      ? 'desert_village' : lite.type;
+      : lite.type === 'house'   ? buildStarterHouseMap()
+      : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth)
+      : lite.type === 'fire' || lite.type === 'desert'
+                                ? buildDesertMap(lite.id, lite.depth)
+      :                            buildRegionMap(lite.id, lite.depth, undefined, region);
+
+    // Villages share type 'village' but each region's boss differs, so build a
+    // `<region>_village` discriminator for makeEnemyDefs.
+    const enemyType = (lite.type === 'village')
+      ? `${region.id}_village` : lite.type;
     const obj = {
       id: lite.id, gx: lite.gx || 0, gy: lite.gy || 0,
-      name: lite.name, type: lite.type, biome: lite.biome, depth: lite.depth,
+      name: lite.name, type: lite.type, biome: region.id, regionIdx, depth: lite.depth,
       map: md, enemyDefs: makeEnemyDefs(lite.depth, enemyType, md),
       openedChests: new Set(lite.openedChests),
       visited: lite.visited,
@@ -126,6 +153,8 @@ function applyLoadData(data) {
     if (lite.activated) obj.activated = true;
     if (lite.innDoor)   obj.innDoor   = { ...lite.innDoor };
     if (lite.storeDoor) obj.storeDoor = { ...lite.storeDoor };
+    if (lite.herbDoor)  obj.herbDoor  = { ...lite.herbDoor };
+    if (lite.smithDoor) obj.smithDoor = { ...lite.smithDoor };
     return obj;
   });
 
@@ -168,7 +197,7 @@ function renderSlotList() {
 
       const metaSpan = document.createElement('div');
       metaSpan.className = 'save-slot-meta';
-      metaSpan.textContent = `Lv${meta.level} · Map ${meta.mapsVisited}/42 · ${meta.date}`;
+      metaSpan.textContent = `Lv${meta.level} · Map ${meta.mapsVisited}/232 · ${meta.date}`;
 
       const btns = document.createElement('div');
       btns.className = 'save-slot-btns';
@@ -306,10 +335,12 @@ function newGame() {
     swordTimer: 0, swordDir: { x: 0, y: -1 }, invincible: 0,
     weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
     potions: STARTING_ITEM_AMOUNT, herbals: STARTING_ITEM_AMOUNT,
+    mushrooms: STARTING_ITEM_AMOUNT,
     fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
     bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
     swordElements: [], activeSwordElement: null,
     arrows: {}, activeArrowElement: null,
+    armorElements: [], activeArmorElement: null,
     defeatedBoss: false
   });
   applyStartingInventory(player);
@@ -326,5 +357,5 @@ function newGame() {
   clampCam(true);
   updateHUD();
   document.getElementById('save-status').textContent = '';
-  showMsg('🌲 A new adventure begins in the Enchanted Forest!', 3500);
+  showMapMsg('🛏️ You awaken in your cabin. Step outside to begin your adventure.');
 }

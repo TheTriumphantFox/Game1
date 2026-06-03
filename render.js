@@ -901,34 +901,240 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.textBaseline = 'alphabetic';
       ctx.textAlign = 'left';
       break; }
-    case T.LARGE_CHEST: {
-      const opened = currentMap().openedChests.has(`big_${col},${row}`);
-      // Slight gold halo around it when closed
+    case T.HERB_DOOR: {
+      // Pulsing leafy-green halo
+      const pulse = (Math.sin(Date.now()/280) * 0.5 + 0.5);
+      const halo = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.9);
+      halo.addColorStop(0, `rgba(150,230,90,${0.35 + pulse*0.25})`);
+      halo.addColorStop(1, 'rgba(150,230,90,0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(x-s*0.4, y-s*0.4, s*1.8, s*1.8);
+
+      // Threshold + wooden door
+      ctx.fillStyle = '#3a5a28'; ctx.fillRect(x+1,y+1,s-2,s-2);
+      ctx.fillStyle = '#7a5a30'; ctx.fillRect(x+s*0.18,y+s*0.30,s*0.64,s*0.62);
+      ctx.fillStyle = '#5a3f20'; ctx.fillRect(x+s*0.18,y+s*0.30,s*0.64,s*0.08);
+      // Door frame
+      ctx.fillStyle = '#2a1c08'; ctx.fillRect(x+s*0.18,y+s*0.28,s*0.05,s*0.64);
+      ctx.fillRect(x+s*0.77,y+s*0.28,s*0.05,s*0.64);
+      // Brass handle
+      ctx.fillStyle = '#ffcc00';
+      ctx.beginPath();
+      ctx.arc(x+s*0.70, y+s*0.62, s*0.04, 0, Math.PI*2); ctx.fill();
+
+      // Hanging herb bundles either side of the door
+      ctx.strokeStyle = '#3a7a2a'; ctx.lineWidth = 1.5;
+      for (const hx of [0.10, 0.90]) {
+        ctx.beginPath();
+        ctx.moveTo(x+s*hx, y+s*0.30); ctx.lineTo(x+s*hx, y+s*0.58);
+        ctx.stroke();
+        ctx.fillStyle = '#4a9a3a';
+        ctx.beginPath(); ctx.ellipse(x+s*hx, y+s*0.58, s*0.05, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#6aba4a';
+        ctx.beginPath(); ctx.ellipse(x+s*hx - s*0.02, y+s*0.56, s*0.025, s*0.06, 0, 0, Math.PI*2); ctx.fill();
+      }
+
+      // Sign plank with a green mortar-and-pestle dot + "HERB" text
+      ctx.fillStyle = '#2a3a18';
+      ctx.fillRect(x+s*0.08, y+s*0.02, s*0.84, s*0.22);
+      ctx.fillStyle = '#3a5a24';
+      ctx.fillRect(x+s*0.10, y+s*0.04, s*0.80, s*0.18);
+      ctx.strokeStyle = '#aaee70';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x+s*0.10, y+s*0.04, s*0.80, s*0.18);
+      ctx.fillStyle = '#eaffd0';
+      ctx.font = `bold ${Math.round(s*0.16)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('HERB', x+s/2, y+s*0.14);
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';
+      break; }
+    case T.SMITH_DOOR: {
+      // Pulsing steely-blue halo
+      const pulse = (Math.sin(Date.now()/280) * 0.5 + 0.5);
+      const halo = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.9);
+      halo.addColorStop(0, `rgba(150,180,230,${0.32 + pulse*0.22})`);
+      halo.addColorStop(1, 'rgba(150,180,230,0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(x-s*0.4, y-s*0.4, s*1.8, s*1.8);
+
+      // Stone threshold + heavy iron-banded door
+      ctx.fillStyle = '#3a3a44'; ctx.fillRect(x+1,y+1,s-2,s-2);
+      ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x+s*0.18,y+s*0.30,s*0.64,s*0.62);
+      ctx.fillStyle = '#3a2c20'; ctx.fillRect(x+s*0.18,y+s*0.30,s*0.64,s*0.08);
+      // Iron bands across the door
+      ctx.fillStyle = '#888894';
+      ctx.fillRect(x+s*0.18, y+s*0.46, s*0.64, s*0.05);
+      ctx.fillRect(x+s*0.18, y+s*0.72, s*0.64, s*0.05);
+      // Door frame
+      ctx.fillStyle = '#1a1a22'; ctx.fillRect(x+s*0.18,y+s*0.28,s*0.05,s*0.64);
+      ctx.fillRect(x+s*0.77,y+s*0.28,s*0.05,s*0.64);
+      // Iron ring handle
+      ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x+s*0.68, y+s*0.62, s*0.05, 0, Math.PI*2); ctx.stroke();
+
+      // Anvil silhouette beside the door
+      ctx.fillStyle = '#55555f';
+      ctx.fillRect(x+s*0.04, y+s*0.66, s*0.12, s*0.05);   // top face
+      ctx.fillRect(x+s*0.07, y+s*0.71, s*0.06, s*0.10);   // stem/base
+
+      // Sign plank with "SMITH" text
+      ctx.fillStyle = '#26262e';
+      ctx.fillRect(x+s*0.06, y+s*0.02, s*0.88, s*0.22);
+      ctx.fillStyle = '#3a3a48';
+      ctx.fillRect(x+s*0.08, y+s*0.04, s*0.84, s*0.18);
+      ctx.strokeStyle = '#aab4d0';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x+s*0.08, y+s*0.04, s*0.84, s*0.18);
+      ctx.fillStyle = '#dfe6f5';
+      ctx.font = `bold ${Math.round(s*0.15)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('SMITH', x+s/2, y+s*0.14);
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';
+      break; }
+    case T.LARGE_CHEST:
+    case T.LARGE_CHEST_R: {
+      // 1×2 chest: LARGE_CHEST is the left anchor, LARGE_CHEST_R is the right
+      // half. Opened state is tracked on the anchor coords.
+      const isRight = t === T.LARGE_CHEST_R;
+      const ax = isRight ? col - 1 : col;
+      const opened = currentMap().openedChests.has(`big_${ax},${row}`);
+      // Slight gold halo around it when closed — drawn once per half so it
+      // wraps the full body even at the seam.
       if (!opened) {
         const pulse = Math.sin(Date.now()/300) * 2;
-        const halo = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.6 + pulse);
-        halo.addColorStop(0, 'rgba(255,210,80,0.55)');
+        const halo = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.8 + pulse);
+        halo.addColorStop(0, 'rgba(255,210,80,0.45)');
         halo.addColorStop(1, 'rgba(255,210,80,0)');
         ctx.fillStyle = halo;
-        ctx.fillRect(x-s*0.2, y-s*0.2, s*1.4, s*1.4);
+        ctx.fillRect(x-s*0.3, y-s*0.3, s*1.6, s*1.6);
       }
-      // Chest body — larger than the regular CHEST
+      // Chest body — extends the full tile horizontally (no inset on the
+      // shared seam) so the two halves read as one wide chest.
+      const leftEdge  = isRight ? x         : x + s*0.10;
+      const rightEdge = isRight ? x + s*0.90 : x + s;
+      const bodyW = rightEdge - leftEdge;
       ctx.fillStyle = opened ? '#3a2210' : '#995500';
-      ctx.fillRect(x+s*0.10, y+s*0.30, s*0.80, s*0.62);
+      ctx.fillRect(leftEdge, y+s*0.30, bodyW, s*0.62);
       ctx.fillStyle = opened ? '#221406' : '#cc7700';
-      ctx.fillRect(x+s*0.10, y+s*0.20, s*0.80, s*0.18);
-      // Iron bands
+      ctx.fillRect(leftEdge, y+s*0.20, bodyW, s*0.18);
+      // Iron bands run continuously across both halves
       ctx.fillStyle = opened ? '#1a1106' : '#553300';
-      ctx.fillRect(x+s*0.10, y+s*0.36, s*0.80, s*0.05);
-      ctx.fillRect(x+s*0.10, y+s*0.75, s*0.80, s*0.05);
-      ctx.fillRect(x+s/2-s*0.04, y+s*0.20, s*0.08, s*0.72);
-      // Lock / star
-      ctx.fillStyle = opened ? '#665533' : '#ffdd55';
+      ctx.fillRect(leftEdge, y+s*0.36, bodyW, s*0.05);
+      ctx.fillRect(leftEdge, y+s*0.75, bodyW, s*0.05);
+      // Lock / star sits at the seam — drawn on the LEFT half only so it
+      // straddles the centreline of the 2-tile chest.
+      if (!isRight) {
+        ctx.fillStyle = opened ? '#665533' : '#ffdd55';
+        ctx.beginPath();
+        ctx.arc(x+s, y+s/2+s*0.04, s*0.12, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = opened ? '#332211' : '#ffffff';
+        ctx.fillRect(x+s-s*0.02, y+s/2-s*0.02, s*0.04, s*0.14);
+      }
+      break; }
+    case T.BOSS_CHEST_TL:
+    case T.BOSS_CHEST_TR:
+    case T.BOSS_CHEST_BL:
+    case T.BOSS_CHEST_BR: {
+      // 2×2 boss chest — purple/gold royal palette with a pulsing magenta
+      // halo, jewelled lock, and continuous iron bands across the seams.
+      const isTop  = t === T.BOSS_CHEST_TL || t === T.BOSS_CHEST_TR;
+      const isLeft = t === T.BOSS_CHEST_TL || t === T.BOSS_CHEST_BL;
+      const ax = isLeft ? col : col - 1;
+      const ay = isTop  ? row : row - 1;
+      const opened = currentMap().openedChests.has(`boss_${ax},${ay}`);
+
+      if (!opened) {
+        const pulse = Math.sin(Date.now()/250) * 3;
+        const halo = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*1.1 + pulse);
+        halo.addColorStop(0, 'rgba(220,80,255,0.55)');
+        halo.addColorStop(1, 'rgba(220,80,255,0)');
+        ctx.fillStyle = halo;
+        ctx.fillRect(x-s*0.4, y-s*0.4, s*1.8, s*1.8);
+      }
+
+      // Body: fill the whole tile but inset by 10% only on the OUTER edges so
+      // the four quadrants meet seamlessly. The body uses a deep regal purple,
+      // the lid uses a brighter violet, and the iron bands are near-black.
+      const leftPad   = isLeft  ? s*0.10 : 0;
+      const rightPad  = isLeft  ? 0      : s*0.10;
+      const topPad    = isTop   ? s*0.10 : 0;
+      const bottomPad = isTop   ? 0      : s*0.10;
+      const bx = x + leftPad;
+      const by = y + topPad;
+      const bw = s - leftPad - rightPad;
+      const bh = s - topPad - bottomPad;
+
+      // Lid (top row of tiles) vs body (bottom row of tiles)
+      if (isTop) {
+        // Lid: brighter violet on top, royal purple lower-lid
+        ctx.fillStyle = opened ? '#1a0a22' : '#5a1a8a';
+        ctx.fillRect(bx, by, bw, bh);
+        // Lid trim along the BOTTOM seam of the top quadrants
+        ctx.fillStyle = opened ? '#0a0410' : '#8833cc';
+        ctx.fillRect(bx, y + s - 2, bw, 2);
+        // Outer-edge top trim
+        ctx.fillStyle = opened ? '#0a0410' : '#aa55ee';
+        ctx.fillRect(bx, by, bw, Math.max(2, s*0.06));
+      } else {
+        // Body: deep regal purple
+        ctx.fillStyle = opened ? '#120618' : '#3a0a66';
+        ctx.fillRect(bx, by, bw, bh);
+        // Body planking — vertical streak for grain
+        ctx.fillStyle = opened ? '#0a020c' : '#240648';
+        ctx.fillRect(bx + bw*0.3, by, 1, bh);
+        ctx.fillRect(bx + bw*0.7, by, 1, bh);
+        // Bottom trim
+        ctx.fillStyle = opened ? '#0a0410' : '#5a1aaa';
+        ctx.fillRect(bx, y + s - Math.max(2, s*0.06), bw, Math.max(2, s*0.06));
+      }
+
+      // Iron band across the seam between lid and body — drawn on BOTH the
+      // top and bottom rows so it lines up no matter which quadrant draws first
+      ctx.fillStyle = opened ? '#1a1106' : '#221122';
+      if (isTop)  ctx.fillRect(bx, y + s - 3, bw, 3);
+      else        ctx.fillRect(bx, y,         bw, 3);
+
+      // Vertical iron strap down the centre seam between left/right quadrants
+      ctx.fillStyle = opened ? '#1a1106' : '#221122';
+      if (isLeft) ctx.fillRect(x + s - 2, by, 2, bh);
+      else        ctx.fillRect(x,         by, 2, bh);
+
+      // Jewelled lock — diamond gem at the very centre of the 2×2 chest.
+      // Each quadrant draws its own quarter of the gem so it spans the seam.
+      const cxg = isLeft ? x + s : x;
+      const cyg = isTop  ? y + s : y;
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(x+s/2, y+s/2+s*0.04, s*0.10, 0, Math.PI*2);
+      // Clip to this tile so the four quarter-draws stay in their cells
+      ctx.rect(x, y, s, s);
+      ctx.clip();
+      // Gold backplate
+      ctx.fillStyle = opened ? '#443322' : '#ffcc33';
+      ctx.beginPath();
+      ctx.arc(cxg, cyg, s*0.22, 0, Math.PI*2);
       ctx.fill();
-      ctx.fillStyle = opened ? '#332211' : '#ffffff';
-      ctx.fillRect(x+s/2-s*0.02, y+s/2-s*0.02, s*0.04, s*0.12);
+      // Inner gem (cyan when open? no — magenta gem when closed, dull when open)
+      ctx.fillStyle = opened ? '#221122' : '#ff66ff';
+      ctx.beginPath();
+      ctx.moveTo(cxg, cyg - s*0.16);
+      ctx.lineTo(cxg + s*0.12, cyg);
+      ctx.lineTo(cxg, cyg + s*0.16);
+      ctx.lineTo(cxg - s*0.12, cyg);
+      ctx.closePath();
+      ctx.fill();
+      // Specular highlight on the gem
+      if (!opened) {
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath();
+        ctx.arc(cxg - s*0.04, cyg - s*0.04, s*0.025, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
       break; }
     case T.SAND: {
       // Warm sand base with a few darker grain specks for texture.
@@ -2012,13 +2218,14 @@ function drawDrop(d, ts) {
     return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
   };
   const glowColor =
-    d.type === 'rupee'  ? '40,220,90'   :
-    d.type === 'herbal' ? '120,210,80'  :
-    d.type === 'potion' ? '255,120,180' :
-    arrowElem           ? hexToRGB(arrowElem.color) :
-    d.type === 'arrows' ? '221,170,68' :  // plain arrows: warm tan/wood
-    trophy              ? hexToRGB(trophy.color) :
-                          '255,120,160';
+    d.type === 'rupee'    ? '40,220,90'   :
+    d.type === 'herbal'   ? '120,210,80'  :
+    d.type === 'mushroom' ? '200,112,74'  :
+    d.type === 'potion'   ? '255,120,180' :
+    arrowElem             ? hexToRGB(arrowElem.color) :
+    d.type === 'arrows'   ? '221,170,68' :  // plain arrows: warm tan/wood
+    trophy                ? hexToRGB(trophy.color) :
+                            '255,120,160';
   const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, ts * 0.42);
   glow.addColorStop(0, `rgba(${glowColor},0.55)`);
   glow.addColorStop(1, `rgba(${glowColor},0)`);
@@ -2119,13 +2326,14 @@ function drawDrop(d, ts) {
     leaf(cx,             cy - s * 0.75, 0);
     leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
     leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
-  } else if (trophy || d.type === 'potion' || d.type === 'arrows') {
-    // Trophy items + potion + arrow bundle: render as a glyph centered on the
-    // tile. Arrow drops show the elemental icon and the count; trophy/potion
-    // drops show their thematic icon.
+  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom') {
+    // Trophy items + potion + arrow bundle + mushroom: render as a glyph
+    // centered on the tile. Arrow drops show the elemental icon and the count;
+    // trophy / potion / mushroom drops show their thematic icon.
     const icon =
-      d.type === 'arrows' ? (arrowElem ? arrowElem.icon : '🏹') :
-      d.type === 'potion' ? '🧪' :
+      d.type === 'arrows'   ? (arrowElem ? arrowElem.icon : '🏹') :
+      d.type === 'potion'   ? '🧪' :
+      d.type === 'mushroom' ? '🍄' :
       trophy.icon;
     const size = Math.round(ts * 0.42 * pulse);
     ctx.font = `${size}px serif`;
@@ -2261,6 +2469,14 @@ function drawMinimap() {
     if (cm.storeDoor) {
       ctx.fillStyle = '#44ff88';
       ctx.fillText('$', mx + Math.floor(cm.storeDoor.c * scale), my + Math.floor(cm.storeDoor.r * scale) + 4);
+    }
+    if (cm.herbDoor) {
+      ctx.fillStyle = '#aaee66';
+      ctx.fillText('H', mx + Math.floor(cm.herbDoor.c * scale), my + Math.floor(cm.herbDoor.r * scale) + 4);
+    }
+    if (cm.smithDoor) {
+      ctx.fillStyle = '#aac4ee';
+      ctx.fillText('B', mx + Math.floor(cm.smithDoor.c * scale), my + Math.floor(cm.smithDoor.r * scale) + 4);
     }
   }
   ctx.restore();

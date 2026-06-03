@@ -54,6 +54,90 @@ function rollNecroticVuln(e, level) {
   spawnParticle(esp.x, esp.y, necElem.color, 4, 2);
 }
 
+// Resolve an incoming hit against the player's defenses and apply the HP loss.
+// Two layers, in order:
+//   1. Elemental armor — halves matching-element damage (see applyElementalArmor).
+//   2. Flat armor (player.armor) — at armor level N (≥2), each hit absorbs
+//      ((N-1)d4 - N) damage, clamped to 0. So the scaling is:
+//        +2 → 1d4 - 2  (avg ≈0.75)
+//        +3 → 2d4 - 3  (avg ≈2.06)
+//        +4 → 3d4 - 4  (avg ≈3.52)
+//        +5 → 4d4 - 5  (avg ≈5.02)
+//      Each additional Armor point adds another d4 of mitigation while the
+//      flat -N modifier keeps low rolls modest, so heavy armor really shines
+//      on big hits.
+// The post-armor damage is floored at 1 so every hit that gets past i-frames
+// still registers. Damage numbers are tagged with 🛡 when armor blocked any
+// portion of the hit so the player can see the proc.
+function damagePlayer(rawDmg, hitElement) {
+  const { dmg: afterElem, resisted } = (typeof applyElementalArmor === 'function')
+    ? applyElementalArmor(rawDmg, hitElement)
+    : { dmg: rawDmg, resisted: null };
+
+  // Flat armor roll. Only activates at +2 Armor and only when there's enough
+  // damage left to actually shave — skipping the roll when afterElem === 1
+  // keeps the min-1 floor from wasting a die.
+  let armorBlock = 0;
+  const armorLv = player.armor || 0;
+  if (armorLv >= 2 && afterElem > 1) {
+    // (N-1) d4 dice, then a single -N modifier applied to the sum. Negatives
+    // are *not* clamped here — they're kept so the residual below can detect
+    // a "huge over-absorption" full block.
+    const dice = armorLv - 1;
+    let total = -armorLv;
+    for (let d = 0; d < dice; d++) total += 1 + Math.floor(Math.random() * 4);
+    armorBlock = total;
+  }
+
+  // Residual damage after armor. Normally we floor at 1 so every hit that
+  // gets past i-frames still nicks the player. But if armor over-absorbed by
+  // 15 or more (residual ≤ -15) the hit is fully nullified — armor just ate
+  // the entire blow. armorBlock can also be negative on a bad roll; the
+  // Math.max(0, …) further below clamps it for the "did armor proc?" check.
+  const residual = afterElem - Math.max(0, armorBlock);
+  const finalDmg = (afterElem - armorBlock) <= -15 ? 0 : Math.max(1, residual);
+  armorBlock = Math.max(0, armorBlock);
+  player.hp -= finalDmg;
+
+  const psp = screenPX(player.x, player.y);
+  if (finalDmg === 0) {
+    // Full armor block — armor over-absorbed the hit by 15+. Show a bright
+    // "🛡 BLOCK" indicator so the proc is clearly visible.
+    spawnParticle(psp.x, psp.y, '#ffee88', 10, 4);
+    spawnParticle(psp.x, psp.y, '#ffffff',  6, 3);
+    damageNumbers.push({
+      entity: 'player',
+      val: '🛡BLOCK',
+      color: '#ffee88',
+      life: 1200, rise: -6
+    });
+  } else if (resisted && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[resisted]) {
+    // Elemental resist already happened; tag with the element icon. If flat
+    // armor *also* shaved damage, the 🛡 in front doubles as that indicator.
+    const elem = SWORD_ELEMENTS[resisted];
+    spawnParticle(psp.x, psp.y, elem.color, 6, 3);
+    damageNumbers.push({
+      entity: 'player',
+      val: `🛡${elem.icon}${finalDmg}`,
+      color: elem.color,
+      life: 1100, rise: 0
+    });
+  } else if (armorBlock > 0) {
+    // Plain flat-armor block — silvery damage number with the shield prefix.
+    spawnParticle(psp.x, psp.y, '#dddddd', 5, 3);
+    damageNumbers.push({
+      entity: 'player',
+      val: `🛡${finalDmg}`,
+      color: '#dddddd',
+      life: 1100, rise: 0
+    });
+  } else {
+    spawnParticle(psp.x, psp.y, '#ff2222', 5, 3);
+    damageNumbers.push({ entity: 'player', val: finalDmg, color: '#ff4444', life: 1000, rise: 0 });
+  }
+  return finalDmg;
+}
+
 // Convert tile coordinates to canvas pixel coordinates (camera-relative).
 function screenPX(tx, ty) {
   return {
@@ -170,6 +254,13 @@ function doSwordSwing() {
         life: 10000, bob: 0, collected: false
       });
     }
+    if (tile === T.MUSHROOM && Math.random() < 0.50) {
+      drops.push({
+        type: 'mushroom', val: 1,
+        x: tc, y: tr,
+        life: 10000, bob: 0, collected: false
+      });
+    }
   }
 }
 
@@ -220,11 +311,8 @@ function stepEnemies(dt, map) {
     // Melee contact damage (re-check distance after move)
     const mdx = player.x - e.x, mdy = player.y - e.y;
     if (Math.abs(mdx) <= 1 && Math.abs(mdy) <= 1 && player.invincible <= 0 && !e.ranged) {
-      player.hp -= 1;
+      damagePlayer(1, e.element);
       player.invincible = 900;
-      const psp = screenPX(player.x, player.y);
-      spawnParticle(psp.x, psp.y, '#ff2222', 5, 3);
-      damageNumbers.push({ entity: 'player', val: 1, color: '#ff4444', life: 1000, rise: 0 });
       if (player.hp <= 0) respawn();
     }
   });
@@ -244,7 +332,8 @@ function stepEnemyRanged(dt) {
     projectiles.push({
       tx: e.x + 0.5, ty: e.y + 0.5,
       vx: (dx / dist) * 0.25, vy: (dy / dist) * 0.25,
-      dmg: e.dmg, type: 'enemy', life: 130, color: e.color
+      dmg: e.dmg, type: 'enemy', life: 130, color: e.color,
+      element: e.element || null
     });
   });
 }
@@ -274,12 +363,9 @@ function stepProjectiles(dt, map) {
       // The player — bombs are risky! Same radius, respects i-frames.
       const pdx = player.x - p.tx, pdy = player.y - p.ty;
       if (Math.abs(pdx) <= BLAST && Math.abs(pdy) <= BLAST && player.invincible <= 0) {
-        const taken = p.dmg;
-        player.hp -= taken;
+        // Bombs are mundane explosions — no element tag, no armor reduction.
+        damagePlayer(p.dmg, null);
         player.invincible = 900;
-        const psp = screenPX(player.x, player.y);
-        spawnParticle(psp.x, psp.y, '#ff2222', 8, 3);
-        damageNumbers.push({ entity: 'player', val: taken, color: '#ff4444', life: 1000, rise: 0 });
         if (player.hp <= 0) respawn();
       }
       // Destroy rocks in blast radius. Each broken rock has a 40% chance to
@@ -292,7 +378,7 @@ function stepProjectiles(dt, map) {
           // 5% chance the rock concealed a cave tunnel — wins over rupee roll
           if (Math.random() < 0.05) {
             map[tr][tc] = T.CAVE_ENTRANCE;
-            showMsg('🕳️ The blast reveals a hidden tunnel!', 5000);
+            showMapMsg('🕳️ The blast reveals a hidden tunnel!');
           } else {
             map[tr][tc] = T.GRASS;
             if (Math.random() < 0.40) {
@@ -346,11 +432,8 @@ function stepProjectiles(dt, map) {
     } else if (p.type === 'enemy') {
       const dx = player.x - p.tx, dy = player.y - p.ty;
       if (Math.abs(dx) < 0.8 && Math.abs(dy) < 0.8 && player.invincible <= 0) {
-        player.hp -= 1;
+        damagePlayer(1, p.element);
         player.invincible = 800;
-        const psp = screenPX(player.x, player.y);
-        spawnParticle(psp.x, psp.y, '#ff2222', 6, 3);
-        damageNumbers.push({ entity: 'player', val: 1, color: '#ff4444', life: 1000, rise: 0 });
         p.life = -999;
         if (player.hp <= 0) respawn();
       }
@@ -386,6 +469,12 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#5fbf3a', 10, 3);
         spawnParticle(sp.x, sp.y, '#aaff88', 6, 2);
         showMsg(`🌿 +${d.val} Herbal (now ${player.herbals})`, 1500);
+      } else if (d.type === 'mushroom') {
+        addItem('mushrooms', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#c8704a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#f0dac0', 6, 2);
+        showMsg(`🍄 +${d.val} Mushroom (now ${player.mushrooms})`, 1500);
       } else if (d.type === 'fang' || d.type === 'finger' ||
                  d.type === 'bone' || d.type === 'wing') {
         // Enemy trophy collectibles. Inventory key is the plural of the drop

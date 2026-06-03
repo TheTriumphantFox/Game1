@@ -107,9 +107,11 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); radialActivateSelected(); return; }
     return;
   }
-  // Space-bar inside an active village talks to the nearest villager
-  // instead of swinging. Weapons are sheathed in town anyway, so the only
-  // thing space could fire here would be a no-op.
+  // Space-bar is the interact key. Pressed once (not held):
+  //   1. In an active village, talk to an adjacent villager / open a shop.
+  //   2. Otherwise (and in villages with no villager adjacent), open an
+  //      adjacent chest — chests are solid, so this is how you loot them.
+  // Either interaction swallows the keypress so SPACE doesn't also swing.
   if (e.key === ' ' && !e.repeat) {
     const cm2 = currentMap();
     if (cm2 && cm2.type === 'village' && cm2.activated &&
@@ -118,6 +120,10 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         return;
       }
+    }
+    if (typeof tryChestInteraction === 'function' && tryChestInteraction()) {
+      e.preventDefault();
+      return;
     }
   }
   setKey(e.key, true);
@@ -183,6 +189,6 @@ requestAnimationFrame(() => {
   spawnVillagersForMap(0);
   clampCam(true);
   updateHUD();
-  showMsg('🌲 You awaken in the Enchanted Forest… find the village after 20 maps!', 4000);
+  showMapMsg('🛏️ You awaken in your cabin. Step outside to begin your adventure.');
   requestAnimationFrame(loop);
 });

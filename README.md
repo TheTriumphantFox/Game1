@@ -21,7 +21,8 @@ npx serve
 ## Controls
 
 - **WASD / Arrows** — move
-- **Z / Space** — sword attack
+- **Z** — sword attack
+- **Space** — interact: open an adjacent chest, or talk to a villager / shop in town (swings the sword when there's nothing to interact with)
 - **X** — bow
 - **C** — bomb
 - **Tab** — toggle minimap

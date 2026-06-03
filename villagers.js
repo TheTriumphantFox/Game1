@@ -47,6 +47,8 @@ const VILLAGER_CHAT = {
               "An honest dent shows honest work."],
   Innkeeper: ["Welcome, weary traveler. A bed awaits."],
   Shopkeeper:["Greetings, hero! Browse my wares."],
+  Herbalist: ["Bring me mushrooms and herbs for a remedy."],
+  Blacksmith:["Need armor? I forge the finest in the land."],
 };
 
 // Live list for the current map (mirrors `enemies`).
@@ -56,7 +58,11 @@ let villagers = [];
 // them from clogging shop doors or sitting on a chest.
 function isVillagerOffLimits(tileId) {
   return tileId === T.INN_DOOR || tileId === T.STORE_DOOR ||
+         tileId === T.HERB_DOOR || tileId === T.SMITH_DOOR ||
          tileId === T.CHEST    || tileId === T.LARGE_CHEST ||
+         tileId === T.LARGE_CHEST_R ||
+         tileId === T.BOSS_CHEST_TL || tileId === T.BOSS_CHEST_TR ||
+         tileId === T.BOSS_CHEST_BL || tileId === T.BOSS_CHEST_BR ||
          tileId === T.SHRINE   || tileId === T.CAVE_ENTRANCE ||
          tileId === T.CAVE_EXIT;
 }
@@ -137,6 +143,8 @@ function placeShopkeepers(mapObj) {
 
   setup(mapObj.innDoor,   'inn',   'Innkeeper',  '#aa3344');
   setup(mapObj.storeDoor, 'store', 'Shopkeeper', '#226633');
+  setup(mapObj.herbDoor,  'herb',  'Herbalist',  '#5a8a3a');
+  setup(mapObj.smithDoor, 'smith', 'Blacksmith', '#3a4a6a');
   return list;
 }
 
@@ -295,11 +303,30 @@ function drawVillager(v, ts) {
 
   // Shopkeepers wear an apron — a lighter strip over the front of the robe
   // so they're easy to pick out across the counter.
-  if (v.role === 'inn' || v.role === 'store') {
+  if (v.role) {
     ctx.fillStyle = '#f0e8d8';
     ctx.fillRect(px + s * 0.32, py + s * 0.46, s * 0.36, s * 0.42);
     ctx.fillStyle = 'rgba(0,0,0,0.10)';
     ctx.fillRect(px + s * 0.50, py + s * 0.46, s * 0.18, s * 0.42);
+    // The Herbalist tucks a sprig of green herb into the apron.
+    if (v.role === 'herb') {
+      ctx.fillStyle = '#3a8a3a';
+      ctx.fillRect(px + s * 0.46, py + s * 0.52, s * 0.08, s * 0.18);
+      ctx.fillStyle = '#5aaa4a';
+      ctx.fillRect(px + s * 0.40, py + s * 0.54, s * 0.06, s * 0.06);
+      ctx.fillRect(px + s * 0.54, py + s * 0.54, s * 0.06, s * 0.06);
+    }
+    // The Blacksmith wears a dark leather apron with a steel hammer tucked in.
+    if (v.role === 'smith') {
+      // Darken the apron to soot-stained leather
+      ctx.fillStyle = '#5a4632';
+      ctx.fillRect(px + s * 0.32, py + s * 0.46, s * 0.36, s * 0.42);
+      // Hammer: grey steel head + brown handle across the chest
+      ctx.fillStyle = '#6a4a2a';
+      ctx.fillRect(px + s * 0.40, py + s * 0.52, s * 0.04, s * 0.22);
+      ctx.fillStyle = '#9a9aa2';
+      ctx.fillRect(px + s * 0.34, py + s * 0.50, s * 0.16, s * 0.07);
+    }
   }
 
   ctx.restore();
@@ -318,8 +345,10 @@ function tryVillagerInteraction() {
   if (!nearby.length) return false;
   const v = nearby[0];
 
-  if (v.role === 'inn'   && typeof openInnModal   === 'function') { openInnModal();   return true; }
-  if (v.role === 'store' && typeof openStoreModal === 'function') { openStoreModal(); return true; }
+  if (v.role === 'inn'   && typeof openInnModal        === 'function') { openInnModal();        return true; }
+  if (v.role === 'store' && typeof openStoreModal      === 'function') { openStoreModal();      return true; }
+  if (v.role === 'herb'  && typeof openHerbalistModal  === 'function') { openHerbalistModal();  return true; }
+  if (v.role === 'smith' && typeof openBlacksmithModal === 'function') { openBlacksmithModal(); return true; }
 
   const lines = VILLAGER_CHAT[v.kind] || ["…"];
   const line = lines[Math.floor(Math.random() * lines.length)];

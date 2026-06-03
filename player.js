@@ -30,6 +30,7 @@ function applyStartingInventory(p) {
   if (typeof SWORD_ELEMENTS === 'undefined') return;
   const ids = Object.keys(SWORD_ELEMENTS);
   p.swordElements = ids.slice();   // grant every elemental sword
+  p.armorElements = ids.slice();   // grant every elemental armor
   p.arrows = { plain: STARTING_ITEM_AMOUNT };
   for (const id of ids) p.arrows[id] = STARTING_ITEM_AMOUNT;
 }
@@ -48,6 +49,7 @@ let player = {
   bowLevel: 1, swordLevel: 1, armor: 0,
   potions: STARTING_ITEM_AMOUNT,
   herbals: STARTING_ITEM_AMOUNT,
+  mushrooms: STARTING_ITEM_AMOUNT,
   // Trophy / crafting collectibles dropped by specific enemies.
   fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
   bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
@@ -64,6 +66,10 @@ let player = {
   arrows: {},
   // Which elemental arrow is currently nocked, or null for plain arrows.
   activeArrowElement: null,
+  // Owned elemental armors and the one currently worn (or null for none).
+  // The active armor halves incoming damage of its matching element.
+  armorElements: [],
+  activeArmorElement: null,
   defeatedBoss: false
 };
 
@@ -145,10 +151,16 @@ function gainXP(amt) {
   while (player.xp >= player.xpNext) {
     player.xp -= player.xpNext;
     player.level++;
-    player.xpNext = Math.floor(player.xpNext * 1.6);
+    player.xpNext = Math.floor(player.xpNext * 1.8);
     player.maxHp += 2;
     player.hp = player.maxHp;  // full heal on level up
-    player.swordLevel++;
+    // Celebratory burst — gold + white sparkles with a hint of blue to read as
+    // "leveled up" rather than damage. spawnParticle works in canvas pixels,
+    // so route the player's tile through screenPX first.
+    const lvlSp = screenPX(player.x, player.y);
+    spawnParticle(lvlSp.x, lvlSp.y, '#ffee44', 24, 4);
+    spawnParticle(lvlSp.x, lvlSp.y, '#ffffff', 16, 3);
+    spawnParticle(lvlSp.x, lvlSp.y, '#88ddff', 12, 2);
     showMsg(`⬆️ Level Up! Level ${player.level}! Max HP +2 — fully healed!`, 3000);
   }
 }
@@ -226,24 +238,11 @@ function killEnemy(e) {
   }
   rollEnemyTypeDrops(e);
   if (e.boss) {
+    // Boss kills no longer grant +6 maxHp / a random elemental sword — those
+    // rewards were removed by request. The flag is still set so saves / future
+    // progression checks can tell a boss has been cleared.
     player.defeatedBoss = true;
-    // Boss drops: +6 max HP (permanent, fully heals) and one random elemental
-    // sword the player doesn't already own.
-    player.maxHp += 6;
-    player.hp = player.maxHp;
-    let drop = null;
-    if (typeof SWORD_ELEMENTS !== 'undefined') {
-      const unowned = Object.keys(SWORD_ELEMENTS)
-        .filter(id => !(player.swordElements || []).includes(id));
-      if (unowned.length) {
-        drop = unowned[Math.floor(Math.random() * unowned.length)];
-        grantSwordElement(drop);
-      }
-    }
-    const dropName = drop ? `${SWORD_ELEMENTS[drop].icon} ${SWORD_ELEMENTS[drop].label} Sword` : null;
-    const msg = `🏆 THE ${e.name} IS DEFEATED! +6 Max HP`
-              + (dropName ? ` and ${dropName}!` : '!');
-    showMsg(msg, 0);
+    showMsg(`🏆 THE ${e.name} IS DEFEATED!`, 0);
   } else {
     showMsg(`⚔️ ${e.name} defeated! +${e.xp} XP`, 1500);
   }
@@ -253,13 +252,21 @@ function killEnemy(e) {
     if (activateVillage(cm)) {
       minimapDirty = true;
       spawnVillagersForMap(currentMapId);
-      // Saving a village seals every never-used border with single-transition
-      // dead-ends, bounding the world to what the player has touched. The forest
-      // village seals the forest (its open exits still lead into the desert);
-      // the desert village caps the desert region.
-      if (cm.biome === 'desert') sealDesertRegion();
-      else                       sealUnusedTransitions();
-      showMsg('🏘️ The village awakens! Find the 🛏️ inn and 🏪 general store.', 5000);
+      // Seal the cleared region with dead-ends. If a next region exists, the
+      // village's own exits stay open so they can connect into it as the player
+      // walks out — otherwise the final village's exits get sealed too.
+      const clearedRegionIdx = (typeof cm.regionIdx === 'number') ? cm.regionIdx : 0;
+      sealRegion(clearedRegionIdx);
+      // Advance the world's notion of "current region" so any UI / spawn logic
+      // checking it sees the new region the player is about to walk into.
+      const nextIdx = clearedRegionIdx + 1;
+      if (nextIdx < REGIONS.length) {
+        currentRegionIdx = nextIdx;
+        const nextRegion = REGIONS[nextIdx];
+        showMapMsg(`🏘️ The village awakens! Beyond its gates: the ${nextRegion.id} region.`);
+      } else {
+        showMapMsg('🏘️ The village awakens! You have conquered every elemental region.');
+      }
     }
   }
 }
@@ -277,7 +284,7 @@ function tryTransition() {
 
   // Village is sealed: no exits while any enemy is still standing.
   if (currentMap().type === 'village' && enemies.some(e => !e.dead)) {
-    showMsg('🔒 The village gates are sealed! Defeat every enemy here first.');
+    showMapMsg('🔒 The village gates are sealed! Defeat every enemy here first.');
     transitionCooldown = 600;   // throttle the message
     return;
   }
@@ -296,10 +303,18 @@ function tryTransition() {
     nm.visited = true;
     mapsVisited++;
     mapSequence.push(nextId);
-    // Count desert overworld maps. After 20 of them, the next new area becomes
-    // the desert village (see createDesertMap). The region is sealed only once
-    // that village's boss is cleared (see the activation block below).
-    if (nm.type === 'desert') desertsVisited++;
+    // Count overworld maps per region. After 20 the next new neighbor in the
+    // region becomes its village (see createOverworldMap). Villages and dead-end
+    // sealed maps don't count — only fresh overworld entries.
+    const isOverworld = (nm.type !== 'village' && nm.type !== 'house' &&
+                         nm.type !== 'cave' && !nm.sealed &&
+                         typeof nm.regionIdx === 'number');
+    if (isOverworld) {
+      regionMapsVisited[nm.regionIdx] = (regionMapsVisited[nm.regionIdx] || 0) + 1;
+      // Legacy mirror for the fire region (kept so older save logic doesn't
+      // notice the rename).
+      if (nm.regionIdx === 1) desertsVisited = regionMapsVisited[1];
+    }
   }
   spawnEnemiesForMap(nextId);
   spawnVillagersForMap(nextId);
@@ -331,7 +346,8 @@ function tryTransition() {
   minimapDirty = true;
   clampCam(true);   // snap on map transition (instant teleport)
   revealAround(nm, player.x, player.y, 12);
-  showMsg(`🌲 ${nm.name}`, 2500);
+  // (Map-name announcements removed — the current area name still lives in the
+  // HUD's roomName span. Notable map events use showMapMsg instead.)
 }
 
 // ─── Chest / shrine pickup ────────────────────────────────────────────────────
@@ -371,17 +387,135 @@ function handlePickup(bnx, bny, map) {
   // Shop doors are now just walkable entrances — the actual interaction lives
   // on the innkeeper / shopkeeper inside the building (press SPACE next to
   // them). Stepping on the door is a no-op.
-  // The Hero's Cache — one-time +2 Sword / +2 Armor pickup at the back of a cave.
-  if (map[bny][bnx] === T.LARGE_CHEST && !currentMap().openedChests.has(`big_${bnx},${bny}`)) {
-    currentMap().openedChests.add(`big_${bnx},${bny}`);
-    player.swordLevel += 2;
-    player.armor      = (player.armor || 0) + 2;
-    player.hp = player.maxHp;
-    showMsg('⚔️🛡️ The Hero\'s Cache! +2 Sword and +2 Armor — fully healed!', 5000);
-    const sp = screenPX(bnx, bny);
-    spawnParticle(sp.x, sp.y, '#ffdd00', 24, 6);
-    spawnParticle(sp.x, sp.y, '#ffffff', 16, 4);
+  // The Hero's Cache — one-time +2 Sword / +2 Armor pickup at the back of a
+  // cave. The chest spans 2 horizontal tiles (LARGE_CHEST anchor + LARGE_CHEST_R
+  // extension); stepping on either half resolves to the anchor (the left tile).
+  {
+    const tHere = map[bny][bnx];
+    if (tHere === T.LARGE_CHEST || tHere === T.LARGE_CHEST_R) {
+      const ax = tHere === T.LARGE_CHEST_R ? bnx - 1 : bnx;
+      const ay = bny;
+      if (!currentMap().openedChests.has(`big_${ax},${ay}`)) {
+        currentMap().openedChests.add(`big_${ax},${ay}`);
+        player.swordLevel += 2;
+        player.armor      = (player.armor || 0) + 2;
+        player.hp = player.maxHp;
+        showMsg('⚔️🛡️ The Hero\'s Cache! +2 Sword and +2 Armor — fully healed!', 5000);
+        const sp = screenPX(bnx, bny);
+        spawnParticle(sp.x, sp.y, '#ffdd00', 24, 6);
+        spawnParticle(sp.x, sp.y, '#ffffff', 16, 4);
+      }
+    }
   }
+
+  // The King's Hoard — one-time epic reward at the boss arena. 2×2 chest with
+  // BOSS_CHEST_TL as the anchor; the other three quadrants resolve back to TL.
+  {
+    const tHere = map[bny][bnx];
+    if (tHere === T.BOSS_CHEST_TL || tHere === T.BOSS_CHEST_TR ||
+        tHere === T.BOSS_CHEST_BL || tHere === T.BOSS_CHEST_BR) {
+      const ax = (tHere === T.BOSS_CHEST_TR || tHere === T.BOSS_CHEST_BR) ? bnx - 1 : bnx;
+      const ay = (tHere === T.BOSS_CHEST_BL || tHere === T.BOSS_CHEST_BR) ? bny - 1 : bny;
+      if (!currentMap().openedChests.has(`boss_${ax},${ay}`)) {
+        currentMap().openedChests.add(`boss_${ax},${ay}`);
+        player.swordLevel += 3;
+        player.armor      = (player.armor || 0) + 3;
+        player.maxHp      = (player.maxHp || 6) + 4;
+        player.hp         = player.maxHp;
+        player.bowLevel   = (player.bowLevel || 1) + 2;
+        addItem('rupees', 250);
+        addItem('potions', 3);
+        gainXP(1000);
+        showMsg('👑 The King\'s Hoard! +3 Sword, +3 Armor, +4 Max HP, +2 Bow, 250 💎, 3 🧪, 1000 XP!', 7000);
+        const sp = screenPX(ax, ay);
+        spawnParticle(sp.x, sp.y, '#ff66ff', 40, 8);
+        spawnParticle(sp.x, sp.y, '#ffdd33', 32, 6);
+        spawnParticle(sp.x, sp.y, '#ffffff', 24, 5);
+      }
+    }
+  }
+}
+
+// ─── Chest interaction (SPACE) ────────────────────────────────────────────────
+// Chests are solid, so they're opened deliberately: stand next to one and press
+// SPACE. Checks the tile the player faces first (swordDir), then the four
+// neighbours. Any tile of a multi-tile chest works — handlePickup resolves it to
+// the chest's anchor. Returns true only if a closed chest was actually opened,
+// so the caller can swallow the keypress (and otherwise let SPACE swing).
+function tryChestInteraction() {
+  const map = mapData();
+  const cm = currentMap();
+  const dirs = [];
+  if (player.swordDir && (player.swordDir.x || player.swordDir.y)) {
+    dirs.push([player.swordDir.x, player.swordDir.y]);
+  }
+  dirs.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+  for (const [dx, dy] of dirs) {
+    const c = player.x + dx, r = player.y + dy;
+    if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) continue;
+    if (!isChestTile(map[r][c])) continue;
+    const before = cm.openedChests.size;
+    handlePickup(c, r, map);
+    if (cm.openedChests.size > before) return true;   // a closed chest just opened
+  }
+  return false;
+}
+
+// The `openedChests` key for a chest tile at (c, r) — mirrors handlePickup so we
+// can tell whether a chest is still closed without opening it. Returns null for
+// non-chest tiles. (Shrines are stepped-on, not SPACE-interacted, so excluded.)
+function chestOpenedKey(t, c, r) {
+  if (t === T.CHEST) return `${c},${r}`;
+  if (t === T.LARGE_CHEST || t === T.LARGE_CHEST_R) {
+    const ax = t === T.LARGE_CHEST_R ? c - 1 : c;
+    return `big_${ax},${r}`;
+  }
+  if (t === T.BOSS_CHEST_TL || t === T.BOSS_CHEST_TR ||
+      t === T.BOSS_CHEST_BL || t === T.BOSS_CHEST_BR) {
+    const ax = (t === T.BOSS_CHEST_TR || t === T.BOSS_CHEST_BR) ? c - 1 : c;
+    const ay = (t === T.BOSS_CHEST_BL || t === T.BOSS_CHEST_BR) ? r - 1 : r;
+    return `boss_${ax},${ay}`;
+  }
+  return null;
+}
+
+// Non-destructive probe for "can SPACE interact right now?" — returns a short
+// HUD label (icon + [Space]) describing the available interaction, or null when
+// SPACE would just swing the sword. Mirrors the SPACE handler in main.js:
+// villager/shop talk in an activated village, else an adjacent closed chest.
+function interactionHint() {
+  const cm = currentMap();
+  if (!cm) return null;
+
+  // 1. Talk to / shop with an adjacent villager in an activated village.
+  if (cm.type === 'village' && cm.activated &&
+      typeof villagers !== 'undefined' && villagers && villagers.length) {
+    const near = villagers
+      .filter(v => Math.abs(v.x - player.x) <= 1 && Math.abs(v.y - player.y) <= 1)
+      .sort((a, b) => (b.role ? 1 : 0) - (a.role ? 1 : 0))[0];
+    if (near) {
+      if (near.role === 'store') return '🛒 Shop [Space]';
+      if (near.role === 'inn')   return '🛏️ Inn [Space]';
+      if (near.role === 'herb')  return '🌿 Herbalist [Space]';
+      return '💬 Talk [Space]';
+    }
+  }
+
+  // 2. Open an adjacent closed chest (facing tile first, then orthogonal).
+  const map = mapData();
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  if (player.swordDir && (player.swordDir.x || player.swordDir.y)) {
+    dirs.unshift([player.swordDir.x, player.swordDir.y]);
+  }
+  for (const [dx, dy] of dirs) {
+    const c = player.x + dx, r = player.y + dy;
+    if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) continue;
+    const t = map[r][c];
+    if (!isChestTile(t)) continue;
+    const key = chestOpenedKey(t, c, r);
+    if (key && !cm.openedChests.has(key)) return '📦 Open [Space]';
+  }
+  return null;
 }
 
 // Handle tile-based teleports (cave tunnel + cave exit). Called once per
@@ -416,7 +550,7 @@ function tryCaveTransition() {
     minimapDirty = true;
     clampCam(true);
     revealAround(currentMap(), player.x, player.y, 16);
-    showMsg('🕳️ You squeeze into a hidden cave…', 3000);
+    showMapMsg('🕳️ You squeeze into a hidden cave…');
     return true;
   }
 
@@ -450,7 +584,7 @@ function tryCaveTransition() {
     minimapDirty = true;
     clampCam(true);
     revealAround(currentMap(), player.x, player.y, 12);
-    showMsg('🌲 You emerge back into the forest.', 2500);
+    showMapMsg('🕳️ You emerge back from the cave.');
     return true;
   }
   return false;
@@ -490,6 +624,9 @@ function stepPlayerMovement() {
     tx = bnx; ty = bny;
   }
 
+  // Chests are solid — you can't stand on them. Opening is a deliberate action:
+  // press SPACE while adjacent (see tryChestInteraction). handlePickup is still
+  // called on the destination tile so step-on triggers (SHRINE) keep working.
   if (tx !== player.x || ty !== player.y) {
     handlePickup(tx, ty, map);
     player.x = tx; player.y = ty;
