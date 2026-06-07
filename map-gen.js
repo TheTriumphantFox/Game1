@@ -40,7 +40,7 @@ const DESERT_NAMES = [
 const REGIONS = [
   { id:'forest',    element:null,        border:T.TREE,            ground:T.GRASS,          decoration:T.FLOWER,   accent:T.WATER,       names:FOREST_NAMES, villageName:'Village of the Lost',     enemyTier:1, boss:'lich_boss'      },
   { id:'fire',      element:'fire',      border:T.CACTUS,          ground:T.SAND,           decoration:T.BONES,    accent:T.LAVA,        names:DESERT_NAMES, villageName:'Oasis of the Damned',     enemyTier:2, boss:'mummy_lord'     },
-  { id:'water',     element:'water',     border:T.DEEP_WATER,      ground:T.SAND,           decoration:T.WATER,    accent:T.WATER,       names:[
+  { id:'water',     element:'water',     border:T.DEEP_WATER,      ground:T.SAND,           decoration:T.WATER,    accent:T.WATER,       path:T.SHALLOW_WATER, pathDry:T.SAND, names:[
       'Tidepool Reach','Coral Strait','Lagoon Hollow','Brinepath','Surfbreak Sands',
       'Kelpforest Crossing','Saltspray Cove','Mermaid Atoll','Drowned Ruins','Pearl Banks',
       'Stormtide Beach','Anemone Flats','Sunken Causeway','Crashing Shoals','Riftwater Pass',
@@ -98,6 +98,46 @@ const REGIONS = [
 
 // Quick lookup helper.
 function regionById(id) { return REGIONS.find(r => r.id === id) || REGIONS[0]; }
+
+// ─── Cliff face ─────────────────────────────────────────────────────────────
+// Stamp a band of solid CLIFF rock hugging one random map edge, leaving a clear
+// gap at that edge's exit gate so the border corridor still gets through. A few
+// loose ROCK boulders are scattered at the cliff's inner foot for a talus look.
+// Called by buildForestMap to rough up the map perimeter.
+function addCliffFace(m) {
+  const edge = rnd(0, 3);                       // 0 top, 1 bottom, 2 left, 3 right
+  const thick = rnd(2, 4);
+  const span  = rnd(30, 90);
+  if (edge === 0 || edge === 1) {               // horizontal band (top / bottom)
+    const r0 = edge === 0 ? 1 : MROWS - 1 - thick;
+    const c0 = rnd(1, Math.max(2, MCOLS - 1 - span));
+    const c1 = Math.min(MCOLS - 2, c0 + span);
+    const footR = edge === 0 ? r0 + thick : r0 - 1;
+    for (let c = c0; c <= c1; c++) {
+      if (Math.abs(c - EXIT_COL) < 4) continue;       // keep the exit gate clear
+      for (let dr = 0; dr < thick; dr++) {
+        const r = r0 + dr;
+        if (r > 0 && r < MROWS - 1 && !isProtectedFeature(m[r][c])) m[r][c] = T.CLIFF;
+      }
+      if (footR > 0 && footR < MROWS - 1 && Math.random() < 0.25 &&
+          !isProtectedFeature(m[footR][c])) m[footR][c] = T.ROCK;
+    }
+  } else {                                      // vertical band (left / right)
+    const c0 = edge === 2 ? 1 : MCOLS - 1 - thick;
+    const r0 = rnd(1, Math.max(2, MROWS - 1 - span));
+    const r1 = Math.min(MROWS - 2, r0 + span);
+    const footC = edge === 2 ? c0 + thick : c0 - 1;
+    for (let r = r0; r <= r1; r++) {
+      if (Math.abs(r - EXIT_ROW) < 4) continue;       // keep the exit gate clear
+      for (let dc = 0; dc < thick; dc++) {
+        const c = c0 + dc;
+        if (c > 0 && c < MCOLS - 1 && !isProtectedFeature(m[r][c])) m[r][c] = T.CLIFF;
+      }
+      if (footC > 0 && footC < MCOLS - 1 && Math.random() < 0.25 &&
+          !isProtectedFeature(m[r][footC])) m[r][footC] = T.ROCK;
+    }
+  }
+}
 
 // ─── Forest map ───────────────────────────────────────────────────────────────
 // Starts as wall-to-wall trees, then carves open regions, paths, water features,
@@ -193,6 +233,59 @@ function buildForestMap(seed, depth, openSides) {
       m[dr + 1][dc + 3] = T.TORCH; m[dr + 1][dc + 5] = T.TORCH;
     }
   }
+
+  // Phase 10: streams — winding water channels that cross the whole map, each
+  // spanned by one or two plank bridges so both banks stay reachable. Count is
+  // 1d4-1 (0–3 per map). Placed before the exit re-carve below so the central
+  // corridors ford any stream they cross.
+  const streamCount = rnd(1, 4) - 1;
+  for (let i = 0; i < streamCount; i++) {
+    const cells = Math.random() < 0.5
+      ? carveStream(m, rnd(15, MROWS - 16), 1,                 rnd(15, MROWS - 16), MCOLS - 2, 1)  // W→E
+      : carveStream(m, 1,                   rnd(15, MCOLS - 16), MROWS - 2,          rnd(15, MCOLS - 16), 1); // N→S
+    if (cells.length > 6) {
+      bridgeStream(m, cells, Math.floor(cells.length / 2));
+      if (cells.length > 40) bridgeStream(m, cells, Math.floor(cells.length / 4));
+    }
+  }
+
+  // Phase 11: waterfalls — a source pool at the very top of the map spills down
+  // a vertical waterfall into a splash pool, and a stream carries that water to
+  // the central walking-path network (joined by a short dirt spur so the water
+  // visibly meets a path). Count is 1d4-1 (0–3 per map).
+  const waterfallCount = rnd(1, 4) - 1;
+  for (let i = 0; i < waterfallCount; i++) {
+    // Column well clear of the north exit gate and the side borders.
+    let wc = rnd(12, MCOLS - 13);
+    if (Math.abs(wc - EXIT_COL) < 7) wc += (wc < EXIT_COL ? -7 : 7);
+    wc = Math.max(6, Math.min(MCOLS - 7, wc));
+
+    // Source pool hugging the top edge (the "pool of water at the top").
+    setRect(m, 1, wc - 2, 3, wc + 2, T.WATER);
+    // The falling water — a 3-wide vertical band of WATERFALL tiles.
+    const fallBottom = rnd(10, 20);
+    for (let r = 4; r <= fallBottom; r++)
+      for (let c = wc - 1; c <= wc + 1; c++)
+        if (!isProtectedFeature(m[r][c])) m[r][c] = T.WATERFALL;
+    // Splash pool at the base — a WATER ring around a DEEP_WATER centre.
+    const pr = fallBottom + 1;
+    setRect(m, pr, wc - 3, pr + 3, wc + 3, T.WATER);
+    setRect(m, pr + 1, wc - 1, pr + 2, wc + 1, T.DEEP_WATER);
+    // Connecting stream from the splash pool to the central path, plus a short
+    // dirt spur that joins the water to the path and bridges to keep it crossable.
+    const link = carveStream(m, pr + 3, wc, EXIT_ROW, EXIT_COL, 0);
+    if (link.length) {
+      const [lr, lc] = link[link.length - 1];
+      drunkWalk(m, lr, lc, EXIT_ROW, EXIT_COL, T.PATH, 0);
+      bridgeStream(m, link, Math.floor(link.length / 2));
+      if (link.length > 40) bridgeStream(m, link, Math.floor(link.length / 4));
+    }
+  }
+
+  // Phase 12: cliff faces along the map edges — solid rock bands hugging a
+  // random border with a clear gap at the exit gate. Count is 1d4-1 (0–3).
+  const cliffCount = rnd(1, 4) - 1;
+  for (let i = 0; i < cliffCount; i++) addCliffFace(m);
 
   // Ensure exit corridors are wide and reach interior — only for *open* sides
   cutExits(m, open.left, open.right, open.up, open.down);
@@ -496,6 +589,9 @@ function buildRegionMap(seed, depth, openSides, region) {
   const open = openSides || { left: true, right: true, up: true, down: true };
   const BORDER = region.border, GROUND = region.ground;
   const DECOR = region.decoration, ACCENT = region.accent;
+  // Region-specific corridor tile. Defaults to the dirt PATH; the water region
+  // overrides this with SHALLOW_WATER so its paths read as a wadeable channel.
+  const PATHTILE = region.path || T.PATH;
   const m = makeTile(MROWS, MCOLS, BORDER);
 
   // Phase 1: carve open ground patches across the map
@@ -508,10 +604,10 @@ function buildRegionMap(seed, depth, openSides, region) {
 
   // Phase 2: main paths from centre to each open exit
   const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
-  if (open.up)    drunkWalk(m, midR, midC, 1,         EXIT_COL,   T.PATH, 1);
-  if (open.down)  drunkWalk(m, midR, midC, MROWS - 2, EXIT_COL,   T.PATH, 1);
-  if (open.left)  drunkWalk(m, midR, midC, EXIT_ROW,  1,          T.PATH, 1);
-  if (open.right) drunkWalk(m, midR, midC, EXIT_ROW,  MCOLS - 2,  T.PATH, 1);
+  if (open.up)    drunkWalk(m, midR, midC, 1,         EXIT_COL,   PATHTILE, 1);
+  if (open.down)  drunkWalk(m, midR, midC, MROWS - 2, EXIT_COL,   PATHTILE, 1);
+  if (open.left)  drunkWalk(m, midR, midC, EXIT_ROW,  1,          PATHTILE, 1);
+  if (open.right) drunkWalk(m, midR, midC, EXIT_ROW,  MCOLS - 2,  PATHTILE, 1);
   for (let i = 0; i < 6; i++) {
     const r1 = rnd(10, MROWS - 10), c1 = rnd(10, MCOLS - 10);
     const r2 = rnd(10, MROWS - 10), c2 = rnd(10, MCOLS - 10);
@@ -579,21 +675,50 @@ function buildRegionMap(seed, depth, openSides, region) {
 
   // Ensure exit corridors reach interior
   cutExits(m, open.left, open.right, open.up, open.down);
-  if (open.left)  drunkWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    T.PATH, 1);
-  if (open.right) drunkWalk(m, EXIT_ROW, MCOLS - 2,   EXIT_ROW, midC,    T.PATH, 1);
-  if (open.up)    drunkWalk(m, 1,           EXIT_COL, midR,     EXIT_COL, T.PATH, 1);
-  if (open.down)  drunkWalk(m, MROWS - 2,   EXIT_COL, midR,     EXIT_COL, T.PATH, 1);
+  if (open.left)  drunkWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    PATHTILE, 1);
+  if (open.right) drunkWalk(m, EXIT_ROW, MCOLS - 2,   EXIT_ROW, midC,    PATHTILE, 1);
+  if (open.up)    drunkWalk(m, 1,           EXIT_COL, midR,     EXIT_COL, PATHTILE, 1);
+  if (open.down)  drunkWalk(m, MROWS - 2,   EXIT_COL, midR,     EXIT_COL, PATHTILE, 1);
 
   // Final border lock + re-cut exits
   for (let c = 0; c < MCOLS; c++) { m[0][c] = BORDER; m[MROWS - 1][c] = BORDER; }
   for (let r = 0; r < MROWS; r++) { m[r][0] = BORDER; m[r][MCOLS - 1] = BORDER; }
   cutExits(m, open.left, open.right, open.up, open.down);
 
+  // cutExits always stamps the border gates with dirt T.PATH. When the region
+  // uses a custom corridor tile (e.g. shallow water), repaint those gate tiles
+  // to match so the channel runs unbroken to the map edge.
+  if (PATHTILE !== T.PATH) {
+    for (let r = 0; r < MROWS; r++)
+      for (let c = 0; c < MCOLS; c++)
+        if (m[r][c] === T.PATH) m[r][c] = PATHTILE;
+  }
+
+  // Occasional dry stretches: where the corridor tile is meant to be wadeable
+  // water, sprinkle small dry blobs (region.pathDry, e.g. sand bars) so the
+  // channel isn't an unbroken ribbon of water. Both tiles stay passable, so
+  // connectivity is unaffected.
+  if (region.pathDry !== undefined && PATHTILE !== region.pathDry) {
+    const dryBlobs = 14 + Math.floor(depth / 3);
+    for (let i = 0; i < dryBlobs; i++) {
+      const rr = rnd(3, MROWS - 4), rc = rnd(3, MCOLS - 4);
+      if (m[rr][rc] !== PATHTILE) continue;            // only break up the path
+      const bw = rnd(1, 3), bh = rnd(1, 2);
+      for (let dr = 0; dr <= bh; dr++)
+        for (let dc = 0; dc <= bw; dc++) {
+          const nr = rr + dr, nc = rc + dc;
+          if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1 &&
+              m[nr][nc] === PATHTILE) m[nr][nc] = region.pathDry;
+        }
+    }
+  }
+
   if (chestSpot) m[chestSpot.r][chestSpot.c] = T.CHEST;
 
   // Seal any orphan passable pockets with the region's border tile so the
-  // visual matches the surrounding wall instead of leaking forest TREE.
-  ensureConnectivity(m, false, BORDER);
+  // visual matches the surrounding wall instead of leaking forest TREE. Rescue
+  // corridors use the region's corridor tile so they blend in too.
+  ensureConnectivity(m, false, BORDER, PATHTILE);
   return m;
 }
 

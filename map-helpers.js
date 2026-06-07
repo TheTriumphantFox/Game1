@@ -45,6 +45,7 @@ function isSolid(map, c, r) {
          t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
          t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
          t === T.CACTUS || t === T.OASIS_WATER ||
+         t === T.WATERFALL || t === T.CLIFF ||
          // Elemental region borders (solid)
          t === T.GLACIER || t === T.MOUNTAIN || t === T.CLOUDWALL ||
          t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||
@@ -88,6 +89,73 @@ function scatter(m, tile, count) {
   for (let i = 0; i < count; i++) {
     const r = rnd(2, MROWS - 3), c = rnd(2, MCOLS - 3);
     if (m[r][c] === T.GRASS) m[r][c] = tile;
+  }
+}
+
+// True for placed structures that terrain features (streams, waterfalls, cliffs)
+// must never paint over — chests, shrines, dungeon bits, doors, and portals.
+function isProtectedFeature(t) {
+  return isChestTile(t) || t === T.SHRINE || t === T.DUNGEON_DOOR ||
+         t === T.FLOOR || t === T.PILLAR || t === T.TORCH ||
+         t === T.DOOR || t === T.PORTAL;
+}
+
+// Carve a winding water channel (T.WATER) from (sr,sc) toward (er,ec). Paints a
+// band `width` tiles to each side of a meandering centre line — width 1 → a
+// 3-tile-wide stream, width 0 → a single-tile trickle. Skips protected
+// structures. Returns the centre-line cells so callers can drop bridges or
+// splash pools along the course.
+function carveStream(m, sr, sc, er, ec, width) {
+  width = width === undefined ? 1 : width;
+  const cells = [];
+  let r = sr, c = sc;
+  const maxSteps = (MROWS + MCOLS) * 4;
+  for (let i = 0; i < maxSteps && (Math.abs(r - er) + Math.abs(c - ec)) > 2; i++) {
+    const dr = er - r, dc = ec - c;
+    let mr = 0, mc = 0;
+    if (Math.random() < 0.7) {                 // bias toward the mouth
+      if (Math.abs(dr) > Math.abs(dc)) mr = Math.sign(dr);
+      else                             mc = Math.sign(dc);
+    } else {                                    // meander for an organic course
+      if (Math.random() < 0.5) mr = (Math.random() < 0.5 ? 1 : -1);
+      else                     mc = (Math.random() < 0.5 ? 1 : -1);
+    }
+    r = Math.max(1, Math.min(MROWS - 2, r + mr));
+    c = Math.max(1, Math.min(MCOLS - 2, c + mc));
+    cells.push([r, c]);
+    for (let dr2 = -width; dr2 <= width; dr2++)
+      for (let dc2 = -width; dc2 <= width; dc2++) {
+        const nr = r + dr2, nc = c + dc2;
+        if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1 &&
+            !isProtectedFeature(m[nr][nc])) m[nr][nc] = T.WATER;
+      }
+  }
+  return cells;
+}
+
+// Lay a plank BRIDGE across a carved stream at centre-line cell `idx`,
+// perpendicular to the local flow so it always reaches both banks. Scans the
+// contiguous water band at that point and stamps BRIDGE across it plus one tile
+// of margin onto each bank.
+function bridgeStream(m, cells, idx) {
+  if (!cells.length) return;
+  idx = Math.max(0, Math.min(cells.length - 1, idx));
+  const [br, bc] = cells[idx];
+  const a = cells[Math.max(0, idx - 3)];
+  const b = cells[Math.min(cells.length - 1, idx + 3)];
+  const flowsNS = Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]);
+  if (flowsNS) {                               // horizontal plank
+    let lc = bc, rc = bc;
+    while (lc > 1         && m[br][lc - 1] === T.WATER) lc--;
+    while (rc < MCOLS - 2 && m[br][rc + 1] === T.WATER) rc++;
+    for (let c = lc - 1; c <= rc + 1; c++)
+      if (c > 0 && c < MCOLS - 1 && !isProtectedFeature(m[br][c])) m[br][c] = T.BRIDGE;
+  } else {                                     // vertical plank
+    let tr = br, dn = br;
+    while (tr > 1         && m[tr - 1][bc] === T.WATER) tr--;
+    while (dn < MROWS - 2 && m[dn + 1][bc] === T.WATER) dn++;
+    for (let r = tr - 1; r <= dn + 1; r++)
+      if (r > 0 && r < MROWS - 1 && !isProtectedFeature(m[r][bc])) m[r][bc] = T.BRIDGE;
   }
 }
 

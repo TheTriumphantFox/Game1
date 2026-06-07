@@ -5,9 +5,13 @@
 //   2. Seal remaining unreachable passable tiles as TREE so the player isn't
 //      teased by visible but unreachable terrain.
 
-function ensureConnectivity(m, preserveFloor, sealTile) {
+function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
   const W = MCOLS, H = MROWS;
   const seal = sealTile === undefined ? T.TREE : sealTile;
+  // Tile used when carving a rescue corridor to an isolated interesting tile.
+  // Defaults to dirt PATH; water-style regions pass their wadeable path tile so
+  // the rescue corridor matches the rest of the map.
+  const carve = carveTile === undefined ? T.PATH : carveTile;
   const reachable = new Uint8Array(W * H);
   const stack = [];
 
@@ -21,6 +25,7 @@ function ensureConnectivity(m, preserveFloor, sealTile) {
              t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
              t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
              t === T.CACTUS || t === T.OASIS_WATER ||
+             t === T.WATERFALL || t === T.CLIFF ||
              // Elemental region borders
              t === T.GLACIER || t === T.MOUNTAIN || t === T.CLOUDWALL ||
              t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||
@@ -89,7 +94,7 @@ function ensureConnectivity(m, preserveFloor, sealTile) {
         for (let step = 0; step < safety; step++) {
           if (pr === found.r && pc === found.c) break;
           // Don't paint over the interesting tile itself
-          if (!isInteresting(m[pr][pc])) m[pr][pc] = T.PATH;
+          if (!isInteresting(m[pr][pc])) m[pr][pc] = carve;
           reachable[pr * W + pc] = 1;
           if (pr !== found.r && (pc === found.c || Math.random() < 0.5)) {
             pr += Math.sign(found.r - pr);

@@ -51,7 +51,11 @@ const T = {
   SLUDGE:59, POISON_WALL:60,                         // poison region
   MANA_FLOOR:61, MANA_CRYSTAL:62,                    // mana region
   // Cabin fast-travel portal. Step onto it to open the destination menu.
-  PORTAL:63
+  PORTAL:63,
+  SHALLOW_WATER:64,                                  // wadeable shallow water (water-region paths)
+  // Forest terrain features — a vertical WATERFALL (animated falling water) and
+  // a rocky CLIFF face. Both solid. Streams reuse WATER + BRIDGE.
+  WATERFALL:65, CLIFF:66
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -86,6 +90,11 @@ const TILE_COLORS = {
   [T.SLUDGE]: '#5a7a2a',          [T.POISON_WALL]: '#2a4a18',
   [T.MANA_FLOOR]: '#5a3a8a',      [T.MANA_CRYSTAL]: '#aa66ee',
   [T.PORTAL]: '#aa66ff',
+  // Shallow water — lighter/greener than deep WATER so a wadeable channel reads
+  // distinctly from the deep-water border and pools.
+  [T.SHALLOW_WATER]: '#5aa8c8',
+  // Forest water/terrain features — bright falling water + rocky cliff face.
+  [T.WATERFALL]: '#3f7fd0', [T.CLIFF]: '#6a5f52',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.

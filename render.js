@@ -27,6 +27,18 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#4488ee'; ctx.fillRect(x+s*0.5,y+s*0.6-w*2,s*0.35,2); break; }
     case T.DEEP_WATER:
       ctx.fillStyle = '#1a3388'; ctx.fillRect(x+2,y+s*0.4,s-4,3); break;
+    case T.SHALLOW_WATER: {
+      // Wadeable channel: sandy base showing through tinted water + gentle ripples.
+      ctx.fillStyle = '#5aa8c8'; ctx.fillRect(x, y, s, s);
+      // Sandy bottom hint dappling through the water
+      ctx.fillStyle = 'rgba(212,176,112,0.30)';
+      ctx.fillRect(x+s*0.18, y+s*0.6, s*0.22, s*0.18);
+      ctx.fillRect(x+s*0.6,  y+s*0.25, s*0.2,  s*0.16);
+      // Ripple highlights (animated, phase per tile so they don't pulse in unison)
+      const sw = Math.sin(Date.now()/500 + col*0.5 + row*0.4);
+      ctx.fillStyle = '#9fd6e8'; ctx.fillRect(x+2, y+s*0.32+sw*2, s*0.45, 2);
+      ctx.fillStyle = '#c8eef8'; ctx.fillRect(x+s*0.45, y+s*0.62-sw*2, s*0.32, 2);
+      break; }
     case T.PATH:
       ctx.fillStyle = '#a08860'; ctx.fillRect(x+1,y+1,s-2,s-2);
       ctx.fillStyle = '#b09870'; ctx.fillRect(x+3,y+3,s-6,s-6); break;
@@ -1217,6 +1229,42 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#5a4a30';
       ctx.fillRect(x + s*0.30, y + s*0.42, 2, 2);
       ctx.fillRect(x + s*0.38, y + s*0.42, 2, 2);
+      break; }
+    case T.WATERFALL: {
+      // Falling water — deep-blue base with bright vertical streaks scrolling
+      // downward and a flicker of mist. The scroll uses a wrapped offset so the
+      // streaks appear to fall continuously.
+      ctx.fillStyle = '#2f5fb0'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = 'rgba(30,60,120,0.5)'; ctx.fillRect(x, y, s*0.5, s);   // shaded side
+      const tt = Date.now();
+      for (let i = 0; i < 4; i++) {
+        const lane  = x + s * (0.12 + i * 0.24);
+        const speed = 230 + (i % 2) * 90;
+        const yy = ((tt / speed * s) + i * 7 + col * 5 + row * 13) % s;
+        ctx.fillStyle = 'rgba(210,235,255,0.9)';
+        ctx.fillRect(lane, y + yy,     2, s * 0.45);
+        ctx.fillRect(lane, y + yy - s, 2, s * 0.45);   // wrapped tail
+      }
+      // Drifting mist sparkle
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillRect(x + s*0.3, y + ((tt / 120 + col * 3 + row * 7) % s), 1.5, 1.5);
+      break; }
+    case T.CLIFF: {
+      // Rocky cliff face — layered strata with cracks and a chiselled top-left
+      // light edge. Jittered by tile coords so adjacent faces aren't identical.
+      ctx.fillStyle = '#6a5f52'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#564c40'; ctx.fillRect(x, y,          s, s*0.18);
+      ctx.fillStyle = '#7a6e5e'; ctx.fillRect(x, y + s*0.34, s, s*0.16);
+      ctx.fillStyle = '#544a3e'; ctx.fillRect(x, y + s*0.62, s, s*0.18);
+      const j = (col * 113 + row * 71) & 7;
+      ctx.fillStyle = '#857a68';
+      ctx.fillRect(x + (j % 4),  y + s*0.20, s*0.30, 2);
+      ctx.fillRect(x + s*0.55,   y + s*0.50 + (j % 3), s*0.35, 2);
+      ctx.fillStyle = '#3e362c';
+      ctx.fillRect(x + s*0.45, y,          2, s);            // vertical crack
+      ctx.fillRect(x + s*0.20, y + s*0.55, 2, s*0.40);
+      ctx.fillStyle = 'rgba(220,210,190,0.22)';
+      ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);   // light edge
       break; }
   }
 }
