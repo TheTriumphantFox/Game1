@@ -309,6 +309,115 @@ function buildForestMap(seed, depth, openSides) {
   return m;
 }
 
+// ─── Desert water pool ───────────────────────────────────────────────────────
+// A small still pool (4×4 … 10×10 of WATER) ringed by exactly one tile of GRASS,
+// set into a SAND plaza so the green ring always sits on passable ground. A SAND
+// access corridor is carved from the pool back to map centre so the ring is
+// guaranteed reachable (the WATER itself stays solid — the player walks the rim).
+function addDesertPool(m, midR, midC) {
+  const w = rnd(4, 10), h = rnd(4, 10);
+  const r0 = rnd(8, MROWS - h - 9);
+  const c0 = rnd(8, MCOLS - w - 9);
+  const r1 = r0 + h - 1, c1 = c0 + w - 1;
+  // SAND plaza (water + grass ring + 1 tile margin) so nothing walls the rim in
+  setRect(m, r0 - 2, c0 - 2, r1 + 2, c1 + 2, T.SAND);
+  // 1-tile GRASS ring hugging the water
+  setRect(m, r0 - 1, c0 - 1, r1 + 1, c1 + 1, T.GRASS);
+  // the pool itself
+  setRect(m, r0, c0, r1, c1, T.WATER);
+  // guarantee accessibility — a SAND corridor from just below the plaza to centre
+  drunkWalk(m, r1 + 2, Math.floor((c0 + c1) / 2), midR, midC, T.SAND, 1);
+}
+
+// Carve a 3-wide CLIMB ramp straight through a horizontal PLATEAU band at column
+// `cc`, with a SAND lip one tile past each face so the ramp meets open ground on
+// both sides. Used so a north/south path can cross the plateau.
+function carveClimbV(m, r0, thick, cc) {
+  for (let dr = -1; dr <= thick; dr++) {
+    const r = r0 + dr;
+    if (r <= 0 || r >= MROWS - 1) continue;
+    for (let dc = -1; dc <= 1; dc++) {
+      const c = cc + dc;
+      if (c <= 0 || c >= MCOLS - 1 || isProtectedFeature(m[r][c])) continue;
+      m[r][c] = (dr < 0 || dr >= thick) ? T.SAND : T.CLIMB;
+    }
+  }
+}
+
+// Carve a 3-wide CLIMB ramp through a vertical PLATEAU band at row `rr`.
+function carveClimbH(m, c0, thick, rr) {
+  for (let dc = -1; dc <= thick; dc++) {
+    const c = c0 + dc;
+    if (c <= 0 || c >= MCOLS - 1) continue;
+    for (let dr = -1; dr <= 1; dr++) {
+      const r = rr + dr;
+      if (r <= 0 || r >= MROWS - 1 || isProtectedFeature(m[r][c])) continue;
+      m[r][c] = (dc < 0 || dc >= thick) ? T.SAND : T.CLIMB;
+    }
+  }
+}
+
+// Stamp one solid PLATEAU band spanning the map edge-to-edge (a horizontal band
+// touching the left+right borders, or a vertical band touching top+bottom), then
+// cut CLIMB ramps through it so paths can still cross. The band is kept wholly to
+// one side of the perpendicular exit axis so it never swallows that edge's exit
+// corridor — the crossing on the axis it *does* block is restored by a climb.
+function addDesertPlateau(m) {
+  const thick = rnd(5, 10);
+  if (Math.random() < 0.5) {
+    // Horizontal band: pick a row entirely above OR below the E/W exit corridor.
+    const r0 = (Math.random() < 0.5)
+      ? rnd(8, EXIT_ROW - thick - 5)
+      : rnd(EXIT_ROW + 5, MROWS - thick - 8);
+    for (let c = 1; c < MCOLS - 1; c++)
+      for (let dr = 0; dr < thick; dr++) {
+        const r = r0 + dr;
+        const t = m[r][c];
+        if (isProtectedFeature(t) || t === T.WATER || t === T.OASIS_WATER ||
+            t === T.CLIMB) continue;
+        m[r][c] = T.PLATEAU;
+      }
+    // Climb where the N/S exit corridor crosses, plus a couple of extra ramps.
+    const cols = [EXIT_COL, rnd(10, MCOLS - 11)];
+    if (Math.random() < 0.5) cols.push(rnd(10, MCOLS - 11));
+    for (const cc of cols) carveClimbV(m, r0, thick, cc);
+  } else {
+    // Vertical band: pick a column entirely left OR right of the N/S corridor.
+    const c0 = (Math.random() < 0.5)
+      ? rnd(8, EXIT_COL - thick - 5)
+      : rnd(EXIT_COL + 5, MCOLS - thick - 8);
+    for (let r = 1; r < MROWS - 1; r++)
+      for (let dc = 0; dc < thick; dc++) {
+        const c = c0 + dc;
+        const t = m[r][c];
+        if (isProtectedFeature(t) || t === T.WATER || t === T.OASIS_WATER ||
+            t === T.CLIMB) continue;
+        m[r][c] = T.PLATEAU;
+      }
+    const rows = [EXIT_ROW, rnd(10, MROWS - 11)];
+    if (Math.random() < 0.5) rows.push(rnd(10, MROWS - 11));
+    for (const rr of rows) carveClimbH(m, c0, thick, rr);
+  }
+}
+
+// Sprinkle a cluster of passable FLOWERING_CACTUS tiles onto the SAND/GRASS
+// immediately around a randomly chosen desert water tile (pool or oasis). These
+// have 1 HP and are cut down by a sword swing (see doSwordSwing).
+function addFloweringCactiNearWater(m, waters) {
+  if (!waters.length) return;
+  const [wr, wc] = waters[Math.floor(Math.random() * waters.length)];
+  const target = rnd(2, 4);
+  let placed = 0;
+  for (let tries = 0; tries < 40 && placed < target; tries++) {
+    const r = wr + rnd(-2, 2), c = wc + rnd(-2, 2);
+    if (r <= 0 || r >= MROWS - 1 || c <= 0 || c >= MCOLS - 1) continue;
+    if (m[r][c] === T.SAND || m[r][c] === T.GRASS) {
+      m[r][c] = T.FLOWERING_CACTUS;
+      placed++;
+    }
+  }
+}
+
 // ─── Desert map ───────────────────────────────────────────────────────────────
 // Tier-2 overworld unlocked after the village is activated. SAND base with
 // cacti as the equivalent of trees (solid border + sparse interior), DUNE
@@ -388,12 +497,30 @@ function buildDesertMap(seed, depth, openSides) {
     }
   }
 
-  // Phase 7: bone decorations scattered across sand
-  scatter(m, T.BONES, 60);
+  // Phase 7: bone decorations scattered across sand. (Desert ground is SAND, not
+  // GRASS, so seed them onto SAND.) Bones have 1 HP and drop bone meal when cut
+  // by a sword swing — see doSwordSwing.
+  scatterOn(m, T.BONES, 80, T.SAND);
   // Sparse cacti scattered as obstacles in open sand
   for (let i = 0; i < 120; i++) {
     const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
     if (m[rr][rc] === T.SAND && Math.random() < 0.5) m[rr][rc] = T.CACTUS;
+  }
+
+  // Phase 7b: small grass-ringed water pools (1d4-1 per map). Placed after the
+  // rock/cactus scatters so nothing walls in their accessible rim.
+  const poolCount = rnd(1, 4) - 1;
+  for (let i = 0; i < poolCount; i++) addDesertPool(m, midR, midC);
+
+  // Phase 7c: flowering cacti clustered near desert water (1d4-1 per map). Built
+  // from the live water tiles so each cluster hugs an actual pool or oasis.
+  const floweringCount = rnd(1, 4) - 1;
+  if (floweringCount > 0) {
+    const waters = [];
+    for (let r = 2; r < MROWS - 2; r++)
+      for (let c = 2; c < MCOLS - 2; c++)
+        if (m[r][c] === T.WATER || m[r][c] === T.OASIS_WATER) waters.push([r, c]);
+    for (let i = 0; i < floweringCount; i++) addFloweringCactiNearWater(m, waters);
   }
 
   // Phase 8: chest spot (deferred)
@@ -435,6 +562,13 @@ function buildDesertMap(seed, depth, openSides) {
   cutExits(m, open.left, open.right, open.up, open.down);
 
   if (chestSpot) m[chestSpot.r][chestSpot.c] = T.CHEST;
+
+  // Phase 13: edge-to-edge plateaus (1d4-1 per map). Placed last — after the
+  // exit corridors, border lock, and chest — so the solid mesa carves across the
+  // finished map and only the CLIMB ramps let paths cross it. ensureConnectivity
+  // (next) re-links anything the plateau happened to wall off.
+  const plateauCount = rnd(1, 4) - 1;
+  for (let i = 0; i < plateauCount; i++) addDesertPlateau(m);
 
   ensureConnectivity(m, false, T.CACTUS);
 

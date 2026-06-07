@@ -45,7 +45,7 @@ function isSolid(map, c, r) {
          t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
          t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
          t === T.CACTUS || t === T.OASIS_WATER ||
-         t === T.WATERFALL || t === T.CLIFF ||
+         t === T.WATERFALL || t === T.CLIFF || t === T.PLATEAU ||
          // Elemental region borders (solid)
          t === T.GLACIER || t === T.MOUNTAIN || t === T.CLOUDWALL ||
          t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||
@@ -89,6 +89,15 @@ function scatter(m, tile, count) {
   for (let i = 0; i < count; i++) {
     const r = rnd(2, MROWS - 3), c = rnd(2, MCOLS - 3);
     if (m[r][c] === T.GRASS) m[r][c] = tile;
+  }
+}
+
+// Like scatter() but seeds onto an arbitrary base tile (e.g. SAND in the desert,
+// which has no grass for the plain scatter() to land on).
+function scatterOn(m, tile, count, base) {
+  for (let i = 0; i < count; i++) {
+    const r = rnd(2, MROWS - 3), c = rnd(2, MCOLS - 3);
+    if (m[r][c] === base) m[r][c] = tile;
   }
 }
 

@@ -25,7 +25,7 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
              t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
              t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
              t === T.CACTUS || t === T.OASIS_WATER ||
-             t === T.WATERFALL || t === T.CLIFF ||
+             t === T.WATERFALL || t === T.CLIFF || t === T.PLATEAU ||
              // Elemental region borders
              t === T.GLACIER || t === T.MOUNTAIN || t === T.CLOUDWALL ||
              t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||

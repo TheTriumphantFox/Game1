@@ -44,6 +44,7 @@ const PASSIVE_DROPS = [
   { type: 'fingers', icon: '🫳', label: 'Finger',  key: 'fingers' },
   { type: 'bones',   icon: '🦴', label: 'Bone',    key: 'bones'   },
   { type: 'wings',   icon: '🪶', label: 'Wing',    key: 'wings'   },
+  { type: 'bonemeal',icon: '🧂', label: 'Bone Meal', key: 'bonemeal' },
 ];
 
 // Each ring is a function returning live items so values track player state

@@ -69,6 +69,7 @@ const DEFAULT_PLAYER = {
   mushrooms: STARTING_ITEM_AMOUNT,
   fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
   bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
+  bonemeal: 0,
   // swordElements / arrows are populated by applyStartingInventory() at boot
   // and on newGame, once SWORD_ELEMENTS has loaded.
   swordElements: [],
@@ -338,6 +339,7 @@ function newGame() {
     mushrooms: STARTING_ITEM_AMOUNT,
     fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
     bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
+    bonemeal: 0,
     swordElements: [], activeSwordElement: null,
     arrows: {}, activeArrowElement: null,
     armorElements: [], activeArmorElement: null,

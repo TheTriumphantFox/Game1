@@ -53,6 +53,9 @@ let player = {
   // Trophy / crafting collectibles dropped by specific enemies.
   fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
   bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
+  // Bone meal — ground from desert bone piles cut down by the sword. Starts at 0
+  // since it's earned in the field, not granted.
+  bonemeal: 0,
   // The collection of elemental swords the player owns (each id from
   // SWORD_ELEMENTS in elements.js). Elemental swords are now specific weapons
   // — they don't stack on the base sword. Only one is wielded at a time.

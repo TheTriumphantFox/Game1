@@ -236,27 +236,27 @@ function doSwordSwing() {
     }
   });
 
-  // Cut down soft foliage in the swing. Flowers and mushrooms have 1 HP, so a
-  // single swing clears them back to grass. Same 3x3 zone as the enemy hit.
-  // Cut flowers have a 50% chance to leave behind a Herbal pickup.
+  // Cut down soft foliage in the swing. Flowers, mushrooms, flowering cacti, and
+  // bones all have 1 HP, so a single swing clears them. Same 3x3 zone as the
+  // enemy hit. Each cut tile reverts to its terrain's ground (grass in forest,
+  // sand in desert) and may leave a pickup behind.
   const map = mapData();
   const ctc = Math.round(tx), ctr = Math.round(ty);
   for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
     const tr = ctr + dr, tc = ctc + dc;
     if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
     const tile = map[tr][tc];
-    if (tile !== T.FLOWER && tile !== T.MUSHROOM) continue;
-    map[tr][tc] = T.GRASS;
-    if (tile === T.FLOWER && Math.random() < 0.50) {
+    // ground to leave behind, drop type, and drop chance per cuttable tile
+    let revert = null, dropType = null, dropChance = 0;
+    if      (tile === T.FLOWER)           { revert = T.GRASS; dropType = 'herbal';   dropChance = 0.50; }
+    else if (tile === T.MUSHROOM)         { revert = T.GRASS; dropType = 'mushroom'; dropChance = 0.50; }
+    else if (tile === T.FLOWERING_CACTUS) { revert = T.SAND;  dropType = 'herbal';   dropChance = 0.50; }
+    else if (tile === T.BONES)            { revert = T.SAND;  dropType = 'bonemeal'; dropChance = 1.00; }
+    else continue;
+    map[tr][tc] = revert;
+    if (dropType && Math.random() < dropChance) {
       drops.push({
-        type: 'herbal', val: 1,
-        x: tc, y: tr,
-        life: 10000, bob: 0, collected: false
-      });
-    }
-    if (tile === T.MUSHROOM && Math.random() < 0.50) {
-      drops.push({
-        type: 'mushroom', val: 1,
+        type: dropType, val: 1,
         x: tc, y: tr,
         life: 10000, bob: 0, collected: false
       });
@@ -475,6 +475,12 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#c8704a', 10, 3);
         spawnParticle(sp.x, sp.y, '#f0dac0', 6, 2);
         showMsg(`🍄 +${d.val} Mushroom (now ${player.mushrooms})`, 1500);
+      } else if (d.type === 'bonemeal') {
+        addItem('bonemeal', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#e8e0c8', 10, 3);
+        spawnParticle(sp.x, sp.y, '#fffaf0', 6, 2);
+        showMsg(`🦴 +${d.val} Bone Meal (now ${player.bonemeal})`, 1500);
       } else if (d.type === 'fang' || d.type === 'finger' ||
                  d.type === 'bone' || d.type === 'wing') {
         // Enemy trophy collectibles. Inventory key is the plural of the drop

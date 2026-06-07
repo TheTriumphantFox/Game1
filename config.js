@@ -55,7 +55,12 @@ const T = {
   SHALLOW_WATER:64,                                  // wadeable shallow water (water-region paths)
   // Forest terrain features — a vertical WATERFALL (animated falling water) and
   // a rocky CLIFF face. Both solid. Streams reuse WATER + BRIDGE.
-  WATERFALL:65, CLIFF:66
+  WATERFALL:65, CLIFF:66,
+  // Desert terrain features — a PLATEAU (solid mesa rock band spanning the map
+  // edge-to-edge) and the CLIMB tile (passable ramp that lets a path cross a
+  // plateau). FLOWERING_CACTUS is a passable, 1-HP, sword-cuttable cactus that
+  // grows near desert water.
+  PLATEAU:67, CLIMB:68, FLOWERING_CACTUS:69
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -95,6 +100,9 @@ const TILE_COLORS = {
   [T.SHALLOW_WATER]: '#5aa8c8',
   // Forest water/terrain features — bright falling water + rocky cliff face.
   [T.WATERFALL]: '#3f7fd0', [T.CLIFF]: '#6a5f52',
+  // Desert terrain features — sandstone plateau, sandy climbing ramp, and a
+  // flowering cactus (green body reads against sand on the minimap).
+  [T.PLATEAU]: '#b5743a', [T.CLIMB]: '#caa46a', [T.FLOWERING_CACTUS]: '#3a7a3a',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.

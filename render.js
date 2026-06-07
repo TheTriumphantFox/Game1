@@ -1266,6 +1266,51 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = 'rgba(220,210,190,0.22)';
       ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);   // light edge
       break; }
+    case T.PLATEAU: {
+      // Sandstone mesa — warm banded strata with darker seams and a sunlit
+      // top-left edge. Jittered by tile coords so a long band isn't uniform.
+      ctx.fillStyle = '#b5743a'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#9c5f2e'; ctx.fillRect(x, y,          s, s*0.16);
+      ctx.fillStyle = '#c8854a'; ctx.fillRect(x, y + s*0.32, s, s*0.18);
+      ctx.fillStyle = '#8f5526'; ctx.fillRect(x, y + s*0.60, s, s*0.16);
+      const jp = (col * 97 + row * 53) & 7;
+      ctx.fillStyle = '#a96a32';
+      ctx.fillRect(x + (jp % 4), y + s*0.22, s*0.34, 2);
+      ctx.fillRect(x + s*0.5,    y + s*0.50 + (jp % 3), s*0.4, 2);
+      ctx.fillStyle = '#6e421d';
+      ctx.fillRect(x + s*0.5, y, 2, s);                      // vertical seam
+      ctx.fillStyle = 'rgba(255,235,200,0.22)';
+      ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);   // sunlit edge
+      break; }
+    case T.CLIMB: {
+      // A climbing ramp cut into the plateau — sandy track with carved foot-step
+      // rungs so it reads as a way up/over the mesa.
+      ctx.fillStyle = '#caa46a'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#a8814a'; ctx.fillRect(x + s*0.12, y, s*0.76, s);
+      ctx.fillStyle = '#7a5a30';
+      for (let i = 0; i < 4; i++) ctx.fillRect(x + s*0.14, y + s*(0.16 + i*0.22), s*0.72, 2);
+      ctx.fillStyle = 'rgba(255,240,210,0.35)';
+      ctx.fillRect(x + s*0.12, y, 2, s);
+      break; }
+    case T.FLOWERING_CACTUS: {
+      // Sand backdrop + a cactus crowned with small magenta blossoms.
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#2d6a2d';
+      ctx.fillRect(x + s*0.42, y + s*0.28, s*0.16, s*0.64);
+      ctx.fillRect(x + s*0.20, y + s*0.50, s*0.20, s*0.10);
+      ctx.fillRect(x + s*0.20, y + s*0.36, s*0.06, s*0.18);
+      ctx.fillRect(x + s*0.60, y + s*0.58, s*0.20, s*0.10);
+      ctx.fillRect(x + s*0.74, y + s*0.44, s*0.06, s*0.18);
+      ctx.fillStyle = '#5aaa5a';
+      ctx.fillRect(x + s*0.46, y + s*0.32, s*0.04, s*0.56);
+      // Blossoms — a crown bloom plus one on each arm tip.
+      ctx.fillStyle = '#e85aa8';
+      ctx.beginPath(); ctx.arc(x + s*0.50, y + s*0.26, s*0.10, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*0.23, y + s*0.34, s*0.06, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*0.77, y + s*0.42, s*0.06, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ffd24a';
+      ctx.fillRect(x + s*0.48, y + s*0.24, 3, 3);
+      break; }
   }
 }
 
@@ -2298,6 +2343,7 @@ function drawDrop(d, ts) {
     d.type === 'herbal'   ? '120,210,80'  :
     d.type === 'mushroom' ? '200,112,74'  :
     d.type === 'potion'   ? '255,120,180' :
+    d.type === 'bonemeal' ? '232,224,200' :  // pale bone-dust
     arrowElem             ? hexToRGB(arrowElem.color) :
     d.type === 'arrows'   ? '221,170,68' :  // plain arrows: warm tan/wood
     trophy                ? hexToRGB(trophy.color) :
@@ -2402,14 +2448,15 @@ function drawDrop(d, ts) {
     leaf(cx,             cy - s * 0.75, 0);
     leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
     leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
-  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom') {
-    // Trophy items + potion + arrow bundle + mushroom: render as a glyph
-    // centered on the tile. Arrow drops show the elemental icon and the count;
-    // trophy / potion / mushroom drops show their thematic icon.
+  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal') {
+    // Trophy items + potion + arrow bundle + mushroom + bone meal: render as a
+    // glyph centered on the tile. Arrow drops show the elemental icon and the
+    // count; the rest show their thematic icon.
     const icon =
       d.type === 'arrows'   ? (arrowElem ? arrowElem.icon : '🏹') :
       d.type === 'potion'   ? '🧪' :
       d.type === 'mushroom' ? '🍄' :
+      d.type === 'bonemeal' ? '🧂' :
       trophy.icon;
     const size = Math.round(ts * 0.42 * pulse);
     ctx.font = `${size}px serif`;
