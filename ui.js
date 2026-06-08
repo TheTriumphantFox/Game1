@@ -5,7 +5,7 @@
 // remaining wedges black. Radial slices are clipped to a heart silhouette so the
 // 6 segments still divide angularly while the overall shape reads as a heart.
 let _hpHeartId = 0;
-function hpPieSVG(filled, total = 6, size = 16) {
+function hpPieSVG(filled, total = 6, size = 16, fillColor = '#e24b4a') {
   const id = `hpclip${++_hpHeartId}`;
   // Heart silhouette in a 24x24 reference box; wedge center sits at its visual
   // middle so the top wedge runs through the lobe dip.
@@ -18,7 +18,7 @@ function hpPieSVG(filled, total = 6, size = 16) {
     const a1 = (i + 1) * sweep - Math.PI / 2;
     const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
     const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-    const color = i < filled ? '#e24b4a' : '#111';
+    const color = i < filled ? fillColor : '#111';
     slices += `<path d="M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} A${r},${r} 0 0,1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${color}" stroke="#000" stroke-width="0.5"/>`;
   }
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:2px"><defs><clipPath id="${id}"><path d="${heart}"/></clipPath></defs><g clip-path="url(#${id})">${slices}</g><path d="${heart}" fill="none" stroke="#000" stroke-width="0.8"/></svg>`;
@@ -30,6 +30,12 @@ function updateHUD() {
   for (let i = 0; i < player.maxHp; i += 6) {
     const inSlot = Math.max(0, Math.min(6, player.hp - i));
     h += hpPieSVG(inSlot, 6);
+  }
+  // Temporary HP — green hearts of the same shape, to the right of the red ones.
+  const temp = player.tempHp || 0;
+  for (let i = 0; i < temp; i += 6) {
+    const inSlot = Math.max(0, Math.min(6, temp - i));
+    h += hpPieSVG(inSlot, 6, 16, '#3fc24a');
   }
   document.getElementById('hearts').innerHTML = h;
   document.getElementById('rupees').textContent = player.rupees;

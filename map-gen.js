@@ -39,7 +39,7 @@ const DESERT_NAMES = [
 // table still drives village palette, enemy pool, names, and progression order.
 const REGIONS = [
   { id:'forest',    element:null,        border:T.TREE,            ground:T.GRASS,          decoration:T.FLOWER,   accent:T.WATER,       names:FOREST_NAMES, villageName:'Village of the Lost',     enemyTier:1, boss:'lich_boss'      },
-  { id:'fire',      element:'fire',      border:T.CACTUS,          ground:T.SAND,           decoration:T.BONES,    accent:T.LAVA,        names:DESERT_NAMES, villageName:'Oasis of the Damned',     enemyTier:2, boss:'mummy_lord'     },
+  { id:'fire',      element:'fire',      border:T.CACTUS,          ground:T.SAND,           decoration:T.FLOWERING_CACTUS, accent:T.LAVA, names:DESERT_NAMES, villageName:'Oasis of the Damned',     enemyTier:2, boss:'mummy_lord'     },
   { id:'water',     element:'water',     border:T.DEEP_WATER,      ground:T.SAND,           decoration:T.WATER,    accent:T.WATER,       path:T.SHALLOW_WATER, pathDry:T.SAND, names:[
       'Tidepool Reach','Coral Strait','Lagoon Hollow','Brinepath','Surfbreak Sands',
       'Kelpforest Crossing','Saltspray Cove','Mermaid Atoll','Drowned Ruins','Pearl Banks',
@@ -858,8 +858,8 @@ function buildRegionMap(seed, depth, openSides, region) {
 
 // ─── Desert village map ─────────────────────────────────────────────────────
 // Thin wrapper: the same fixed village layout rendered with a desert palette
-// (cactus border, sand ground, bone decorations). Used as the boss arena at the
-// end of the desert region.
+// (cactus border, sand ground, flowering-cactus decorations). Used as the boss
+// arena at the end of the desert region.
 function buildDesertVillageMap() {
   return buildVillageMap('fire');
 }
@@ -1135,7 +1135,7 @@ function buildVillageMap(biome) {
 
   // ─── Decoration against the outside of houses ───────────────────────────
   // For every ground tile adjacent to a WALL, randomly drop a decoration
-  // (flowers in the forest, bones in the desert). Tiles next to a door are
+  // (flowers in the forest, flowering cacti in the desert). Tiles next to a door are
   // skipped so doorways stay clear. Run AFTER cobblestone path-laying so the
   // decoration doesn't end up on the road.
   const isWall = (c, r) =>

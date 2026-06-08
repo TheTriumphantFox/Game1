@@ -44,6 +44,8 @@ const PASSIVE_DROPS = [
   { type: 'fingers', icon: '🫳', label: 'Finger',  key: 'fingers' },
   { type: 'bones',   icon: '🦴', label: 'Bone',    key: 'bones'   },
   { type: 'wings',   icon: '🪶', label: 'Wing',    key: 'wings'   },
+  { type: 'organs',  icon: '🫀', label: 'Organ',   key: 'organs'  },
+  { type: 'feathers',icon: '🪶', label: 'Feather', key: 'feathers'},
   { type: 'bonemeal',icon: '🧂', label: 'Bone Meal', key: 'bonemeal' },
 ];
 
@@ -126,6 +128,12 @@ const RADIAL_RINGS = [
           val: () => 'x' + (player.potions || 0),
           consumable: true,
           action: () => usePotion() });
+      }
+      if ((player.medPotions || 0) > 0) {
+        items.push({ type: 'medpotion', icon: '🍶', label: 'Medium Potion',
+          val: () => 'x' + (player.medPotions || 0),
+          consumable: true,
+          action: () => useMedPotion() });
       }
       return items;
     }},
@@ -284,6 +292,11 @@ function useSelectedInventoryItem() {
     const before = player.potions;
     usePotion();
     return (before > player.potions) ? 600 : 0;
+  }
+  if (item.type === 'medpotion') {
+    const before = player.medPotions;
+    useMedPotion();
+    return (before > player.medPotions) ? 600 : 0;
   }
   if (item.type === 'bomb') {
     player.weapon = 'bomb';

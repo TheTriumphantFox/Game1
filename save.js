@@ -58,17 +58,19 @@ function buildSaveData() {
 const DEFAULT_PLAYER = {
   x: EXIT_COL, y: EXIT_ROW,
   renderX: EXIT_COL, renderY: EXIT_ROW,
-  hp: 8, maxHp: 8,
+  hp: 8, maxHp: 8, tempHp: 0,
   rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
   potions: STARTING_ITEM_AMOUNT,
+  medPotions: 0,
   herbals: STARTING_ITEM_AMOUNT,
   mushrooms: STARTING_ITEM_AMOUNT,
   fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
   bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
+  organs: 0, feathers: 0,
   bonemeal: 0,
   // swordElements / arrows are populated by applyStartingInventory() at boot
   // and on newGame, once SWORD_ELEMENTS has loaded.
@@ -331,14 +333,15 @@ function newGame() {
   if (!confirm('Start a new game? Unsaved progress will be lost.')) return;
   Object.assign(player, {
     x: EXIT_COL, y: EXIT_ROW,
-    hp: 8, maxHp: 8,
+    hp: 8, maxHp: 8, tempHp: 0,
     rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
     swordTimer: 0, swordDir: { x: 0, y: -1 }, invincible: 0,
     weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
-    potions: STARTING_ITEM_AMOUNT, herbals: STARTING_ITEM_AMOUNT,
+    potions: STARTING_ITEM_AMOUNT, medPotions: 0, herbals: STARTING_ITEM_AMOUNT,
     mushrooms: STARTING_ITEM_AMOUNT,
     fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
     bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
+    organs: 0, feathers: 0,
     bonemeal: 0,
     swordElements: [], activeSwordElement: null,
     arrows: {}, activeArrowElement: null,

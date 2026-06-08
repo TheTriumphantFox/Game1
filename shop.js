@@ -62,9 +62,9 @@ const STORE_ITEMS = [
   { id: 'bow',   label: '🏹 Bow Lv +1',    cost: 50,
     desc: 'Increase arrow damage',
     apply: () => { player.bowLevel++; } },
-  { id: 'hp',    label: '💚 Max HP +2',    cost: 100,
-    desc: '+2 maximum HP, fully healed',
-    apply: () => { player.maxHp += 2; player.hp = player.maxHp; } },
+  { id: 'temphp', label: '💚 Temp HP +1',  cost: 150,
+    desc: '+1 temporary HP (green heart) — soaks damage before your HP',
+    apply: () => { player.tempHp = (player.tempHp || 0) + 1; } },
   // Elemental swords are no longer for sale — they only drop from the Forest
   // Lich. See the sell list rendered separately.
 ];
@@ -76,6 +76,13 @@ const ELEMENTAL_SELL_VALUE = 150;
 const ARROW_PACK_SIZE  = 5;
 const ARROW_PACK_COST  = 50;     // 50 rupees for 5 arrows
 const ARROW_SELL_VALUE = 5;      // 5 rupees per arrow sold back
+
+// Monster trophies the General Store buys back. Drop-only collectibles with no
+// other use yet, so the store lets you cash in the whole stack at once.
+const TROPHY_SELL = [
+  { key: 'organs',   icon: '🫀', label: 'Organ',   value: 15 },
+  { key: 'feathers', icon: '🪶', label: 'Feather', value: 20 },
+];
 
 function openStoreModal() {
   shopOpen = true;
@@ -152,12 +159,34 @@ function renderStoreContents() {
       `;
     }).join('');
 
+  // Trophy sell section — cash in monster spoils (organ, feather, …).
+  const trophyRows =
+    `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#cc9988">
+      We buy monster trophies — cash in your spoils:
+    </div>` +
+    TROPHY_SELL.map(t => {
+      const count = player[t.key] || 0;
+      const cantSell = count <= 0;
+      return `
+        <div class="shop-row">
+          <div class="shop-item">
+            <div class="shop-item-name">${t.icon} ${t.label} <span style="color:#88cc88">x${count}</span></div>
+            <div class="shop-item-meta">Sell for ${t.value}💰 each</div>
+          </div>
+          <button class="ssbtn" ${cantSell ? 'disabled' : ''} onclick="sellTrophy('${t.key}')">
+            All ➜ 💰${count * t.value}
+          </button>
+        </div>
+      `;
+    }).join('');
+
   document.getElementById('store-modal').innerHTML = `
     <h2>🏪 General Store</h2>
     <div class="shop-greeting">Greetings, traveler! Care to spend some rupees?</div>
     <div class="shop-rupees">You have: 💰 <b>${player.rupees}</b></div>
     ${buyRows}
     ${arrowsRows}
+    ${trophyRows}
     ${sellRows}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
   `;
@@ -229,6 +258,19 @@ function sellElementalSword(id) {
   if (player.activeSwordElement === id) player.activeSwordElement = null;
   addItem('rupees', ELEMENTAL_SELL_VALUE);
   showMsg(`💰 Sold ${elem.icon} ${elem.label} Sword for ${ELEMENTAL_SELL_VALUE} rupees`, 3000);
+  renderStoreContents();
+  updateHUD();
+}
+
+function sellTrophy(key) {
+  const t = TROPHY_SELL.find(x => x.key === key);
+  if (!t) return;
+  const count = player[key] || 0;
+  if (count <= 0) return;
+  player[key] = 0;
+  const earned = count * t.value;
+  addItem('rupees', earned);
+  showMsg(`💰 Sold ${count} ${t.icon} ${t.label}${count > 1 ? 's' : ''} for ${earned} rupees`, 3000);
   renderStoreContents();
   updateHUD();
 }
@@ -344,6 +386,10 @@ function buyArmorPiece(id) {
 // flowers out in the forest (see projectiles.js).
 const HERB_POTION_RECIPE = { mushrooms: 1, herbals: 1, rupees: 5 };
 
+// Fire-region exclusive: the Herbalist of the Oasis brews a stronger remedy from
+// monster trophies — 1 🫀 Organ + 1 🪶 Feather + 50 💰 → 1 🍶 Medium Potion (1d8).
+const MED_POTION_RECIPE = { organs: 1, feathers: 1, rupees: 50 };
+
 function openHerbalistModal() {
   shopOpen = true;
   document.getElementById('herb-modal-overlay').classList.add('open');
@@ -360,11 +406,38 @@ function canBrewHerbPotion() {
 }
 
 function renderHerbalistContents() {
-  const have = `🍄 ${player.mushrooms || 0} · 🌿 ${player.herbals || 0} · 💰 ${player.rupees || 0} · 🧪 ${player.potions || 0}`;
+  // The fire-region Herbalist (Oasis of the Damned) also brews a stronger remedy.
+  const cm = currentMap();
+  const inFire = !!cm && cm.biome === 'fire';
+
+  const have = `🍄 ${player.mushrooms || 0} · 🌿 ${player.herbals || 0} · 💰 ${player.rupees || 0} · 🧪 ${player.potions || 0}` +
+    (inFire ? ` · 🫀 ${player.organs || 0} · 🪶 ${player.feathers || 0} · 🍶 ${player.medPotions || 0}` : '');
+
   const capped = (player.potions || 0) >= ITEM_CAP;
   const meta = capped
     ? `Your satchel can't hold more potions (max ${ITEM_CAP})`
-    : 'Costs 🍄 1 Mushroom + 🌿 1 Herbal + 💰 5';
+    : 'Heals 1d4 · Costs 🍄 1 Mushroom + 🌿 1 Herbal + 💰 5';
+
+  // Fire-only medium-potion recipe row.
+  let medRow = '';
+  if (inFire) {
+    const medCapped = (player.medPotions || 0) >= ITEM_CAP;
+    const medMeta = medCapped
+      ? `Your satchel can't hold more medium potions (max ${ITEM_CAP})`
+      : 'Heals 1d8 · Costs 🫀 1 Organ + 🪶 1 Feather + 💰 50';
+    medRow = `
+      <div class="shop-row">
+        <div class="shop-item">
+          <div class="shop-item-name">🍶 Brew a Medium Health Potion <span style="color:#88cc88">x${player.medPotions || 0}</span></div>
+          <div class="shop-item-meta">${medMeta}</div>
+        </div>
+        <button class="ssbtn" ${canBrewMedPotion() ? '' : 'disabled'} onclick="brewMedPotion()">
+          🫀🪶 + 💰50
+        </button>
+      </div>
+    `;
+  }
+
   document.getElementById('herb-modal').innerHTML = `
     <h2>🌿 Herbalist's Hut</h2>
     <div class="shop-greeting">Bring me mushrooms and herbs, and I'll brew you a remedy.</div>
@@ -378,6 +451,7 @@ function renderHerbalistContents() {
         🍄🌿 + 💰5
       </button>
     </div>
+    ${medRow}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
   `;
 }
@@ -389,6 +463,25 @@ function brewHerbPotion() {
   player.rupees    -= HERB_POTION_RECIPE.rupees;
   addItem('potions', 1);
   showMsg('🧪 The Herbalist brews you a Health Potion!', 3000);
+  renderHerbalistContents();
+  updateHUD();
+}
+
+// Fire-region medium potion: needs both trophies + rupees, and room to carry it.
+function canBrewMedPotion() {
+  return (player.organs    || 0) >= MED_POTION_RECIPE.organs   &&
+         (player.feathers  || 0) >= MED_POTION_RECIPE.feathers &&
+         (player.rupees    || 0) >= MED_POTION_RECIPE.rupees   &&
+         (player.medPotions || 0) <  ITEM_CAP;
+}
+
+function brewMedPotion() {
+  if (!canBrewMedPotion()) return;
+  player.organs   -= MED_POTION_RECIPE.organs;
+  player.feathers -= MED_POTION_RECIPE.feathers;
+  player.rupees   -= MED_POTION_RECIPE.rupees;
+  addItem('medPotions', 1);
+  showMsg('🍶 The Herbalist brews you a Medium Health Potion (heals 1d8)!', 3000);
   renderHerbalistContents();
   updateHUD();
 }

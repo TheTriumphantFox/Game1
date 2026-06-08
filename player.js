@@ -1,18 +1,21 @@
 // ─── Player state and movement ────────────────────────────────────────────────
 
-// Inventory cap shared by every stackable item (rupees, potions, herbals,
-// trophies, and each entry in player.arrows). Starting amount given to a fresh
-// player for every item (and every elemental arrow / sword). Stats like
-// maxHp / swordLevel / bowLevel / armor are progression — not items — and are
-// intentionally not capped here.
+// Inventory cap shared by every stackable item (potions, herbals, trophies, and
+// each entry in player.arrows). Rupees are exempt — they bank far higher under
+// RUPEE_CAP. Starting amount given to a fresh player for every item (and every
+// elemental arrow / sword). Stats like maxHp / swordLevel / bowLevel / armor are
+// progression — not items — and are intentionally not capped here.
 const ITEM_CAP = 128;
+const RUPEE_CAP = 99999;
 const STARTING_ITEM_AMOUNT = 64;
 
 // Cap-respecting increment for a scalar inventory key. Returns the amount
-// actually added (may be less than `n` when the cap clamps).
+// actually added (may be less than `n` when the cap clamps). Rupees use the
+// larger RUPEE_CAP; every other stackable shares ITEM_CAP.
 function addItem(key, n) {
+  const cap = key === 'rupees' ? RUPEE_CAP : ITEM_CAP;
   const before = player[key] || 0;
-  player[key] = Math.min(ITEM_CAP, before + n);
+  player[key] = Math.min(cap, before + n);
   return player[key] - before;
 }
 
@@ -42,17 +45,26 @@ let player = {
   // same rate as the camera so the player stays visually centered.
   renderX: EXIT_COL, renderY: EXIT_ROW,
   hp: 8, maxHp: 8,
+  // Temporary HP — a green-heart buffer (bought at the General Store) that
+  // absorbs damage before real HP. Not healed by potions/hearts/rest.
+  tempHp: 0,
   rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
   potions: STARTING_ITEM_AMOUNT,
+  // Medium Health Potions — brewed only by the fire-region Herbalist (heal 1d8).
+  // Brew-only, so a fresh player starts with none.
+  medPotions: 0,
   herbals: STARTING_ITEM_AMOUNT,
   mushrooms: STARTING_ITEM_AMOUNT,
   // Trophy / crafting collectibles dropped by specific enemies.
   fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
   bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
+  // Organs (from zombies) and feathers (from owlbears) are drop-only trophies,
+  // so they start empty rather than at the granted starting amount.
+  organs: 0, feathers: 0,
   // Bone meal — ground from desert bone piles cut down by the sword. Starts at 0
   // since it's earned in the field, not granted.
   bonemeal: 0,
@@ -99,9 +111,40 @@ function usePotion() {
   updateHUD();
 }
 
+// Drink one Medium Health Potion. Heals 1d8 HP (1-8, random), clamped to maxHp.
+// No-op at full HP or with none left. Brewed by the fire-region Herbalist from
+// monster trophies (see brewMedPotion in shop.js).
+function useMedPotion() {
+  if ((player.medPotions || 0) <= 0) {
+    showMsg('🍶 No medium potions left.', 1500);
+    return;
+  }
+  if (player.hp >= player.maxHp) {
+    showMsg('🍶 Already at full HP — saving the potion.', 1500);
+    return;
+  }
+  player.medPotions--;
+  const heal = 1 + Math.floor(Math.random() * 8);   // 1d8 → 1..8
+  const before = player.hp;
+  player.hp = Math.min(player.maxHp, player.hp + heal);
+  const gained = player.hp - before;
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, '#66ddaa', 12, 3);
+  spawnParticle(sp.x, sp.y, '#cceedd', 8, 2);
+  showMsg(`🍶 Quaffed a Medium Potion — +${gained} HP!`, 2500);
+  updateHUD();
+}
+
 // Tick/cooldown state
 let moveTimer = 0;
 const MOVE_MS = 110;             // ms between movement steps (grid-based)
+
+// ── Climb / jump animation state (read by drawPlayer in render.js) ────────────
+// A "jump" is a short timed hop arc, triggered when the player mounts or leaves
+// a CLIMB ramp (the lip where a path crosses a plateau). Climbing itself is
+// detected per-frame from the tile under the player, so it needs no state here.
+let playerJumpStart = -1;        // ms timestamp the current hop began (-1 = none)
+const PLAYER_JUMP_MS = 260;      // hop duration
 let attackCooldown = 0;
 let bowCooldown = 0;
 let bombCooldown = 0;
@@ -214,6 +257,16 @@ function rollEnemyTypeDrops(e) {
     case 'dryad':
       if (Math.random() < 0.10) drop({ type: 'potion', val: 1 });
       break;
+    case 'cultist':
+      if (Math.random() < 0.50) drop({ type: 'arrows', val: 5, element: 'fire' });
+      if (Math.random() < 0.10) drop({ type: 'potion', val: 1 });
+      break;
+    case 'zombie':
+      if (Math.random() < 0.20) drop({ type: 'organ', val: 1 });
+      break;
+    case 'owlbear':
+      if (Math.random() < 0.20) drop({ type: 'feather', val: 1 });
+      break;
     case 'pixie':
       if (Math.random() < 0.05) drop({ type: 'wing',   val: 1 });
       if (Math.random() < 0.50) dropPlainArrows();
@@ -228,18 +281,41 @@ function killEnemy(e) {
   const sp = screenPX(e.x, e.y);
   spawnParticle(sp.x, sp.y, e.color, 14, 5);
   spawnParticle(sp.x, sp.y, '#ffcc00', 6, 3);
-  addItem('rupees', Math.floor(e.maxHp * 0.1) + 1);
-  gainXP(e.xp);
-  // 40% chance to drop an HP heart (1d4)
-  if (Math.random() < 0.40) {
+
+  // Region context drives a couple of drop tweaks: fire-region hearts roll
+  // bigger (1d6 vs 1d4), and the boss rupee payout scales with the region tier.
+  const cm = currentMap();
+  const region = (typeof REGIONS !== 'undefined' && cm && typeof cm.regionIdx === 'number')
+    ? REGIONS[cm.regionIdx] : null;
+  const inFire = !!region && region.id === 'fire';
+
+  gainXP(e.xp);   // XP is awarded on every kill, unchanged.
+
+  if (e.boss) {
+    // Boss payout: 100 rupees per region in progression order (forest=1,
+    // fire=2, …), plus a guaranteed 6-HP heart. Type-specific loot rolls are
+    // for rank-and-file enemies only.
+    const regionOrder = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx + 1 : 1;
+    addItem('rupees', 100 * regionOrder);
     drops.push({
-      type: 'hp',
-      val: 1 + Math.floor(Math.random() * 4),  // 1..4
+      type: 'hp', val: 6,
       x: Math.round(e.x), y: Math.round(e.y),
       life: 10000, bob: 0, collected: false
     });
+  } else {
+    // Rupees now drop on only 30% of (non-boss) kills.
+    if (Math.random() < 0.30) addItem('rupees', Math.floor(e.maxHp * 0.1) + 1);
+    // 40% chance to drop an HP heart — 1d6 in the fire region, 1d4 elsewhere.
+    if (Math.random() < 0.40) {
+      drops.push({
+        type: 'hp',
+        val: 1 + Math.floor(Math.random() * (inFire ? 6 : 4)),
+        x: Math.round(e.x), y: Math.round(e.y),
+        life: 10000, bob: 0, collected: false
+      });
+    }
+    rollEnemyTypeDrops(e);
   }
-  rollEnemyTypeDrops(e);
   if (e.boss) {
     // Boss kills no longer grant +6 maxHp / a random elemental sword — those
     // rewards were removed by request. The flag is still set so saves / future
@@ -250,7 +326,6 @@ function killEnemy(e) {
     showMsg(`⚔️ ${e.name} defeated! +${e.xp} XP`, 1500);
   }
   // Clearing the village wakes it up into an active town.
-  const cm = currentMap();
   if (cm && cm.type === 'village' && !cm.activated && enemies.every(en => en.dead)) {
     if (activateVillage(cm)) {
       minimapDirty = true;
@@ -632,6 +707,15 @@ function stepPlayerMovement() {
   // called on the destination tile so step-on triggers (SHRINE) keep working.
   if (tx !== player.x || ty !== player.y) {
     handlePickup(tx, ty, map);
+    // Climb/jump feedback: hop when mounting or leaving a CLIMB ramp lip, and
+    // kick up sand while scrambling along the ramp.
+    const wasClimb = map[player.y][player.x] === T.CLIMB;
+    const nowClimb = map[ty][tx] === T.CLIMB;
+    if (wasClimb !== nowClimb) playerJumpStart = Date.now();
+    if (nowClimb) {
+      const sp = screenPX(tx, ty);
+      spawnParticle(sp.x, sp.y + TILE_PX * 0.35, '#caa46a', 4, 2);
+    }
     player.x = tx; player.y = ty;
   }
   clampCam();

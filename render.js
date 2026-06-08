@@ -1332,7 +1332,29 @@ function drawPlayer(ts) {
   // Subtle walking bob — only oscillates when a movement key is held
   const moving = !!(keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown']||
                     keys['a']||keys['A']||keys['d']||keys['D']||keys['w']||keys['W']||keys['s']||keys['S']);
-  const bob = moving ? Math.round(Math.sin(Date.now() / 110) * 1) : 0;
+  const walkBob = moving ? Math.round(Math.sin(Date.now() / 110) * 1) : 0;
+
+  // ── Climb / jump animation ──────────────────────────────────────────────────
+  // Climbing: an effortful scramble (faster vertical bob + slight side sway)
+  // while standing on a CLIMB ramp through a plateau. Jumping: a short hop arc
+  // when mounting or leaving a ramp lip (playerJumpStart is set on the step that
+  // crosses the climb/ground boundary — see stepPlayerMovement).
+  const _pmap = (typeof mapData === 'function') ? mapData() : null;
+  const onClimb = !!(_pmap && _pmap[player.y] && _pmap[player.y][player.x] === T.CLIMB);
+  let jumpLift = 0;
+  if (typeof playerJumpStart !== 'undefined' && playerJumpStart >= 0) {
+    const jt = (Date.now() - playerJumpStart) / PLAYER_JUMP_MS;
+    if (jt >= 1) playerJumpStart = -1;
+    else jumpLift = Math.sin(jt * Math.PI) * s * 0.45;   // hop arc up to ~0.45 tile
+  }
+  let climbLift = 0, climbSway = 0;
+  if (onClimb) {
+    const cph = Date.now() / 95;
+    climbLift = Math.abs(Math.sin(cph)) * s * 0.12;       // scrambling rise
+    climbSway = Math.sin(cph) * s * 0.05;                 // weight shifts side to side
+  }
+  // Lift the whole body (negative Y) by the combined hop + scramble offset.
+  const bob = walkBob - jumpLift - climbLift;
 
   ctx.save();
 
@@ -1347,11 +1369,16 @@ function drawPlayer(ts) {
     ctx.shadowBlur = s * (0.30 + 0.40 * dangerPulse);
   }
 
-  // Shadow ellipse
-  ctx.fillStyle = 'rgba(0,0,0,0.40)';
+  // Shadow ellipse — stays on the ground, tightening and fading as the player
+  // rises, and tracks the climbing sway so it sits under the body.
+  const airT = Math.max(0, Math.min(1, (jumpLift + climbLift) / (s * 0.45)));
+  const shScale = 1 - 0.45 * airT;
+  ctx.fillStyle = `rgba(0,0,0,${(0.40 * (1 - 0.4 * airT)).toFixed(3)})`;
   ctx.beginPath();
-  ctx.ellipse(sx + s/2, sy + s*0.93, s*0.28, s*0.07, 0, 0, Math.PI*2);
+  ctx.ellipse(sx + s/2 + climbSway, sy + s*0.93, s*0.28*shScale, s*0.07*shScale, 0, 0, Math.PI*2);
   ctx.fill();
+  // Sway the body horizontally during a climb (shadow already placed above).
+  if (climbSway) ctx.translate(climbSway, 0);
 
   // ── Boots ─────────────────────────────────────────────
   ctx.fillStyle = '#3a240e';

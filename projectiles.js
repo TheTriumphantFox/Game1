@@ -11,10 +11,12 @@ let drops = [];
 // Visual metadata for enemy-trophy drops. Shared by stepDrops (pickup particles
 // and message) and drawDrop (ground sprite glow / glyph).
 const TROPHY_META = {
-  fang:   { icon: '🦷', label: 'Fang',   color: '#f0eedd' },
-  finger: { icon: '🫳', label: 'Finger', color: '#d8a070' },
-  bone:   { icon: '🦴', label: 'Bone',   color: '#f4ead8' },
-  wing:   { icon: '🪶', label: 'Wing',   color: '#aaccff' },
+  fang:    { icon: '🦷', label: 'Fang',    color: '#f0eedd' },
+  finger:  { icon: '🫳', label: 'Finger',  color: '#d8a070' },
+  bone:    { icon: '🦴', label: 'Bone',    color: '#f4ead8' },
+  wing:    { icon: '🪶', label: 'Wing',    color: '#aaccff' },
+  organ:   { icon: '🫀', label: 'Organ',   color: '#aa3344' },
+  feather: { icon: '🪶', label: 'Feather', color: '#c8b890' },
 };
 
 function spawnParticle(wx, wy, color, n = 6, size = 3) {
@@ -97,7 +99,16 @@ function damagePlayer(rawDmg, hitElement) {
   const residual = afterElem - Math.max(0, armorBlock);
   const finalDmg = (afterElem - armorBlock) <= -15 ? 0 : Math.max(1, residual);
   armorBlock = Math.max(0, armorBlock);
-  player.hp -= finalDmg;
+
+  // Temporary HP (green hearts) soaks the post-armor hit before real HP does.
+  // Any overflow past the temp pool spills onto real HP.
+  let tempAbsorbed = 0;
+  if ((player.tempHp || 0) > 0 && finalDmg > 0) {
+    tempAbsorbed = Math.min(player.tempHp, finalDmg);
+    player.tempHp -= tempAbsorbed;
+  }
+  const hpDmg = finalDmg - tempAbsorbed;
+  player.hp -= hpDmg;
 
   const psp = screenPX(player.x, player.y);
   if (finalDmg === 0) {
@@ -111,6 +122,11 @@ function damagePlayer(rawDmg, hitElement) {
       color: '#ffee88',
       life: 1200, rise: -6
     });
+  } else if (tempAbsorbed > 0 && hpDmg === 0) {
+    // Temporary HP soaked the entire hit — green indicator, no real HP lost.
+    spawnParticle(psp.x, psp.y, '#3fc24a', 8, 3);
+    spawnParticle(psp.x, psp.y, '#aaffaa', 5, 2);
+    damageNumbers.push({ entity: 'player', val: `💚${tempAbsorbed}`, color: '#5fe070', life: 1100, rise: 0 });
   } else if (resisted && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[resisted]) {
     // Elemental resist already happened; tag with the element icon. If flat
     // armor *also* shaved damage, the 🛡 in front doubles as that indicator.
@@ -118,7 +134,7 @@ function damagePlayer(rawDmg, hitElement) {
     spawnParticle(psp.x, psp.y, elem.color, 6, 3);
     damageNumbers.push({
       entity: 'player',
-      val: `🛡${elem.icon}${finalDmg}`,
+      val: `🛡${elem.icon}${hpDmg}`,
       color: elem.color,
       life: 1100, rise: 0
     });
@@ -127,13 +143,13 @@ function damagePlayer(rawDmg, hitElement) {
     spawnParticle(psp.x, psp.y, '#dddddd', 5, 3);
     damageNumbers.push({
       entity: 'player',
-      val: `🛡${finalDmg}`,
+      val: `🛡${hpDmg}`,
       color: '#dddddd',
       life: 1100, rise: 0
     });
   } else {
     spawnParticle(psp.x, psp.y, '#ff2222', 5, 3);
-    damageNumbers.push({ entity: 'player', val: finalDmg, color: '#ff4444', life: 1000, rise: 0 });
+    damageNumbers.push({ entity: 'player', val: hpDmg, color: '#ff4444', life: 1000, rise: 0 });
   }
   return finalDmg;
 }
@@ -251,7 +267,7 @@ function doSwordSwing() {
     if      (tile === T.FLOWER)           { revert = T.GRASS; dropType = 'herbal';   dropChance = 0.50; }
     else if (tile === T.MUSHROOM)         { revert = T.GRASS; dropType = 'mushroom'; dropChance = 0.50; }
     else if (tile === T.FLOWERING_CACTUS) { revert = T.SAND;  dropType = 'herbal';   dropChance = 0.50; }
-    else if (tile === T.BONES)            { revert = T.SAND;  dropType = 'bonemeal'; dropChance = 1.00; }
+    else if (tile === T.BONES)            { revert = T.SAND;  dropType = 'bonemeal'; dropChance = 0.50; }
     else continue;
     map[tr][tc] = revert;
     if (dropType && Math.random() < dropChance) {
@@ -369,7 +385,7 @@ function stepProjectiles(dt, map) {
         if (player.hp <= 0) respawn();
       }
       // Destroy rocks in blast radius. Each broken rock has a 40% chance to
-      // drop a single rupee on its tile. Use floor (not round) so the
+      // drop 1–20 rupees on its tile. Use floor (not round) so the
       // tile-centered bomb position (bx + 0.5) maps to its actual tile bx.
       const btc = Math.floor(p.tx), btr = Math.floor(p.ty);
       for (let dr = -BLAST; dr <= BLAST; dr++) for (let dc = -BLAST; dc <= BLAST; dc++) {
@@ -383,7 +399,7 @@ function stepProjectiles(dt, map) {
             map[tr][tc] = T.GRASS;
             if (Math.random() < 0.40) {
               drops.push({
-                type: 'rupee', val: 1,
+                type: 'rupee', val: 1 + Math.floor(Math.random() * 20),  // 1..20
                 x: tc, y: tr,
                 life: 10000, bob: 0, collected: false
               });
@@ -482,9 +498,10 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#fffaf0', 6, 2);
         showMsg(`🦴 +${d.val} Bone Meal (now ${player.bonemeal})`, 1500);
       } else if (d.type === 'fang' || d.type === 'finger' ||
-                 d.type === 'bone' || d.type === 'wing') {
+                 d.type === 'bone' || d.type === 'wing' ||
+                 d.type === 'organ' || d.type === 'feather') {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
-        // type (fangs, fingers, bones, wings).
+        // type (fangs, fingers, bones, wings, organs, feathers).
         const key = d.type + 's';
         addItem(key, d.val);
         const meta = TROPHY_META[d.type];
