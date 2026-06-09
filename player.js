@@ -677,7 +677,11 @@ function stepPlayerMovement() {
   if      (keys['ArrowUp']    || keys['w'] || keys['W']) my = -1;
   else if (keys['ArrowDown']  || keys['s'] || keys['S']) my = 1;
   if (!mx && !my) return;
-  if (moveTimer < MOVE_MS) return;
+  const map = mapData();
+  // Trudging through a sand DUNE (fire-region only terrain) halves walk speed,
+  // so the step gate needs twice the usual cadence while standing on one.
+  const stepMs = map[player.y][player.x] === T.DUNE ? MOVE_MS * 2 : MOVE_MS;
+  if (moveTimer < stepMs) return;
 
   moveTimer = 0;
   if (!keys['Shift']) {
@@ -685,12 +689,19 @@ function stepPlayerMovement() {
     if (my) player.swordDir = { x: 0, y: my };  // vertical wins when both pressed
   }
 
-  const map = mapData();
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const bnx = clamp(player.x + mx, 0, MCOLS - 1);
   const bny = clamp(player.y + my, 0, MROWS - 1);
   const enemyAt = (c, r) => enemies.some(e => !e.dead && e.x === c && e.y === r);
-  const blocked = (c, r) => isSolid(map, c, r) || enemyAt(c, r);
+  // The Water armor lets the hero swim through MEDIUM_WATER (the shelf between
+  // wadeable SHALLOW_WATER and impassable DEEP_WATER). Without it, that tile is
+  // solid like normal. DEEP_WATER stays off-limits regardless.
+  const canSwimMedium = player.activeArmorElement === 'water';
+  const blocked = (c, r) => {
+    if (enemyAt(c, r)) return true;
+    if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return false;
+    return isSolid(map, c, r);
+  };
 
   // Try diagonal first; if blocked, slide along whichever axis is clear.
   let tx = player.x, ty = player.y;
@@ -715,6 +726,19 @@ function stepPlayerMovement() {
     if (nowClimb) {
       const sp = screenPX(tx, ty);
       spawnParticle(sp.x, sp.y + TILE_PX * 0.35, '#caa46a', 4, 2);
+    }
+    // Splash a little water when wading into a SHALLOW_WATER tile. Spawn at the
+    // player's smoothed render position (not the destination tile) so the splash
+    // lands under the sprite rather than a tile ahead of it while walking.
+    if (map[ty][tx] === T.SHALLOW_WATER) {
+      const sp = screenPX(player.renderX, player.renderY);
+      spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#c8eef8', 5, 2);
+      spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#9fd6e8', 3, 2);
+    } else if (map[ty][tx] === T.MEDIUM_WATER) {
+      // Swimming (Water armor only) — a bigger, deeper splash than wading.
+      const sp = screenPX(player.renderX, player.renderY);
+      spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#bfe6f4', 7, 2);
+      spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#5aa8c8', 4, 2);
     }
     player.x = tx; player.y = ty;
   }

@@ -60,7 +60,13 @@ const T = {
   // edge-to-edge) and the CLIMB tile (passable ramp that lets a path cross a
   // plateau). FLOWERING_CACTUS is a passable, 1-HP, sword-cuttable cactus that
   // grows near desert water.
-  PLATEAU:67, CLIMB:68, FLOWERING_CACTUS:69
+  PLATEAU:67, CLIMB:68, FLOWERING_CACTUS:69,
+  // Water region: a mid-depth water tile sitting between the wadeable
+  // SHALLOW_WATER rim and the solid DEEP_WATER. Too deep to cross (solid).
+  MEDIUM_WATER:70,
+  // A swirling WHIRLPOOL — a single-tile hazard set far out in open medium
+  // water (no closer than 8 tiles to any shallow water or land). Solid.
+  WHIRLPOOL:71
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -98,6 +104,10 @@ const TILE_COLORS = {
   // Shallow water — lighter/greener than deep WATER so a wadeable channel reads
   // distinctly from the deep-water border and pools.
   [T.SHALLOW_WATER]: '#5aa8c8',
+  // Medium-depth water — a shade between the bright shallows and the navy deep.
+  [T.MEDIUM_WATER]: '#2c6699',
+  // Whirlpool — dark swirling vortex set in the medium-water shelf.
+  [T.WHIRLPOOL]: '#16406e',
   // Forest water/terrain features — bright falling water + rocky cliff face.
   [T.WATERFALL]: '#3f7fd0', [T.CLIFF]: '#6a5f52',
   // Desert terrain features — sandstone plateau, sandy climbing ramp, and a

@@ -347,7 +347,7 @@ function renderBlacksmithContents() {
         <div class="shop-row">
           <div class="shop-item">
             <div class="shop-item-name">🛡${elem.icon} ${elem.label} Armor ${tag}</div>
-            <div class="shop-item-meta">Halves incoming ${elem.label} damage when worn</div>
+            <div class="shop-item-meta">Halves incoming ${elem.label} damage when worn${id === 'water' ? ' · lets you swim through medium-depth water' : ''}</div>
           </div>
           <button class="ssbtn" ${cantBuy ? 'disabled' : ''} onclick="buyElementalArmor('${id}')">
             💰 ${ELEMENTAL_ARMOR_COST}

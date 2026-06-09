@@ -25,8 +25,58 @@ function drawTile(col, row, t, sx, sy, s) {
       const w = Math.sin(Date.now()/600 + col*0.5 + row*0.3);
       ctx.fillStyle = '#3366cc'; ctx.fillRect(x+2,y+s*0.3+w*2,s*0.4,3);
       ctx.fillStyle = '#4488ee'; ctx.fillRect(x+s*0.5,y+s*0.6-w*2,s*0.35,2); break; }
-    case T.DEEP_WATER:
-      ctx.fillStyle = '#1a3388'; ctx.fillRect(x+2,y+s*0.4,s-4,3); break;
+    case T.DEEP_WATER: {
+      // Deep open sea — layered swells drifting at different phases give a
+      // restless surface, a darker trough across the lower half adds a sense of
+      // depth, and occasional bright glints twinkle across the water so it never
+      // reads as a flat block.
+      const tt = Date.now() / 700;
+      const a = Math.sin(tt + col * 0.45 + row * 0.30);
+      const b = Math.sin(tt * 1.3 - col * 0.30 + row * 0.50 + 1.7);
+      // Darker deep trough hugging the lower half.
+      ctx.fillStyle = '#0c1a4a'; ctx.fillRect(x, y + s * 0.55, s, s * 0.45);
+      // Two drifting swell highlights in different blues and phases.
+      ctx.fillStyle = '#23459a'; ctx.fillRect(x + 1, y + s * 0.32 + a * 2.5, s - 2, 3);
+      ctx.fillStyle = '#3a66c4'; ctx.fillRect(x + s * 0.35, y + s * 0.62 + b * 2.5, s * 0.55, 2);
+      // Foam/glint flecks — twinkle in via a fast per-tile phase.
+      const g = Math.sin(tt * 2.1 + col * 1.7 + row * 1.1);
+      if (g > 0.8) {
+        ctx.fillStyle = 'rgba(190,215,255,0.9)';
+        ctx.fillRect(x + s * 0.30, y + s * 0.28 + a, 2, 2);
+        ctx.fillRect(x + s * 0.62, y + s * 0.50 + b, 1, 1);
+      }
+      break; }
+    case T.MEDIUM_WATER: {
+      // Mid-depth shelf: darker than the shallows, lighter than the deep, with a
+      // single slow ripple so it still reads as moving water.
+      const mw = Math.sin(Date.now()/650 + col*0.4 + row*0.35);
+      ctx.fillStyle = '#3f79ad'; ctx.fillRect(x+2, y+s*0.35+mw*2, s*0.5, 2);
+      ctx.fillStyle = '#214d7a'; ctx.fillRect(x+s*0.45, y+s*0.6-mw*2, s*0.4, 2); break; }
+    case T.WHIRLPOOL: {
+      // Swirling vortex set in the medium shelf — concentric funnel rings step
+      // down into a dark central eye, with bright foam arms spiralling around
+      // them and rotating over time so the water visibly churns and sucks down.
+      const cx = x + s / 2, cy = y + s / 2;
+      const rot = Date.now() / 280;
+      // Concentric funnel: light/dark rings stepping inward for a 3-D drain look.
+      const rings = [[0.46, '#3f79ad'], [0.36, '#a9cdee'], [0.27, '#2c5d8e'],
+                     [0.18, '#cfe4fa']];
+      for (const [f, col] of rings) {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(cx, cy, s * f, 0, Math.PI * 2); ctx.fill();
+      }
+      // Bright foam arms spiralling around the funnel (animated rotation).
+      ctx.lineWidth = Math.max(1, s * 0.07);
+      ctx.strokeStyle = '#eaf4ff';
+      for (let k = 0; k < 2; k++) {
+        const ang = rot + k * Math.PI;
+        ctx.beginPath(); ctx.arc(cx, cy, s * 0.34, ang, ang + Math.PI * 0.9); ctx.stroke();
+      }
+      // Dark central eye the funnel spirals into.
+      ctx.fillStyle = '#06142a';
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.11, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 1;
+      break; }
     case T.SHALLOW_WATER: {
       // Wadeable channel: sandy base showing through tinted water + gentle ripples.
       ctx.fillStyle = '#5aa8c8'; ctx.fillRect(x, y, s, s);

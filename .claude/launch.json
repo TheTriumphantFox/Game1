@@ -4,7 +4,7 @@
     {
       "name": "hyrule-quest",
       "runtimeExecutable": "powershell",
-      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:/Users/corte/MACortese42/Game1/Game1/.claude/serve.ps1", "-Port", "8765"],
+      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "D:/Windows/MACortese/Game1/Game1/.claude/serve.ps1", "-Port", "8765"],
       "port": 8765
     }
   ]

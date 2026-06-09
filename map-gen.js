@@ -40,7 +40,7 @@ const DESERT_NAMES = [
 const REGIONS = [
   { id:'forest',    element:null,        border:T.TREE,            ground:T.GRASS,          decoration:T.FLOWER,   accent:T.WATER,       names:FOREST_NAMES, villageName:'Village of the Lost',     enemyTier:1, boss:'lich_boss'      },
   { id:'fire',      element:'fire',      border:T.CACTUS,          ground:T.SAND,           decoration:T.FLOWERING_CACTUS, accent:T.LAVA, names:DESERT_NAMES, villageName:'Oasis of the Damned',     enemyTier:2, boss:'mummy_lord'     },
-  { id:'water',     element:'water',     border:T.DEEP_WATER,      ground:T.SAND,           decoration:T.WATER,    accent:T.WATER,       path:T.SHALLOW_WATER, pathDry:T.SAND, names:[
+  { id:'water',     element:'water',     border:T.DEEP_WATER,      ground:T.SAND,           decoration:T.WATER,    accent:T.WATER,       path:T.SAND, names:[
       'Tidepool Reach','Coral Strait','Lagoon Hollow','Brinepath','Surfbreak Sands',
       'Kelpforest Crossing','Saltspray Cove','Mermaid Atoll','Drowned Ruins','Pearl Banks',
       'Stormtide Beach','Anemone Flats','Sunken Causeway','Crashing Shoals','Riftwater Pass',
@@ -303,8 +303,20 @@ function buildForestMap(seed, depth, openSides) {
   // overwrite it; ensureConnectivity preserves CHEST tiles.
   if (chestSpot) m[chestSpot.r][chestSpot.c] = T.CHEST;
 
+  // Forest is outside the water region, so it carries no deep/standing water:
+  // demote every WATER/DEEP_WATER tile (pond rims, streams, waterfall pools) to
+  // MEDIUM_WATER. Run after all stream/bridge carving (those scan for T.WATER) so
+  // bridges land first; WATERFALL falling tiles are left alone.
+  demoteWaterToMedium(m);
+
+  // Make sure every plank bridge lands on solid ground at both ends.
+  anchorBridgesOnLand(m);
+
   // Guarantee everything passable is reachable from at least one exit
   ensureConnectivity(m);
+
+  // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
+  placeWhirlpool(m);
 
   return m;
 }
@@ -364,11 +376,40 @@ function carveClimbH(m, c0, thick, rr) {
 // corridor — the crossing on the axis it *does* block is restored by a climb.
 function addDesertPlateau(m) {
   const thick = rnd(5, 10);
+  // A mesa must never bisect an oasis, so reject any candidate band footprint
+  // (rows for a horizontal band, columns for a vertical one) that overlaps
+  // OASIS_WATER. Oases are small and rare, so a clear strip is found quickly.
+  const bandHitsOasis = (horiz, p0) => {
+    for (let d = 0; d < thick; d++) {
+      const p = p0 + d;
+      if (horiz) {
+        if (p <= 0 || p >= MROWS - 1) continue;
+        for (let c = 1; c < MCOLS - 1; c++) if (m[p][c] === T.OASIS_WATER) return true;
+      } else {
+        if (p <= 0 || p >= MCOLS - 1) continue;
+        for (let r = 1; r < MROWS - 1; r++) if (m[r][p] === T.OASIS_WATER) return true;
+      }
+    }
+    return false;
+  };
   if (Math.random() < 0.5) {
     // Horizontal band: pick a row entirely above OR below the E/W exit corridor.
-    const r0 = (Math.random() < 0.5)
-      ? rnd(8, EXIT_ROW - thick - 5)
-      : rnd(EXIT_ROW + 5, MROWS - thick - 8);
+    let r0 = 0;
+    for (let tries = 0; tries < 16; tries++) {
+      r0 = (Math.random() < 0.5)
+        ? rnd(8, EXIT_ROW - thick - 5)
+        : rnd(EXIT_ROW + 5, MROWS - thick - 8);
+      if (!bandHitsOasis(true, r0)) break;
+    }
+    // BEFORE stamping, record every column where a walking PATH crosses the band
+    // footprint (plus the lip on each face) so each ramp lands exactly on the
+    // path the player is already following — keeping climbs and walks aligned.
+    const cols = new Set();
+    for (let c = 1; c < MCOLS - 1; c++)
+      for (let dr = -1; dr <= thick; dr++) {
+        const r = r0 + dr;
+        if (r > 0 && r < MROWS - 1 && m[r][c] === T.PATH) { cols.add(c); break; }
+      }
     for (let c = 1; c < MCOLS - 1; c++)
       for (let dr = 0; dr < thick; dr++) {
         const r = r0 + dr;
@@ -377,15 +418,26 @@ function addDesertPlateau(m) {
             t === T.CLIMB) continue;
         m[r][c] = T.PLATEAU;
       }
-    // Climb where the N/S exit corridor crosses, plus a couple of extra ramps.
-    const cols = [EXIT_COL, rnd(10, MCOLS - 11)];
-    if (Math.random() < 0.5) cols.push(rnd(10, MCOLS - 11));
+    // Fallback: a band no path happened to cross still needs a way through, or
+    // ensureConnectivity would seal off the far side.
+    if (cols.size === 0) { cols.add(EXIT_COL); cols.add(rnd(10, MCOLS - 11)); }
     for (const cc of cols) carveClimbV(m, r0, thick, cc);
   } else {
     // Vertical band: pick a column entirely left OR right of the N/S corridor.
-    const c0 = (Math.random() < 0.5)
-      ? rnd(8, EXIT_COL - thick - 5)
-      : rnd(EXIT_COL + 5, MCOLS - thick - 8);
+    let c0 = 0;
+    for (let tries = 0; tries < 16; tries++) {
+      c0 = (Math.random() < 0.5)
+        ? rnd(8, EXIT_COL - thick - 5)
+        : rnd(EXIT_COL + 5, MCOLS - thick - 8);
+      if (!bandHitsOasis(false, c0)) break;
+    }
+    // Record every row where a walking PATH crosses the band (see above).
+    const rows = new Set();
+    for (let r = 1; r < MROWS - 1; r++)
+      for (let dc = -1; dc <= thick; dc++) {
+        const c = c0 + dc;
+        if (c > 0 && c < MCOLS - 1 && m[r][c] === T.PATH) { rows.add(r); break; }
+      }
     for (let r = 1; r < MROWS - 1; r++)
       for (let dc = 0; dc < thick; dc++) {
         const c = c0 + dc;
@@ -394,8 +446,7 @@ function addDesertPlateau(m) {
             t === T.CLIMB) continue;
         m[r][c] = T.PLATEAU;
       }
-    const rows = [EXIT_ROW, rnd(10, MROWS - 11)];
-    if (Math.random() < 0.5) rows.push(rnd(10, MROWS - 11));
+    if (rows.size === 0) { rows.add(EXIT_ROW); rows.add(rnd(10, MROWS - 11)); }
     for (const rr of rows) carveClimbH(m, c0, thick, rr);
   }
 }
@@ -406,10 +457,12 @@ function addDesertPlateau(m) {
 function addFloweringCactiNearWater(m, waters) {
   if (!waters.length) return;
   const [wr, wc] = waters[Math.floor(Math.random() * waters.length)];
-  const target = rnd(2, 4);
+  // 5× the old 2–4 per cluster. The wider radius + larger try budget give the
+  // denser bloom enough open SAND/GRASS around the oasis to actually land.
+  const target = rnd(2, 4) * 5;
   let placed = 0;
-  for (let tries = 0; tries < 40 && placed < target; tries++) {
-    const r = wr + rnd(-2, 2), c = wc + rnd(-2, 2);
+  for (let tries = 0; tries < 200 && placed < target; tries++) {
+    const r = wr + rnd(-4, 4), c = wc + rnd(-4, 4);
     if (r <= 0 || r >= MROWS - 1 || c <= 0 || c >= MCOLS - 1) continue;
     if (m[r][c] === T.SAND || m[r][c] === T.GRASS) {
       m[r][c] = T.FLOWERING_CACTUS;
@@ -469,8 +522,8 @@ function buildDesertMap(seed, depth, openSides) {
     }
   }
 
-  // Phase 5: oases — small water pools ringed by cacti (one or two per map)
-  const oasisCount = 1 + (Math.random() < 0.5 ? 1 : 0);
+  // Phase 5: oases — small water pools ringed by cacti (0–2 per map)
+  const oasisCount = rnd(0, 2);
   for (let i = 0; i < oasisCount; i++) {
     const or_ = rnd(20, MROWS - 25), oc = rnd(20, MCOLS - 25);
     const os = rnd(3, 5);
@@ -570,7 +623,17 @@ function buildDesertMap(seed, depth, openSides) {
   const plateauCount = rnd(1, 4) - 1;
   for (let i = 0; i < plateauCount; i++) addDesertPlateau(m);
 
+  // Desert is outside the water region: demote its pools and OASIS_WATER to
+  // MEDIUM_WATER so no deep/standing water survives here.
+  demoteWaterToMedium(m);
+
+  // Make sure every plank bridge lands on solid ground at both ends.
+  anchorBridgesOnLand(m);
+
   ensureConnectivity(m, false, T.CACTUS);
+
+  // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
+  placeWhirlpool(m);
 
   return m;
 }
@@ -715,6 +778,81 @@ function buildCaveMap() {
 }
 
 // ─── Generic elemental region map ────────────────────────────────────────────
+// ─── Water-region depth gradient ───────────────────────────────────────────────
+// The water region walks on SAND; everything off the sand is open water. Re-band
+// that water by its distance from the nearest walkable land so it shelves out to
+// sea like a beach: a thin SHALLOW_WATER rim hugging the sand (wadeable, "off the
+// path"), then a MEDIUM_WATER shelf a random 3–8 tiles wide, then DEEP_WATER out
+// to the border. SHALLOW is passable; MEDIUM and DEEP are too deep to cross.
+function applyWaterDepthBands(m) {
+  const SHALLOW_W = 2;                 // wadeable rim hugging the sand
+  const MEDIUM_W = rnd(3, 8);          // medium-depth shelf before the deep water
+  const isWater = (t) => t === T.DEEP_WATER || t === T.WATER ||
+                         t === T.SHALLOW_WATER || t === T.MEDIUM_WATER;
+  // Multi-source BFS: every non-water (land/feature) tile seeds the flood at
+  // distance 0, so each water tile learns its step distance to the nearest land.
+  const dist = new Int16Array(MROWS * MCOLS).fill(-1);
+  const queue = [];
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (!isWater(m[r][c])) { dist[r * MCOLS + c] = 0; queue.push(r * MCOLS + c); }
+  for (let head = 0; head < queue.length; head++) {
+    const idx = queue[head];
+    const r = (idx / MCOLS) | 0, c = idx % MCOLS, d = dist[idx];
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= MROWS || nc < 0 || nc >= MCOLS) continue;
+      const ni = nr * MCOLS + nc;
+      if (dist[ni] !== -1 || !isWater(m[nr][nc])) continue;
+      dist[ni] = d + 1;
+      queue.push(ni);
+    }
+  }
+  // Re-band each water tile by distance. The border ring is skipped so the solid
+  // map edge stays intact; water with no path to land (d <= 0) is left as-is.
+  for (let r = 1; r < MROWS - 1; r++)
+    for (let c = 1; c < MCOLS - 1; c++) {
+      if (!isWater(m[r][c])) continue;
+      const d = dist[r * MCOLS + c];
+      if (d <= 0) continue;
+      if      (d <= SHALLOW_W)            m[r][c] = T.SHALLOW_WATER;
+      else if (d <= SHALLOW_W + MEDIUM_W) m[r][c] = T.MEDIUM_WATER;
+      else                                m[r][c] = T.DEEP_WATER;
+    }
+}
+
+// Carve `count` wadeable SHALLOW_WATER secondary channels between random points,
+// meandering like drunkWalk but stamping shallow water. Run AFTER the depth
+// banding so the channels read as the water region's secondary paths cutting
+// across the deeper water. Never overwrites the SAND main paths/land, placed
+// structures (chests, shrines, …), or bridges.
+function carveShallowChannels(m, count) {
+  for (let i = 0; i < count; i++) {
+    let r = rnd(10, MROWS - 10), c = rnd(10, MCOLS - 10);
+    const er = rnd(10, MROWS - 10), ec = rnd(10, MCOLS - 10);
+    const maxSteps = (MROWS + MCOLS) * 4;
+    for (let s = 0; s < maxSteps && (Math.abs(r - er) + Math.abs(c - ec)) > 2; s++) {
+      let mr = 0, mc = 0;
+      if (Math.random() < 0.65) {                 // bias toward the far point
+        if (Math.abs(er - r) > Math.abs(ec - c)) mr = Math.sign(er - r);
+        else                                     mc = Math.sign(ec - c);
+      } else {                                     // occasional meander
+        if (Math.random() < 0.5) mr = (Math.random() < 0.5 ? 1 : -1);
+        else                     mc = (Math.random() < 0.5 ? 1 : -1);
+      }
+      r = Math.max(1, Math.min(MROWS - 2, r + mr));
+      c = Math.max(1, Math.min(MCOLS - 2, c + mc));
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr, nc = c + dc, t = m[nr][nc];
+          if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1 &&
+              !isProtectedFeature(t) && t !== T.SAND && t !== T.BRIDGE)
+            m[nr][nc] = T.SHALLOW_WATER;
+        }
+    }
+  }
+}
+
 // Palette-swap of buildDesertMap for the seven later elemental regions (water,
 // ice, earth, air, lightning, luminous, necrotic, poison, mana). Takes a
 // region object from REGIONS — that supplies border/ground/decoration/accent
@@ -742,10 +880,16 @@ function buildRegionMap(seed, depth, openSides, region) {
   if (open.down)  drunkWalk(m, midR, midC, MROWS - 2, EXIT_COL,   PATHTILE, 1);
   if (open.left)  drunkWalk(m, midR, midC, EXIT_ROW,  1,          PATHTILE, 1);
   if (open.right) drunkWalk(m, midR, midC, EXIT_ROW,  MCOLS - 2,  PATHTILE, 1);
-  for (let i = 0; i < 6; i++) {
-    const r1 = rnd(10, MROWS - 10), c1 = rnd(10, MCOLS - 10);
-    const r2 = rnd(10, MROWS - 10), c2 = rnd(10, MCOLS - 10);
-    drunkWalk(m, r1, c1, r2, c2, GROUND, 1);
+  // Secondary connector paths. Every region but water links them with plain
+  // GROUND here; the water region instead carves its secondary routes as
+  // SHALLOW_WATER channels later (after the depth banding) so they wade through
+  // the water rather than paving more sand.
+  if (region.id !== 'water') {
+    for (let i = 0; i < 6; i++) {
+      const r1 = rnd(10, MROWS - 10), c1 = rnd(10, MCOLS - 10);
+      const r2 = rnd(10, MROWS - 10), c2 = rnd(10, MCOLS - 10);
+      drunkWalk(m, r1, c1, r2, c2, GROUND, 1);
+    }
   }
 
   // Phase 3: special clearings (homes for chests / shrines)
@@ -849,10 +993,31 @@ function buildRegionMap(seed, depth, openSides, region) {
 
   if (chestSpot) m[chestSpot.r][chestSpot.c] = T.CHEST;
 
+  // Water region: shelve the open water out from the sand into shallow → medium
+  // → deep bands, then carve the SHALLOW_WATER secondary channels across it. Run
+  // before connectivity so it sees SHALLOW as walkable and MEDIUM/DEEP as walls.
+  if (region.id === 'water') {
+    applyWaterDepthBands(m);
+    carveShallowChannels(m, 6);
+  } else {
+    // Every other region is outside the water region, so it keeps no deep/
+    // standing water — demote its accent pools (WATER, DEEP_WATER for poison/
+    // mana, etc.) to MEDIUM_WATER.
+    demoteWaterToMedium(m);
+  }
+
+  // Make sure every plank bridge lands on solid ground at both ends (run after
+  // the water banding so it sees the final shallow/medium/deep tiles).
+  anchorBridgesOnLand(m);
+
   // Seal any orphan passable pockets with the region's border tile so the
   // visual matches the surrounding wall instead of leaking forest TREE. Rescue
   // corridors use the region's corridor tile so they blend in too.
   ensureConnectivity(m, false, BORDER, PATHTILE);
+
+  // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
+  placeWhirlpool(m);
+
   return m;
 }
 

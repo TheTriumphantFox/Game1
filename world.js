@@ -233,6 +233,7 @@ function createSealedNeighbor(sourceId, direction) {
     c > 0 && c < MCOLS - 1 && r > 0 && r < MROWS - 1 &&
     !(mapTiles[r][c] === T.TREE || mapTiles[r][c] === T.CACTUS ||
       mapTiles[r][c] === T.WATER || mapTiles[r][c] === T.DEEP_WATER ||
+      mapTiles[r][c] === T.MEDIUM_WATER ||
       mapTiles[r][c] === T.ROCK || mapTiles[r][c] === T.WALL ||
       mapTiles[r][c] === T.CHEST || mapTiles[r][c] === T.LARGE_CHEST ||
       mapTiles[r][c] === T.LARGE_CHEST_R || mapTiles[r][c] === T.SHRINE);

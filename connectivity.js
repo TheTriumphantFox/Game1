@@ -22,7 +22,8 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
     if (c < 0 || r < 0 || c >= W || r >= H) return false;
     const t = m[r][c];
     return !(t === T.TREE || t === T.WATER || t === T.WALL || t === T.ROCK ||
-             t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
+             t === T.DEEP_WATER || t === T.MEDIUM_WATER ||
+             t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
              t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
              t === T.CACTUS || t === T.OASIS_WATER ||
              t === T.WATERFALL || t === T.CLIFF || t === T.PLATEAU ||

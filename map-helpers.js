@@ -42,7 +42,8 @@ function isSolid(map, c, r) {
   if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return true;
   const t = map[r][c];
   return t === T.TREE || t === T.WATER || t === T.WALL || t === T.ROCK ||
-         t === T.DEEP_WATER || t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
+         t === T.DEEP_WATER || t === T.MEDIUM_WATER || t === T.WHIRLPOOL ||
+         t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
          t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
          t === T.CACTUS || t === T.OASIS_WATER ||
          t === T.WATERFALL || t === T.CLIFF || t === T.PLATEAU ||
@@ -166,6 +167,104 @@ function bridgeStream(m, cells, idx) {
     for (let r = tr - 1; r <= dn + 1; r++)
       if (r > 0 && r < MROWS - 1 && !isProtectedFeature(m[r][bc])) m[r][bc] = T.BRIDGE;
   }
+}
+
+// Any still-water tile a bridge should not begin or end on. Excludes WATERFALL
+// (a bridge should stop against it, not pave through falling water).
+function isBridgeWater(t) {
+  return t === T.WATER || t === T.DEEP_WATER || t === T.SHALLOW_WATER ||
+         t === T.MEDIUM_WATER || t === T.OASIS_WATER;
+}
+
+// Deep / standing water belongs only to the water region. Everywhere else every
+// still-water tile (plain WATER, DEEP_WATER pools, desert OASIS_WATER) is demoted
+// to MEDIUM_WATER — swimmable only while wearing the Water armor, solid otherwise.
+// WATERFALL (animated falling water) is intentionally left alone. All of these
+// tiles are solid to isSolid, so this never changes connectivity. Call after all
+// stream/bridge carving (those scan for T.WATER) and before connectivity.
+function demoteWaterToMedium(m) {
+  for (let r = 1; r < MROWS - 1; r++)
+    for (let c = 1; c < MCOLS - 1; c++) {
+      const t = m[r][c];
+      if (t === T.WATER || t === T.DEEP_WATER || t === T.OASIS_WATER)
+        m[r][c] = T.MEDIUM_WATER;
+    }
+}
+
+// Maybe drop a single 1-tile WHIRLPOOL out in open medium water. Only ~30% of
+// maps get one, and the chosen tile must be MEDIUM_WATER sitting at least
+// WHIRLPOOL_CLEARANCE tiles (Chebyshev / king-move distance) from the nearest
+// shallow water or land — so whirlpools only ever appear well off the deep
+// medium shelf, never beside where the player can wade or stand. The whirlpool
+// tile is solid (so it never changes connectivity), exactly like the medium
+// water it replaces. Returns true if one was placed. Run after all water has
+// been finalized (depth banding / demotion) and after connectivity.
+const WHIRLPOOL_CLEARANCE = 8;
+function placeWhirlpool(m) {
+  if (Math.random() >= 0.30) return false;            // ~30% of maps
+  // "Open" = water deep enough to be far from shore (medium or deep). Every
+  // other tile (land, shallow water, features) seeds a multi-source 8-connected
+  // BFS so each open-water tile learns its Chebyshev distance to the shore.
+  const isOpen = (t) => t === T.MEDIUM_WATER || t === T.DEEP_WATER;
+  const dist = new Int16Array(MROWS * MCOLS).fill(-1);
+  const queue = [];
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (!isOpen(m[r][c])) { dist[r * MCOLS + c] = 0; queue.push(r * MCOLS + c); }
+  const NB = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  for (let head = 0; head < queue.length; head++) {
+    const idx = queue[head];
+    const r = (idx / MCOLS) | 0, c = idx % MCOLS, d = dist[idx];
+    for (const [dr, dc] of NB) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= MROWS || nc < 0 || nc >= MCOLS) continue;
+      const ni = nr * MCOLS + nc;
+      if (dist[ni] !== -1 || !isOpen(m[nr][nc])) continue;
+      dist[ni] = d + 1;
+      queue.push(ni);
+    }
+  }
+  // Collect every medium-water tile far enough from shore, then pick one.
+  const candidates = [];
+  for (let r = 1; r < MROWS - 1; r++)
+    for (let c = 1; c < MCOLS - 1; c++)
+      if (m[r][c] === T.MEDIUM_WATER && dist[r * MCOLS + c] >= WHIRLPOOL_CLEARANCE)
+        candidates.push([r, c]);
+  if (!candidates.length) return false;
+  const [wr, wc] = candidates[Math.floor(Math.random() * candidates.length)];
+  m[wr][wc] = T.WHIRLPOOL;
+  return true;
+}
+
+// Make every BRIDGE plank terminate on land. For each end of a bridge run, if
+// the tile just beyond it is water, extend the plank across that water until it
+// reaches a non-water tile — but only when land is actually within reach, so we
+// never pave an endless bridge to nowhere. Result: bridges always connect land
+// to land and never start or end at a water tile. Runs after all water + bridge
+// placement (and, for the water region, after the depth banding).
+function anchorBridgesOnLand(m) {
+  const CAP = 40;                                  // max tiles to extend an end
+  const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  for (let r = 1; r < MROWS - 1; r++)
+    for (let c = 1; c < MCOLS - 1; c++) {
+      if (m[r][c] !== T.BRIDGE) continue;
+      for (const [dr, dc] of dirs) {
+        // (r,c) is an end of a run along this axis only if the opposite
+        // neighbour is also a bridge, and it faces water in this direction.
+        if (m[r - dr][c - dc] !== T.BRIDGE) continue;
+        if (!isBridgeWater(m[r + dr][c + dc])) continue;
+        // Look ahead for the first non-water tile within CAP.
+        let nr = r + dr, nc = c + dc, steps = 0, reached = false;
+        while (steps < CAP && nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1) {
+          if (!isBridgeWater(m[nr][nc])) { reached = true; break; }
+          nr += dr; nc += dc; steps++;
+        }
+        if (!reached) continue;                    // no land in reach — leave it
+        // Pave BRIDGE over the intervening water up to (not onto) that land.
+        for (let pr = r + dr, pc = c + dc; pr !== nr || pc !== nc; pr += dr, pc += dc)
+          if (!isProtectedFeature(m[pr][pc])) m[pr][pc] = T.BRIDGE;
+      }
+    }
 }
 
 // Open 5-wide exit gates on the four border edges. Called twice during map
