@@ -1,6 +1,8 @@
 // ─── Enemy definitions ────────────────────────────────────────────────────────
 // Stats based on D&D 5e creatures, scaled lightly for arcade pacing.
 // `ranged: true` enemies fire projectiles and try to keep distance.
+// `swims: true` enemies treat the MEDIUM_WATER shelf as open ground (see
+// stepEnemies in projectiles.js); everyone else stops at the shallows.
 
 // `element` (optional) tags the element this enemy's attacks deal. When the
 // player wears matching elemental armor, that damage is halved (see
@@ -30,12 +32,12 @@ const DND_ENEMIES = {
   salamander:     { name: 'Salamander',          hp: 58,  spd: 600,  dmg: 6,  xp: 1100,  color: '#dd5522', size: 1.0,  ranged: true, cr: 5, element: 'fire' },
 
   // ── Tier 2 · Water — sahuagin, sea hags & elementals of the deep. ──
-  sahuagin:       { name: 'Sahuagin',            hp: 34,  spd: 550,  dmg: 4,  xp: 450,   color: '#3a7a6a', size: 0.8,  cr: '1/2', element: 'water' },
-  kuo_toa:        { name: 'Kuo-toa',             hp: 38,  spd: 600,  dmg: 5,  xp: 450,   color: '#5a8a7a', size: 0.8,  ranged: true, cr: '1/4', element: 'water' },
-  hunter_shark:   { name: 'Hunter Shark',        hp: 48,  spd: 450,  dmg: 5,  xp: 700,   color: '#557788', size: 1.0,  cr: 2 },
-  merrow:         { name: 'Merrow',              hp: 56,  spd: 550,  dmg: 6,  xp: 1100,  color: '#3a6a8a', size: 1.05, cr: 2, element: 'water' },
-  sea_hag:        { name: 'Sea Hag',             hp: 64,  spd: 600,  dmg: 6,  xp: 1100,  color: '#4a7a5a', size: 0.85, ranged: true, cr: 2, element: 'poison' },
-  water_elemental:{ name: 'Water Elemental',     hp: 80,  spd: 650,  dmg: 7,  xp: 1800,  color: '#2a88cc', size: 1.25, cr: 5, element: 'water' },
+  sahuagin:       { name: 'Sahuagin',            hp: 34,  spd: 550,  dmg: 4,  xp: 450,   color: '#3a7a6a', size: 0.8,  cr: '1/2', element: 'water', swims: true },
+  kuo_toa:        { name: 'Kuo-toa',             hp: 38,  spd: 600,  dmg: 5,  xp: 450,   color: '#5a8a7a', size: 0.8,  ranged: true, cr: '1/4', element: 'water', swims: true },
+  hunter_shark:   { name: 'Hunter Shark',        hp: 48,  spd: 450,  dmg: 5,  xp: 700,   color: '#557788', size: 1.0,  cr: 2, swims: true },
+  merrow:         { name: 'Merrow',              hp: 56,  spd: 550,  dmg: 6,  xp: 1100,  color: '#3a6a8a', size: 1.05, cr: 2, element: 'water', swims: true },
+  sea_hag:        { name: 'Sea Hag',             hp: 64,  spd: 600,  dmg: 6,  xp: 1100,  color: '#4a7a5a', size: 0.85, ranged: true, cr: 2, element: 'poison', swims: true },
+  water_elemental:{ name: 'Water Elemental',     hp: 80,  spd: 650,  dmg: 7,  xp: 1800,  color: '#2a88cc', size: 1.25, cr: 5, element: 'water', swims: true },
 
   // ── Tier 3 · Ice — yetis, winter wolves & frost giants. ──
   ice_mephit:     { name: 'Ice Mephit',          hp: 44,  spd: 600,  dmg: 5,  xp: 700,   color: '#aaddee', size: 0.6,  ranged: true, cr: '1/2', element: 'ice' },
@@ -101,7 +103,7 @@ const DND_ENEMIES = {
   rakshasa:       { name: 'Rakshasa',            hp: 295, spd: 550,  dmg: 21, xp: 18000, color: '#aa4444', size: 1.1,  ranged: true, cr: 13, element: 'mana' },
   lich_boss:      { name: 'FOREST LICH',         hp: 350,  spd: 600, dmg: 14, xp: 33000, color: '#6600cc', size: 1.5, ranged: true, boss: true, cr: 'Boss', element: 'necrotic' },
   mummy_lord:     { name: 'MUMMY LORD',          hp: 420,  spd: 650, dmg: 16, xp: 41000, color: '#c89858', size: 1.5, ranged: true, boss: true, cr: 'Boss', element: 'fire' },
-  kraken_boss:    { name: 'ABYSSAL KRAKEN',      hp: 500,  spd: 700, dmg: 18, xp: 50000, color: '#2a88cc', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'water' },
+  kraken_boss:    { name: 'ABYSSAL KRAKEN',      hp: 500,  spd: 700, dmg: 18, xp: 50000, color: '#2a88cc', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'water', swims: true },
   frost_titan:    { name: 'FROST TITAN',         hp: 580,  spd: 750, dmg: 20, xp: 60000, color: '#9cdcff', size: 1.7,              boss: true, cr: 'Boss', element: 'ice' },
   gaia_colossus:  { name: 'GAIA COLOSSUS',       hp: 680,  spd: 800, dmg: 22, xp: 72000, color: '#7a6a45', size: 1.8,              boss: true, cr: 'Boss' },
   wind_djinn:     { name: 'STORMCROWN DJINN',    hp: 620,  spd: 500, dmg: 22, xp: 80000, color: '#c8d8f0', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'wind' },
@@ -254,6 +256,7 @@ function spawnEnemiesForMap(mid) {
         color: base.color, size: (base.size || 1) * sizeMul,
         name: def.tier15 ? `Greater ${base.name}` : base.name,
         ranged: base.ranged || false,
+        swims: base.swims || false,
         boss: base.boss || false,
         tier15: !!def.tier15,
         necroticVuln: !!def.necroticVuln,

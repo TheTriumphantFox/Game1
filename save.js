@@ -71,6 +71,9 @@ const DEFAULT_PLAYER = {
   fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
   bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
   organs: 0, feathers: 0,
+  silks: 0, talismans: 0, embers: 0, venoms: 0, fins: 0, pearls: 0,
+  cores: 0, shards: 0, pelts: 0, tusks: 0, scales: 0, stones: 0,
+  sparks: 0, horns: 0, motes: 0, ectoplasms: 0, eyes: 0, brains: 0,
   bonemeal: 0,
   // swordElements / arrows are populated by applyStartingInventory() at boot
   // and on newGame, once SWORD_ELEMENTS has loaded.
@@ -342,6 +345,9 @@ function newGame() {
     fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
     bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
     organs: 0, feathers: 0,
+    silks: 0, talismans: 0, embers: 0, venoms: 0, fins: 0, pearls: 0,
+    cores: 0, shards: 0, pelts: 0, tusks: 0, scales: 0, stones: 0,
+    sparks: 0, horns: 0, motes: 0, ectoplasms: 0, eyes: 0, brains: 0,
     bonemeal: 0,
     swordElements: [], activeSwordElement: null,
     arrows: {}, activeArrowElement: null,

@@ -65,6 +65,10 @@ let player = {
   // Organs (from zombies) and feathers (from owlbears) are drop-only trophies,
   // so they start empty rather than at the granted starting amount.
   organs: 0, feathers: 0,
+  // Region trophies (see ENEMY_DROPS) — all drop-only, so they start empty.
+  silks: 0, talismans: 0, embers: 0, venoms: 0, fins: 0, pearls: 0,
+  cores: 0, shards: 0, pelts: 0, tusks: 0, scales: 0, stones: 0,
+  sparks: 0, horns: 0, motes: 0, ectoplasms: 0, eyes: 0, brains: 0,
   // Bone meal — ground from desert bone piles cut down by the sword. Starts at 0
   // since it's earned in the field, not granted.
   bonemeal: 0,
@@ -225,53 +229,110 @@ function respawn() {
 
 // ─── Per-enemy-type loot table ────────────────────────────────────────────────
 // Each kill rolls its drops independently after the universal HP-heart roll.
-// "arrows" drops carry an `element` id; the element is chosen at kill time so
-// the player sees the icon/colour on the ground sprite.
-function randomElementId() {
-  if (typeof SWORD_ELEMENTS === 'undefined') return null;
-  const ids = Object.keys(SWORD_ELEMENTS);
-  return ids.length ? ids[Math.floor(Math.random() * ids.length)] : null;
+// Every pool enemy (see ENEMY_POOLS in enemies.js) drops a thematically
+// matching item: trophies (TROPHY_META ids), 'herbal', or 'potion'. All of
+// them are sellable at the General Store.
+const ENEMY_DROPS = {
+  // ── Tier 0 · Forest ──
+  goblin:            [{ type: 'finger',    chance: 0.20 }],
+  wolf:              [{ type: 'fang',      chance: 0.50 }],
+  pixie:             [{ type: 'wing',      chance: 0.05 }],
+  dryad:             [{ type: 'herbal',    chance: 0.50 }, { type: 'potion', chance: 0.10 }],
+  giant_spider:      [{ type: 'silk',      chance: 0.35 }],
+  owlbear:           [{ type: 'feather',   chance: 0.20 }],
+  // ── Tier 1 · Fire / Desert ──
+  cultist:           [{ type: 'talisman',  chance: 0.25 }, { type: 'potion', chance: 0.10 }],
+  magma_mephit:      [{ type: 'ember',     chance: 0.35 }],
+  gnoll:             [{ type: 'fang',      chance: 0.35 }],
+  hell_hound:        [{ type: 'ember',     chance: 0.35 }],
+  giant_scorpion:    [{ type: 'venom',     chance: 0.35 }],
+  salamander:        [{ type: 'ember',     chance: 0.40 }],
+  // ── Tier 2 · Water ──
+  sahuagin:          [{ type: 'fin',       chance: 0.35 }],
+  kuo_toa:           [{ type: 'fin',       chance: 0.35 }],
+  hunter_shark:      [{ type: 'fang',      chance: 0.50 }],
+  merrow:            [{ type: 'pearl',     chance: 0.30 }],
+  sea_hag:           [{ type: 'finger',    chance: 0.30 }],
+  water_elemental:   [{ type: 'core',      chance: 0.30 }],
+  // ── Tier 3 · Ice ──
+  ice_mephit:        [{ type: 'shard',     chance: 0.35 }],
+  winter_wolf:       [{ type: 'fang',      chance: 0.40 }],
+  yeti:              [{ type: 'pelt',      chance: 0.35 }],
+  mammoth:           [{ type: 'tusk',      chance: 0.40 }],
+  white_dragon:      [{ type: 'scale',     chance: 0.35 }],
+  frost_giant:       [{ type: 'shard',     chance: 0.40 }],
+  // ── Tier 4 · Earth ──
+  gargoyle:          [{ type: 'stone',     chance: 0.35 }],
+  ankheg:            [{ type: 'venom',     chance: 0.35 }],
+  displacer:         [{ type: 'pelt',      chance: 0.35 }],
+  bulette:           [{ type: 'scale',     chance: 0.35 }],
+  earth_elemental:   [{ type: 'core',      chance: 0.30 }],
+  stone_giant:       [{ type: 'stone',     chance: 0.40 }],
+  // ── Tier 5 · Air ──
+  harpy:             [{ type: 'feather',   chance: 0.40 }],
+  griffon:           [{ type: 'feather',   chance: 0.40 }],
+  manticore:         [{ type: 'wing',      chance: 0.30 }],
+  air_elemental:     [{ type: 'core',      chance: 0.30 }],
+  wyvern:            [{ type: 'scale',     chance: 0.35 }],
+  roc:               [{ type: 'feather',   chance: 0.50 }],
+  // ── Tier 6 · Lightning ──
+  will_o_wisp:       [{ type: 'spark',     chance: 0.35 }],
+  blue_wyrmling:     [{ type: 'scale',     chance: 0.35 }],
+  behir:             [{ type: 'spark',     chance: 0.35 }],
+  young_blue_dragon: [{ type: 'scale',     chance: 0.40 }],
+  storm_giant:       [{ type: 'spark',     chance: 0.40 }],
+  // ── Tier 7 · Luminous ──
+  pegasus:           [{ type: 'feather',   chance: 0.40 }],
+  couatl:            [{ type: 'scale',     chance: 0.35 }],
+  unicorn:           [{ type: 'horn',      chance: 0.30 }],
+  ki_rin:            [{ type: 'horn',      chance: 0.30 }],
+  deva:              [{ type: 'mote',      chance: 0.35 }],
+  planetar:          [{ type: 'mote',      chance: 0.40 }],
+  // ── Tier 8 · Necrotic ──
+  skeleton:          [{ type: 'bone',      chance: 0.20 }],
+  zombie:            [{ type: 'organ',     chance: 0.20 }],
+  ghost:             [{ type: 'ectoplasm', chance: 0.35 }],
+  wraith:            [{ type: 'ectoplasm', chance: 0.35 }],
+  vampire:           [{ type: 'fang',      chance: 0.35 }],
+  lich:              [{ type: 'talisman',  chance: 0.35 }],
+  // ── Tier 9 · Poison ──
+  carrion_crawler:   [{ type: 'venom',     chance: 0.35 }],
+  troll:             [{ type: 'organ',     chance: 0.40 }],
+  otyugh:            [{ type: 'venom',     chance: 0.35 }],
+  treant:            [{ type: 'herbal',    chance: 0.50 }],
+  green_dragon:      [{ type: 'scale',     chance: 0.35 }],
+  purple_worm:       [{ type: 'venom',     chance: 0.40 }],
+  // ── Tier 10 · Mana / Arcane ──
+  nothic:            [{ type: 'eye',       chance: 0.35 }],
+  helmed_horror:     [{ type: 'core',      chance: 0.35 }],
+  mind_flayer:       [{ type: 'brain',     chance: 0.35 }],
+  githyanki:         [{ type: 'talisman',  chance: 0.35 }],
+  beholder:          [{ type: 'eye',       chance: 0.40 }],
+  rakshasa:          [{ type: 'finger',    chance: 0.35 }],
+};
+
+// The arrow element matching the current map. Region ids double as
+// SWORD_ELEMENTS ids for every elemental region; forest (and anything
+// unresolvable, e.g. caves) yields null → plain arrows.
+function mapArrowElementId() {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const region = (typeof REGIONS !== 'undefined' && cm && typeof cm.regionIdx === 'number')
+    ? REGIONS[cm.regionIdx] : null;
+  return (region && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[region.id])
+    ? region.id : null;
 }
+
 function rollEnemyTypeDrops(e) {
   const rx = Math.round(e.x), ry = Math.round(e.y);
   const drop = (extra) =>
     drops.push({ x: rx, y: ry, life: 10000, bob: 0, collected: false, ...extra });
-  // All arrow drops are 5-packs. Plain bundles leave `element` null; elemental
-  // bundles pick a random element at kill time so the ground sprite shows it.
-  const dropPlainArrows    = () => drop({ type: 'arrows', val: 5, element: null });
-  const dropElementalArrows = () => {
-    const el = randomElementId();
-    if (el) drop({ type: 'arrows', val: 5, element: el });
-  };
-  switch (e.type) {
-    case 'wolf':
-      if (Math.random() < 0.50) drop({ type: 'fang',   val: 1 });
-      break;
-    case 'goblin':
-      if (Math.random() < 0.20) drop({ type: 'finger', val: 1 });
-      break;
-    case 'skeleton':
-      if (Math.random() < 0.20) drop({ type: 'bone',   val: 1 });
-      if (Math.random() < 0.50) dropPlainArrows();
-      break;
-    case 'dryad':
-      if (Math.random() < 0.10) drop({ type: 'potion', val: 1 });
-      break;
-    case 'cultist':
-      if (Math.random() < 0.50) drop({ type: 'arrows', val: 5, element: 'fire' });
-      if (Math.random() < 0.10) drop({ type: 'potion', val: 1 });
-      break;
-    case 'zombie':
-      if (Math.random() < 0.20) drop({ type: 'organ', val: 1 });
-      break;
-    case 'owlbear':
-      if (Math.random() < 0.20) drop({ type: 'feather', val: 1 });
-      break;
-    case 'pixie':
-      if (Math.random() < 0.05) drop({ type: 'wing',   val: 1 });
-      if (Math.random() < 0.50) dropPlainArrows();
-      if (Math.random() < 0.03) dropElementalArrows();
-      break;
+  for (const d of (ENEMY_DROPS[e.type] || [])) {
+    if (Math.random() < d.chance) drop({ type: d.type, val: 1 });
+  }
+  // Every projectile-shooting enemy can also drop a 5-pack of arrows matching
+  // the map's element (plain in the elementless forest).
+  if (e.ranged && Math.random() < 0.50) {
+    drop({ type: 'arrows', val: 5, element: mapArrowElementId() });
   }
 }
 
@@ -678,9 +739,13 @@ function stepPlayerMovement() {
   else if (keys['ArrowDown']  || keys['s'] || keys['S']) my = 1;
   if (!mx && !my) return;
   const map = mapData();
-  // Trudging through a sand DUNE (fire-region only terrain) halves walk speed,
-  // so the step gate needs twice the usual cadence while standing on one.
-  const stepMs = map[player.y][player.x] === T.DUNE ? MOVE_MS * 2 : MOVE_MS;
+  // Trudging through a sand DUNE (fire-region only terrain) halves walk speed;
+  // swimming through MEDIUM_WATER is slower still — 40% of normal pace
+  // (interval × 2.5). The step gate stretches to match while standing on one.
+  const standTile = map[player.y][player.x];
+  const stepMs = standTile === T.DUNE         ? MOVE_MS * 2
+               : standTile === T.MEDIUM_WATER ? MOVE_MS * 2.5
+               : MOVE_MS;
   if (moveTimer < stepMs) return;
 
   moveTimer = 0;
@@ -723,6 +788,11 @@ function stepPlayerMovement() {
     const wasClimb = map[player.y][player.x] === T.CLIMB;
     const nowClimb = map[ty][tx] === T.CLIMB;
     if (wasClimb !== nowClimb) playerJumpStart = Date.now();
+    // Dive-in / haul-out feedback: the same hop when crossing the medium-water
+    // boundary in either direction (Water armor swimming).
+    const wasSwim = map[player.y][player.x] === T.MEDIUM_WATER;
+    const nowSwim = map[ty][tx] === T.MEDIUM_WATER;
+    if (wasSwim !== nowSwim) playerJumpStart = Date.now();
     if (nowClimb) {
       const sp = screenPX(tx, ty);
       spawnParticle(sp.x, sp.y + TILE_PX * 0.35, '#caa46a', 4, 2);
@@ -739,6 +809,10 @@ function stepPlayerMovement() {
       const sp = screenPX(player.renderX, player.renderY);
       spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#bfe6f4', 7, 2);
       spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#5aa8c8', 4, 2);
+    } else if (wasSwim) {
+      // Hauling out onto dry land — water sheds off the hero behind the hop.
+      const sp = screenPX(player.renderX, player.renderY);
+      spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#bfe6f4', 5, 2);
     }
     player.x = tx; player.y = ty;
   }

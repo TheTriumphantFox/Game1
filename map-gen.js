@@ -1015,10 +1015,25 @@ function buildRegionMap(seed, depth, openSides, region) {
   // corridors use the region's corridor tile so they blend in too.
   ensureConnectivity(m, false, BORDER, PATHTILE);
 
+  // Ice region: dress the glacier walls with snow-covered pines so the border
+  // reads as a frozen treeline rather than bare ice cliffs. Runs after the
+  // connectivity seal so sealed pockets get trees too. SNOW_PINE is solid like
+  // GLACIER, so traversal is unaffected.
+  sprinkleSnowPines(m, region.id);
+
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
 
   return m;
+}
+
+// Convert a share of an ice map's GLACIER tiles into SNOW_PINE. No-op for
+// every other region.
+function sprinkleSnowPines(m, regionId, chance = 0.45) {
+  if (regionId !== 'ice') return;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.GLACIER && Math.random() < chance) m[r][c] = T.SNOW_PINE;
 }
 
 // ─── Desert village map ─────────────────────────────────────────────────────
@@ -1323,6 +1338,9 @@ function buildVillageMap(biome) {
 
   // preserveFloor=true so house interiors aren't sealed as border tiles
   ensureConnectivity(m, true, BORDER);
+
+  // The ice village gets the same snowy treeline as its overworld maps.
+  sprinkleSnowPines(m, regionId);
 
   // Note: the fast-travel portal is NOT placed here. A village only gains a
   // portal once it is cleared of monsters — see activateVillage, which stamps

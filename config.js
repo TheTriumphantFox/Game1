@@ -66,7 +66,10 @@ const T = {
   MEDIUM_WATER:70,
   // A swirling WHIRLPOOL — a single-tile hazard set far out in open medium
   // water (no closer than 8 tiles to any shallow water or land). Solid.
-  WHIRLPOOL:71
+  WHIRLPOOL:71,
+  // Ice region: snow-covered pine mixed into the glacier border so the walls
+  // read as a frozen treeline. Solid, like GLACIER.
+  SNOW_PINE:72
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -93,6 +96,8 @@ const TILE_COLORS = {
   [T.BOSS_CHEST_BL]: '#3a0a66', [T.BOSS_CHEST_BR]: '#3a0a66',
   // Elemental region palette — picked for readable contrast on the minimap.
   [T.SNOW]: '#e4ecf2',           [T.ICE]: '#a8d8ee',            [T.GLACIER]: '#5a9ac8',
+  // Snow pine — dark evergreen so the treeline reads against snow + glacier.
+  [T.SNOW_PINE]: '#2a5a3e',
   [T.MUD]: '#5a3a18',             [T.MOUNTAIN]: '#4a4035',
   [T.CLOUD]: '#dde6f2',           [T.CLOUDWALL]: '#a0b0c8',
   [T.STORM_GROUND]: '#3a3a4a',    [T.STORM_CLOUD]: '#2a2a40',

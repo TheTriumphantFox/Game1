@@ -72,16 +72,52 @@ const STORE_ITEMS = [
 // Sell value the store offers per elemental sword (flat per element).
 const ELEMENTAL_SELL_VALUE = 150;
 
-// Elemental arrows: bought in packs, sold individually.
+// Elemental arrows: bought in packs, sold individually. Plain arrows trade at
+// half price — no elemental rider on the hit.
 const ARROW_PACK_SIZE  = 5;
 const ARROW_PACK_COST  = 50;     // 50 rupees for 5 arrows
 const ARROW_SELL_VALUE = 5;      // 5 rupees per arrow sold back
+const PLAIN_ARROW_PACK_COST  = 25;
+const PLAIN_ARROW_SELL_VALUE = 2;
 
-// Monster trophies the General Store buys back. Drop-only collectibles with no
-// other use yet, so the store lets you cash in the whole stack at once.
+// Monster trophies + foraged goods the General Store buys back. Values climb
+// roughly with the region tier the trophy drops in (see ENEMY_DROPS in
+// player.js). The store cashes in the whole stack at once.
 const TROPHY_SELL = [
-  { key: 'organs',   icon: '🫀', label: 'Organ',   value: 15 },
-  { key: 'feathers', icon: '🪶', label: 'Feather', value: 20 },
+  { key: 'fangs',      icon: '🦷', label: 'Fang',           value: 10 },
+  { key: 'fingers',    icon: '🫳', label: 'Finger',         value: 10 },
+  { key: 'wings',      icon: '🪶', label: 'Wing',           value: 25 },
+  { key: 'silks',      icon: '🕸️', label: 'Silk',           value: 12 },
+  { key: 'feathers',   icon: '🪶', label: 'Feather',        value: 20 },
+  { key: 'talismans',  icon: '📿', label: 'Talisman',       value: 20 },
+  { key: 'embers',     icon: '🔥', label: 'Ember',          value: 15 },
+  { key: 'venoms',     icon: '☠️', label: 'Venom Sac',      value: 18 },
+  { key: 'fins',       icon: '🐟', label: 'Fin',            value: 15 },
+  { key: 'pearls',     icon: '🦪', label: 'Pearl',          value: 30 },
+  { key: 'shards',     icon: '🧊', label: 'Ice Shard',      value: 22 },
+  { key: 'pelts',      icon: '🧥', label: 'Pelt',           value: 25 },
+  { key: 'tusks',      icon: '🦣', label: 'Tusk',           value: 35 },
+  { key: 'stones',     icon: '🪨', label: 'Stone Shard',    value: 25 },
+  { key: 'cores',      icon: '💠', label: 'Elemental Core', value: 40 },
+  { key: 'scales',     icon: '🐉', label: 'Dragon Scale',   value: 35 },
+  { key: 'sparks',     icon: '⚡', label: 'Storm Spark',    value: 35 },
+  { key: 'horns',      icon: '🦄', label: 'Horn',           value: 50 },
+  { key: 'motes',      icon: '✨', label: 'Light Mote',     value: 45 },
+  { key: 'bones',      icon: '🦴', label: 'Bone',           value: 12 },
+  { key: 'organs',     icon: '🫀', label: 'Organ',          value: 15 },
+  { key: 'ectoplasms', icon: '👻', label: 'Ectoplasm',      value: 40 },
+  { key: 'eyes',       icon: '👁️', label: 'Eye',            value: 50 },
+  { key: 'brains',     icon: '🧠', label: 'Brain',          value: 55 },
+  { key: 'herbals',    icon: '🌿', label: 'Herbal',         value: 5  },
+  { key: 'mushrooms',  icon: '🍄', label: 'Mushroom',       value: 5  },
+  { key: 'bonemeal',   icon: '🧂', label: 'Bone Meal',      value: 8  },
+];
+
+// Potions sell one at a time (selling the whole stack at once would be too
+// easy to fat-finger). Values stay below brew cost so there's no money loop.
+const POTION_SELL = [
+  { key: 'potions',    icon: '🧪', label: 'Health Potion', value: 10 },
+  { key: 'medPotions', icon: '🍶', label: 'Medium Potion', value: 25 },
 ];
 
 function openStoreModal() {
@@ -132,11 +168,28 @@ function renderStoreContents() {
       `;
     }).join('');
 
-  // Elemental arrows section: one row per element with buy + sell controls.
+  // Arrows section: a plain-arrow row first, then one row per element, each
+  // with buy + sell controls.
+  const plainCount = (player.arrows && player.arrows.plain) || 0;
+  const plainRow = `
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🏹 Plain Arrow <span style="color:#88cc88">x${plainCount}</span></div>
+        <div class="shop-item-meta">Standard ammunition — no elemental rider</div>
+      </div>
+      <button class="ssbtn" ${player.rupees < PLAIN_ARROW_PACK_COST ? 'disabled' : ''} onclick="buyElementalArrows('plain')">
+        +${ARROW_PACK_SIZE} 💰${PLAIN_ARROW_PACK_COST}
+      </button>
+      <button class="ssbtn" ${plainCount <= 0 ? 'disabled' : ''} onclick="sellElementalArrow('plain')">
+        -1 ➜ 💰${PLAIN_ARROW_SELL_VALUE}
+      </button>
+    </div>
+  `;
   const arrowsRows =
     `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#aacc88">
-      Elemental Arrows · ${ARROW_PACK_SIZE}-pack ${ARROW_PACK_COST}💰 · sell back ${ARROW_SELL_VALUE}💰 each
+      Arrows · plain ${ARROW_PACK_SIZE}-pack ${PLAIN_ARROW_PACK_COST}💰 (sell ${PLAIN_ARROW_SELL_VALUE}💰) · elemental ${ARROW_PACK_SIZE}-pack ${ARROW_PACK_COST}💰 (sell ${ARROW_SELL_VALUE}💰)
     </div>` +
+    plainRow +
     ELEMENT_ORDER.map(id => {
       const elem = SWORD_ELEMENTS[id];
       if (!elem) return '';
@@ -159,26 +212,48 @@ function renderStoreContents() {
       `;
     }).join('');
 
-  // Trophy sell section — cash in monster spoils (organ, feather, …).
+  // Trophy sell section — cash in monster spoils (fangs, scales, pearls, …).
+  // With two dozen trophy types, only the ones the player actually carries get
+  // a row; otherwise the modal would scroll forever.
+  const ownedTrophies = TROPHY_SELL.filter(t => (player[t.key] || 0) > 0);
   const trophyRows =
     `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#cc9988">
-      We buy monster trophies — cash in your spoils:
+      We buy monster trophies &amp; foraged goods — cash in your spoils:
     </div>` +
-    TROPHY_SELL.map(t => {
-      const count = player[t.key] || 0;
-      const cantSell = count <= 0;
-      return `
-        <div class="shop-row">
-          <div class="shop-item">
-            <div class="shop-item-name">${t.icon} ${t.label} <span style="color:#88cc88">x${count}</span></div>
-            <div class="shop-item-meta">Sell for ${t.value}💰 each</div>
-          </div>
-          <button class="ssbtn" ${cantSell ? 'disabled' : ''} onclick="sellTrophy('${t.key}')">
-            All ➜ 💰${count * t.value}
-          </button>
+    (ownedTrophies.length === 0
+      ? `<div style="font-size:11px;color:#778877;padding:6px 2px">
+          Nothing to sell right now — every monster drops a trophy we'll pay for.
+        </div>`
+      : ownedTrophies.map(t => {
+          const count = player[t.key] || 0;
+          return `
+            <div class="shop-row">
+              <div class="shop-item">
+                <div class="shop-item-name">${t.icon} ${t.label} <span style="color:#88cc88">x${count}</span></div>
+                <div class="shop-item-meta">Sell for ${t.value}💰 each</div>
+              </div>
+              <button class="ssbtn" onclick="sellTrophy('${t.key}')">
+                All ➜ 💰${count * t.value}
+              </button>
+            </div>
+          `;
+        }).join(''));
+
+  // Potion buy-back rows — sold one at a time.
+  const potionRows = POTION_SELL.map(p => {
+    const count = player[p.key] || 0;
+    return `
+      <div class="shop-row">
+        <div class="shop-item">
+          <div class="shop-item-name">${p.icon} ${p.label} <span style="color:#88cc88">x${count}</span></div>
+          <div class="shop-item-meta">Sell for ${p.value}💰 each</div>
         </div>
-      `;
-    }).join('');
+        <button class="ssbtn" ${count <= 0 ? 'disabled' : ''} onclick="sellPotionItem('${p.key}')">
+          -1 ➜ 💰${p.value}
+        </button>
+      </div>
+    `;
+  }).join('');
 
   document.getElementById('store-modal').innerHTML = `
     <h2>🏪 General Store</h2>
@@ -187,6 +262,7 @@ function renderStoreContents() {
     ${buyRows}
     ${arrowsRows}
     ${trophyRows}
+    ${potionRows}
     ${sellRows}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
   `;
@@ -220,11 +296,13 @@ function sellElementalArmor(id) {
 }
 
 function buyElementalArrows(id) {
-  if (!SWORD_ELEMENTS[id]) return;
-  if (player.rupees < ARROW_PACK_COST) return;
-  player.rupees -= ARROW_PACK_COST;
+  const plain = id === 'plain';
+  if (!plain && !SWORD_ELEMENTS[id]) return;
+  const cost = plain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST;
+  if (player.rupees < cost) return;
+  player.rupees -= cost;
   const gained = addArrow(id, ARROW_PACK_SIZE);
-  const elem = SWORD_ELEMENTS[id];
+  const elem = plain ? { icon: '🏹', label: 'Plain' } : SWORD_ELEMENTS[id];
   const tail = gained < ARROW_PACK_SIZE ? ` — quiver capped at ${ITEM_CAP}` : '';
   showMsg(`🛒 Bought ${gained} ${elem.icon} ${elem.label} Arrows (x${player.arrows[id]} total)${tail}`, 3000);
   renderStoreContents();
@@ -232,16 +310,18 @@ function buyElementalArrows(id) {
 }
 
 function sellElementalArrow(id) {
-  if (!SWORD_ELEMENTS[id]) return;
+  const plain = id === 'plain';
+  if (!plain && !SWORD_ELEMENTS[id]) return;
   player.arrows = player.arrows || {};
   if ((player.arrows[id] || 0) <= 0) return;
   player.arrows[id]--;
-  addItem('rupees', ARROW_SELL_VALUE);
+  const value = plain ? PLAIN_ARROW_SELL_VALUE : ARROW_SELL_VALUE;
+  addItem('rupees', value);
   if (player.arrows[id] <= 0 && player.activeArrowElement === id) {
     player.activeArrowElement = null;
   }
-  const elem = SWORD_ELEMENTS[id];
-  showMsg(`💰 Sold 1 ${elem.icon} ${elem.label} Arrow for ${ARROW_SELL_VALUE} rupees`, 2500);
+  const elem = plain ? { icon: '🏹', label: 'Plain' } : SWORD_ELEMENTS[id];
+  showMsg(`💰 Sold 1 ${elem.icon} ${elem.label} Arrow for ${value} rupees`, 2500);
   renderStoreContents();
   updateHUD();
 }
@@ -271,6 +351,17 @@ function sellTrophy(key) {
   const earned = count * t.value;
   addItem('rupees', earned);
   showMsg(`💰 Sold ${count} ${t.icon} ${t.label}${count > 1 ? 's' : ''} for ${earned} rupees`, 3000);
+  renderStoreContents();
+  updateHUD();
+}
+
+function sellPotionItem(key) {
+  const p = POTION_SELL.find(x => x.key === key);
+  if (!p) return;
+  if ((player[key] || 0) <= 0) return;
+  player[key]--;
+  addItem('rupees', p.value);
+  showMsg(`💰 Sold 1 ${p.icon} ${p.label} for ${p.value} rupees`, 2500);
   renderStoreContents();
   updateHUD();
 }

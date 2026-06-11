@@ -9,14 +9,34 @@ let damageNumbers = [];
 let drops = [];
 
 // Visual metadata for enemy-trophy drops. Shared by stepDrops (pickup particles
-// and message) and drawDrop (ground sprite glow / glyph).
+// and message) and drawDrop (ground sprite glow / glyph). Inventory key is the
+// plural of the trophy id (fang → player.fangs). Every trophy here is also
+// sellable at the General Store (TROPHY_SELL in shop.js).
 const TROPHY_META = {
-  fang:    { icon: '🦷', label: 'Fang',    color: '#f0eedd' },
-  finger:  { icon: '🫳', label: 'Finger',  color: '#d8a070' },
-  bone:    { icon: '🦴', label: 'Bone',    color: '#f4ead8' },
-  wing:    { icon: '🪶', label: 'Wing',    color: '#aaccff' },
-  organ:   { icon: '🫀', label: 'Organ',   color: '#aa3344' },
-  feather: { icon: '🪶', label: 'Feather', color: '#c8b890' },
+  fang:      { icon: '🦷', label: 'Fang',           color: '#f0eedd' },
+  finger:    { icon: '🫳', label: 'Finger',         color: '#d8a070' },
+  bone:      { icon: '🦴', label: 'Bone',           color: '#f4ead8' },
+  wing:      { icon: '🪶', label: 'Wing',           color: '#aaccff' },
+  organ:     { icon: '🫀', label: 'Organ',          color: '#aa3344' },
+  feather:   { icon: '🪶', label: 'Feather',        color: '#c8b890' },
+  silk:      { icon: '🕸️', label: 'Silk',           color: '#ddddee' },
+  talisman:  { icon: '📿', label: 'Talisman',       color: '#aa66cc' },
+  ember:     { icon: '🔥', label: 'Ember',          color: '#ff7733' },
+  venom:     { icon: '☠️', label: 'Venom Sac',      color: '#88cc44' },
+  fin:       { icon: '🐟', label: 'Fin',            color: '#5599cc' },
+  pearl:     { icon: '🦪', label: 'Pearl',          color: '#f0e8dd' },
+  core:      { icon: '💠', label: 'Elemental Core', color: '#66ccff' },
+  shard:     { icon: '🧊', label: 'Ice Shard',      color: '#aaddee' },
+  pelt:      { icon: '🧥', label: 'Pelt',           color: '#aa8855' },
+  tusk:      { icon: '🦣', label: 'Tusk',           color: '#e8dcc0' },
+  scale:     { icon: '🐉', label: 'Dragon Scale',   color: '#44aa66' },
+  stone:     { icon: '🪨', label: 'Stone Shard',    color: '#8a857a' },
+  spark:     { icon: '⚡', label: 'Storm Spark',    color: '#ffee33' },
+  horn:      { icon: '🦄', label: 'Horn',           color: '#ffeeff' },
+  mote:      { icon: '✨', label: 'Light Mote',     color: '#ffee88' },
+  ectoplasm: { icon: '👻', label: 'Ectoplasm',      color: '#ccddee' },
+  eye:       { icon: '👁️', label: 'Eye',            color: '#cc88dd' },
+  brain:     { icon: '🧠', label: 'Brain',          color: '#ffaabb' },
 };
 
 function spawnParticle(wx, wy, color, n = 6, size = 3) {
@@ -317,10 +337,12 @@ function stepEnemies(dt, map) {
     }
 
     const nx = e.x + emx, ny = e.y + emy;
-    // Don't walk into other enemies, the player, or solid terrain
+    // Don't walk into other enemies, the player, or solid terrain. Aquatic
+    // enemies (swims) also treat the medium-water shelf as open ground.
     const otherEnemy = enemies.some(o => !o.dead && o !== e && o.x === nx && o.y === ny);
     const onPlayer = (nx === player.x && ny === player.y);
-    if (!isSolid(map, nx, ny) && !otherEnemy && !onPlayer) {
+    const blocked = isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny));
+    if (!blocked && !otherEnemy && !onPlayer) {
       e.x = nx; e.y = ny;
     }
 
@@ -413,7 +435,9 @@ function stepProjectiles(dt, map) {
 
     p.tx += p.vx; p.ty += p.vy;
     const pc = Math.floor(p.tx), pr = Math.floor(p.ty);
-    if (isSolid(map, pc, pr)) { p.life = -999; return; }
+    // Arrows and spells fly over the medium-water shelf even though it's
+    // solid to walkers; everything else solid (incl. deep water) stops them.
+    if (isSolid(map, pc, pr) && !isMediumWater(map, pc, pr)) { p.life = -999; return; }
 
     if (p.type === 'arrow') {
       enemies.filter(e => !e.dead).forEach(e => {
@@ -497,11 +521,9 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#e8e0c8', 10, 3);
         spawnParticle(sp.x, sp.y, '#fffaf0', 6, 2);
         showMsg(`🦴 +${d.val} Bone Meal (now ${player.bonemeal})`, 1500);
-      } else if (d.type === 'fang' || d.type === 'finger' ||
-                 d.type === 'bone' || d.type === 'wing' ||
-                 d.type === 'organ' || d.type === 'feather') {
+      } else if (TROPHY_META[d.type]) {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
-        // type (fangs, fingers, bones, wings, organs, feathers).
+        // type (fangs, fingers, bones, wings, organs, feathers, scales, …).
         const key = d.type + 's';
         addItem(key, d.val);
         const meta = TROPHY_META[d.type];

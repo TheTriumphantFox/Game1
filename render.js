@@ -1268,6 +1268,30 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillRect(x + s*0.50, y + s*0.20, 2, 2);
       ctx.fillRect(x + s*0.50, y + s*0.85, 2, 2);
       break; }
+    case T.SNOW_PINE: {
+      // Snow-covered pine — the ice region's border treeline. Snowfield
+      // backdrop, trunk, then three evergreen tiers drawn bottom-up, each with
+      // a ledge of snow resting along its lower boughs and a capped tip.
+      ctx.fillStyle = '#dde8ee'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#c8d8e2'; ctx.fillRect(x, y + s*0.88, s, s*0.12);
+      ctx.fillStyle = '#5a4530';
+      ctx.fillRect(x + s*0.44, y + s*0.76, s*0.12, s*0.16);
+      const tier = (apexY, baseY, hw, colr) => {
+        ctx.fillStyle = colr;
+        ctx.beginPath();
+        ctx.moveTo(x + s*0.5,        y + s*apexY);
+        ctx.lineTo(x + s*(0.5 - hw), y + s*baseY);
+        ctx.lineTo(x + s*(0.5 + hw), y + s*baseY);
+        ctx.closePath(); ctx.fill();
+      };
+      tier(0.28, 0.80, 0.36, '#1e4a30');
+      ctx.fillStyle = '#f0f6fa'; ctx.fillRect(x + s*0.20, y + s*0.74, s*0.60, s*0.06);
+      tier(0.14, 0.56, 0.27, '#266040');
+      ctx.fillStyle = '#f0f6fa'; ctx.fillRect(x + s*0.28, y + s*0.51, s*0.44, s*0.05);
+      tier(0.02, 0.34, 0.18, '#2e7050');
+      ctx.fillStyle = '#f0f6fa'; ctx.fillRect(x + s*0.37, y + s*0.30, s*0.26, s*0.04);
+      tier(0.02, 0.14, 0.07, '#ffffff');
+      break; }
     case T.BONES: {
       // Sand backdrop + a small bleached skull-and-rib silhouette.
       ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
@@ -1391,6 +1415,11 @@ function drawPlayer(ts) {
   // crosses the climb/ground boundary — see stepPlayerMovement).
   const _pmap = (typeof mapData === 'function') ? mapData() : null;
   const onClimb = !!(_pmap && _pmap[player.y] && _pmap[player.y][player.x] === T.CLIMB);
+  // Swimming through MEDIUM_WATER (Water armor): the lower body is underwater.
+  // Everything below this tile-fraction waterline is clipped away, and a ripple
+  // ring is drawn at the surface so the sprite reads as submerged, not cropped.
+  const swimming = !!(_pmap && _pmap[player.y] && _pmap[player.y][player.x] === T.MEDIUM_WATER);
+  const WATERLINE = 0.55;
   let jumpLift = 0;
   if (typeof playerJumpStart !== 'undefined' && playerJumpStart >= 0) {
     const jt = (Date.now() - playerJumpStart) / PLAYER_JUMP_MS;
@@ -1407,6 +1436,15 @@ function drawPlayer(ts) {
   const bob = walkBob - jumpLift - climbLift;
 
   ctx.save();
+
+  // Submerge the lower body while swimming: only draw above the waterline.
+  // The rect is generous on the sides/top so the hat, jump arcs, and sword
+  // swing stay inside; the ground shadow at the feet is clipped out with it.
+  if (swimming) {
+    ctx.beginPath();
+    ctx.rect(sx - s * 2, sy - s * 2, s * 5, s * (2 + WATERLINE));
+    ctx.clip();
+  }
 
   // ── Low-HP danger state (≤3 HP): pulsing red glow + flash ──
   // dangerPulse oscillates 0→1; the glow rides on shadowBlur so the whole
@@ -1665,6 +1703,20 @@ function drawPlayer(ts) {
   }
 
   ctx.restore();
+
+  // ── Waterline ripple (outside the clip so the full rings show) ──
+  if (swimming) {
+    const ph = Date.now() / 350;
+    ctx.strokeStyle = 'rgba(191,230,244,0.75)';
+    ctx.lineWidth = Math.max(1, s * 0.045);
+    ctx.beginPath();
+    ctx.ellipse(sx + s/2, sy + s*WATERLINE, s * (0.30 + 0.03 * Math.sin(ph)), s*0.085, 0, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(90,168,200,0.45)';
+    ctx.beginPath();
+    ctx.ellipse(sx + s/2, sy + s*WATERLINE + s*0.03, s * (0.40 + 0.04 * Math.sin(ph + 1.3)), s*0.11, 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
 }
 
 // ─── Enemy sprites ────────────────────────────────────────────────────────────

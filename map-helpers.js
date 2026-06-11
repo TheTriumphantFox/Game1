@@ -48,10 +48,17 @@ function isSolid(map, c, r) {
          t === T.CACTUS || t === T.OASIS_WATER ||
          t === T.WATERFALL || t === T.CLIFF || t === T.PLATEAU ||
          // Elemental region borders (solid)
-         t === T.GLACIER || t === T.MOUNTAIN || t === T.CLOUDWALL ||
+         t === T.GLACIER || t === T.SNOW_PINE || t === T.MOUNTAIN || t === T.CLOUDWALL ||
          t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||
          t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL ||
          isChestTile(t);
+}
+
+// Medium-depth water is solid to ordinary walkers, but not to everything:
+// projectiles fly over it and aquatic (`swims: true`) enemies move through it.
+// Bounds-checked so callers can pair it directly with isSolid().
+function isMediumWater(map, c, r) {
+  return c >= 0 && r >= 0 && c < MCOLS && r < MROWS && map[r][c] === T.MEDIUM_WATER;
 }
 
 // Drunk-walk path carving. Biases toward the target but takes random detours,

@@ -12,7 +12,7 @@ const SWORD_ELEMENTS = {
   water:     { id: 'water',     label: 'Water',     icon: '💧', color: '#3a88ff' },
   ice:       { id: 'ice',       label: 'Ice',       icon: '❄',  color: '#88ddff' },
   lightning: { id: 'lightning', label: 'Lightning', icon: '⚡', color: '#ffee33' },
-  earth:     { id: 'earth',     label: 'Earth',     icon: '🪨', color: '#a87a3c' },
+  earth:     { id: 'earth',     label: 'Earth',     icon: '🧱', color: '#8a5a2a' },
   air:       { id: 'air',       label: 'Air',       icon: '💨', color: '#cccccc' },
   luminous:  { id: 'luminous',  label: 'Luminous',  icon: '✨', color: '#ffee66' },
   necrotic:  { id: 'necrotic',  label: 'Necrotic',  icon: '💀', color: '#aa66dd' },
