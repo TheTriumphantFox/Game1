@@ -38,8 +38,8 @@ const DESERT_NAMES = [
 // The first two entries (forest, fire) keep their bespoke builders, but the
 // table still drives village palette, enemy pool, names, and progression order.
 const REGIONS = [
-  { id:'forest',    element:null,        border:T.TREE,            ground:T.GRASS,          decoration:T.FLOWER,   accent:T.WATER,       names:FOREST_NAMES, villageName:'Village of the Lost',     enemyTier:1, boss:'lich_boss'      },
-  { id:'fire',      element:'fire',      border:T.CACTUS,          ground:T.SAND,           decoration:T.FLOWERING_CACTUS, accent:T.LAVA, names:DESERT_NAMES, villageName:'Oasis of the Damned',     enemyTier:2, boss:'mummy_lord'     },
+  { id:'forest',    element:null,        border:T.TREE,            ground:T.GRASS,          decoration:T.FLOWER,   accent:T.WATER,       names:FOREST_NAMES, villageName:'Village of the Lost',     enemyTier:0, boss:'lich_boss'      },
+  { id:'fire',      element:'fire',      border:T.CACTUS,          ground:T.SAND,           decoration:T.FLOWERING_CACTUS, accent:T.LAVA, names:DESERT_NAMES, villageName:'Oasis of the Damned',     enemyTier:1, boss:'mummy_lord'     },
   { id:'water',     element:'water',     border:T.DEEP_WATER,      ground:T.SAND,           decoration:T.WATER,    accent:T.WATER,       path:T.SAND, names:[
       'Tidepool Reach','Coral Strait','Lagoon Hollow','Brinepath','Surfbreak Sands',
       'Kelpforest Crossing','Saltspray Cove','Mermaid Atoll','Drowned Ruins','Pearl Banks',
@@ -57,43 +57,43 @@ const REGIONS = [
       'Earthcrack Maze','Cinder Ridge','Marble Vein','Mudbog Crossing','Tremor Basin',
       'Old Roads','Tumulus Field','Caveborn Path','Sediment Flats','Mossy Crag',
       'Sunken Plateau','Iron Gulch','Echo Canyon','Magmaroot Hollow','Petrified Grove'
-    ], villageName:'Stoneheart Burrow',         enemyTier:3, boss:'gaia_colossus'  },
+    ], villageName:'Stoneheart Burrow',         enemyTier:4, boss:'gaia_colossus'  },
   { id:'air',       element:'wind',      border:T.CLOUDWALL,       ground:T.CLOUD,          decoration:T.CLOUD,    accent:T.WATER,       names:[
       'Skywharf','Cumulus Crossing','Zephyr Vault','Updraft Reach','Drifting Bastion',
       'Thunderhead Pass','Mist-veiled Path','Featherfall Hollow','Cirrus Ribbon','Stratos Spine',
       'Galewall','Wisp Field','Halcyon Reach','Stormthrone Approach','Falcon Roost',
       'Cloudbreak','Sky-stair','High Tundra','Whispering Currents','Aetherwake'
-    ], villageName:'Stormcrown Aerie',          enemyTier:4, boss:'wind_djinn'     },
+    ], villageName:'Stormcrown Aerie',          enemyTier:5, boss:'wind_djinn'     },
   { id:'lightning', element:null,        border:T.STORM_CLOUD,     ground:T.STORM_GROUND,   decoration:T.ROCK,     accent:T.LAVA,        names:[
       'Sparkfen','Voltaic Plain','Thunderfork Pass','Stormglass Reach','Static Maze',
       'Galvanic Hollow','Arcwire Crossing','Lichtning Field','Tesla Spires','Surge Basin',
       'Brimwire','Ferrum Edge','Crackleway','Boltcaster Ridge','Shockmarsh',
       'Magnet Crag','Glasspowder Plain','Filament Gardens','Plasma Bowl','Coronet'
-    ], villageName:'Voltheart Bastion',         enemyTier:4, boss:'storm_lord'     },
+    ], villageName:'Voltheart Bastion',         enemyTier:6, boss:'storm_lord'     },
   { id:'luminous',  element:'luminous',  border:T.LUMINOUS_CRYSTAL, ground:T.LUMINOUS_FLOOR, decoration:T.MUSHROOM, accent:T.WATER, names:[
       'Sunhalo Reach','Dawnlit Field','Prism Garden','Goldenmoss Hollow','Halo Pass',
       'Bright Causeway','Aureate Steps','Lambent Glade','Daystar Crossing','Lustrous Vault',
       'Beacon Plain','Argent Maze','Lumenrise','Suncast Ridge','Mirrorbright Atrium',
       'Effulgent Brook','Coronal Field','Glimmerwash','Radiant Apse','Shining Sanctum'
-    ], villageName:'Solarspire Sanctum',        enemyTier:4, boss:'seraph_judge'   },
+    ], villageName:'Solarspire Sanctum',        enemyTier:7, boss:'seraph_judge'   },
   { id:'necrotic',  element:'necrotic',  border:T.BLIGHTED_WALL,   ground:T.BLIGHT,         decoration:T.BONES,    accent:T.LAVA,        names:[
       'Witherfen','Boneyard Crossing','Pall Glade','Hollow Reach','Decay Plain',
       'Shroudwood','Mourner\'s Pass','Cinderash Field','Gravesong Maze','Black Marrow',
       'Pall-veiled Ruins','Tomb-iron Reach','Carrion Flats','Sepulchre Trail','Funeral Causeway',
       'Witch-light Hollow','Coffinroot','Wraithmire','Reliquary Ribs','Last Rites Plain'
-    ], villageName:'Ossuary of the Pale King',  enemyTier:5, boss:'death_knight'   },
+    ], villageName:'Ossuary of the Pale King',  enemyTier:8, boss:'death_knight'   },
   { id:'poison',    element:'poison',    border:T.POISON_WALL,     ground:T.SLUDGE,         decoration:T.MUSHROOM, accent:T.DEEP_WATER,  names:[
       'Venomvale','Toxic Bog','Spore Pass','Mireheart','Slime Reach',
       'Acidlake Crossing','Foulweed Hollow','Plague Trail','Hexbog Maze','Murkfen',
       'Rotwood Edge','Stagnant Causeway','Bilegrove','Cankerstump','Pestilent Field',
       'Snake-fang Hollow','Greenfog Reach','Necrosis Plain','Bubble Marsh','Witherwart'
-    ], villageName:'Mire-warden Citadel',       enemyTier:5, boss:'hydra_queen'    },
+    ], villageName:'Mire-warden Citadel',       enemyTier:9, boss:'hydra_queen'    },
   { id:'mana',      element:null,        border:T.MANA_CRYSTAL,    ground:T.MANA_FLOOR,     decoration:T.FLOWER, accent:T.DEEP_WATER, names:[
       'Arcanum Reach','Spellwell Plain','Sigil Garden','Channeled Pass','Aether Field',
       'Glyphvein Maze','Lifeweave Hollow','Runestone Crossing','Conduit Spire','Resonant Bowl',
       'Astral Causeway','Mage-glass Plateau','Echo Lattice','Filigree Field','Mantra Plain',
       'Distortion Reach','Astral Wash','Crystal Choir','Theurgy Trail','Heartmoon'
-    ], villageName:'Heartstone Conclave',       enemyTier:5, boss:'archmage_void'  },
+    ], villageName:'Heartstone Conclave',       enemyTier:10, boss:'archmage_void'  },
 ];
 
 // Quick lookup helper.
