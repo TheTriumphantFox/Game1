@@ -632,8 +632,11 @@ function buildDesertMap(seed, depth, openSides) {
 
   ensureConnectivity(m, false, T.CACTUS);
 
-  // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
-  placeWhirlpool(m);
+  // Fire region: 20% of desert maps hide a whirlpool in a pool/oasis. The
+  // small clearance fits these little water bodies while still keeping the
+  // vortex and its 1-tile pull ring fully inside swim-only water, away from
+  // the walkable rim.
+  placeWhirlpool(m, 0.20, 2);
 
   return m;
 }
@@ -999,6 +1002,10 @@ function buildRegionMap(seed, depth, openSides, region) {
   if (region.id === 'water') {
     applyWaterDepthBands(m);
     carveShallowChannels(m, 6);
+  } else if (region.id === 'ice') {
+    // Ice region: its standing water is frozen solid — accent pools become
+    // walkable, slippery ICE sheets instead of swimmable medium water.
+    freezeWaterToIce(m);
   } else {
     // Every other region is outside the water region, so it keeps no deep/
     // standing water — demote its accent pools (WATER, DEEP_WATER for poison/
@@ -1021,10 +1028,33 @@ function buildRegionMap(seed, depth, openSides, region) {
   // GLACIER, so traversal is unaffected.
   sprinkleSnowPines(m, region.id);
 
+  // Ice region: drift fields — deep powder banks mirroring the desert's dune
+  // fields. Converts open SNOW only (both passable), so connectivity holds.
+  addSnowDrifts(m, region.id, depth);
+
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
 
   return m;
+}
+
+// Drift fields for ice maps — same shape as the desert's Phase-4 dune fields:
+// a handful of square patches where open SNOW piles up into SNOW_DRIFT banks
+// (passable, but trudging through one halves walk speed). No-op for every
+// other region.
+function addSnowDrifts(m, regionId, depth) {
+  if (regionId !== 'ice') return;
+  const driftCount = 6 + Math.floor(depth / 2);
+  for (let i = 0; i < driftCount; i++) {
+    const wr = rnd(10, MROWS - 15), wc = rnd(10, MCOLS - 15);
+    const ws = rnd(4, 10);
+    const wr2 = Math.min(wr + ws, MROWS - 2), wc2 = Math.min(wc + ws, MCOLS - 2);
+    for (let r = wr; r <= wr2; r++) {
+      for (let c = wc; c <= wc2; c++) {
+        if (m[r][c] === T.SNOW && Math.random() < 0.7) m[r][c] = T.SNOW_DRIFT;
+      }
+    }
+  }
 }
 
 // Convert a share of an ice map's GLACIER tiles into SNOW_PINE. No-op for

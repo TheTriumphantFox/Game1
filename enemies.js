@@ -147,6 +147,10 @@ function makeEnemyDefs(depth, mapType, map) {
   // The starter house is a peaceful interior — no spawns.
   if (mapType === 'house') return [];
 
+  // Whirlpool grottos hold a fixed school of 10 swimmers; `depth` carries the
+  // source region's enemy tier (see createWhirlpoolGrottoMap).
+  if (mapType === 'whirlpool_grotto') return makeGrottoEnemyDefs(depth, map);
+
   // Resolve the region this map belongs to. `mapType` is either a region id
   // ('forest', 'fire', 'water', ...) for overworld maps or `<id>_village` /
   // legacy 'village'/'desert_village' for boss arenas. The REGIONS table from
@@ -215,6 +219,31 @@ function makeEnemyDefs(depth, mapType, map) {
     }
     const bossType = (region && region.boss) || 'lich_boss';
     defs.push({ type: bossType, x: bx, y: by });
+  }
+  return defs;
+}
+
+// 10 swimming enemies for a whirlpool grotto, banded by the enemy tier of the
+// region whose whirlpool swallowed the player. Only the water roster swims,
+// so lower-tier regions face its gentler half and higher tiers its meaner
+// half. Spawns sit on open medium water inside the 50×50 arena, clear of the
+// center (the player surfaces there) and of the solid return vortex.
+function makeGrottoEnemyDefs(sourceTier, map) {
+  const swimmers = ENEMY_POOLS[2];
+  const pool = sourceTier <= 1 ? swimmers.slice(0, 3)
+             : sourceTier === 2 ? swimmers
+             :                    swimmers.slice(3);
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  const defs = [];
+  for (let i = 0; i < 10; i++) {
+    const type = pool[Math.floor(Math.random() * pool.length)];
+    for (let t = 0; t < 80; t++) {
+      const x = rnd(cx - 23, cx + 23), y = rnd(cy - 23, cy + 23);
+      if (map && map[y][x] !== T.MEDIUM_WATER) continue;
+      if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) < 7) continue;
+      defs.push({ type, x, y });
+      break;
+    }
   }
   return defs;
 }

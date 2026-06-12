@@ -69,7 +69,11 @@ const T = {
   WHIRLPOOL:71,
   // Ice region: snow-covered pine mixed into the glacier border so the walls
   // read as a frozen treeline. Solid, like GLACIER.
-  SNOW_PINE:72
+  SNOW_PINE:72,
+  // Ice region: deep powder banks scattered across the snowfields — the ice
+  // region's answer to the desert DUNE. Passable but trudging through one
+  // halves walk speed (see stepPlayerMovement).
+  SNOW_DRIFT:73
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -98,6 +102,9 @@ const TILE_COLORS = {
   [T.SNOW]: '#e4ecf2',           [T.ICE]: '#a8d8ee',            [T.GLACIER]: '#5a9ac8',
   // Snow pine — dark evergreen so the treeline reads against snow + glacier.
   [T.SNOW_PINE]: '#2a5a3e',
+  // Snow drift — a shade deeper/bluer than open SNOW so the banks read on the
+  // minimap the way DUNE does against SAND.
+  [T.SNOW_DRIFT]: '#c9d6e4',
   [T.MUD]: '#5a3a18',             [T.MOUNTAIN]: '#4a4035',
   [T.CLOUD]: '#dde6f2',           [T.CLOUDWALL]: '#a0b0c8',
   [T.STORM_GROUND]: '#3a3a4a',    [T.STORM_CLOUD]: '#2a2a40',

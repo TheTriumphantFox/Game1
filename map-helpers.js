@@ -198,17 +198,31 @@ function demoteWaterToMedium(m) {
     }
 }
 
-// Maybe drop a single 1-tile WHIRLPOOL out in open medium water. Only ~30% of
-// maps get one, and the chosen tile must be MEDIUM_WATER sitting at least
-// WHIRLPOOL_CLEARANCE tiles (Chebyshev / king-move distance) from the nearest
-// shallow water or land — so whirlpools only ever appear well off the deep
-// medium shelf, never beside where the player can wade or stand. The whirlpool
-// tile is solid (so it never changes connectivity), exactly like the medium
-// water it replaces. Returns true if one was placed. Run after all water has
-// been finalized (depth banding / demotion) and after connectivity.
+// Ice-region counterpart of demoteWaterToMedium: every standing-water tile
+// freezes over into walkable (and slippery — see stepPlayerMovement) ICE
+// sheets instead of swimmable medium water.
+function freezeWaterToIce(m) {
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++) {
+      const t = m[r][c];
+      if (t === T.WATER || t === T.DEEP_WATER || t === T.OASIS_WATER)
+        m[r][c] = T.ICE;
+    }
+}
+
+// Maybe drop a single 1-tile WHIRLPOOL out in open medium water. `chance` is
+// the per-map spawn roll; `clearance` is the minimum Chebyshev / king-move
+// distance the chosen MEDIUM_WATER tile must keep from the nearest shallow
+// water or land. The defaults fit big open water (~30% of maps, 8 tiles off
+// the medium shelf); small-pool regions pass a lower clearance — anything ≥2
+// still keeps the vortex AND its 1-tile suction ring fully inside swim-only
+// water, never beside where the player can wade or stand. The whirlpool tile
+// is solid (so it never changes connectivity), exactly like the medium water
+// it replaces. Returns true if one was placed. Run after all water has been
+// finalized (depth banding / demotion) and after connectivity.
 const WHIRLPOOL_CLEARANCE = 8;
-function placeWhirlpool(m) {
-  if (Math.random() >= 0.30) return false;            // ~30% of maps
+function placeWhirlpool(m, chance = 0.30, clearance = WHIRLPOOL_CLEARANCE) {
+  if (Math.random() >= chance) return false;
   // "Open" = water deep enough to be far from shore (medium or deep). Every
   // other tile (land, shallow water, features) seeds a multi-source 8-connected
   // BFS so each open-water tile learns its Chebyshev distance to the shore.
@@ -235,7 +249,7 @@ function placeWhirlpool(m) {
   const candidates = [];
   for (let r = 1; r < MROWS - 1; r++)
     for (let c = 1; c < MCOLS - 1; c++)
-      if (m[r][c] === T.MEDIUM_WATER && dist[r * MCOLS + c] >= WHIRLPOOL_CLEARANCE)
+      if (m[r][c] === T.MEDIUM_WATER && dist[r * MCOLS + c] >= clearance)
         candidates.push([r, c]);
   if (!candidates.length) return false;
   const [wr, wc] = candidates[Math.floor(Math.random() * candidates.length)];

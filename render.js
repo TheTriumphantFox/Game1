@@ -54,10 +54,14 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#214d7a'; ctx.fillRect(x+s*0.45, y+s*0.6-mw*2, s*0.4, 2); break; }
     case T.WHIRLPOOL: {
       // Swirling vortex set in the medium shelf — concentric funnel rings step
-      // down into a dark central eye, with bright foam arms spiralling around
-      // them and rotating over time so the water visibly churns and sucks down.
+      // down into a dark central eye, three bright foam arms whip around them
+      // at two depths, and the eye pulses as the vortex gulps water down. The
+      // wider suction ring spilling over the neighboring tiles (the 1-tile
+      // pull zone) is drawn as an overlay pass in render() — see
+      // drawWhirlpoolSuction.
       const cx = x + s / 2, cy = y + s / 2;
-      const rot = Date.now() / 280;
+      const rot = Date.now() / 150;             // fast, hungry churn
+      const gulp = Math.sin(Date.now() / 320);  // eye pulse phase
       // Concentric funnel: light/dark rings stepping inward for a 3-D drain look.
       const rings = [[0.46, '#3f79ad'], [0.36, '#a9cdee'], [0.27, '#2c5d8e'],
                      [0.18, '#cfe4fa']];
@@ -65,16 +69,20 @@ function drawTile(col, row, t, sx, sy, s) {
         ctx.fillStyle = col;
         ctx.beginPath(); ctx.arc(cx, cy, s * f, 0, Math.PI * 2); ctx.fill();
       }
-      // Bright foam arms spiralling around the funnel (animated rotation).
-      ctx.lineWidth = Math.max(1, s * 0.07);
+      // Foam arms spiralling around the funnel — the inner set spins faster,
+      // the way a real vortex accelerates toward its throat.
       ctx.strokeStyle = '#eaf4ff';
-      for (let k = 0; k < 2; k++) {
-        const ang = rot + k * Math.PI;
-        ctx.beginPath(); ctx.arc(cx, cy, s * 0.34, ang, ang + Math.PI * 0.9); ctx.stroke();
+      for (let k = 0; k < 3; k++) {
+        const ang = rot + k * (Math.PI * 2 / 3);
+        ctx.lineWidth = Math.max(1, s * 0.07);
+        ctx.beginPath(); ctx.arc(cx, cy, s * 0.34, ang, ang + Math.PI * 0.7); ctx.stroke();
+        const ang2 = rot * 1.6 + k * (Math.PI * 2 / 3);
+        ctx.lineWidth = Math.max(1, s * 0.05);
+        ctx.beginPath(); ctx.arc(cx, cy, s * 0.22, ang2, ang2 + Math.PI * 0.5); ctx.stroke();
       }
-      // Dark central eye the funnel spirals into.
+      // Pulsing dark eye the funnel gulps through.
       ctx.fillStyle = '#06142a';
-      ctx.beginPath(); ctx.arc(cx, cy, s * 0.11, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, s * (0.10 + 0.035 * gulp), 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 1;
       break; }
     case T.SHALLOW_WATER: {
@@ -1244,6 +1252,39 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fill();
       ctx.fillStyle = '#a87838';
       ctx.fillRect(x + s*0.15, y + s*0.7, s*0.7, 2);
+      break; }
+    case T.SNOW_DRIFT: {
+      // The ice region's dune: a deep powder bank. Snow base, a soft white
+      // crest mound, and a cool shadow line under its lee side.
+      ctx.fillStyle = '#c9d6e4'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#f4f8fc';
+      ctx.beginPath();
+      ctx.arc(x + s/2, y + s*0.65, s*0.42, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = '#a8bcd0';
+      ctx.fillRect(x + s*0.15, y + s*0.7, s*0.7, 2);
+      // A couple of sparkle flecks so fresh powder glints.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + s*0.30, y + s*0.42, 2, 2);
+      ctx.fillRect(x + s*0.62, y + s*0.52, 1, 1);
+      break; }
+    case T.ICE: {
+      // Frozen-over water: pale blue sheet with a diagonal sheen band and
+      // hairline cracks so it reads as slick, walkable lake ice.
+      ctx.fillStyle = '#a8d8ee'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#cdeaf8';
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.15, y);  ctx.lineTo(x + s*0.45, y);
+      ctx.lineTo(x + s*0.15, y + s); ctx.lineTo(x, y + s); ctx.lineTo(x, y + s*0.55);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#7fb8d8'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.55, y + s*0.18); ctx.lineTo(x + s*0.72, y + s*0.42);
+      ctx.lineTo(x + s*0.64, y + s*0.66);
+      ctx.moveTo(x + s*0.72, y + s*0.42); ctx.lineTo(x + s*0.88, y + s*0.50);
+      ctx.stroke();
+      ctx.fillStyle = '#eaf6fc';
+      ctx.fillRect(x + s*0.22, y + s*0.72, 2, 2);
       break; }
     case T.OASIS_WATER: {
       // Brighter turquoise pool with a small shimmer wave.
@@ -4317,6 +4358,45 @@ function drawFog() {
 let showMinimap = false;
 
 // ─── Main render entry point ──────────────────────────────────────────────────
+// ─── Whirlpool suction overlay ────────────────────────────────────────────────
+// Drawn after the tile pass so the churn can spill over the neighboring water
+// tiles without being overdrawn: faint foam streamlines plus spray droplets
+// being dragged from the 1-tile pull ring down into the eye. Telegraphs the
+// grab radius of stepWhirlpoolPull.
+function drawWhirlpoolSuction(col, row, s) {
+  const cx = Math.floor((col - camC) * s) + s / 2;
+  const cy = Math.floor((row - camR) * s) + s / 2;
+  const t = Date.now() / 1000;
+  ctx.save();
+  // Three spiral streamlines winding from the pull ring into the funnel.
+  ctx.strokeStyle = 'rgba(214,236,255,0.38)';
+  ctx.lineWidth = Math.max(1, s * 0.05);
+  for (let k = 0; k < 3; k++) {
+    ctx.beginPath();
+    for (let i = 0; i <= 12; i++) {
+      const f = i / 12;
+      const ang = -t * 4 + k * (Math.PI * 2 / 3) + f * 2.6;
+      const r = s * (1.45 - 1.05 * f);
+      const px = cx + Math.cos(ang) * r, py = cy + Math.sin(ang) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  // Spray droplets caught in the current — each loops from rim to eye,
+  // shrinking as it's pulled down.
+  ctx.fillStyle = 'rgba(234,244,255,0.85)';
+  for (let k = 0; k < 6; k++) {
+    const f = (t * 0.55 + k / 6) % 1;
+    const ang = -t * 4 + k * 2.3 + f * 3.2;
+    const r = s * (1.5 - 1.25 * f);
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r,
+            Math.max(1, s * 0.06 * (1 - f * 0.6)), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function render() {
   ctx.clearRect(0, 0, PW, PH);
   const ts = TILE_PX;
@@ -4339,6 +4419,15 @@ function render() {
         continue;
       }
       drawTile(mc, mr, map[mr][mc], sx, sy, ts);
+    }
+  }
+
+  // Whirlpool suction overlays — after the tile pass so the churn spills over
+  // the surrounding 3×3 of water instead of being overdrawn by neighbors.
+  for (let mr = startR; mr <= endR; mr++) {
+    for (let mc = startC; mc <= endC; mc++) {
+      if (mr < 0 || mr >= MROWS || mc < 0 || mc >= MCOLS) continue;
+      if (map[mr][mc] === T.WHIRLPOOL) drawWhirlpoolSuction(mc, mr, ts);
     }
   }
 

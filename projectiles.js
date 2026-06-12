@@ -37,6 +37,9 @@ const TROPHY_META = {
   ectoplasm: { icon: '👻', label: 'Ectoplasm',      color: '#ccddee' },
   eye:       { icon: '👁️', label: 'Eye',            color: '#cc88dd' },
   brain:     { icon: '🧠', label: 'Brain',          color: '#ffaabb' },
+  // Not a monster trophy — packed powder blasted out of ice-region SNOW_DRIFTs
+  // (50% per drift bombed). Sold at the General Store like bone meal.
+  snowball:  { icon: '⚪', label: 'Snowball',       color: '#eef6ff' },
 };
 
 function spawnParticle(wx, wy, color, n = 6, size = 3) {
@@ -406,13 +409,15 @@ function stepProjectiles(dt, map) {
         player.invincible = 900;
         if (player.hp <= 0) respawn();
       }
-      // Destroy rocks in blast radius. Each broken rock has a 40% chance to
-      // drop 1–20 rupees on its tile. Use floor (not round) so the
+      // Destroy rocks and snow drifts in blast radius. Each broken rock has a
+      // 40% chance to drop 1–20 rupees on its tile; each flattened drift has a
+      // 50% chance to leave a sellable snowball. Use floor (not round) so the
       // tile-centered bomb position (bx + 0.5) maps to its actual tile bx.
       const btc = Math.floor(p.tx), btr = Math.floor(p.ty);
       for (let dr = -BLAST; dr <= BLAST; dr++) for (let dc = -BLAST; dc <= BLAST; dc++) {
         const tr = btr + dr, tc = btc + dc;
-        if (tr > 0 && tr < MROWS - 1 && tc > 0 && tc < MCOLS - 1 && map[tr][tc] === T.ROCK) {
+        if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
+        if (map[tr][tc] === T.ROCK) {
           // 5% chance the rock concealed a cave tunnel — wins over rupee roll
           if (Math.random() < 0.05) {
             map[tr][tc] = T.CAVE_ENTRANCE;
@@ -426,6 +431,17 @@ function stepProjectiles(dt, map) {
                 life: 10000, bob: 0, collected: false
               });
             }
+          }
+        } else if (map[tr][tc] === T.SNOW_DRIFT) {
+          // The blast flattens the drift to open snow; half the time the
+          // packed powder survives as a snowball.
+          map[tr][tc] = T.SNOW;
+          if (Math.random() < 0.50) {
+            drops.push({
+              type: 'snowball', val: 1,
+              x: tc, y: tr,
+              life: 10000, bob: 0, collected: false
+            });
           }
         }
       }

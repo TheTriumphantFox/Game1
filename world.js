@@ -196,6 +196,54 @@ function createCaveMap(returnMapId, returnX, returnY) {
   return newId;
 }
 
+// Build the sunken arena reached by diving into a WHIRLPOOL: a 50×50 sheet of
+// open medium water set in impassable deep water, with the return vortex east
+// of center. The player surfaces at the exact center of the pool.
+const GROTTO_HALF = 25;   // 50×50 arena
+function buildWhirlpoolGrottoMap() {
+  const m = makeTile(MROWS, MCOLS, T.DEEP_WATER);
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  setRect(m, cy - GROTTO_HALF, cx - GROTTO_HALF,
+             cy + GROTTO_HALF - 1, cx + GROTTO_HALF - 1, T.MEDIUM_WATER);
+  // The way back out — far enough from the center spawn that the player isn't
+  // grabbed again before getting their bearings.
+  m[cy][cx + 15] = T.WHIRLPOOL;
+  return m;
+}
+
+// Create the grotto behind a specific whirlpool. Like caves, grottos live off
+// the (gx, gy) grid and are only reachable through their source vortex; the
+// grotto's own whirlpool returns to (returnMapId, returnX, returnY) — the
+// tile of the vortex that swallowed the player. `sourceTier` (stored as
+// depth) bands how mean the swimmers are (see makeGrottoEnemyDefs).
+function createWhirlpoolGrottoMap(returnMapId, returnX, returnY, sourceTier) {
+  const newId = worldMaps.length;
+  const src = worldMaps[returnMapId];
+  const mapTiles = buildWhirlpoolGrottoMap();
+  const obj = {
+    id: newId, gx: 0, gy: 0,
+    name: 'Whirlpool Grotto',
+    type: 'whirlpool_grotto', biome: src.biome, regionIdx: src.regionIdx,
+    depth: sourceTier,
+    map: mapTiles,
+    enemyDefs: makeEnemyDefs(sourceTier, 'whirlpool_grotto', mapTiles),
+    openedChests: new Set(),
+    visited: true,
+    returnMapId, returnX, returnY,
+    // One open pool — pre-reveal all of it so the fight reads at a glance.
+    fog: (() => {
+      const f = new Uint8Array(MCOLS * MROWS);
+      const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+      for (let r = cy - GROTTO_HALF - 2; r <= cy + GROTTO_HALF + 2; r++)
+        for (let c = cx - GROTTO_HALF - 2; c <= cx + GROTTO_HALF + 2; c++)
+          if (r >= 0 && r < MROWS && c >= 0 && c < MCOLS) f[r * MCOLS + c] = 1;
+      return f;
+    })()
+  };
+  worldMaps.push(obj);
+  return newId;
+}
+
 // Build a dead-end map attached to `sourceId` in `direction`. The only open
 // border faces back toward the source map, so the player can step in and must
 // step back out the same way. Tile palette matches the source's region — the

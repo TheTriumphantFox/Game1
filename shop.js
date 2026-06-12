@@ -111,6 +111,7 @@ const TROPHY_SELL = [
   { key: 'herbals',    icon: '🌿', label: 'Herbal',         value: 5  },
   { key: 'mushrooms',  icon: '🍄', label: 'Mushroom',       value: 5  },
   { key: 'bonemeal',   icon: '🧂', label: 'Bone Meal',      value: 8  },
+  { key: 'snowballs',  icon: '⚪', label: 'Snowball',       value: 6  },
 ];
 
 // Potions sell one at a time (selling the whole stack at once would be too

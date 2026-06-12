@@ -28,6 +28,9 @@ function update(dt) {
   // Movement (also handles pickup + map transitions)
   stepPlayerMovement();
 
+  // Whirlpool suction — grabs the hero when swimming within a tile of one
+  stepWhirlpoolPull(dt);
+
   // Attacks
   const actZ = keys[' '] || keys['z'] || keys['Z'];
   const actX = keys['x'] || keys['X'];

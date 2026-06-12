@@ -44,6 +44,10 @@ function buildSaveData() {
       returnX: m.returnX,
       returnY: m.returnY,
       caveLinks: m.caveLinks ? { ...m.caveLinks } : undefined,
+      // Whirlpool grotto linkage — set on source maps that opened a grotto,
+      // plus the cleared-chest flag on the grotto itself.
+      grottoLinks: m.grottoLinks ? { ...m.grottoLinks } : undefined,
+      grottoChestPlaced: m.grottoChestPlaced || undefined,
       // Village activation state
       activated: m.activated || false,
       innDoor: m.innDoor || undefined,
@@ -75,6 +79,7 @@ const DEFAULT_PLAYER = {
   cores: 0, shards: 0, pelts: 0, tusks: 0, scales: 0, stones: 0,
   sparks: 0, horns: 0, motes: 0, ectoplasms: 0, eyes: 0, brains: 0,
   bonemeal: 0,
+  snowballs: 0,
   // swordElements / arrows are populated by applyStartingInventory() at boot
   // and on newGame, once SWORD_ELEMENTS has loaded.
   swordElements: [],
@@ -130,6 +135,7 @@ function applyLoadData(data) {
       ? decodeMap(lite.mapTiles)
       : lite.type === 'village' ? buildVillageMap(region.id)
       : lite.type === 'cave'    ? buildCaveMap()
+      : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
       : lite.type === 'house'   ? buildStarterHouseMap()
       : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth)
       : lite.type === 'fire' || lite.type === 'desert'
@@ -156,6 +162,8 @@ function applyLoadData(data) {
       obj.returnY = lite.returnY;
     }
     if (lite.caveLinks) obj.caveLinks = { ...lite.caveLinks };
+    if (lite.grottoLinks) obj.grottoLinks = { ...lite.grottoLinks };
+    if (lite.grottoChestPlaced) obj.grottoChestPlaced = true;
     if (lite.activated) obj.activated = true;
     if (lite.innDoor)   obj.innDoor   = { ...lite.innDoor };
     if (lite.storeDoor) obj.storeDoor = { ...lite.storeDoor };

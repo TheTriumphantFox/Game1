@@ -72,6 +72,9 @@ let player = {
   // Bone meal — ground from desert bone piles cut down by the sword. Starts at 0
   // since it's earned in the field, not granted.
   bonemeal: 0,
+  // Snowballs — packed powder blasted out of ice-region snow drifts (50% per
+  // bombed drift). Field-earned like bone meal, so it starts at 0.
+  snowballs: 0,
   // The collection of elemental swords the player owns (each id from
   // SWORD_ELEMENTS in elements.js). Elemental swords are now specific weapons
   // — they don't stack on the base sword. Only one is wielded at a time.
@@ -142,6 +145,7 @@ function useMedPotion() {
 // Tick/cooldown state
 let moveTimer = 0;
 const MOVE_MS = 110;             // ms between movement steps (grid-based)
+const ICE_SLIDE_MS = 50;         // released walk input stays live this long on ICE
 
 // ── Climb / jump animation state (read by drawPlayer in render.js) ────────────
 // A "jump" is a short timed hop arc, triggered when the player mounts or leaves
@@ -156,6 +160,9 @@ let transitionCooldown = 0;      // brief lockout after a map transition
 
 // Input
 let keys = {};
+// Latest walking input + when it was last live — drives the ice slide in
+// stepPlayerMovement (released input stays active ICE_SLIDE_MS on ICE).
+let lastWalkInput = { mx: 0, my: 0, t: -1 };
 
 // Camera tracks player position. We keep a *target* and the *actual* camera
 // position separately so the world can smoothly chase the player rather than
@@ -219,7 +226,7 @@ function gainXP(amt) {
 function respawn() {
   player.hp = player.maxHp;
   currentMapId = 0;
-  player.x = EXIT_COL; player.y = Math.floor(MROWS / 2);
+  placePlayerInStarterHouse(worldMaps[0]);  // same spot as a fresh game: beside the bed
   player.rupees = Math.max(0, player.rupees - 10);  // small death penalty
   clampCam(true);
   spawnEnemiesForMap(0);
@@ -386,6 +393,24 @@ function killEnemy(e) {
   } else {
     showMsg(`⚔️ ${e.name} defeated! +${e.xp} XP`, 1500);
   }
+  // Clearing a whirlpool grotto surfaces its sunken treasure: a large chest
+  // rises west of the arena's heart, mirroring the exit vortex to the east.
+  if (cm && cm.type === 'whirlpool_grotto' && !cm.grottoChestPlaced &&
+      enemies.every(en => en.dead)) {
+    cm.grottoChestPlaced = true;
+    const gm = cm.map;
+    const ccx = Math.floor(MCOLS / 2) - 15;
+    let ccy = Math.floor(MROWS / 2);
+    // Chests are solid — nudge down a row if the hero is floating right there.
+    if (player.y === ccy && (player.x === ccx || player.x === ccx + 1)) ccy++;
+    gm[ccy][ccx] = T.LARGE_CHEST;
+    gm[ccy][ccx + 1] = T.LARGE_CHEST_R;
+    minimapDirty = true;
+    const csp = screenPX(ccx, ccy);
+    spawnParticle(csp.x, csp.y, '#ffdd00', 18, 5);
+    spawnParticle(csp.x, csp.y, '#bfe6f4', 12, 3);
+    showMapMsg('💰 The waters calm — a sunken chest surfaces!');
+  }
   // Clearing the village wakes it up into an active town.
   if (cm && cm.type === 'village' && !cm.activated && enemies.every(en => en.dead)) {
     if (activateVillage(cm)) {
@@ -516,8 +541,8 @@ function handlePickup(bnx, bny, map) {
     const sp = screenPX(bnx, bny);
     spawnParticle(sp.x, sp.y, '#ffcc00', 12, 4);
   }
-  if (map[bny][bnx] === T.SHRINE && !currentMap().openedChests.has(`shrine_${bnx},${bny}`)) {
-    currentMap().openedChests.add(`shrine_${bnx},${bny}`);
+  // Shrines are reusable — every step onto one restores full HP.
+  if (map[bny][bnx] === T.SHRINE) {
     player.hp = player.maxHp;
     showMsg('🙏 Ancient Shrine — HP fully restored!', 2500);
     const sp = screenPX(bnx, bny);
@@ -732,18 +757,33 @@ function tryCaveTransition() {
 // ─── Player movement step ─────────────────────────────────────────────────────
 // Called from update(); reads `keys` and steps once per MOVE_MS.
 function stepPlayerMovement() {
+  if (whirlpoolChurnMs > 0) return;   // caught in the vortex — can't swim free
   let mx = 0, my = 0;
   if      (keys['ArrowLeft']  || keys['a'] || keys['A']) mx = -1;
   else if (keys['ArrowRight'] || keys['d'] || keys['D']) mx = 1;
   if      (keys['ArrowUp']    || keys['w'] || keys['W']) my = -1;
   else if (keys['ArrowDown']  || keys['s'] || keys['S']) my = 1;
-  if (!mx && !my) return;
   const map = mapData();
-  // Trudging through a sand DUNE (fire-region only terrain) halves walk speed;
-  // swimming through MEDIUM_WATER is slower still — 40% of normal pace
-  // (interval × 2.5). The step gate stretches to match while standing on one.
+  if (mx || my) {
+    // Remember the live walking input for the ice slide below.
+    lastWalkInput.mx = mx; lastWalkInput.my = my; lastWalkInput.t = Date.now();
+  } else {
+    // Slippery ice: standing on an ICE sheet keeps the released walk input
+    // active for an extra ICE_SLIDE_MS, so the hero glides one extra beat
+    // before stopping instead of halting on a dime.
+    if (map[player.y][player.x] === T.ICE && lastWalkInput.t >= 0 &&
+        Date.now() - lastWalkInput.t <= ICE_SLIDE_MS) {
+      mx = lastWalkInput.mx; my = lastWalkInput.my;
+    }
+    if (!mx && !my) return;
+  }
+  // Trudging through a sand DUNE (fire region) or a SNOW_DRIFT (ice region)
+  // halves walk speed; swimming through MEDIUM_WATER is slower still — 40% of
+  // normal pace (interval × 2.5). The step gate stretches to match while
+  // standing on one.
   const standTile = map[player.y][player.x];
   const stepMs = standTile === T.DUNE         ? MOVE_MS * 2
+               : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
                : standTile === T.MEDIUM_WATER ? MOVE_MS * 2.5
                : MOVE_MS;
   if (moveTimer < stepMs) return;
@@ -819,6 +859,144 @@ function stepPlayerMovement() {
   clampCam();
   revealAround(currentMap(), player.x, player.y, 12);
   if (!tryPortalInteraction() && !tryCaveTransition()) tryTransition();
+}
+
+// ─── Whirlpool suction ────────────────────────────────────────────────────────
+// Whirlpools actively grab swimmers: getting within 1 tile (Chebyshev) of one
+// drags the hero to its eye, churns them under for a moment (movement locked,
+// 2 damage), then spits them out a few tiles away. A short cooldown after the
+// throw keeps the vortex from chaining grabs back-to-back.
+let whirlpoolChurnMs = 0;        // >0 while caught — stepPlayerMovement is locked
+let whirlpoolCooldown = 0;       // re-grab lockout after being spat out
+let whirlpoolSprayAcc = 0;       // spray-particle drip timer while churning
+const WHIRLPOOL_CHURN_MS  = 750;
+const WHIRLPOOL_REGRAB_MS = 1500;
+
+function stepWhirlpoolPull(dt) {
+  const map = mapData();
+  if (whirlpoolCooldown > 0) whirlpoolCooldown -= dt;
+
+  // Mid-churn: spin spray off the vortex, then throw the hero clear. If the
+  // player is no longer on a whirlpool (map load / teleport), cancel cleanly.
+  if (whirlpoolChurnMs > 0) {
+    if (map[player.y][player.x] !== T.WHIRLPOOL) { whirlpoolChurnMs = 0; return; }
+    whirlpoolChurnMs -= dt;
+    whirlpoolSprayAcc += dt;
+    if (whirlpoolSprayAcc > 90) {
+      whirlpoolSprayAcc = 0;
+      const sp = screenPX(player.renderX, player.renderY);
+      spawnParticle(sp.x, sp.y, '#eaf4ff', 3, 3);
+      spawnParticle(sp.x, sp.y, '#3f79ad', 2, 2);
+    }
+    if (whirlpoolChurnMs <= 0) resolveWhirlpoolDive();
+    return;
+  }
+  if (whirlpoolCooldown > 0) return;
+
+  // Grab check — any whirlpool within 1 tile of the player?
+  let wx = -1, wy = -1;
+  for (let dr = -1; dr <= 1 && wx < 0; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const c = player.x + dc, r = player.y + dr;
+      if (r >= 0 && r < MROWS && c >= 0 && c < MCOLS &&
+          map[r][c] === T.WHIRLPOOL) { wx = c; wy = r; break; }
+    }
+  }
+  if (wx < 0) return;
+
+  // Caught — drag to the eye (the render lerp animates the pull) and churn.
+  player.x = wx; player.y = wy;
+  playerJumpStart = Date.now();
+  whirlpoolChurnMs = WHIRLPOOL_CHURN_MS;
+  clampCam();
+  const sp = screenPX(wx, wy);
+  spawnParticle(sp.x, sp.y, '#eaf4ff', 14, 4);
+  spawnParticle(sp.x, sp.y, '#2c5d8e', 10, 3);
+  showMsg('🌀 The whirlpool drags you under!', 2000);
+  if (player.invincible <= 0) {
+    damagePlayer(2, null);
+    player.invincible = 900;
+    if (player.hp <= 0) { whirlpoolChurnMs = 0; respawn(); }
+  }
+}
+
+// Churn finished — the vortex swallows the hero. A whirlpool on a normal map
+// dives down into its flooded grotto (created on first visit, then reused);
+// the grotto's own vortex returns to the map that swallowed the player,
+// surfacing them beside the original whirlpool.
+function resolveWhirlpoolDive() {
+  const cm = currentMap();
+  if (cm.type === 'whirlpool_grotto') exitWhirlpoolGrotto(cm);
+  else enterWhirlpoolGrotto(cm);
+}
+
+function enterWhirlpoolGrotto(cm) {
+  saveEnemyStateToMap(currentMapId);
+  saveVillagersToMap(currentMapId);
+  const wx = player.x, wy = player.y;        // the vortex tile we're on
+  cm.grottoLinks = cm.grottoLinks || {};
+  const key = `${wx},${wy}`;
+  let gid = cm.grottoLinks[key];
+  if (gid == null) {
+    const tier = (typeof cm.regionIdx === 'number' && REGIONS[cm.regionIdx])
+      ? REGIONS[cm.regionIdx].enemyTier : 0;
+    gid = createWhirlpoolGrottoMap(currentMapId, wx, wy, tier);
+    cm.grottoLinks[key] = gid;
+  }
+  currentMapId = gid;
+  player.x = Math.floor(MCOLS / 2);
+  player.y = Math.floor(MROWS / 2);
+  spawnEnemiesForMap(gid);
+  spawnVillagersForMap(gid);
+  transitionCooldown = 400;
+  whirlpoolCooldown = WHIRLPOOL_REGRAB_MS;
+  minimapDirty = true;
+  clampCam(true);
+  revealAround(currentMap(), player.x, player.y, 16);
+  showMapMsg('🌀 The vortex drags you down into a flooded grotto!');
+}
+
+function exitWhirlpoolGrotto(cm) {
+  saveEnemyStateToMap(currentMapId);    // dead swimmers stay dead on re-entry
+  saveVillagersToMap(currentMapId);
+  currentMapId = cm.returnMapId;
+  player.x = cm.returnX; player.y = cm.returnY;
+  spawnEnemiesForMap(currentMapId);
+  spawnVillagersForMap(currentMapId);
+  // Scatter off the vortex into nearby open water (also arms the re-grab
+  // cooldown so the whirlpool can't swallow the hero straight back).
+  ejectFromWhirlpool(mapData());
+  transitionCooldown = 600;
+  minimapDirty = true;
+  clampCam(true);
+  revealAround(currentMap(), player.x, player.y, 12);
+  showMapMsg('🌊 The whirlpool spits you back out!');
+}
+
+// Throw the hero out to open water 2–3 tiles from the vortex — past the pull
+// ring, so they aren't grabbed straight back. If no medium-water tile exists
+// out there (hemmed in by deep water), leave them treading on the vortex; the
+// re-grab cooldown gives them time to swim clear.
+function ejectFromWhirlpool(map) {
+  const exits = [];
+  for (let dr = -3; dr <= 3; dr++) {
+    for (let dc = -3; dc <= 3; dc++) {
+      if (Math.max(Math.abs(dr), Math.abs(dc)) < 2) continue;
+      const c = player.x + dc, r = player.y + dr;
+      if (r > 0 && r < MROWS - 1 && c > 0 && c < MCOLS - 1 &&
+          map[r][c] === T.MEDIUM_WATER) exits.push({ c, r });
+    }
+  }
+  if (exits.length) {
+    const out = exits[Math.floor(Math.random() * exits.length)];
+    player.x = out.c; player.y = out.r;
+  }
+  playerJumpStart = Date.now();
+  whirlpoolCooldown = WHIRLPOOL_REGRAB_MS;
+  clampCam();
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#bfe6f4', 8, 3);
+  spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#5aa8c8', 5, 2);
 }
 
 // Stepping onto the cabin's PORTAL tile opens the destination-select modal.
