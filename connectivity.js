@@ -33,6 +33,15 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
              t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL);
   };
 
+  // The flood may also swim through medium-depth water, so areas reachable only
+  // by wading — e.g. a doorway hidden behind a waterfall's splash pool — still
+  // count as accessible. Medium water itself is never sealed (it isn't
+  // `passable`), so widening the flood only ever *reduces* sealing.
+  const floodable = (c, r) => {
+    if (c < 0 || r < 0 || c >= W || r >= H) return false;
+    return passable(c, r) || m[r][c] === T.MEDIUM_WATER;
+  };
+
   // Tiles we must keep reachable even if it means carving a path to them.
   // preserveFloor=true is used for village maps where house interiors (FLOOR)
   // are intentionally walled off but contain doors/chests.
@@ -50,7 +59,7 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
     [0, EXIT_COL], [H - 1, EXIT_COL]
   ];
   for (const [sr, sc] of seeds) {
-    if (passable(sc, sr)) {
+    if (floodable(sc, sr)) {
       reachable[sr * W + sc] = 1;
       stack.push([sr, sc]);
     }
@@ -63,7 +72,7 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
       const nr = r + dr, nc = c + dc;
       if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
       if (reachable[nr * W + nc]) continue;
-      if (!passable(nc, nr)) continue;
+      if (!floodable(nc, nr)) continue;
       reachable[nr * W + nc] = 1;
       stack.push([nr, nc]);
     }

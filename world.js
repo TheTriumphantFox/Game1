@@ -31,6 +31,36 @@ const DIR_DELTA = {
 
 function gridKey(gx, gy) { return `${gx},${gy}`; }
 
+const OPPOSITE_DIR = { left: 'right', right: 'left', up: 'down', down: 'up' };
+
+// Is the exit gate on `side` of this map walkable — i.e. a real transition?
+// Mirrors the overworld border-gap test (a carved PATH gate at the edge mid).
+function mapEdgeOpen(mapObj, side) {
+  if (!mapObj || !mapObj.map) return false;
+  const m = mapObj.map;
+  if (side === 'left')  return !isSolid(m, 0, EXIT_ROW);
+  if (side === 'right') return !isSolid(m, MCOLS - 1, EXIT_ROW);
+  if (side === 'up')    return !isSolid(m, EXIT_COL, 0);
+  return !isSolid(m, EXIT_COL, MROWS - 1);   // down
+}
+
+// Given the open sides a new map at (gx, gy) wants, seal any side facing an
+// already-existing neighbor that has NO transition back toward this map. This
+// keeps shared borders consistent: a freshly generated map never opens a one-way
+// doorway into an existing map that can't return the favor (which previously
+// stranded the hero on a solid tile). Empty neighbor cells are left as requested
+// — they'll reciprocate this map's opening when they're generated later.
+function reconcileOpenSides(gx, gy, baseOpen) {
+  const open = { ...baseOpen };
+  for (const dir of ['left', 'right', 'up', 'down']) {
+    const nId = worldGrid[gridKey(gx + DIR_DELTA[dir].dx, gy + DIR_DELTA[dir].dy)];
+    if (nId !== undefined && !mapEdgeOpen(worldMaps[nId], OPPOSITE_DIR[dir])) {
+      open[dir] = false;   // neighbor doesn't lead back here → don't open toward it
+    }
+  }
+  return open;
+}
+
 function currentMap() { return worldMaps[currentMapId]; }
 function mapData()    { return currentMap().map; }
 
@@ -114,7 +144,10 @@ function createOverworldMap(id, gx, gy, regionIdx) {
   const depth = Math.min(visited + 1, 20);
   const namePool = region.names || FOREST_NAMES;
   const name = namePool[Math.floor(Math.random() * namePool.length)] + ` [${depth}]`;
-  const mapTiles = buildOverworldForRegion(regionIdx, id, depth);
+  // Open every side that isn't blocked by an existing, non-reciprocating
+  // neighbor, so we never create a one-way transition into a sealed map.
+  const openSides = reconcileOpenSides(gx, gy, { left: true, right: true, up: true, down: true });
+  const mapTiles = buildOverworldForRegion(regionIdx, id, depth, openSides);
   const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
   return {
     id, gx, gy,
@@ -196,6 +229,41 @@ function createCaveMap(returnMapId, returnX, returnY) {
   return newId;
 }
 
+// ─── Waterfall cave chain ──────────────────────────────────────────────────────
+// Build one level of a hidden cave chain reached through a WATERFALL_DOOR. Chains
+// live off the (gx, gy) grid — reachable only by stepping behind the falls, then
+// descending through CAVE_DESCENT tiles. Each level's CAVE_EXIT returns to
+// (returnMapId, returnX, returnY): the overworld door for level 1, the previous
+// level's descent tile thereafter. `sourceTier` (the originating region's
+// enemyTier) bands the cave roster and is stored as `depth` so save-load can
+// regenerate matching enemies. `chainDepth`/`chainLen` track position in the
+// 1d6-long chain; the final level holds the large chest instead of a way deeper.
+function createCaveChainMap(returnMapId, returnX, returnY, sourceTier, chainDepth, chainLen) {
+  const newId = worldMaps.length;
+  const isFinal = chainDepth >= chainLen;
+  const built = buildCaveLevelMap(isFinal);
+  const obj = {
+    id: newId, gx: 0, gy: 0,
+    name: isFinal ? 'Cave — The Deep Hollow' : `Hidden Cave (${chainDepth}/${chainLen})`,
+    type: 'cave_chain', depth: sourceTier,
+    sourceTier, chainDepth, chainLen,
+    map: built.map,
+    // Inner landing tiles beside this level's two transitions: `entryLand` is
+    // beside the CAVE_EXIT (where you arrive descending into this level);
+    // `deeperLand` is beside the CAVE_DESCENT (where you arrive climbing back up
+    // from below). `deeperLand` is null on the final level (no way deeper).
+    entryLand: built.entryLand,
+    deeperLand: built.deeperLand,
+    enemyDefs: makeCaveEnemyDefs(sourceTier, built.map),
+    openedChests: new Set(),
+    visited: true,
+    returnMapId, returnX, returnY
+    // Fog is created lazily — a full-sized cave is explored, not pre-revealed.
+  };
+  worldMaps.push(obj);
+  return newId;
+}
+
 // Build the sunken arena reached by diving into a WHIRLPOOL: a 50×50 sheet of
 // open medium water set in impassable deep water, with the return vortex east
 // of center. The player surfaces at the exact center of the pool.
@@ -256,8 +324,11 @@ function createSealedNeighbor(sourceId, direction) {
   if (worldGrid[key] !== undefined) return worldGrid[key];
 
   const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
-  const openSides = { left: false, right: false, up: false, down: false };
-  openSides[OPPOSITE[direction]] = true;
+  const baseOpen = { left: false, right: false, up: false, down: false };
+  baseOpen[OPPOSITE[direction]] = true;
+  // Reconcile against existing neighbors: only keep the entrance open if the
+  // source actually leads here (it should — but stay consistent regardless).
+  const openSides = reconcileOpenSides(ngx, ngy, baseOpen);
 
   const newId = worldMaps.length;
   const depth = Math.min(src.depth || 0, 20);

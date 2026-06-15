@@ -1,9 +1,11 @@
 // ─── HUD updates and toast messages ───────────────────────────────────────────
 // Stateless — reads from `player`, `currentMap()`, `mapsVisited`.
 
-// Render one HP heart as inline SVG. `filled` red wedges clockwise from the top,
-// remaining wedges black. Radial slices are clipped to a heart silhouette so the
-// 6 segments still divide angularly while the overall shape reads as a heart.
+// Render one HP heart as inline SVG, divided into `total` angular wedges. HP is
+// spent from the top-right wedge clockwise, so the empty wedges are the first
+// (total - filled) going clockwise from the top, and the `filled` remaining HP
+// keeps the rest red. Radial slices are clipped to a heart silhouette so the
+// segments still divide angularly while the overall shape reads as a heart.
 let _hpHeartId = 0;
 function hpPieSVG(filled, total = 6, size = 16, fillColor = '#e24b4a') {
   const id = `hpclip${++_hpHeartId}`;
@@ -18,7 +20,7 @@ function hpPieSVG(filled, total = 6, size = 16, fillColor = '#e24b4a') {
     const a1 = (i + 1) * sweep - Math.PI / 2;
     const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
     const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-    const color = i < filled ? fillColor : '#111';
+    const color = i >= total - filled ? fillColor : '#111';
     slices += `<path d="M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} A${r},${r} 0 0,1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${color}" stroke="#000" stroke-width="0.5"/>`;
   }
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:2px"><defs><clipPath id="${id}"><path d="${heart}"/></clipPath></defs><g clip-path="url(#${id})">${slices}</g><path d="${heart}" fill="none" stroke="#000" stroke-width="0.8"/></svg>`;

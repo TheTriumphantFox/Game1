@@ -73,7 +73,15 @@ const T = {
   // Ice region: deep powder banks scattered across the snowfields — the ice
   // region's answer to the desert DUNE. Passable but trudging through one
   // halves walk speed (see stepPlayerMovement).
-  SNOW_DRIFT:73
+  SNOW_DRIFT:73,
+  // A hidden doorway concealed behind the rushing water at the base of a
+  // forest WATERFALL. Renders exactly like the falling water but with a faint
+  // glow (the only indicator). Passable — stepping into it drops the player
+  // into a chain of hidden cave maps (see tryCaveTransition).
+  WATERFALL_DOOR:74,
+  // A passage leading deeper into a cave chain — placed at the back of every
+  // non-final cave chamber. Passable; stepping on it descends one level.
+  CAVE_DESCENT:75
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -122,6 +130,9 @@ const TILE_COLORS = {
   [T.WHIRLPOOL]: '#16406e',
   // Forest water/terrain features — bright falling water + rocky cliff face.
   [T.WATERFALL]: '#3f7fd0', [T.CLIFF]: '#6a5f52',
+  // Waterfall doorway reads as falling water on the minimap; the cave descent
+  // is a dark hole.
+  [T.WATERFALL_DOOR]: '#3f7fd0', [T.CAVE_DESCENT]: '#0a0a0a',
   // Desert terrain features — sandstone plateau, sandy climbing ramp, and a
   // flowering cactus (green body reads against sand on the minimap).
   [T.PLATEAU]: '#b5743a', [T.CLIMB]: '#caa46a', [T.FLOWERING_CACTUS]: '#3a7a3a',

@@ -1364,6 +1364,52 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
       ctx.fillRect(x + s*0.3, y + ((tt / 120 + col * 3 + row * 7) % s), 1.5, 1.5);
       break; }
+    case T.WATERFALL_DOOR: {
+      // Identical to the falling water — a concealed door — save for a faint
+      // glow welling up from behind the curtain. That glow is the ONLY hint the
+      // passage exists.
+      ctx.fillStyle = '#2f5fb0'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = 'rgba(30,60,120,0.5)'; ctx.fillRect(x, y, s*0.5, s);
+      // Glow behind the water, under the streaks.
+      const dpulse = Math.sin(Date.now()/360) * 0.5 + 0.5;
+      const dgrad = ctx.createRadialGradient(x+s/2, y+s*0.62, 1, x+s/2, y+s*0.62, s*0.62);
+      dgrad.addColorStop(0, `rgba(150,235,255,${0.30 + dpulse*0.38})`);
+      dgrad.addColorStop(1, 'rgba(150,235,255,0)');
+      ctx.fillStyle = dgrad; ctx.fillRect(x, y, s, s);
+      const dtt = Date.now();
+      for (let i = 0; i < 4; i++) {
+        const lane  = x + s * (0.12 + i * 0.24);
+        const speed = 230 + (i % 2) * 90;
+        const yy = ((dtt / speed * s) + i * 7 + col * 5 + row * 13) % s;
+        ctx.fillStyle = 'rgba(210,235,255,0.9)';
+        ctx.fillRect(lane, y + yy,     2, s * 0.45);
+        ctx.fillRect(lane, y + yy - s, 2, s * 0.45);
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillRect(x + s*0.3, y + ((dtt / 120 + col * 3 + row * 7) % s), 1.5, 1.5);
+      break; }
+    case T.CAVE_DESCENT: {
+      // A passage leading deeper — a dark pit with downward chevrons, distinct
+      // from the CAVE_EXIT's bright return portal.
+      ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x, y, s, s);
+      const cgrad = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.48);
+      cgrad.addColorStop(0, '#000');
+      cgrad.addColorStop(0.65, '#0a0a10');
+      cgrad.addColorStop(1, '#2a1d10');
+      ctx.fillStyle = cgrad;
+      ctx.beginPath(); ctx.arc(x+s/2, y+s/2, s*0.44, 0, Math.PI*2); ctx.fill();
+      const cglow = (Math.sin(Date.now()/300) * 0.5 + 0.5) * 0.5 + 0.3;
+      ctx.strokeStyle = `rgba(150,200,160,${cglow})`;
+      ctx.lineWidth = Math.max(1, s*0.04);
+      for (let i = 0; i < 2; i++) {
+        const yy = y + s*(0.40 + i*0.16);
+        ctx.beginPath();
+        ctx.moveTo(x+s*0.36, yy);
+        ctx.lineTo(x+s*0.50, yy + s*0.12);
+        ctx.lineTo(x+s*0.64, yy);
+        ctx.stroke();
+      }
+      break; }
     case T.CLIFF: {
       // Rocky cliff face — layered strata with cracks and a chiselled top-left
       // light edge. Jittered by tile coords so adjacent faces aren't identical.
@@ -4253,6 +4299,29 @@ function drawProjectile(p) {
 let minimapDirty = true;
 let minimapCanvases = {};   // keyed by mapId
 
+// Which of the four map edges actually lead somewhere, so the minimap only
+// draws an exit arrow where a real transition exists. An edge counts when the
+// border has a walkable gap at the exit gate (overworld exit) OR a cave
+// transition tile (CAVE_EXIT / CAVE_DESCENT) sits at that edge's midpoint
+// (waterfall cave levels). Interior transitions — a cache cave's central exit,
+// a whirlpool, a hidden waterfall door — aren't edges and get no arrow.
+function edgeTransitions(mapObj) {
+  const m = mapObj.map;
+  const isTrans = (t) => t === T.CAVE_EXIT || t === T.CAVE_DESCENT;
+  const gap = (c, r) => !isSolid(m, c, r);                 // overworld border gap
+  const nearMid = (rows, cols) => {                        // cave transition at edge mid
+    for (const r of rows) for (const c of cols) if (isTrans(m[r][c])) return true;
+    return false;
+  };
+  const band = [0, 1, 2, 3, 4];
+  return {
+    left:  gap(0, EXIT_ROW)        || nearMid([EXIT_ROW], band),
+    right: gap(MCOLS - 1, EXIT_ROW)|| nearMid([EXIT_ROW], band.map(c => MCOLS - 1 - c)),
+    up:    gap(EXIT_COL, 0)        || nearMid(band, [EXIT_COL]),
+    down:  gap(EXIT_COL, MROWS - 1)|| nearMid(band.map(r => MROWS - 1 - r), [EXIT_COL])
+  };
+}
+
 function drawMinimap() {
   const scale = 1.2;
   const mw = Math.floor(MCOLS * scale), mh = Math.floor(MROWS * scale);
@@ -4293,13 +4362,15 @@ function drawMinimap() {
     ctx.fillStyle = e.boss ? '#ff00ff' : '#ff4444';
     ctx.fillRect(mx + Math.floor(e.x*scale), my + Math.floor(e.y*scale), 2, 2);
   });
-  // Exit markers
-  ctx.fillStyle = '#ffff00'; ctx.font = '8px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('▶', mx+mw-6,                            my+Math.floor(EXIT_ROW*scale)+4);
-  ctx.fillText('◀', mx+1,                               my+Math.floor(EXIT_ROW*scale)+4);
+  // Exit markers — only on edges that actually lead somewhere.
+  const exits = edgeTransitions(currentMap());
+  ctx.fillStyle = '#ffff00'; ctx.font = '8px monospace';
+  ctx.textAlign = 'left';
+  if (exits.right) ctx.fillText('▶', mx+mw-6, my+Math.floor(EXIT_ROW*scale)+4);
+  if (exits.left)  ctx.fillText('◀', mx+1,    my+Math.floor(EXIT_ROW*scale)+4);
   ctx.textAlign = 'center';
-  ctx.fillText('▲', mx+Math.floor(EXIT_COL*scale),      my+6);
-  ctx.fillText('▼', mx+Math.floor(EXIT_COL*scale),      my+mh-1);
+  if (exits.up)    ctx.fillText('▲', mx+Math.floor(EXIT_COL*scale), my+6);
+  if (exits.down)  ctx.fillText('▼', mx+Math.floor(EXIT_COL*scale), my+mh-1);
 
   // Villager dots — only meaningful in an active village
   if (typeof villagers !== 'undefined') {

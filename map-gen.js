@@ -280,6 +280,16 @@ function buildForestMap(seed, depth, openSides) {
       bridgeStream(m, link, Math.floor(link.length / 2));
       if (link.length > 40) bridgeStream(m, link, Math.floor(link.length / 4));
     }
+
+    // 99% of the time, conceal a doorway behind the rushing water at the very
+    // bottom of the falls. The door tile renders like the waterfall itself (so
+    // it's unseen) apart from a faint glow — the only hint it's there. No path
+    // is carved to it: the hero reaches it by swimming the medium-water splash
+    // pool behind the curtain. ensureConnectivity counts medium water as
+    // traversable, so the door still validates as reachable.
+    if (Math.random() < 0.99) {
+      m[fallBottom][wc] = T.WATERFALL_DOOR;
+    }
   }
 
   // Phase 12: cliff faces along the map edges — solid rock bands hugging a
@@ -778,6 +788,87 @@ function buildCaveMap() {
   m[cy + half - 2][cx - half + 1] = T.TORCH;
   m[cy + half - 2][cx + half - 2] = T.TORCH;
   return m;
+}
+
+// ─── Cave-chain level (full-sized) ──────────────────────────────────────────────
+// One level of a hidden waterfall cave chain, built on the full 150×150 grid: a
+// big open cavern walled in rock with scattered rock cover. Two transitions sit
+// at the midpoints of two randomly chosen edges (top/bottom/left/right): the way
+// back (CAVE_EXIT) you arrived through, and — on non-final levels — a passage
+// deeper (CAVE_DESCENT) on a different edge, so the hero crosses the whole cave
+// to descend. The final level swaps the deeper passage for the reward: a large
+// chest at the heart of the cavern. Returns the tiles plus the inner landing
+// tile beside each transition, so arrivals stand just inside, never on a trigger.
+
+// The transition tile (just inside the rock border) and its inner landing tile
+// for one edge.
+function caveEdgeSpot(edge) {
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  const inset = 2;
+  switch (edge) {
+    case 'top':    return { tr: inset,             tc: cx, lr: inset + 1,         lc: cx };
+    case 'bottom': return { tr: MROWS - 1 - inset, tc: cx, lr: MROWS - 2 - inset, lc: cx };
+    case 'left':   return { tr: cy, tc: inset,             lr: cy, lc: inset + 1 };
+    default:       return { tr: cy, tc: MCOLS - 1 - inset, lr: cy, lc: MCOLS - 2 - inset }; // right
+  }
+}
+
+// Carve a 3-wide CAVE_FLOOR corridor from (fromR, fromC) to the cavern centre so
+// the transition always joins the open floor.
+function carveCaveCorridor(m, fromR, fromC) {
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  let r = fromR, c = fromC;
+  for (let i = 0; i < MROWS + MCOLS && (r !== cy || c !== cx); i++) {
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      const rr = r + dr, cc = c + dc;
+      if (rr > 0 && rr < MROWS - 1 && cc > 0 && cc < MCOLS - 1) m[rr][cc] = T.CAVE_FLOOR;
+    }
+    if (r !== cy && (c === cx || Math.random() < 0.5)) r += Math.sign(cy - r);
+    else c += Math.sign(cx - c);
+  }
+}
+
+function buildCaveLevelMap(isFinal) {
+  const m = makeTile(MROWS, MCOLS, T.WALL);
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  const margin = 7;                                  // thick rock rim
+  setRect(m, margin, margin, MROWS - 1 - margin, MCOLS - 1 - margin, T.CAVE_FLOOR);
+  // Scatter rock clusters for cover without walling the cavern off. Sparse 1–3
+  // tile blobs over a 130-wide floor can't form a continuous barrier.
+  for (let i = 0; i < 70; i++) {
+    const br = rnd(margin + 3, MROWS - margin - 4), bc = rnd(margin + 3, MCOLS - margin - 4);
+    const w = rnd(1, 3), h = rnd(1, 3);
+    for (let dr = 0; dr < h; dr++) for (let dc = 0; dc < w; dc++) {
+      if (Math.abs((br + dr) - cy) <= 3 && Math.abs((bc + dc) - cx) <= 3) continue; // keep the heart open
+      if (m[br + dr][bc + dc] === T.CAVE_FLOOR) m[br + dr][bc + dc] = T.ROCK;
+    }
+  }
+  // Two distinct edges: one entrance, one for going deeper (Fisher–Yates pick 2).
+  const edges = ['top', 'bottom', 'left', 'right'];
+  for (let i = edges.length - 1; i > 0; i--) { const j = rnd(0, i); const t = edges[i]; edges[i] = edges[j]; edges[j] = t; }
+  const e = caveEdgeSpot(edges[0]);
+  carveCaveCorridor(m, e.tr, e.tc);
+  m[e.tr][e.tc] = T.CAVE_EXIT;
+  m[e.lr][e.lc] = T.CAVE_FLOOR;
+
+  let deeperLand = null;
+  if (!isFinal) {
+    const d = caveEdgeSpot(edges[1]);
+    carveCaveCorridor(m, d.tr, d.tc);
+    m[d.tr][d.tc] = T.CAVE_DESCENT;
+    m[d.lr][d.lc] = T.CAVE_FLOOR;
+    deeperLand = { x: d.lc, y: d.lr };
+  } else {
+    m[cy][cx]     = T.LARGE_CHEST;          // the reward at the heart of the deepest cave
+    m[cy][cx + 1] = T.LARGE_CHEST_R;
+  }
+  // Atmosphere: torches at the cavern's inner corners.
+  m[margin + 1][margin + 1] = T.TORCH;
+  m[margin + 1][MCOLS - margin - 2] = T.TORCH;
+  m[MROWS - margin - 2][margin + 1] = T.TORCH;
+  m[MROWS - margin - 2][MCOLS - margin - 2] = T.TORCH;
+
+  return { map: m, entryLand: { x: e.lc, y: e.lr }, deeperLand };
 }
 
 // ─── Generic elemental region map ────────────────────────────────────────────

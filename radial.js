@@ -86,6 +86,7 @@ const RADIAL_RINGS = [
         items.push({
           type: 'sword_' + id,
           icon: elem.icon,
+          iconImg: elem.iconImg, iconPrefix: '',
           label: elem.label + ' Sword',
           val: () => 'Lv' + (player.swordLevel || 1),
           dmg: () => `${lv}-${lv + 2}+${elem.icon}1-4`,
@@ -122,6 +123,7 @@ const RADIAL_RINGS = [
         items.push({
           type: 'bow_' + id,
           icon: '🏹' + elem.icon,
+          iconImg: elem.iconImg, iconPrefix: '🏹',
           label: elem.label + ' Arrow',
           val: () => 'x' + (player.arrows[id] || 0),
           dmg: () => `${bowDmg}+${elem.icon}1-4`,
@@ -191,6 +193,7 @@ const RADIAL_RINGS = [
         items.push({
           type: 'armor_' + id,
           icon: '🛡' + elem.icon,
+          iconImg: elem.iconImg, iconPrefix: '🛡',
           label: elem.label + ' Armor',
           val: () => '−50% ' + elem.icon,
           action: () => { player.activeArmorElement = id; },
@@ -391,6 +394,40 @@ function radialOnClick(e) {
 canvas.addEventListener('mousemove', radialOnMouseMove);
 canvas.addEventListener('click',     radialOnClick);
 
+// ─── Inline-image chip text ─────────────────────────────────────────────────
+// Stat chips (the val / dmg badges under each slot) embed an element's symbol,
+// e.g. "⚔1-3+🪨1-4" or "−50% 🪨". For Earth that symbol is a custom image, so
+// these helpers substitute the rock image for the 🪨 emoji. Elements without an
+// iconImg fall back to plain centred text. ctx.font / fillStyle / textBaseline
+// are assumed already set by the caller.
+function radialChipUsesImg(text, img) {
+  return !!(img && img.complete && img.naturalWidth > 0 && text.indexOf('🪨') >= 0);
+}
+function radialChipFontPx(ctx) {
+  const m = /(\d+)px/.exec(ctx.font);
+  return m ? +m[1] : 12;
+}
+function radialChipWidth(ctx, text, img) {
+  if (!radialChipUsesImg(text, img)) return ctx.measureText(text).width;
+  const parts = text.split('🪨');
+  let w = (parts.length - 1) * radialChipFontPx(ctx);   // one image per 🪨
+  for (const p of parts) w += ctx.measureText(p).width;
+  return w;
+}
+function radialDrawChip(ctx, text, cx, cy, img) {
+  if (!radialChipUsesImg(text, img)) { ctx.fillText(text, cx, cy); return; }
+  const fontPx = radialChipFontPx(ctx);
+  const parts = text.split('🪨');
+  const prevAlign = ctx.textAlign;
+  ctx.textAlign = 'left';
+  let x = cx - radialChipWidth(ctx, text, img) / 2;
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i]) { ctx.fillText(parts[i], x, cy); x += ctx.measureText(parts[i]).width; }
+    if (i < parts.length - 1) { ctx.drawImage(img, x, cy - fontPx / 2, fontPx, fontPx); x += fontPx; }
+  }
+  ctx.textAlign = prevAlign;
+}
+
 // ─── Renderer ─────────────────────────────────────────────────────────────────
 function drawRadialMenu() {
   if (!radialMenuOpen) return;
@@ -454,16 +491,31 @@ function drawRadialMenu() {
 
     // Icon
     ctx.fillStyle = '#fff';
-    ctx.font = `${Math.round(slot.radius * 1.05)}px sans-serif`;
+    const iconSz = Math.round(slot.radius * 1.05);
+    ctx.font = `${iconSz}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(slot.item.icon, slot.x, slot.y);
+    const img = slot.item.iconImg;
+    if (img && img.complete && img.naturalWidth > 0) {
+      // Custom image symbol (Earth's stone). Optional emoji prefix (🏹/🛡) sits
+      // to the left, with the image to its right; otherwise the image is centred.
+      const prefix = slot.item.iconPrefix || '';
+      if (prefix) {
+        ctx.fillText(prefix, slot.x - iconSz * 0.34, slot.y);
+        const s = iconSz * 0.9;
+        ctx.drawImage(img, slot.x + iconSz * 0.04, slot.y - s / 2, s, s);
+      } else {
+        ctx.drawImage(img, slot.x - iconSz / 2, slot.y - iconSz / 2, iconSz, iconSz);
+      }
+    } else {
+      ctx.fillText(slot.item.icon, slot.x, slot.y);
+    }
 
     // Value badge below
     const v = slot.item.val();
     if (v) {
       ctx.font = 'bold 12px monospace';
-      const w = Math.ceil(ctx.measureText(v).width) + 10;
+      const w = Math.ceil(radialChipWidth(ctx, v, slot.item.iconImg)) + 10;
       const bx = slot.x, by = slot.y + slot.radius + 12;
       ctx.fillStyle = '#0a1a0a';
       ctx.fillRect(bx - w / 2, by - 8, w, 16);
@@ -471,7 +523,7 @@ function drawRadialMenu() {
       ctx.lineWidth = 1;
       ctx.strokeRect(bx - w / 2, by - 8, w, 16);
       ctx.fillStyle = '#ffcc44';
-      ctx.fillText(v, bx, by);
+      radialDrawChip(ctx, v, bx, by, slot.item.iconImg);
     }
     // Damage badge (only for items that deal damage)
     if (typeof slot.item.dmg === 'function') {
@@ -479,7 +531,7 @@ function drawRadialMenu() {
       if (d) {
         ctx.font = 'bold 11px monospace';
         const label = '⚔' + d;
-        const w = Math.ceil(ctx.measureText(label).width) + 10;
+        const w = Math.ceil(radialChipWidth(ctx, label, slot.item.iconImg)) + 10;
         const bx = slot.x, by = slot.y + slot.radius + 30;
         ctx.fillStyle = '#2a0a0a';
         ctx.fillRect(bx - w / 2, by - 8, w, 16);
@@ -487,7 +539,7 @@ function drawRadialMenu() {
         ctx.lineWidth = 1;
         ctx.strokeRect(bx - w / 2, by - 8, w, 16);
         ctx.fillStyle = '#ff7a7a';
-        ctx.fillText(label, bx, by);
+        radialDrawChip(ctx, label, bx, by, slot.item.iconImg);
       }
     }
   }

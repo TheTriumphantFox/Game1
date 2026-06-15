@@ -44,6 +44,12 @@ function buildSaveData() {
       returnX: m.returnX,
       returnY: m.returnY,
       caveLinks: m.caveLinks ? { ...m.caveLinks } : undefined,
+      // Waterfall cave-chain state (set on cave_chain maps).
+      sourceTier: m.sourceTier,
+      chainDepth: m.chainDepth,
+      chainLen: m.chainLen,
+      entryLand: m.entryLand,
+      deeperLand: m.deeperLand,
       // Whirlpool grotto linkage — set on source maps that opened a grotto,
       // plus the cleared-chest flag on the grotto itself.
       grottoLinks: m.grottoLinks ? { ...m.grottoLinks } : undefined,
@@ -135,6 +141,7 @@ function applyLoadData(data) {
       ? decodeMap(lite.mapTiles)
       : lite.type === 'village' ? buildVillageMap(region.id)
       : lite.type === 'cave'    ? buildCaveMap()
+      : lite.type === 'cave_chain' ? buildCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1)).map
       : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
       : lite.type === 'house'   ? buildStarterHouseMap()
       : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth)
@@ -162,6 +169,11 @@ function applyLoadData(data) {
       obj.returnY = lite.returnY;
     }
     if (lite.caveLinks) obj.caveLinks = { ...lite.caveLinks };
+    if (lite.sourceTier != null) obj.sourceTier = lite.sourceTier;
+    if (lite.chainDepth != null) obj.chainDepth = lite.chainDepth;
+    if (lite.chainLen != null) obj.chainLen = lite.chainLen;
+    if (lite.entryLand) obj.entryLand = lite.entryLand;
+    if (lite.deeperLand) obj.deeperLand = lite.deeperLand;
     if (lite.grottoLinks) obj.grottoLinks = { ...lite.grottoLinks };
     if (lite.grottoChestPlaced) obj.grottoChestPlaced = true;
     if (lite.activated) obj.activated = true;

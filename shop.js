@@ -159,7 +159,7 @@ function renderStoreContents() {
       return `
         <div class="shop-row">
           <div class="shop-item">
-            <div class="shop-item-name">${elem.icon} ${elem.label} Sword</div>
+            <div class="shop-item-name">${elemIconHTML(elem)} ${elem.label} Sword</div>
             <div class="shop-item-meta">Sell for rupees</div>
           </div>
           <button class="ssbtn" onclick="sellElementalSword('${id}')">
@@ -200,7 +200,7 @@ function renderStoreContents() {
       return `
         <div class="shop-row">
           <div class="shop-item">
-            <div class="shop-item-name">${elem.icon} ${elem.label} Arrow <span style="color:#88cc88">x${count}</span></div>
+            <div class="shop-item-name">${elemIconHTML(elem)} ${elem.label} Arrow <span style="color:#88cc88">x${count}</span></div>
             <div class="shop-item-meta">+1d4 ${elem.label} on hit</div>
           </div>
           <button class="ssbtn" ${cantBuy ? 'disabled' : ''} onclick="buyElementalArrows('${id}')">
@@ -438,7 +438,7 @@ function renderBlacksmithContents() {
       return `
         <div class="shop-row">
           <div class="shop-item">
-            <div class="shop-item-name">🛡${elem.icon} ${elem.label} Armor ${tag}</div>
+            <div class="shop-item-name">🛡${elemIconHTML(elem)} ${elem.label} Armor ${tag}</div>
             <div class="shop-item-meta">Halves incoming ${elem.label} damage when worn${id === 'water' ? ' · lets you swim through medium-depth water' : ''}</div>
           </div>
           <button class="ssbtn" ${cantBuy ? 'disabled' : ''} onclick="buyElementalArmor('${id}')">

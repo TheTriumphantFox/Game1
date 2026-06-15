@@ -505,6 +505,25 @@ function tryTransition() {
       if (placed) break;
     }
   }
+  // Still solid (e.g. the destination already existed as a sealed dead-end and we
+  // walked in through one of its walled-off sides — its facing border is all
+  // trees): spiral outward from the entry point for the nearest open tile so the
+  // hero is never stranded inside a solid tile.
+  if (isSolid(map, player.x, player.y)) {
+    const sx = player.x, sy = player.y;
+    outer:
+    for (let radius = 1; radius <= 70; radius++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;  // ring only
+          const tx = sx + dx, ty = sy + dy;
+          if (tx >= 0 && tx < MCOLS && ty >= 0 && ty < MROWS && !isSolid(map, tx, ty)) {
+            player.x = tx; player.y = ty; break outer;
+          }
+        }
+      }
+    }
+  }
 
   transitionCooldown = 400;
   minimapDirty = true;
@@ -718,26 +737,95 @@ function tryCaveTransition() {
     return true;
   }
 
+  // Step into the glowing doorway behind a waterfall → drop into a hidden cave
+  // chain whose length is rolled 1d6 on first entry. caveLinks keys the chain to
+  // the door tile so re-entering the same falls returns to the same caves.
+  if (t === T.WATERFALL_DOOR && cm.type !== 'cave_chain') {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    const sourceId = currentMapId, sourceX = player.x, sourceY = player.y;
+    cm.caveLinks = cm.caveLinks || {};
+    const key = `${sourceX},${sourceY}`;
+    let caveId = cm.caveLinks[key];
+    if (caveId == null) {
+      const tier = (typeof cm.regionIdx === 'number' && REGIONS[cm.regionIdx])
+        ? REGIONS[cm.regionIdx].enemyTier : 0;
+      caveId = createCaveChainMap(sourceId, sourceX, sourceY, tier, 1, rnd(1, 6));
+      cm.caveLinks[key] = caveId;
+    }
+    currentMapId = caveId;
+    { const land = worldMaps[caveId].entryLand; player.x = land.x; player.y = land.y; }
+    spawnEnemiesForMap(caveId);
+    spawnVillagersForMap(caveId);
+    transitionCooldown = 400;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 16);
+    showMapMsg('🕳️ Behind the falls — a hidden passage!');
+    return true;
+  }
+
+  // Step onto a descent inside a cave chain → go one level deeper (building the
+  // next level on first visit). Each descent links back to itself for the climb.
+  if (t === T.CAVE_DESCENT && cm.type === 'cave_chain') {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    const sourceId = currentMapId, sourceX = player.x, sourceY = player.y;
+    cm.caveLinks = cm.caveLinks || {};
+    const key = `${sourceX},${sourceY}`;
+    let nextId = cm.caveLinks[key];
+    if (nextId == null) {
+      nextId = createCaveChainMap(sourceId, sourceX, sourceY,
+                                  cm.sourceTier, cm.chainDepth + 1, cm.chainLen);
+      cm.caveLinks[key] = nextId;
+    }
+    currentMapId = nextId;
+    { const land = worldMaps[nextId].entryLand; player.x = land.x; player.y = land.y; }
+    spawnEnemiesForMap(nextId);
+    spawnVillagersForMap(nextId);
+    transitionCooldown = 400;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 16);
+    showMapMsg('🕳️ You descend deeper into the cave…');
+    return true;
+  }
+
   // Step onto the cave exit → return to source map at the tunnel tile
-  if (t === T.CAVE_EXIT && cm.type === 'cave') {
+  if (t === T.CAVE_EXIT && (cm.type === 'cave' || cm.type === 'cave_chain')) {
     saveEnemyStateToMap(currentMapId);
     saveVillagersToMap(currentMapId);
     currentMapId = cm.returnMapId;
-    const srcMap = worldMaps[currentMapId].map;
-    // Prefer one tile south of the tunnel; if that's solid, scan adjacent
-    // tiles for a non-solid spot (same idea as regular map transition).
-    let tx = cm.returnX;
-    let ty = Math.min(MROWS - 2, cm.returnY + 1);
-    if (isSolid(srcMap, tx, ty)) {
-      const candidates = [
-        [0,  1], [1,  0], [-1, 0], [0, -1],
-        [1,  1], [-1, 1], [1, -1], [-1, -1],
-        [0,  2], [2,  0], [-2, 0], [0, -2]
-      ];
-      for (const [dx, dy] of candidates) {
-        const cx2 = cm.returnX + dx, cy2 = cm.returnY + dy;
-        if (cx2 >= 0 && cx2 < MCOLS && cy2 >= 0 && cy2 < MROWS && !isSolid(srcMap, cx2, cy2)) {
-          tx = cx2; ty = cy2; break;
+    const dest = worldMaps[currentMapId];
+    const srcMap = dest.map;
+    let tx, ty;
+    // The chain-aware landings apply ONLY when *this* map is a chain level.
+    // A legacy cache cave (cm.type === 'cave') — even one bombed open inside a
+    // chain level — must always return to its own entrance tile (returnX/Y),
+    // never to the chain's descent.
+    if (cm.type === 'cave_chain' && dest.type === 'cave_chain' && dest.deeperLand) {
+      // Climbing back up a chain: stand beside the descent we came down through.
+      tx = dest.deeperLand.x; ty = dest.deeperLand.y;
+    } else if (cm.type === 'cave_chain' &&
+               srcMap[cm.returnY] && srcMap[cm.returnY][cm.returnX] === T.WATERFALL_DOOR) {
+      // Surfacing behind a waterfall: land back on the door itself — the splash
+      // pool around it is medium water, so there's no dry tile to step onto.
+      tx = cm.returnX; ty = cm.returnY;
+    } else {
+      // Legacy cache cave / any tunnel: one tile south of the mouth, else nearest open.
+      tx = cm.returnX;
+      ty = Math.min(MROWS - 2, cm.returnY + 1);
+      if (isSolid(srcMap, tx, ty)) {
+        const candidates = [
+          [0,  1], [1,  0], [-1, 0], [0, -1],
+          [1,  1], [-1, 1], [1, -1], [-1, -1],
+          [0,  2], [2,  0], [-2, 0], [0, -2]
+        ];
+        for (const [dx, dy] of candidates) {
+          const cx2 = cm.returnX + dx, cy2 = cm.returnY + dy;
+          if (cx2 >= 0 && cx2 < MCOLS && cy2 >= 0 && cy2 < MROWS && !isSolid(srcMap, cx2, cy2)) {
+            tx = cx2; ty = cy2; break;
+          }
         }
       }
     }

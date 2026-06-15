@@ -151,6 +151,10 @@ function makeEnemyDefs(depth, mapType, map) {
   // source region's enemy tier (see createWhirlpoolGrottoMap).
   if (mapType === 'whirlpool_grotto') return makeGrottoEnemyDefs(depth, map);
 
+  // Waterfall cave chambers pull a tier-matched cave roster (see
+  // createCaveChainMap); `depth` carries the originating region's enemy tier.
+  if (mapType === 'cave_chain') return makeCaveEnemyDefs(depth, map);
+
   // Resolve the region this map belongs to. `mapType` is either a region id
   // ('forest', 'fire', 'water', ...) for overworld maps or `<id>_village` /
   // legacy 'village'/'desert_village' for boss arenas. The REGIONS table from
@@ -241,6 +245,50 @@ function makeGrottoEnemyDefs(sourceTier, map) {
       const x = rnd(cx - 23, cx + 23), y = rnd(cy - 23, cy + 23);
       if (map && map[y][x] !== T.MEDIUM_WATER) continue;
       if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) < 7) continue;
+      defs.push({ type, x, y });
+      break;
+    }
+  }
+  return defs;
+}
+
+// ─── Cave rosters ───────────────────────────────────────────────────────────────
+// The subset of each region's tier that would believably lair underground —
+// warren beasts & spiders, burrowers, oozy crawlers, undead in crypts, underdark
+// aberrations. Indexed by enemyTier, parallel to ENEMY_POOLS. A waterfall cave is
+// populated from the *originating region's* tier, so reusing existing enemies
+// means their art, trophy drops, and (for ranged types) the 50% arrow-bundle
+// drop all carry over unchanged — no new enemy art or loot tables required.
+const CAVE_POOLS = [
+  ['goblin', 'giant_spider', 'wolf'],                                  //  0 Forest — warren beasts
+  ['magma_mephit', 'salamander', 'giant_scorpion'],                   //  1 Fire — lava tubes
+  ['kuo_toa', 'sahuagin', 'merrow'],                                  //  2 Water — flooded caverns
+  ['ice_mephit', 'yeti', 'white_dragon'],                             //  3 Ice — glacier caves
+  ['ankheg', 'bulette', 'gargoyle', 'earth_elemental', 'stone_giant'],//  4 Earth — burrows
+  ['harpy', 'manticore'],                                             //  5 Air — cliff caves
+  ['will_o_wisp', 'behir', 'blue_wyrmling'],                          //  6 Lightning — deep caverns
+  ['couatl', 'deva', 'ki_rin'],                                       //  7 Luminous — crystal grottos
+  ['skeleton', 'zombie', 'ghost', 'wraith', 'vampire'],              //  8 Necrotic — crypts
+  ['carrion_crawler', 'otyugh', 'troll', 'purple_worm'],             //  9 Poison — fetid tunnels
+  ['nothic', 'mind_flayer', 'beholder'],                             // 10 Mana — underdark
+];
+
+// Build the enemy spawn list for a waterfall cave chamber. `sourceTier` is the
+// originating region's enemyTier; spawns land on open CAVE_FLOOR, kept clear of
+// the player's landing strip at the bottom and the back feature up top.
+function makeCaveEnemyDefs(sourceTier, map) {
+  const tier = Math.max(0, Math.min(sourceTier | 0, CAVE_POOLS.length - 1));
+  const pool = CAVE_POOLS[tier];
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  const count = Math.min(20, 10 + tier);   // gentler caves up top, denser deeper
+  const defs = [];
+  for (let i = 0; i < count; i++) {
+    const type = pool[Math.floor(Math.random() * pool.length)];
+    for (let t = 0; t < 100; t++) {
+      // Spread across the cavern, clear of the edge landings and the heart.
+      const x = rnd(16, MCOLS - 16), y = rnd(16, MROWS - 16);
+      if (!map || map[y][x] !== T.CAVE_FLOOR) continue;
+      if (Math.abs(x - cx) <= 2 && Math.abs(y - cy) <= 2) continue;  // keep the chest/centre clear
       defs.push({ type, x, y });
       break;
     }
