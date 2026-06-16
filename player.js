@@ -709,24 +709,26 @@ function tryCaveTransition() {
   const t = map[player.y][player.x];
   const cm = currentMap();
 
-  // Step onto a tunnel in the overworld → enter (or re-enter) the linked cave
-  if (t === T.CAVE_ENTRANCE && cm.type !== 'cave') {
+  // Step onto a tunnel in the overworld → drop into a hidden cave chain — the
+  // same universal cave system reached behind a waterfall. Length is rolled 1d6
+  // on first entry; caveLinks keys the chain to the tunnel tile so re-entering
+  // the same bombed rock returns to the same caves. (Legacy single-cave maps in
+  // old saves keep working via their own CAVE_EXIT handling below.)
+  if (t === T.CAVE_ENTRANCE && cm.type !== 'cave' && cm.type !== 'cave_chain') {
     saveEnemyStateToMap(currentMapId);
     saveVillagersToMap(currentMapId);
-    const sourceId = currentMapId;
-    const sourceX = player.x, sourceY = player.y;
+    const sourceId = currentMapId, sourceX = player.x, sourceY = player.y;
     cm.caveLinks = cm.caveLinks || {};
     const key = `${sourceX},${sourceY}`;
     let caveId = cm.caveLinks[key];
     if (caveId == null) {
-      caveId = createCaveMap(sourceId, sourceX, sourceY);
+      const tier = (typeof cm.regionIdx === 'number' && REGIONS[cm.regionIdx])
+        ? REGIONS[cm.regionIdx].enemyTier : 0;
+      caveId = createCaveChainMap(sourceId, sourceX, sourceY, tier, 1, rnd(1, 6));
       cm.caveLinks[key] = caveId;
     }
     currentMapId = caveId;
-    const cx = Math.floor(MCOLS / 2);
-    const cy = Math.floor(MROWS / 2);
-    // Land one tile NORTH of the CAVE_EXIT so we don't immediately re-trigger it.
-    player.x = cx; player.y = cy + 7;
+    { const land = worldMaps[caveId].entryLand; player.x = land.x; player.y = land.y; }
     spawnEnemiesForMap(caveId);
     spawnVillagersForMap(caveId);
     transitionCooldown = 400;

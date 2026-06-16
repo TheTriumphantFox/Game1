@@ -851,6 +851,41 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#3a2818'; ctx.fillRect(x+s*0.2,y+s*0.3,2,2); ctx.fillRect(x+s*0.7,y+s*0.6,2,2);
       ctx.fillStyle = '#1a100a'; ctx.fillRect(x+s*0.5,y+s*0.2,2,2); ctx.fillRect(x+s*0.3,y+s*0.7,2,2);
       break;
+    case T.CAVE_WALL: {
+      // Natural cave rock — craggy dark stone with angular facets, a jagged crack,
+      // and a mineral glint, lit softly from the upper-left. Hashing on tile coords
+      // keeps each tile stable (no flicker) yet distinct, so a big rock mass reads
+      // as fractured living stone rather than a tiled grid.
+      const h = (col * 131 + row * 197);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;        // 0..n jitter
+      ctx.fillStyle = '#443b33'; ctx.fillRect(x, y, s, s); // base rock
+      // Lit facet (upper-left)
+      ctx.fillStyle = '#564b40';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + s * (0.55 + j(0, 0.14)), y);
+      ctx.lineTo(x + s * (0.30 + j(2, 0.12)), y + s * (0.50 + j(4, 0.10)));
+      ctx.lineTo(x, y + s * (0.55 + j(6, 0.10)));
+      ctx.closePath(); ctx.fill();
+      // Shadowed recess (lower-right)
+      ctx.fillStyle = '#2d2620';
+      ctx.beginPath();
+      ctx.moveTo(x + s, y + s * (0.32 + j(0, 0.12)));
+      ctx.lineTo(x + s, y + s);
+      ctx.lineTo(x + s * (0.38 + j(2, 0.12)), y + s);
+      ctx.lineTo(x + s * (0.62 + j(4, 0.08)), y + s * 0.50);
+      ctx.closePath(); ctx.fill();
+      // Jagged crack threading through
+      ctx.strokeStyle = '#211c18'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x + s * (0.42 + j(8, 0.12)), y);
+      ctx.lineTo(x + s * (0.52 + j(6, 0.10)), y + s * 0.48);
+      ctx.lineTo(x + s * (0.40 + j(4, 0.12)), y + s);
+      ctx.stroke();
+      // Mineral glint
+      ctx.fillStyle = '#6f6456';
+      ctx.fillRect(x + s * 0.20 + (h & 7), y + s * 0.28, 2, 2);
+      break; }
     case T.CAVE_ENTRANCE: {
       // Dark hole with a flicker of light from inside
       ctx.fillStyle = '#1a3a1a'; ctx.fillRect(x,y,s,s);

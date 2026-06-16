@@ -42,6 +42,7 @@ function isSolid(map, c, r) {
   if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return true;
   const t = map[r][c];
   return t === T.TREE || t === T.WATER || t === T.WALL || t === T.ROCK ||
+         t === T.CAVE_WALL ||
          t === T.DEEP_WATER || t === T.MEDIUM_WATER || t === T.WHIRLPOOL ||
          t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
          t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||

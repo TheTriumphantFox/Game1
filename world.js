@@ -64,6 +64,18 @@ function reconcileOpenSides(gx, gy, baseOpen) {
 function currentMap() { return worldMaps[currentMapId]; }
 function mapData()    { return currentMap().map; }
 
+// The tile a destroyed object (cut foliage, bombed rock) should leave behind:
+// the current map's natural ground, never a hardcoded grass. Caves and grottos
+// expose bare stone, so they revert to CAVE_FLOOR; every region overworld map
+// and village uses its own region ground (grass in forest, sand in desert/water,
+// snow in ice, …) resolved from the map's biome.
+function mapGroundTile() {
+  const cm = currentMap();
+  if (!cm) return T.GRASS;
+  if (cm.type === 'cave' || cm.type === 'cave_chain') return T.CAVE_FLOOR;
+  return regionById(cm.biome).ground;
+}
+
 // Initialise a fresh world with the starter house at (0, 0). Walking south
 // out of the house creates forest [2] as a southern neighbor.
 function initWorld() {
@@ -354,6 +366,7 @@ function createSealedNeighbor(sourceId, direction) {
       mapTiles[r][c] === T.WATER || mapTiles[r][c] === T.DEEP_WATER ||
       mapTiles[r][c] === T.MEDIUM_WATER ||
       mapTiles[r][c] === T.ROCK || mapTiles[r][c] === T.WALL ||
+      mapTiles[r][c] === T.CAVE_WALL ||
       mapTiles[r][c] === T.CHEST || mapTiles[r][c] === T.LARGE_CHEST ||
       mapTiles[r][c] === T.LARGE_CHEST_R || mapTiles[r][c] === T.SHRINE);
   for (let r = 0; r < MROWS; r++) {

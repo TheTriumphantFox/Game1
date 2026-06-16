@@ -81,7 +81,10 @@ const T = {
   WATERFALL_DOOR:74,
   // A passage leading deeper into a cave chain — placed at the back of every
   // non-final cave chamber. Passable; stepping on it descends one level.
-  CAVE_DESCENT:75
+  CAVE_DESCENT:75,
+  // Natural rock wall of the cave labyrinth — solid, like WALL, but rendered as
+  // craggy stone instead of dressed dungeon brick.
+  CAVE_WALL:76
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -133,6 +136,9 @@ const TILE_COLORS = {
   // Waterfall doorway reads as falling water on the minimap; the cave descent
   // is a dark hole.
   [T.WATERFALL_DOOR]: '#3f7fd0', [T.CAVE_DESCENT]: '#0a0a0a',
+  // Cave rock wall — dark craggy stone, lighter than the near-black cave floor
+  // so the labyrinth's tunnels read clearly on the minimap.
+  [T.CAVE_WALL]: '#463d35',
   // Desert terrain features — sandstone plateau, sandy climbing ramp, and a
   // flowering cactus (green body reads against sand on the minimap).
   [T.PLATEAU]: '#b5743a', [T.CLIMB]: '#caa46a', [T.FLOWERING_CACTUS]: '#3a7a3a',

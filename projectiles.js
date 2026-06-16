@@ -277,22 +277,23 @@ function doSwordSwing() {
 
   // Cut down soft foliage in the swing. Flowers, mushrooms, flowering cacti, and
   // bones all have 1 HP, so a single swing clears them. Same 3x3 zone as the
-  // enemy hit. Each cut tile reverts to its terrain's ground (grass in forest,
-  // sand in desert) and may leave a pickup behind.
+  // enemy hit. Each cut tile reverts to the map's natural ground (grass in
+  // forest, sand in desert/water, snow in ice, …) and may leave a pickup behind.
   const map = mapData();
+  const ground = mapGroundTile();
   const ctc = Math.round(tx), ctr = Math.round(ty);
   for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
     const tr = ctr + dr, tc = ctc + dc;
     if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
     const tile = map[tr][tc];
-    // ground to leave behind, drop type, and drop chance per cuttable tile
-    let revert = null, dropType = null, dropChance = 0;
-    if      (tile === T.FLOWER)           { revert = T.GRASS; dropType = 'herbal';   dropChance = 0.50; }
-    else if (tile === T.MUSHROOM)         { revert = T.GRASS; dropType = 'mushroom'; dropChance = 0.50; }
-    else if (tile === T.FLOWERING_CACTUS) { revert = T.SAND;  dropType = 'herbal';   dropChance = 0.50; }
-    else if (tile === T.BONES)            { revert = T.SAND;  dropType = 'bonemeal'; dropChance = 0.50; }
+    // drop type and drop chance per cuttable tile (all revert to the map ground)
+    let dropType = null, dropChance = 0;
+    if      (tile === T.FLOWER)           { dropType = 'herbal';   dropChance = 0.50; }
+    else if (tile === T.MUSHROOM)         { dropType = 'mushroom'; dropChance = 0.50; }
+    else if (tile === T.FLOWERING_CACTUS) { dropType = 'herbal';   dropChance = 0.50; }
+    else if (tile === T.BONES)            { dropType = 'bonemeal'; dropChance = 0.50; }
     else continue;
-    map[tr][tc] = revert;
+    map[tr][tc] = ground;
     if (dropType && Math.random() < dropChance) {
       drops.push({
         type: dropType, val: 1,
@@ -423,7 +424,7 @@ function stepProjectiles(dt, map) {
             map[tr][tc] = T.CAVE_ENTRANCE;
             showMapMsg('🕳️ The blast reveals a hidden tunnel!');
           } else {
-            map[tr][tc] = T.GRASS;
+            map[tr][tc] = mapGroundTile();
             if (Math.random() < 0.40) {
               drops.push({
                 type: 'rupee', val: 1 + Math.floor(Math.random() * 20),  // 1..20
