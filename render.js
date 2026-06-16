@@ -1368,6 +1368,60 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#f0f6fa'; ctx.fillRect(x + s*0.37, y + s*0.30, s*0.26, s*0.04);
       tier(0.02, 0.14, 0.07, '#ffffff');
       break; }
+    case T.WINTER_BERRY_BUSH: {
+      // Snowfield base with a faint shadow band, then a frosted evergreen shrub
+      // (two overlapping mounds) crowned with snow caps and dotted with deep
+      // blue-purple winter berries. Berry positions are fixed so the bush is
+      // stable per tile (no twinkle).
+      ctx.fillStyle = '#e4ecf2'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#d2dde8'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      ctx.fillStyle = '#2e5a40';
+      ctx.beginPath(); ctx.arc(x + s*0.40, y + s*0.62, s*0.26, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*0.63, y + s*0.58, s*0.22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3e7a52';
+      ctx.beginPath(); ctx.arc(x + s*0.46, y + s*0.55, s*0.16, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#f4f8fc';
+      ctx.beginPath(); ctx.arc(x + s*0.40, y + s*0.45, s*0.10, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*0.63, y + s*0.43, s*0.08, 0, Math.PI*2); ctx.fill();
+      const berry = (bx, by) => {
+        ctx.fillStyle = '#5a3a8a';
+        ctx.beginPath(); ctx.arc(bx, by, s*0.06, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#9a7ad8';
+        ctx.beginPath(); ctx.arc(bx - s*0.018, by - s*0.018, s*0.022, 0, Math.PI*2); ctx.fill();
+      };
+      berry(x + s*0.33, y + s*0.67);
+      berry(x + s*0.52, y + s*0.72);
+      berry(x + s*0.67, y + s*0.63);
+      break; }
+    case T.FROST_LILY: {
+      // Snowfield base, a slender green stem with one leaf, and a six-petal
+      // pale ice-blue flower lit from above with a frosty blue center.
+      ctx.fillStyle = '#e4ecf2'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#d2dde8'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      ctx.strokeStyle = '#2e6a4a'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x + s*0.5, y + s*0.9); ctx.lineTo(x + s*0.5, y + s*0.46); ctx.stroke();
+      ctx.fillStyle = '#3e8a5e';
+      ctx.beginPath(); ctx.ellipse(x + s*0.40, y + s*0.70, s*0.10, s*0.045, -0.5, 0, Math.PI*2); ctx.fill();
+      const fcx = x + s*0.5, fcy = y + s*0.38;
+      ctx.fillStyle = '#bfe2f5';
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI/2;
+        ctx.beginPath();
+        ctx.ellipse(fcx + Math.cos(a)*s*0.16, fcy + Math.sin(a)*s*0.16, s*0.10, s*0.055, a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#eaf6fd';
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI/2;
+        ctx.beginPath();
+        ctx.ellipse(fcx + Math.cos(a)*s*0.13, fcy + Math.sin(a)*s*0.13, s*0.06, s*0.03, a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#7fb8da';
+      ctx.beginPath(); ctx.arc(fcx, fcy, s*0.05, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(fcx - s*0.015, fcy - s*0.015, s*0.02, 0, Math.PI*2); ctx.fill();
+      break; }
     case T.BONES: {
       // Sand backdrop + a small bleached skull-and-rib silhouette.
       ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
@@ -1463,30 +1517,130 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);   // light edge
       break; }
     case T.PLATEAU: {
-      // Sandstone mesa — warm banded strata with darker seams and a sunlit
-      // top-left edge. Jittered by tile coords so a long band isn't uniform.
-      ctx.fillStyle = '#b5743a'; ctx.fillRect(x, y, s, s);
-      ctx.fillStyle = '#9c5f2e'; ctx.fillRect(x, y,          s, s*0.16);
-      ctx.fillStyle = '#c8854a'; ctx.fillRect(x, y + s*0.32, s, s*0.18);
-      ctx.fillStyle = '#8f5526'; ctx.fillRect(x, y + s*0.60, s, s*0.16);
-      const jp = (col * 97 + row * 53) & 7;
-      ctx.fillStyle = '#a96a32';
-      ctx.fillRect(x + (jp % 4), y + s*0.22, s*0.34, 2);
-      ctx.fillRect(x + s*0.5,    y + s*0.50 + (jp % 3), s*0.4, 2);
-      ctx.fillStyle = '#6e421d';
-      ctx.fillRect(x + s*0.5, y, 2, s);                      // vertical seam
-      ctx.fillStyle = 'rgba(255,235,200,0.22)';
-      ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);   // sunlit edge
+      // Raised sandstone mesa with real relief. Craggy rock texture (faceted like
+      // the cave walls) under a sunlit cap and shadow foot that rotate with the
+      // band, so an up/down (vertical) mesa reads as the left/right one turned 90°,
+      // matching the ramp that runs through it. Light stays in the upper-left in
+      // both: the LIT cap sits on the top (horizontal band) or LEFT (vertical band)
+      // exposed face; the shadow foot on the bottom / right; bevels on the ends.
+      const M = mapData();
+      const isMesa = (rr, cc) =>
+        (rr < 0 || cc < 0 || rr >= MROWS || cc >= MCOLS) ? true : M[rr][cc] === T.PLATEAU;
+      // Band orientation: scan how far the solid mass (PLATEAU + the CLIMB ramp
+      // cut through it) runs along each axis. A band is thin across its short
+      // axis, so the shorter span is the band's thickness → that axis is "across"
+      // the wall. Treating CLIMB as part of the mass keeps ramp slots from
+      // breaking the scan.
+      const inSpan = (rr, cc) =>
+        (rr < 0 || cc < 0 || rr >= MROWS || cc >= MCOLS) ? false : (M[rr][cc] === T.PLATEAU || M[rr][cc] === T.CLIMB);
+      const runLen = (dr, dc) => { let k = 1; while (k <= 14 && inSpan(row + dr*k, col + dc*k)) k++; return k; };
+      const vSpan = Math.min(runLen(-1, 0), runLen(1, 0));
+      const hSpan = Math.min(runLen(0, -1), runLen(0, 1));
+      const vertical = hSpan < vSpan;                       // thin horizontally → up/down band
+      const upOpen = !isMesa(row - 1, col), downOpen = !isMesa(row + 1, col);
+      const leftOpen = !isMesa(row, col - 1), rightOpen = !isMesa(row, col + 1);
+      const h = (col * 97 + row * 53);
+
+      // Body: craggy sandstone, faceted like the cave walls — a lit facet in the
+      // upper-left, a shadowed recess lower-right, a jagged fracture, and a quartz
+      // glint, all hashed per tile so a mesa reads as fractured living rock. Warm
+      // sandstone tones instead of the cave's grey; the facet light (upper-left)
+      // matches the sun, so it reinforces the cap/foot relief drawn over it.
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#a86a30'; ctx.fillRect(x, y, s, s);          // base rock
+      ctx.fillStyle = '#bd7e3c';                                    // lit facet (upper-left)
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + s*(0.55 + j(0, 0.14)), y);
+      ctx.lineTo(x + s*(0.30 + j(2, 0.12)), y + s*(0.50 + j(4, 0.10)));
+      ctx.lineTo(x, y + s*(0.55 + j(6, 0.10)));
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#7c4a20';                                    // shadowed recess (lower-right)
+      ctx.beginPath();
+      ctx.moveTo(x + s, y + s*(0.32 + j(0, 0.12)));
+      ctx.lineTo(x + s, y + s);
+      ctx.lineTo(x + s*(0.38 + j(2, 0.12)), y + s);
+      ctx.lineTo(x + s*(0.62 + j(4, 0.08)), y + s*0.50);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#5a3416'; ctx.lineWidth = 1.5;             // jagged fracture
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.42 + j(8, 0.12)), y);
+      ctx.lineTo(x + s*(0.52 + j(6, 0.10)), y + s*0.48);
+      ctx.lineTo(x + s*(0.40 + j(4, 0.12)), y + s);
+      ctx.stroke();
+      ctx.fillStyle = '#d8b070';                                    // quartz glint
+      ctx.fillRect(x + s*0.20 + (h & 7), y + s*0.28, 2, 2);
+
+      const CAP = '#d29a58', RIM = '#f2cd92', LIP = 'rgba(46,24,9,0.6)';
+      const FOOT = 'rgba(34,18,7,0.5)', GND = 'rgba(14,7,3,0.65)';
+      const LITB = 'rgba(255,228,180,0.34)', SHB = 'rgba(40,20,8,0.5)';
+      const tk = Math.max(1, s*0.03), bv = Math.max(2, s*0.04);
+
+      if (!vertical) {
+        // Horizontal band (runs left/right): cap on top, foot on bottom, thin
+        // bevels on the left/right ends.
+        if (upOpen)   { ctx.fillStyle = CAP; ctx.fillRect(x, y, s, s*0.24); ctx.fillStyle = RIM; ctx.fillRect(x, y, s, s*0.08); ctx.fillStyle = LIP; ctx.fillRect(x, y + s*0.24, s, tk); }
+        if (downOpen) { ctx.fillStyle = FOOT; ctx.fillRect(x, y + s*0.76, s, s*0.24); ctx.fillStyle = GND; ctx.fillRect(x, y + s - bv, s, bv); }
+        if (leftOpen)  { ctx.fillStyle = LITB; ctx.fillRect(x, y, bv, s); }
+        if (rightOpen) { ctx.fillStyle = SHB;  ctx.fillRect(x + s - bv, y, bv, s); }
+      } else {
+        // Vertical band (runs up/down): the same relief rotated 90° — cap on the
+        // LEFT, foot on the RIGHT, bevels on the top/bottom ends.
+        if (leftOpen)  { ctx.fillStyle = CAP; ctx.fillRect(x, y, s*0.24, s); ctx.fillStyle = RIM; ctx.fillRect(x, y, s*0.08, s); ctx.fillStyle = LIP; ctx.fillRect(x + s*0.24, y, tk, s); }
+        if (rightOpen) { ctx.fillStyle = FOOT; ctx.fillRect(x + s*0.76, y, s*0.24, s); ctx.fillStyle = GND; ctx.fillRect(x + s - bv, y, bv, s); }
+        if (upOpen)   { ctx.fillStyle = LITB; ctx.fillRect(x, y, s, bv); }
+        if (downOpen) { ctx.fillStyle = SHB;  ctx.fillRect(x, y + s - bv, s, bv); }
+      }
       break; }
     case T.CLIMB: {
-      // A climbing ramp cut into the plateau — sandy track with carved foot-step
-      // rungs so it reads as a way up/over the mesa.
-      ctx.fillStyle = '#caa46a'; ctx.fillRect(x, y, s, s);
-      ctx.fillStyle = '#a8814a'; ctx.fillRect(x + s*0.12, y, s*0.76, s);
-      ctx.fillStyle = '#7a5a30';
-      for (let i = 0; i < 4; i++) ctx.fillRect(x + s*0.14, y + s*(0.16 + i*0.22), s*0.72, 2);
-      ctx.fillStyle = 'rgba(255,240,210,0.35)';
-      ctx.fillRect(x + s*0.12, y, 2, s);
+      // A staircase cut into the mesa: bright sunlit treads over dark risers give
+      // strong relief so it reads as a way up/over the rock. Step orientation
+      // follows the slot — horizontal treads for a vertical (N/S) ramp, vertical
+      // treads for a horizontal (E/W) ramp — inferred from where the flanking
+      // PLATEAU walls sit (1 tile away on the slot's edge columns, 2 at its
+      // centre). Rock walls are drawn on whichever sides touch the mesa, so the
+      // ramp seats into a carved slot. Step pitch (i+0.5)/STEPS keeps the stairs
+      // continuous across tile borders.
+      const M = mapData();
+      const isMesa = (rr, cc) =>
+        (rr < 0 || cc < 0 || rr >= MROWS || cc >= MCOLS) ? false : M[rr][cc] === T.PLATEAU;
+      const wallLR = isMesa(row, col-1) || isMesa(row, col+1) || isMesa(row, col-2) || isMesa(row, col+2);
+      const wallUD = isMesa(row-1, col) || isMesa(row+1, col) || isMesa(row-2, col) || isMesa(row+2, col);
+      const horizTreads = wallLR || !wallUD;   // default: horizontal treads
+
+      // Pale sandy ramp body — distinctly lighter than the orange mesa rock, so
+      // the cut reads as a separate ramp at a glance.
+      ctx.fillStyle = '#cea766'; ctx.fillRect(x, y, s, s);
+
+      // Bold stair steps in SOLID tones (not faint overlays) so they pop against
+      // both the ramp body and the mesa's subtle strata: a dark riser face with a
+      // bright tread cap perched on its up-slope edge.
+      const STEPS = 4;
+      const riser = Math.max(2, s*0.13), tread = Math.max(1, s*0.05);
+      if (horizTreads) {
+        for (let i = 0; i < STEPS; i++) {
+          const yy = y + s*(i + 0.5)/STEPS;
+          ctx.fillStyle = '#6e4422'; ctx.fillRect(x + s*0.04, yy, s*0.92, riser);          // riser face (shadow)
+          ctx.fillStyle = '#f6e6be'; ctx.fillRect(x + s*0.04, yy - tread, s*0.92, tread);  // sunlit tread cap
+        }
+      } else {
+        for (let i = 0; i < STEPS; i++) {
+          const xx = x + s*(i + 0.5)/STEPS;
+          ctx.fillStyle = '#6e4422'; ctx.fillRect(xx, y + s*0.04, riser, s*0.92);
+          ctx.fillStyle = '#f6e6be'; ctx.fillRect(xx - tread, y + s*0.04, tread, s*0.92);
+        }
+      }
+
+      // Rock side-walls where the slot abuts the mesa (frames the cut). Drawn
+      // last so they cap the step ends cleanly.
+      const wall = (wx, wy, ww, wh, sx2, sy2, sw, sh) => {
+        ctx.fillStyle = '#7a4a22'; ctx.fillRect(wx, wy, ww, wh);
+        ctx.fillStyle = 'rgba(38,20,8,0.5)'; ctx.fillRect(sx2, sy2, sw, sh);
+      };
+      if (isMesa(row, col-1)) wall(x, y, s*0.12, s, x + s*0.12, y, 2, s);
+      if (isMesa(row, col+1)) wall(x + s*0.88, y, s*0.12, s, x + s*0.88 - 2, y, 2, s);
+      if (isMesa(row-1, col)) wall(x, y, s, s*0.12, x, y + s*0.12, s, 2);
+      if (isMesa(row+1, col)) wall(x, y + s*0.88, s, s*0.12, x, y + s*0.88 - 2, s, 2);
       break; }
     case T.FLOWERING_CACTUS: {
       // Sand backdrop + a cactus crowned with small magenta blossoms.
@@ -4154,6 +4308,8 @@ function drawDrop(d, ts) {
     d.type === 'mushroom' ? '200,112,74'  :
     d.type === 'potion'   ? '255,120,180' :
     d.type === 'bonemeal' ? '232,224,200' :  // pale bone-dust
+    d.type === 'winterberry' ? '154,122,216' :  // blue-purple berry
+    d.type === 'frostpetal'  ? '191,226,245' :  // pale ice-blue petal
     arrowElem             ? hexToRGB(arrowElem.color) :
     d.type === 'arrows'   ? '221,170,68' :  // plain arrows: warm tan/wood
     trophy                ? hexToRGB(trophy.color) :
@@ -4258,15 +4414,17 @@ function drawDrop(d, ts) {
     leaf(cx,             cy - s * 0.75, 0);
     leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
     leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
-  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal') {
-    // Trophy items + potion + arrow bundle + mushroom + bone meal: render as a
-    // glyph centered on the tile. Arrow drops show the elemental icon and the
-    // count; the rest show their thematic icon.
+  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal') {
+    // Trophy items + potion + arrow bundle + mushroom + bone meal + winter berry
+    // + frost petal: render as a glyph centered on the tile. Arrow drops show the
+    // elemental icon and the count; the rest show their thematic icon.
     const icon =
       d.type === 'arrows'   ? (arrowElem ? arrowElem.icon : '🏹') :
       d.type === 'potion'   ? '🧪' :
       d.type === 'mushroom' ? '🍄' :
       d.type === 'bonemeal' ? '🧂' :
+      d.type === 'winterberry' ? '🫐' :
+      d.type === 'frostpetal'  ? '💮' :
       trophy.icon;
     const size = Math.round(ts * 0.42 * pulse);
     ctx.font = `${size}px serif`;

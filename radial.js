@@ -65,6 +65,8 @@ const PASSIVE_DROPS = [
   { type: 'ectoplasms',icon: '👻', label: 'Ectoplasm',      key: 'ectoplasms' },
   { type: 'eyes',      icon: '👁️', label: 'Eye',            key: 'eyes'       },
   { type: 'brains',    icon: '🧠', label: 'Brain',          key: 'brains'     },
+  { type: 'winterberries', icon: '🫐', label: 'Winter Berry', key: 'winterberries' },
+  { type: 'frostpetals',   icon: '💮', label: 'Frost Petal',  key: 'frostpetals'   },
 ];
 
 // Each ring is a function returning live items so values track player state

@@ -787,6 +787,9 @@ function buildCaveMap() {
   m[cy - half + 1][cx + half - 2] = T.TORCH;
   m[cy + half - 2][cx - half + 1] = T.TORCH;
   m[cy + half - 2][cx + half - 2] = T.TORCH;
+  // A scatter of small chests (1d4) tucked around the chamber, inset one tile
+  // from the floor edge so they never abut the ROCK trim.
+  placeCaveChests(m, rnd(1, 4), cy - half + 2, cx - half + 2, cy + half - 3, cx + half - 3);
   return m;
 }
 
@@ -936,6 +939,27 @@ function carveCaveStub(m, tr, tc, dr, dc) {
   }
 }
 
+// Drop `count` small chests (1d4 per cave, rolled by the caller) onto open cave
+// floor within the inclusive region [r0..r1] × [c0..c1]. Each lands on a
+// CAVE_FLOOR tile whose four orthogonal neighbours are also floor, so a chest —
+// which is solid — never plugs a one-wide pinch (it always sits in a spot ≥3
+// wide, leaving a way around) and the hero can always stand beside it to open
+// it. The floor check also keeps chests off transitions, the large chest,
+// torches, and water; and since a placed chest is no longer CAVE_FLOOR, two
+// chests never stack or sit flush against each other.
+function placeCaveChests(m, count, r0, c0, r1, c1) {
+  for (let i = 0; i < count; i++) {
+    for (let t = 0; t < 200; t++) {
+      const r = rnd(r0, r1), c = rnd(c0, c1);
+      if (m[r][c] !== T.CAVE_FLOOR) continue;
+      if (m[r - 1][c] !== T.CAVE_FLOOR || m[r + 1][c] !== T.CAVE_FLOOR ||
+          m[r][c - 1] !== T.CAVE_FLOOR || m[r][c + 1] !== T.CAVE_FLOOR) continue;
+      m[r][c] = T.CHEST;
+      break;
+    }
+  }
+}
+
 function buildCaveLevelMap(isFinal) {
   const m = makeTile(MROWS, MCOLS, T.CAVE_WALL);
   const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
@@ -982,6 +1006,10 @@ function buildCaveLevelMap(isFinal) {
     m[cy - 2][cx - 2] = T.TORCH; m[cy - 2][cx + 2] = T.TORCH;
     m[cy + 2][cx - 2] = T.TORCH; m[cy + 2][cx + 2] = T.TORCH;
   }
+
+  // Sprinkle 1d4 small chests through the labyrinth. Placed last so the floor
+  // check excludes the transitions and (on the final level) the large chest.
+  placeCaveChests(m, rnd(1, 4), margin + 1, margin + 1, MROWS - margin - 2, MCOLS - margin - 2);
 
   return { map: m, entryLand: { x: e.lc, y: e.lr }, deeperLand };
 }
@@ -1238,6 +1266,10 @@ function buildRegionMap(seed, depth, openSides, region) {
   // fields. Converts open SNOW only (both passable), so connectivity holds.
   addSnowDrifts(m, region.id, depth);
 
+  // Ice region: wintry foliage on the open snow — winter berry bushes and frost
+  // lilies. Runs after the drifts so it seeds onto the remaining plain snow.
+  scatterWinterFoliage(m, region.id);
+
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
 
@@ -1270,6 +1302,17 @@ function sprinkleSnowPines(m, regionId, chance = 0.45) {
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
       if (m[r][c] === T.GLACIER && Math.random() < chance) m[r][c] = T.SNOW_PINE;
+}
+
+// Ice region: scatter wintry natural growth across the open snowfields — winter
+// berry bushes (cut for winter berries) and frost lilies (cut for frost petals).
+// Both seed onto open SNOW only, so paths, ice sheets, drifts, and placed
+// structures are left untouched; both are passable 1-HP foliage, so connectivity
+// is unaffected. No-op for every other region.
+function scatterWinterFoliage(m, regionId) {
+  if (regionId !== 'ice') return;
+  scatterOn(m, T.WINTER_BERRY_BUSH, 70, T.SNOW);
+  scatterOn(m, T.FROST_LILY, 55, T.SNOW);
 }
 
 // ─── Water village flooding ──────────────────────────────────────────────────

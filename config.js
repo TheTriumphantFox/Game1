@@ -84,7 +84,11 @@ const T = {
   CAVE_DESCENT:75,
   // Natural rock wall of the cave labyrinth — solid, like WALL, but rendered as
   // craggy stone instead of dressed dungeon brick.
-  CAVE_WALL:76
+  CAVE_WALL:76,
+  // Ice region natural growth. Both passable, 1-HP, sword-cuttable foliage that
+  // revert to SNOW when cut (like the forest's flowers): a WINTER_BERRY_BUSH
+  // (drops winter berries) and a FROST_LILY flower (drops frost petals).
+  WINTER_BERRY_BUSH:77, FROST_LILY:78
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -142,6 +146,9 @@ const TILE_COLORS = {
   // Desert terrain features — sandstone plateau, sandy climbing ramp, and a
   // flowering cactus (green body reads against sand on the minimap).
   [T.PLATEAU]: '#b5743a', [T.CLIMB]: '#caa46a', [T.FLOWERING_CACTUS]: '#3a7a3a',
+  // Ice region natural growth — frosted berry bush (deep evergreen) and a pale
+  // ice-blue frost lily, both readable against the snowfield on the minimap.
+  [T.WINTER_BERRY_BUSH]: '#3f6a4e', [T.FROST_LILY]: '#9fcfe8',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.

@@ -292,6 +292,8 @@ function doSwordSwing() {
     else if (tile === T.MUSHROOM)         { dropType = 'mushroom'; dropChance = 0.50; }
     else if (tile === T.FLOWERING_CACTUS) { dropType = 'herbal';   dropChance = 0.50; }
     else if (tile === T.BONES)            { dropType = 'bonemeal'; dropChance = 0.50; }
+    else if (tile === T.WINTER_BERRY_BUSH){ dropType = 'winterberry'; dropChance = 0.60; }
+    else if (tile === T.FROST_LILY)       { dropType = 'frostpetal';  dropChance = 0.50; }
     else continue;
     map[tr][tc] = ground;
     if (dropType && Math.random() < dropChance) {
@@ -538,6 +540,18 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#e8e0c8', 10, 3);
         spawnParticle(sp.x, sp.y, '#fffaf0', 6, 2);
         showMsg(`🦴 +${d.val} Bone Meal (now ${player.bonemeal})`, 1500);
+      } else if (d.type === 'winterberry') {
+        addItem('winterberries', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#6a4aa8', 10, 3);
+        spawnParticle(sp.x, sp.y, '#b89ae0', 6, 2);
+        showMsg(`🫐 +${d.val} Winter Berry (now ${player.winterberries})`, 1500);
+      } else if (d.type === 'frostpetal') {
+        addItem('frostpetals', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#bfe2f5', 10, 3);
+        spawnParticle(sp.x, sp.y, '#eaf6fd', 6, 2);
+        showMsg(`💮 +${d.val} Frost Petal (now ${player.frostpetals})`, 1500);
       } else if (TROPHY_META[d.type]) {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
         // type (fangs, fingers, bones, wings, organs, feathers, scales, …).
