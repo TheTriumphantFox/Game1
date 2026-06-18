@@ -43,7 +43,7 @@ const T = {
   // elemental region beyond forest/desert). Used by REGIONS in map-gen.js and
   // rendered with their TILE_COLORS fallback unless overridden in render.js.
   SNOW:46, ICE:47, GLACIER:48,                       // ice region
-  MUD:49, MOUNTAIN:50,                               // earth region (reuses PATH/ROCK for ground/decor)
+  MUD:49, MOUNTAIN:50,                               // earth region (MOUNTAIN wall; SCREE ground, dirt PATH trails, ROCK accent, MUD bogs)
   CLOUD:51, CLOUDWALL:52,                            // air region
   STORM_GROUND:53, STORM_CLOUD:54,                   // lightning region
   LUMINOUS_FLOOR:55, LUMINOUS_CRYSTAL:56,            // luminous region
@@ -88,7 +88,20 @@ const T = {
   // Ice region natural growth. Both passable, 1-HP, sword-cuttable foliage that
   // revert to SNOW when cut (like the forest's flowers): a WINTER_BERRY_BUSH
   // (drops winter berries) and a FROST_LILY flower (drops frost petals).
-  WINTER_BERRY_BUSH:77, FROST_LILY:78
+  WINTER_BERRY_BUSH:77, FROST_LILY:78,
+  // Water region beach finds on the sand — passable, 1-HP, sword-cuttable, revert
+  // to SAND when cut: a cluster of STONES (drops stone shards), a SEASHELL (drops
+  // seashells), and a branch of CORAL (drops coral).
+  STONES:79, SEASHELL:80, CORAL:81,
+  // Earth region's open ground — loose mountain SCREE (broken rock/gravel) that
+  // covers the slopes beyond the maintained dirt PATH trails. Passable, normal
+  // walk speed; the dirt PATH stays the "main path", SCREE is everything off it.
+  SCREE:82,
+  // Earth region natural growth strewn across the open SCREE slopes. All three
+  // are passable, 1-HP, sword-cuttable foliage that revert to SCREE when cut
+  // (like the forest's flowers): a MOUNTAIN_SAGE shrub (drops sage), a MOSS_CLUMP
+  // ground cover (drops moss), and a CRYSTAL_CLUSTER of amethyst (drops crystals).
+  MOUNTAIN_SAGE:83, MOSS_CLUMP:84, CRYSTAL_CLUSTER:85
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -149,6 +162,15 @@ const TILE_COLORS = {
   // Ice region natural growth — frosted berry bush (deep evergreen) and a pale
   // ice-blue frost lily, both readable against the snowfield on the minimap.
   [T.WINTER_BERRY_BUSH]: '#3f6a4e', [T.FROST_LILY]: '#9fcfe8',
+  // Water region beach finds — grey stones, a cream seashell, and orange coral,
+  // all readable against the sand on the minimap.
+  [T.STONES]: '#7a746b', [T.SEASHELL]: '#f0dcc4', [T.CORAL]: '#e8765a',
+  // Earth region scree — pale grey-brown rubble, distinct from the warmer dirt
+  // PATH (#a08860) so the off-trail slopes read separately on the minimap.
+  [T.SCREE]: '#8a8174',
+  // Earth region natural growth — sage-green shrub, mossy green cushion, and a
+  // pale amethyst crystal cluster, all readable against the grey SCREE.
+  [T.MOUNTAIN_SAGE]: '#7c9a6a', [T.MOSS_CLUMP]: '#5a7a3a', [T.CRYSTAL_CLUSTER]: '#a87fd0',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.

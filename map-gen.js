@@ -52,7 +52,7 @@ const REGIONS = [
       'Aurora Shelf','Frost-veined Hollow','Sleet Basin','Wintervale','Cryomire',
       'Brittle Crag','Diamond Dust Plain','Spire of Ice','Snowblind Crossing','Glasslake'
     ], villageName:'Frostfast Hold',            enemyTier:3, boss:'frost_titan'    },
-  { id:'earth',     element:null,        border:T.MOUNTAIN,        ground:T.PATH,           decoration:T.MUD,      accent:T.ROCK,        names:[
+  { id:'earth',     element:null,        border:T.MOUNTAIN,        ground:T.SCREE,          decoration:T.MUD,      accent:T.ROCK,        names:[
       'Granite Pass','Boulder Hollow','Quarry Trail','Stoneroot Glen','Slatefall Reach',
       'Earthcrack Maze','Cinder Ridge','Marble Vein','Mudbog Crossing','Tremor Basin',
       'Old Roads','Tumulus Field','Caveborn Path','Sediment Flats','Mossy Crag',
@@ -136,6 +136,104 @@ function addCliffFace(m) {
       if (footC > 0 && footC < MCOLS - 1 && Math.random() < 0.25 &&
           !isProtectedFeature(m[r][footC])) m[r][footC] = T.ROCK;
     }
+  }
+}
+
+// ─── Earth region: mountain terrain ──────────────────────────────────────────
+// The earth region is carved out of solid MOUNTAIN, so making its walls read as
+// rugged peaks (see the MOUNTAIN renderer) already frames it as a mountain range.
+// This roughs up the valley floor to match: a couple of rocky CLIFF bands hugging
+// the edges and loose talus boulders strewn across the open SCREE slopes. Runs
+// before the exit re-cut + connectivity seal (like the forest's cliff pass), so the
+// gates are reopened through any band and any stray pocket a band closes is cleaned
+// up. No-op for every other region.
+function addMountainTerrain(m, regionId) {
+  if (regionId !== 'earth') return;
+  const cliffs = rnd(2, 3);
+  for (let i = 0; i < cliffs; i++) addCliffFace(m);
+  scatterOn(m, T.ROCK, 90, T.SCREE);   // loose talus boulders across the open slopes
+}
+
+// ─── Earth region: mud bogs ──────────────────────────────────────────────────
+// Wet mud pooled across the open SCREE slopes as boggy clumps of 9–30 tiles (not
+// lone speckles) — each one slows the hero to half speed (see stepPlayerMovement).
+// Bogs sit off the maintained dirt PATH, so the main trail stays clean footing and
+// going off-trail is what gets you mired. Run AFTER ensureConnectivity: MUD only
+// ever replaces walkable SCREE (both passable, so connectivity is untouched), and
+// growing it post-seal means nothing re-cuts a clump and splits it below 9 tiles.
+// No-op for every other region.
+function addMudBogs(m, regionId) {
+  if (regionId !== 'earth') return;
+  const clumps = rnd(4, 8);
+  for (let i = 0; i < clumps; i++) growMudClump(m, rnd(9, 30));
+}
+
+// Grow one organic clump of up to `size` MUD tiles outward from a random SCREE
+// seed, converting SCREE only (so the dirt PATH, walls, structures, and decor are
+// never touched). Picks a random frontier cell each step so the blob spreads into a
+// rounded bog rather than a line. MUD is passable, so this never affects connectivity.
+function growMudClump(m, size) {
+  const NB4 = [[1,0],[-1,0],[0,1],[0,-1]];
+  let sr = -1, sc = -1;
+  for (let t = 0; t < 200; t++) {
+    const r = rnd(3, MROWS - 4), c = rnd(3, MCOLS - 4);
+    if (m[r][c] === T.SCREE) { sr = r; sc = c; break; }
+  }
+  if (sr < 0) return 0;
+  m[sr][sc] = T.MUD;
+  let placed = 1;
+  const frontier = [[sr, sc]];
+  while (placed < size && frontier.length) {
+    const fi = Math.floor(Math.random() * frontier.length);
+    const [r, c] = frontier[fi];
+    const opts = [];
+    for (const [dr, dc] of NB4) {
+      const nr = r + dr, nc = c + dc;
+      if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1 && m[nr][nc] === T.SCREE) opts.push([nr, nc]);
+    }
+    if (!opts.length) { frontier.splice(fi, 1); continue; }   // dead end — retire this cell
+    const [nr, nc] = opts[Math.floor(Math.random() * opts.length)];
+    m[nr][nc] = T.MUD; placed++;
+    frontier.push([nr, nc]);
+  }
+  return placed;
+}
+
+// ─── Earth region: cave entrances ────────────────────────────────────────────
+// Set 1d6 tunnel mouths into the rock walls — each a CAVE_ENTRANCE replacing a
+// solid MOUNTAIN/CLIFF tile that backs onto open ground, so the hero can walk
+// straight off the trail into the cliffside (stepping in drops them into a hidden
+// 1d6-level cave chain, exactly like a bombed-open tunnel). Run AFTER
+// ensureConnectivity so the seal can't wall the mouths back up: CAVE_ENTRANCE is
+// passable, and placing each against already-reachable open ground (PATH/SCREE/MUD)
+// keeps every mouth reachable. Mouths are spread out (min Manhattan gap) so they
+// don't cluster.
+// No-op for every other region.
+function addEarthCaveEntrances(m, regionId) {
+  if (regionId !== 'earth') return;
+  const NB4 = [[1,0],[-1,0],[0,1],[0,-1]];
+  const isWallRock  = (t) => t === T.MOUNTAIN || t === T.CLIFF;
+  const isOpenFloor = (t) => t === T.PATH || t === T.MUD || t === T.SCREE;
+  const cands = [];
+  for (let r = 2; r < MROWS - 2; r++)
+    for (let c = 2; c < MCOLS - 2; c++) {
+      if (!isWallRock(m[r][c])) continue;
+      for (const [dr, dc] of NB4)
+        if (isOpenFloor(m[r + dr][c + dc])) { cands.push([r, c]); break; }
+    }
+  if (!cands.length) return;
+  for (let i = cands.length - 1; i > 0; i--) {        // Fisher–Yates shuffle
+    const k = Math.floor(Math.random() * (i + 1));
+    const tmp = cands[i]; cands[i] = cands[k]; cands[k] = tmp;
+  }
+  const want = rnd(1, 6);
+  const MIN_GAP = 12;
+  const placed = [];
+  for (const [r, c] of cands) {
+    if (placed.length >= want) break;
+    if (placed.some(([pr, pc]) => Math.abs(pr - r) + Math.abs(pc - c) < MIN_GAP)) continue;
+    m[r][c] = T.CAVE_ENTRANCE;
+    placed.push([r, c]);
   }
 }
 
@@ -1188,6 +1286,10 @@ function buildRegionMap(seed, depth, openSides, region) {
     }
   }
 
+  // Earth region: rough up the map into mountain terrain (rocky cliff bands, mud,
+  // talus) before the exit corridors are re-cut through it. No-op elsewhere.
+  addMountainTerrain(m, region.id);
+
   // Ensure exit corridors reach interior
   cutExits(m, open.left, open.right, open.up, open.down);
   if (open.left)  drunkWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    PATHTILE, 1);
@@ -1236,6 +1338,11 @@ function buildRegionMap(seed, depth, openSides, region) {
   if (region.id === 'water') {
     applyWaterDepthBands(m);
     carveShallowChannels(m, 6);
+    // Strew bombable ROCK boulders across the beaches/sandbars. The generic
+    // Phase-5 scatter rarely lands here (the map is mostly water), so add a
+    // dedicated pass on SAND. Solid, so it runs BEFORE ensureConnectivity below
+    // re-validates the layout — single boulders on the wide bars never wall it off.
+    scatterOn(m, T.ROCK, 60, T.SAND);
   } else if (region.id === 'ice') {
     // Ice region: its standing water is frozen solid — accent pools become
     // walkable, slippery ICE sheets instead of swimmable medium water.
@@ -1256,6 +1363,34 @@ function buildRegionMap(seed, depth, openSides, region) {
   // corridors use the region's corridor tile so they blend in too.
   ensureConnectivity(m, false, BORDER, PATHTILE);
 
+  // Earth region: cut 1d6 cave-entrance tunnels into the rock walls. Done AFTER
+  // the seal (CAVE_ENTRANCE is passable, so the seal would otherwise wall stray
+  // ones back up) and against already-reachable ground so every mouth is usable.
+  addEarthCaveEntrances(m, region.id);
+
+  // Earth region: churn boggy MUD clumps (9–30 tiles) into the trails — each one
+  // slows the hero to half speed. After the seal so clumps stay whole (see above).
+  addMudBogs(m, region.id);
+
+  // Ice region: 1d4 frozen streams winding edge-to-edge across the map (W→E or
+  // N→S, like the forest's water channels), stamped straight as walkable ICE.
+  // Carved AFTER ensureConnectivity on purpose: ICE is passable, so if these ran
+  // before the seal, any stretch threading through the solid glacier that the
+  // exit flood can't reach would be sealed back to glacier (the streams would
+  // vanish). Carving after instead only ADDS walkable ice — it can never orphan
+  // existing terrain — and the streams reconnect themselves where they cross the
+  // central corridors. carveStream skips protected structures (chests, shrines,
+  // doors), so nothing important is paved over.
+  if (region.id === 'ice') {
+    const iceStreamCount = rnd(1, 4);
+    for (let i = 0; i < iceStreamCount; i++) {
+      if (Math.random() < 0.5)
+        carveStream(m, rnd(15, MROWS - 16), 1,                  rnd(15, MROWS - 16), MCOLS - 2, 1, T.ICE);  // W→E
+      else
+        carveStream(m, 1,                   rnd(15, MCOLS - 16), MROWS - 2,          rnd(15, MCOLS - 16), 1, T.ICE); // N→S
+    }
+  }
+
   // Ice region: dress the glacier walls with snow-covered pines so the border
   // reads as a frozen treeline rather than bare ice cliffs. Runs after the
   // connectivity seal so sealed pockets get trees too. SNOW_PINE is solid like
@@ -1269,6 +1404,15 @@ function buildRegionMap(seed, depth, openSides, region) {
   // Ice region: wintry foliage on the open snow — winter berry bushes and frost
   // lilies. Runs after the drifts so it seeds onto the remaining plain snow.
   scatterWinterFoliage(m, region.id);
+
+  // Water region: beach finds scattered on the open sand — stones, seashells,
+  // and coral. Runs after the water banding so it seeds onto the final sand.
+  scatterWaterFoliage(m, region.id);
+
+  // Earth region: hardy mountain growth on the open scree — sage shrubs, moss
+  // clumps, and amethyst crystal clusters. Runs after the mud bogs so it seeds
+  // onto the remaining plain scree, not the bog clumps.
+  scatterEarthFoliage(m, region.id);
 
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
@@ -1313,6 +1457,31 @@ function scatterWinterFoliage(m, regionId) {
   if (regionId !== 'ice') return;
   scatterOn(m, T.WINTER_BERRY_BUSH, 70, T.SNOW);
   scatterOn(m, T.FROST_LILY, 55, T.SNOW);
+}
+
+// Water region: scatter beach finds across the open sand — clusters of stones
+// (cut for stone shards), seashells, and coral fragments. Seeds onto open SAND
+// only (the region's walkable land/bars), so deep/shallow water and placed
+// structures are left untouched; all are passable 1-HP foliage, so connectivity
+// is unaffected. No-op for every other region.
+function scatterWaterFoliage(m, regionId) {
+  if (regionId !== 'water') return;
+  scatterOn(m, T.STONES, 60, T.SAND);
+  scatterOn(m, T.SEASHELL, 55, T.SAND);
+  scatterOn(m, T.CORAL, 45, T.SAND);
+}
+
+// Earth region: scatter hardy mountain growth across the open scree slopes —
+// sage shrubs (cut for sage), moss clumps (cut for moss), and amethyst crystal
+// clusters (cut for crystals). Seeds onto open SCREE only (the region's walkable
+// ground off the dirt trails), so paths, mud bogs, talus rock, and placed
+// structures are left untouched; all are passable 1-HP foliage that revert to
+// SCREE when cut, so connectivity is unaffected. No-op for every other region.
+function scatterEarthFoliage(m, regionId) {
+  if (regionId !== 'earth') return;
+  scatterOn(m, T.MOUNTAIN_SAGE, 60, T.SCREE);
+  scatterOn(m, T.MOSS_CLUMP, 60, T.SCREE);
+  scatterOn(m, T.CRYSTAL_CLUSTER, 40, T.SCREE);
 }
 
 // ─── Water village flooding ──────────────────────────────────────────────────
@@ -1476,8 +1645,8 @@ function buildVillageMap(biome) {
   //   • Inner ring (8) wraps the fountain with a 7-tile gap between adjacent
   //     houses in both directions.
   //   • Outer ring (10) lines the village perimeter — top and bottom rows
-  //     each carry 4 houses with a uniform 22-tile horizontal gap; the two
-  //     side houses sit at col 8 / col 125 (same columns as the corners).
+  //     each carry 4 houses; the two side houses sit at col 10 / col 123,
+  //     kept 2 tiles in from the border-wall ring on each side.
   //
   const hw = 16, hh = 12;
   const HOUSE_W = hw + 1, HOUSE_H = hh + 1;     // 17, 13
@@ -1491,19 +1660,23 @@ function buildVillageMap(biome) {
   const CENTRE_COL = midC - Math.floor(hw / 2);              // 67
   const WEST_COL   = CENTRE_COL - HOUSE_W - INNER_GAP;       // 43
   const EAST_COL   = CENTRE_COL + HOUSE_W + INNER_GAP;       // 91
-  // Outer ring — uniform spacing on every axis AND clear of the E↔W exit
-  // corridor at row 75:
-  //   • Top + bottom rows: 4 houses each at cols 8 / 47 / 86 / 125, giving
-  //     a uniform 22-tile horizontal gap between adjacent houses.
-  //   • Side columns 8 and 125: two extra houses each at rows 48 and 82
+  // Outer ring — clear of the E↔W exit corridor at row 75, and kept ≥2 tiles
+  // clear of the village's inner border-wall ring on every side (the playfield
+  // runs cols/rows 8..141, so the outer houses are pulled in off the wall):
+  //   • Top + bottom rows: 4 houses each at cols 10 / 47 / 86 / 123. The two
+  //     edge columns sit 2 tiles in from the side wall (houses span 10..26 and
+  //     123..139, leaving cols 8–9 and 140–141 as the gap); ~20–22-tile gaps
+  //     between adjacent houses. The top row (14) and bottom row (116) already
+  //     clear the top/bottom wall by 6 and 13 tiles.
+  //   • Side columns 10 and 123: two extra houses each at rows 48 and 82
   //     (21-row gaps from the top, between themselves, and to the bottom).
   //     Both side rows sit clear of row 75, so the W↔E exit corridor reaches
   //     the plaza unobstructed.
   const OUTER_TOP_ROW    = 14;
   const OUTER_BOTTOM_ROW = 116;
-  const OUTER_COLS       = [8, 47, 86, 125];   // 22-tile horizontal gap
+  const OUTER_COLS       = [10, 47, 86, 123];  // edge cols 2 tiles in from the wall
   const OUTER_SIDE_ROWS  = [48, 82];           // 21-tile vertical gap on side cols
-  const OUTER_SIDE_COLS  = [8, 125];           // the two side columns
+  const OUTER_SIDE_COLS  = [10, 123];          // side cols, 2 tiles in from the wall
   const housePlacements = [
     // ── Inner ring (4 corners only) ──────────────────────────────────
     // The cardinal N/S/E/W positions are intentionally left empty so the
@@ -1679,10 +1852,14 @@ function buildVillageMap(biome) {
   const isDoor = (c, r) =>
     r >= 0 && r < MROWS && c >= 0 && c < MCOLS &&
     (m[r][c] === T.DOOR || m[r][c] === T.INN_DOOR || m[r][c] === T.STORE_DOOR);
-  // The water village skips this: its DECOR is solid WATER, which must never hug
-  // a house wall (the wall ring stays dry SAND), and floodWaterVillage below
-  // dresses its exteriors instead.
-  if (regionId !== 'water') {
+  // The water, ice, and earth villages skip this and dress their own exteriors
+  // below. The water village's DECOR is solid WATER (which must never hug a house
+  // wall: floodWaterVillage keeps the wall ring dry SAND, then a beach-find pass
+  // adds coral + seashells). The ice village's DECOR is ICE — removed here in
+  // favour of winter foliage hugging the houses, so the ice village carries no ICE
+  // at all. The earth village's DECOR is MUD — replaced below with mountain
+  // foliage (sage, moss, crystals), so the earth village carries no MUD at all.
+  if (regionId !== 'water' && regionId !== 'ice' && regionId !== 'earth') {
     for (let r = 1; r < MROWS - 1; r++) {
       for (let c = 1; c < MCOLS - 1; c++) {
         if (m[r][c] !== GROUND) continue;
@@ -1697,10 +1874,77 @@ function buildVillageMap(biome) {
     }
   }
 
+  // Ice region: dress the snow ring around every house with winter foliage —
+  // frost lilies (ice flowers) and winter berry bushes — in place of the ICE tiles
+  // the generic pass above would have laid (the ice village carries no ICE). Mirrors
+  // that scan: every SNOW tile touching a house WALL gets a chance, skipping tiles
+  // next to a door so entrances stay clear. Both are passable 1-HP foliage that
+  // revert to SNOW when cut, so connectivity is unaffected.
+  if (regionId === 'ice') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.SNOW here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) m[r][c] = Math.random() < 0.5 ? T.FROST_LILY : T.WINTER_BERRY_BUSH;
+      }
+    }
+  }
+
+  // Earth region: dress the scree ring around every house with mountain foliage —
+  // sage shrubs, moss clumps, and amethyst crystal clusters — in place of the MUD
+  // the generic pass above would have laid (the earth village carries no MUD).
+  // Mirrors that scan: every SCREE tile touching a house WALL gets a chance,
+  // skipping tiles next to a door so entrances stay clear. All three are passable
+  // 1-HP foliage that revert to SCREE when cut, so connectivity is unaffected.
+  if (regionId === 'earth') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.SCREE here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) {
+          const roll = Math.random();
+          m[r][c] = roll < 0.4 ? T.MOUNTAIN_SAGE : roll < 0.8 ? T.MOSS_CLUMP : T.CRYSTAL_CLUSTER;
+        }
+      }
+    }
+  }
+
   // Water region: flood ~80% of the open village ground to wadeable SHALLOW_WATER,
   // keeping a 3-tile sand margin along the cobble roads and a dry sand ring around
   // every house. Done after the roads/exteriors are final and before connectivity.
   if (regionId === 'water') floodWaterVillage(m);
+
+  // Water region: dress the dry sand ring around every house with beach finds —
+  // coral and seashells, the water village's answer to the flowers/cacti that hug
+  // forest/desert houses. Mirrors the wall-adjacency scan above (every SAND tile
+  // touching a house WALL gets a chance; tiles next to a door are skipped so the
+  // entrances stay clear), but runs AFTER floodWaterVillage so the flood can't
+  // wash the finds away — the wall ring it keeps dry is exactly what we decorate.
+  // CORAL and SEASHELL are passable 1-HP foliage, so connectivity is unaffected.
+  if (regionId === 'water') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.SAND here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) m[r][c] = Math.random() < 0.5 ? T.CORAL : T.SEASHELL;
+      }
+    }
+  }
 
   // preserveFloor=true so house interiors aren't sealed as border tiles
   ensureConnectivity(m, true, BORDER);

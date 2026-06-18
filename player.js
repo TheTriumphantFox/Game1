@@ -145,7 +145,9 @@ function useMedPotion() {
 // Tick/cooldown state
 let moveTimer = 0;
 const MOVE_MS = 110;             // ms between movement steps (grid-based)
-const ICE_SLIDE_MS = 50;         // released walk input stays live this long on ICE
+const ICE_SLIDE_MS = 320;        // released walk input stays live this long on ICE
+                                 // (~MOVE_MS×3 → the hero glides a couple of tiles
+                                 // before stopping; bumped from 50 for slicker ice)
 
 // ── Climb / jump animation state (read by drawPlayer in render.js) ────────────
 // A "jump" is a short timed hop arc, triggered when the player mounts or leaves
@@ -859,21 +861,22 @@ function stepPlayerMovement() {
     lastWalkInput.mx = mx; lastWalkInput.my = my; lastWalkInput.t = Date.now();
   } else {
     // Slippery ice: standing on an ICE sheet keeps the released walk input
-    // active for an extra ICE_SLIDE_MS, so the hero glides one extra beat
-    // before stopping instead of halting on a dime.
+    // active for an extra ICE_SLIDE_MS, so the hero keeps gliding for a couple
+    // of beats after you let go instead of halting on a dime.
     if (map[player.y][player.x] === T.ICE && lastWalkInput.t >= 0 &&
         Date.now() - lastWalkInput.t <= ICE_SLIDE_MS) {
       mx = lastWalkInput.mx; my = lastWalkInput.my;
     }
     if (!mx && !my) return;
   }
-  // Trudging through a sand DUNE (fire region) or a SNOW_DRIFT (ice region)
-  // halves walk speed; swimming through MEDIUM_WATER is slower still — 40% of
-  // normal pace (interval × 2.5). The step gate stretches to match while
-  // standing on one.
+  // Trudging through a sand DUNE (fire region), a SNOW_DRIFT (ice region), or a
+  // MUD clump (earth region) halves walk speed; swimming through MEDIUM_WATER is
+  // slower still — 40% of normal pace (interval × 2.5). The step gate stretches to
+  // match while standing on one.
   const standTile = map[player.y][player.x];
   const stepMs = standTile === T.DUNE         ? MOVE_MS * 2
                : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
+               : standTile === T.MUD          ? MOVE_MS * 2
                : standTile === T.MEDIUM_WATER ? MOVE_MS * 2.5
                : MOVE_MS;
   if (moveTimer < stepMs) return;

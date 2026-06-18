@@ -118,13 +118,15 @@ function isProtectedFeature(t) {
          t === T.DOOR || t === T.PORTAL;
 }
 
-// Carve a winding water channel (T.WATER) from (sr,sc) toward (er,ec). Paints a
-// band `width` tiles to each side of a meandering centre line — width 1 → a
-// 3-tile-wide stream, width 0 → a single-tile trickle. Skips protected
-// structures. Returns the centre-line cells so callers can drop bridges or
-// splash pools along the course.
-function carveStream(m, sr, sc, er, ec, width) {
+// Carve a winding channel from (sr,sc) toward (er,ec). Paints a band `width`
+// tiles to each side of a meandering centre line — width 1 → a 3-tile-wide
+// stream, width 0 → a single-tile trickle. Skips protected structures. `tile`
+// is the fill (default T.WATER; the ice region passes T.ICE for frozen streams).
+// Returns the centre-line cells so callers can drop bridges or splash pools
+// along the course.
+function carveStream(m, sr, sc, er, ec, width, tile) {
   width = width === undefined ? 1 : width;
+  tile = tile === undefined ? T.WATER : tile;
   const cells = [];
   let r = sr, c = sc;
   const maxSteps = (MROWS + MCOLS) * 4;
@@ -145,7 +147,7 @@ function carveStream(m, sr, sc, er, ec, width) {
       for (let dc2 = -width; dc2 <= width; dc2++) {
         const nr = r + dr2, nc = c + dc2;
         if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1 &&
-            !isProtectedFeature(m[nr][nc])) m[nr][nc] = T.WATER;
+            !isProtectedFeature(m[nr][nc])) m[nr][nc] = tile;
       }
   }
   return cells;

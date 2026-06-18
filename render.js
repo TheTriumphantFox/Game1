@@ -125,6 +125,89 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#999'; ctx.beginPath(); ctx.arc(x+s/2,y+s/2,s*0.38,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = '#aaa'; ctx.beginPath(); ctx.arc(x+s/2-3,y+s/2-3,s*0.2,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = '#666'; ctx.beginPath(); ctx.arc(x+s/2+4,y+s/2+3,s*0.12,0,Math.PI*2); ctx.fill(); break;
+    case T.MOUNTAIN: {
+      // Rugged mountain rock — the earth region is carved out of MOUNTAIN, so its
+      // walls ARE the mountainsides. Craggy brown-grey faceting (lit upper-left,
+      // shadowed lower-right, a jagged fault and a mineral glint), plus a pale
+      // rocky/snow cap on any top edge that faces open ground so the crests catch
+      // the light like peaks (brighter where a side is open too — an exposed summit).
+      // Hashed per tile so the range reads as living rock, not a tiled grid.
+      const M = mapData();
+      const isMtn = (rr, cc) =>
+        (rr < 0 || cc < 0 || rr >= MROWS || cc >= MCOLS) ? true : M[rr][cc] === T.MOUNTAIN;
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#4a4035'; ctx.fillRect(x, y, s, s);            // base rock
+      ctx.fillStyle = '#655849';                                       // lit facet (upper-left)
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + s*(0.58 + j(0,0.14)), y);
+      ctx.lineTo(x + s*(0.30 + j(2,0.12)), y + s*(0.52 + j(4,0.10)));
+      ctx.lineTo(x, y + s*(0.58 + j(6,0.10)));
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2f2820';                                       // shadowed recess (lower-right)
+      ctx.beginPath();
+      ctx.moveTo(x + s, y + s*(0.30 + j(0,0.12)));
+      ctx.lineTo(x + s, y + s);
+      ctx.lineTo(x + s*(0.40 + j(2,0.12)), y + s);
+      ctx.lineTo(x + s*(0.64 + j(4,0.08)), y + s*0.50);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#241d16'; ctx.lineWidth = 1.5;                // jagged fault line
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.44 + j(8,0.12)), y);
+      ctx.lineTo(x + s*(0.54 + j(6,0.10)), y + s*0.50);
+      ctx.lineTo(x + s*(0.42 + j(4,0.12)), y + s);
+      ctx.stroke();
+      ctx.fillStyle = '#8a7d68';                                       // mineral glint
+      ctx.fillRect(x + s*0.22 + (h & 7), y + s*0.30, 2, 2);
+      if (!isMtn(row - 1, col)) {                                      // crest cap toward open sky
+        const summit = !isMtn(row, col - 1) || !isMtn(row, col + 1);
+        ctx.fillStyle = summit ? 'rgba(234,238,244,0.88)' : 'rgba(200,192,178,0.82)';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + s, y);
+        ctx.lineTo(x + s*(0.72 + j(2,0.10)), y + s*(0.22 + j(4,0.08)));
+        ctx.lineTo(x + s*(0.34 + j(6,0.10)), y + s*(0.16 + j(8,0.08)));
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.lineWidth = 1;
+      break; }
+    case T.MUD: {
+      // Wet mud churned into the mountain trails — darker than the dirt PATH, with
+      // a glossy puddle and a couple of embedded pebbles. Static per tile (no anim).
+      const h = (col * 67 + row * 97);
+      ctx.fillStyle = '#5a3a18'; ctx.fillRect(x, y, s, s);            // mud base
+      ctx.fillStyle = '#492f13';                                       // darker churned patches
+      ctx.fillRect(x + s*0.12, y + s*0.50, s*0.40, s*0.34);
+      ctx.fillRect(x + s*0.52, y + s*0.16, s*0.32, s*0.26);
+      ctx.fillStyle = 'rgba(120,140,150,0.28)';                        // puddle sheen
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.36, y + s*0.62, s*0.18, s*0.10, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#7a6a55'; ctx.fillRect(x + s*0.66 + (h & 3), y + s*0.66, 2, 2);  // pebbles
+      ctx.fillStyle = '#6a5a45'; ctx.fillRect(x + s*0.22, y + s*0.26 + (h & 3), 2, 2);
+      break; }
+    case T.SCREE: {
+      // Loose mountain scree — the earth region's open ground beyond the dirt PATH.
+      // A pale grey-brown rubble base strewn with little angular stones in mixed
+      // greys, hashed per tile so the slope reads as broken rock rather than a flat
+      // fill. Static (no animation), and clearly cooler/greyer than the warm PATH.
+      const h = (col * 53 + row * 89);
+      ctx.fillStyle = '#8a8174'; ctx.fillRect(x, y, s, s);             // rubble base
+      ctx.fillStyle = '#7c7368';                                        // faint mottling
+      ctx.fillRect(x + s*0.10, y + s*0.55, s*0.34, s*0.30);
+      ctx.fillRect(x + s*0.55, y + s*0.12, s*0.30, s*0.24);
+      // Scattered angular pebbles — positions/shades hashed so each tile differs.
+      const peb = [['#9c9384', 0.22, 0.30, 3], ['#6f6659', 0.62, 0.58, 3],
+                   ['#aaa094', 0.40, 0.72, 2], ['#5f574c', 0.78, 0.34, 2]];
+      for (let i = 0; i < peb.length; i++) {
+        const [cstr, fx, fy, sz] = peb[i];
+        ctx.fillStyle = cstr;
+        const jx = ((h >> (i * 2)) & 3) - 1;
+        const jy = ((h >> (i * 2 + 1)) & 3) - 1;
+        ctx.fillRect(x + s*fx + jx, y + s*fy + jy, sz, sz);
+      }
+      break; }
     case T.FLOWER: {
       // ── Grass base (static — doesn't sway) ─────────────────────────────
       ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x, y, s, s);
@@ -1422,6 +1505,118 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#ffffff';
       ctx.beginPath(); ctx.arc(fcx - s*0.015, fcy - s*0.015, s*0.02, 0, Math.PI*2); ctx.fill();
       break; }
+    case T.STONES: {
+      // Sand backdrop + a small cluster of smooth grey beach stones, each lit
+      // from the upper-left with a soft highlight.
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
+      const stone = (sx, sy, rw, rh, base, lit) => {
+        ctx.fillStyle = base;
+        ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = lit;
+        ctx.beginPath(); ctx.ellipse(sx - rw*0.25, sy - rh*0.3, rw*0.45, rh*0.4, 0, 0, Math.PI*2); ctx.fill();
+      };
+      stone(x + s*0.36, y + s*0.60, s*0.20, s*0.15, '#6f6a62', '#8f8a80');
+      stone(x + s*0.64, y + s*0.52, s*0.16, s*0.13, '#7a746b', '#9a948a');
+      stone(x + s*0.52, y + s*0.73, s*0.14, s*0.10, '#615c54', '#807a70');
+      break; }
+    case T.SEASHELL: {
+      // Sand backdrop + a pale scallop shell: a ridged fan opening upward from a
+      // hinge at the bottom, warm cream with a pink blush near the hinge.
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
+      const hx = x + s*0.5, hy = y + s*0.74, a0 = Math.PI*1.18, a1 = Math.PI*1.82;
+      ctx.fillStyle = '#f2dcc4';
+      ctx.beginPath(); ctx.moveTo(hx, hy); ctx.arc(hx, hy, s*0.34, a0, a1, false); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#e8b8a0';
+      ctx.beginPath(); ctx.moveTo(hx, hy); ctx.arc(hx, hy, s*0.15, a0, a1, false); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#d8b89a'; ctx.lineWidth = Math.max(1, s*0.025);
+      for (let i = 0; i <= 4; i++) {
+        const a = a0 + (a1 - a0) * (i / 4);
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(a)*s*0.33, hy + Math.sin(a)*s*0.33); ctx.stroke();
+      }
+      break; }
+    case T.CORAL: {
+      // Sand backdrop + a branching coral in warm orange-pink, like a small reef
+      // fragment on the tidal bar, with lighter polyp tips.
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
+      ctx.strokeStyle = '#e8765a'; ctx.lineWidth = Math.max(2, s*0.09); ctx.lineCap = 'round';
+      const bx = x + s*0.5, by = y + s*0.86;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, y + s*0.45); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx, y + s*0.62); ctx.lineTo(x + s*0.28, y + s*0.40); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx, y + s*0.55); ctx.lineTo(x + s*0.72, y + s*0.34); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx, y + s*0.48); ctx.lineTo(x + s*0.40, y + s*0.24); ctx.stroke();
+      ctx.fillStyle = '#ffa98e';
+      [[bx, y+s*0.45], [x+s*0.28, y+s*0.40], [x+s*0.72, y+s*0.34], [x+s*0.40, y+s*0.24]].forEach(([px, py]) => {
+        ctx.beginPath(); ctx.arc(px, py, s*0.06, 0, Math.PI*2); ctx.fill();
+      });
+      break; }
+    case T.MOUNTAIN_SAGE: {
+      // Scree backdrop + a low, hardy sage shrub: a few rounded silver-green leaf
+      // clumps on short woody stems, lit from the upper-left. Static per tile.
+      ctx.fillStyle = '#8a8174'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#7c7368'; ctx.fillRect(x, y + s*0.86, s, s*0.14);   // ground shadow
+      ctx.strokeStyle = '#5a4a32'; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x + s*0.42, y + s*0.9); ctx.lineTo(x + s*0.40, y + s*0.55); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + s*0.58, y + s*0.9); ctx.lineTo(x + s*0.62, y + s*0.58); ctx.stroke();
+      const clump = (cx2, cy2, rr, base, lit) => {
+        ctx.fillStyle = base;
+        ctx.beginPath(); ctx.arc(cx2, cy2, rr, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = lit;
+        ctx.beginPath(); ctx.arc(cx2 - rr*0.3, cy2 - rr*0.3, rr*0.5, 0, Math.PI*2); ctx.fill();
+      };
+      clump(x + s*0.40, y + s*0.50, s*0.18, '#6f8c5e', '#9cb487');
+      clump(x + s*0.62, y + s*0.52, s*0.16, '#7c9a6a', '#a8c094');
+      clump(x + s*0.52, y + s*0.38, s*0.14, '#84a070', '#b4cc9e');
+      break; }
+    case T.MOSS_CLUMP: {
+      // Scree backdrop + a low cushion of green moss spreading over the rubble,
+      // with a couple of tiny spore stalks. Blotch positions hashed per tile so
+      // the patches read as living moss, not a flat fill. Static (no anim).
+      const h = (col * 71 + row * 59);
+      ctx.fillStyle = '#8a8174'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#4c6a30';                                            // base cushion
+      ctx.beginPath(); ctx.ellipse(x + s*0.5, y + s*0.66, s*0.34, s*0.22, 0, 0, Math.PI*2); ctx.fill();
+      const blob = [['#5a7a3a', 0.34, 0.58, 0.13], ['#6a8c46', 0.62, 0.62, 0.11],
+                    ['#52723a', 0.50, 0.74, 0.10], ['#74986a', 0.46, 0.55, 0.07]];
+      for (let i = 0; i < blob.length; i++) {
+        const [cstr, fx, fy, fr] = blob[i];
+        ctx.fillStyle = cstr;
+        const jx = (((h >> (i*2)) & 3) - 1) * s*0.02;
+        ctx.beginPath(); ctx.arc(x + s*fx + jx, y + s*fy, s*fr, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.strokeStyle = '#9ab07a'; ctx.lineWidth = Math.max(1, s*0.03); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x + s*0.40, y + s*0.66); ctx.lineTo(x + s*0.38, y + s*0.50); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + s*0.60, y + s*0.70); ctx.lineTo(x + s*0.63, y + s*0.56); ctx.stroke();
+      ctx.fillStyle = '#cfe0a8';
+      ctx.beginPath(); ctx.arc(x + s*0.38, y + s*0.49, s*0.03, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*0.63, y + s*0.55, s*0.03, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.CRYSTAL_CLUSTER: {
+      // Scree backdrop + a small cluster of angular amethyst crystals jutting up,
+      // each a tapered prism in violet with a lighter lit face and a bright tip.
+      ctx.fillStyle = '#8a8174'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#7c7368';
+      ctx.beginPath(); ctx.ellipse(x + s*0.5, y + s*0.82, s*0.30, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      const shard = (bx, tipx, tipy, halfw, base, lit, tip) => {
+        const baseY = y + s*0.84;
+        ctx.fillStyle = base;
+        ctx.beginPath();
+        ctx.moveTo(bx - halfw, baseY);
+        ctx.lineTo(tipx, tipy);
+        ctx.lineTo(bx + halfw, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = lit;                                               // lit left face
+        ctx.beginPath();
+        ctx.moveTo(bx - halfw, baseY);
+        ctx.lineTo(tipx, tipy);
+        ctx.lineTo(bx, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = tip;                                               // bright tip
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.035, 0, Math.PI*2); ctx.fill();
+      };
+      shard(x + s*0.38, x + s*0.34, y + s*0.34, s*0.11, '#7a4ea8', '#a87fd0', '#e0cdf4');
+      shard(x + s*0.62, x + s*0.68, y + s*0.42, s*0.10, '#6a4296', '#9a6fc4', '#dcc6f0');
+      shard(x + s*0.50, x + s*0.50, y + s*0.24, s*0.12, '#8a5ec0', '#b890e0', '#f0e6fc');
+      break; }
     case T.BONES: {
       // Sand backdrop + a small bleached skull-and-rib silhouette.
       ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
@@ -1500,21 +1695,72 @@ function drawTile(col, row, t, sx, sy, s) {
       }
       break; }
     case T.CLIFF: {
-      // Rocky cliff face — layered strata with cracks and a chiselled top-left
-      // light edge. Jittered by tile coords so adjacent faces aren't identical.
-      ctx.fillStyle = '#6a5f52'; ctx.fillRect(x, y, s, s);
-      ctx.fillStyle = '#564c40'; ctx.fillRect(x, y,          s, s*0.18);
-      ctx.fillStyle = '#7a6e5e'; ctx.fillRect(x, y + s*0.34, s, s*0.16);
-      ctx.fillStyle = '#544a3e'; ctx.fillRect(x, y + s*0.62, s, s*0.18);
-      const j = (col * 113 + row * 71) & 7;
-      ctx.fillStyle = '#857a68';
-      ctx.fillRect(x + (j % 4),  y + s*0.20, s*0.30, 2);
-      ctx.fillRect(x + s*0.55,   y + s*0.50 + (j % 3), s*0.35, 2);
-      ctx.fillStyle = '#3e362c';
-      ctx.fillRect(x + s*0.45, y,          2, s);            // vertical crack
-      ctx.fillRect(x + s*0.20, y + s*0.55, 2, s*0.40);
-      ctx.fillStyle = 'rgba(220,210,190,0.22)';
-      ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);   // light edge
+      // Rocky cliff face — same craggy faceting as the cave walls and the same
+      // edge-aware 3D relief as the desert mesa, in grey forest stone. A band
+      // hugging a map edge reads as a real wall: sunlit cap + shadow foot on its
+      // exposed long faces, thin bevels on the ends, all rotating with the band so
+      // an up/down cliff mirrors a left/right one. Light stays in the upper-left.
+      const M = mapData();
+      const isCliff = (rr, cc) =>
+        (rr < 0 || cc < 0 || rr >= MROWS || cc >= MCOLS) ? true : M[rr][cc] === T.CLIFF;
+      // Band orientation: the shorter run of solid cliff is its thickness, so that
+      // axis is "across" the wall.
+      const runLen = (dr, dc) => { let k = 1; while (k <= 14 && isCliff(row + dr*k, col + dc*k)) k++; return k; };
+      const vSpan = Math.min(runLen(-1, 0), runLen(1, 0));
+      const hSpan = Math.min(runLen(0, -1), runLen(0, 1));
+      const vertical = hSpan < vSpan;                       // thin horizontally → up/down band
+      const upOpen = !isCliff(row - 1, col), downOpen = !isCliff(row + 1, col);
+      const leftOpen = !isCliff(row, col - 1), rightOpen = !isCliff(row, col + 1);
+      const h = (col * 113 + row * 71);
+
+      // Body: craggy grey stone — lit facet upper-left, shadowed recess lower-right,
+      // a jagged fracture, and a mineral glint, all hashed per tile so a cliff reads
+      // as fractured living rock rather than a tiled grid.
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#6a5f52'; ctx.fillRect(x, y, s, s);          // base rock
+      ctx.fillStyle = '#7e7363';                                    // lit facet (upper-left)
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + s*(0.55 + j(0, 0.14)), y);
+      ctx.lineTo(x + s*(0.30 + j(2, 0.12)), y + s*(0.50 + j(4, 0.10)));
+      ctx.lineTo(x, y + s*(0.55 + j(6, 0.10)));
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#463d33';                                    // shadowed recess (lower-right)
+      ctx.beginPath();
+      ctx.moveTo(x + s, y + s*(0.32 + j(0, 0.12)));
+      ctx.lineTo(x + s, y + s);
+      ctx.lineTo(x + s*(0.38 + j(2, 0.12)), y + s);
+      ctx.lineTo(x + s*(0.62 + j(4, 0.08)), y + s*0.50);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#2c261e'; ctx.lineWidth = 1.5;             // jagged fracture
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.42 + j(8, 0.12)), y);
+      ctx.lineTo(x + s*(0.52 + j(6, 0.10)), y + s*0.48);
+      ctx.lineTo(x + s*(0.40 + j(4, 0.12)), y + s);
+      ctx.stroke();
+      ctx.fillStyle = '#a89a84';                                    // mineral glint
+      ctx.fillRect(x + s*0.20 + (h & 7), y + s*0.28, 2, 2);
+
+      const CAP = '#8a7e6a', RIM = '#b2a68e', LIP = 'rgba(28,24,18,0.6)';
+      const FOOT = 'rgba(26,22,16,0.5)', GND = 'rgba(10,9,7,0.65)';
+      const LITB = 'rgba(232,224,206,0.30)', SHB = 'rgba(34,30,22,0.5)';
+      const tk = Math.max(1, s*0.03), bv = Math.max(2, s*0.04);
+
+      if (!vertical) {
+        // Horizontal band (runs left/right): cap on top, foot on bottom, thin
+        // bevels on the left/right ends.
+        if (upOpen)   { ctx.fillStyle = CAP; ctx.fillRect(x, y, s, s*0.24); ctx.fillStyle = RIM; ctx.fillRect(x, y, s, s*0.08); ctx.fillStyle = LIP; ctx.fillRect(x, y + s*0.24, s, tk); }
+        if (downOpen) { ctx.fillStyle = FOOT; ctx.fillRect(x, y + s*0.76, s, s*0.24); ctx.fillStyle = GND; ctx.fillRect(x, y + s - bv, s, bv); }
+        if (leftOpen)  { ctx.fillStyle = LITB; ctx.fillRect(x, y, bv, s); }
+        if (rightOpen) { ctx.fillStyle = SHB;  ctx.fillRect(x + s - bv, y, bv, s); }
+      } else {
+        // Vertical band (runs up/down): the same relief rotated 90° — cap on the
+        // LEFT, foot on the RIGHT, bevels on the top/bottom ends.
+        if (leftOpen)  { ctx.fillStyle = CAP; ctx.fillRect(x, y, s*0.24, s); ctx.fillStyle = RIM; ctx.fillRect(x, y, s*0.08, s); ctx.fillStyle = LIP; ctx.fillRect(x + s*0.24, y, tk, s); }
+        if (rightOpen) { ctx.fillStyle = FOOT; ctx.fillRect(x + s*0.76, y, s*0.24, s); ctx.fillStyle = GND; ctx.fillRect(x + s - bv, y, bv, s); }
+        if (upOpen)   { ctx.fillStyle = LITB; ctx.fillRect(x, y, s, bv); }
+        if (downOpen) { ctx.fillStyle = SHB;  ctx.fillRect(x, y + s - bv, s, bv); }
+      }
       break; }
     case T.PLATEAU: {
       // Raised sandstone mesa with real relief. Craggy rock texture (faceted like
@@ -4310,6 +4556,11 @@ function drawDrop(d, ts) {
     d.type === 'bonemeal' ? '232,224,200' :  // pale bone-dust
     d.type === 'winterberry' ? '154,122,216' :  // blue-purple berry
     d.type === 'frostpetal'  ? '191,226,245' :  // pale ice-blue petal
+    d.type === 'seashell'    ? '232,184,160' :  // pale shell
+    d.type === 'coral'       ? '232,118,90'  :  // coral orange
+    d.type === 'sage'        ? '124,154,106' :  // sage green
+    d.type === 'moss'        ? '120,168,80'  :  // moss green
+    d.type === 'crystal'     ? '168,127,208' :  // amethyst violet
     arrowElem             ? hexToRGB(arrowElem.color) :
     d.type === 'arrows'   ? '221,170,68' :  // plain arrows: warm tan/wood
     trophy                ? hexToRGB(trophy.color) :
@@ -4414,7 +4665,7 @@ function drawDrop(d, ts) {
     leaf(cx,             cy - s * 0.75, 0);
     leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
     leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
-  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal') {
+  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal') {
     // Trophy items + potion + arrow bundle + mushroom + bone meal + winter berry
     // + frost petal: render as a glyph centered on the tile. Arrow drops show the
     // elemental icon and the count; the rest show their thematic icon.
@@ -4425,7 +4676,12 @@ function drawDrop(d, ts) {
       d.type === 'bonemeal' ? '🧂' :
       d.type === 'winterberry' ? '🫐' :
       d.type === 'frostpetal'  ? '💮' :
-      trophy.icon;
+      d.type === 'seashell'    ? '🐚' :
+      d.type === 'coral'       ? '🪸' :
+      d.type === 'sage'        ? '🌿' :
+      d.type === 'moss'        ? '🌱' :
+      d.type === 'crystal'     ? '🔮' :
+      (trophy ? trophy.icon : '❓');
     const size = Math.round(ts * 0.42 * pulse);
     ctx.font = `${size}px serif`;
     ctx.textAlign = 'center';

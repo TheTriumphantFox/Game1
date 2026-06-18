@@ -294,6 +294,12 @@ function doSwordSwing() {
     else if (tile === T.BONES)            { dropType = 'bonemeal'; dropChance = 0.50; }
     else if (tile === T.WINTER_BERRY_BUSH){ dropType = 'winterberry'; dropChance = 0.60; }
     else if (tile === T.FROST_LILY)       { dropType = 'frostpetal';  dropChance = 0.50; }
+    else if (tile === T.STONES)           { dropType = 'stone';     dropChance = 0.50; }
+    else if (tile === T.SEASHELL)         { dropType = 'seashell';  dropChance = 0.50; }
+    else if (tile === T.CORAL)            { dropType = 'coral';     dropChance = 0.50; }
+    else if (tile === T.MOUNTAIN_SAGE)    { dropType = 'sage';      dropChance = 0.50; }
+    else if (tile === T.MOSS_CLUMP)       { dropType = 'moss';      dropChance = 0.50; }
+    else if (tile === T.CRYSTAL_CLUSTER)  { dropType = 'crystal';   dropChance = 0.45; }
     else continue;
     map[tr][tc] = ground;
     if (dropType && Math.random() < dropChance) {
@@ -552,6 +558,36 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#bfe2f5', 10, 3);
         spawnParticle(sp.x, sp.y, '#eaf6fd', 6, 2);
         showMsg(`💮 +${d.val} Frost Petal (now ${player.frostpetals})`, 1500);
+      } else if (d.type === 'seashell') {
+        addItem('seashells', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#e8b8a0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#f6e6d6', 6, 2);
+        showMsg(`🐚 +${d.val} Seashell (now ${player.seashells})`, 1500);
+      } else if (d.type === 'coral') {
+        addItem('corals', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#e8765a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#ffa98e', 6, 2);
+        showMsg(`🪸 +${d.val} Coral (now ${player.corals})`, 1500);
+      } else if (d.type === 'sage') {
+        addItem('sage', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#7c9a6a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#b8cfa2', 6, 2);
+        showMsg(`🌿 +${d.val} Sage (now ${player.sage})`, 1500);
+      } else if (d.type === 'moss') {
+        addItem('moss', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#5a7a3a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#8fb060', 6, 2);
+        showMsg(`🌱 +${d.val} Moss (now ${player.moss})`, 1500);
+      } else if (d.type === 'crystal') {
+        addItem('crystals', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#a87fd0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#d8c0f0', 6, 2);
+        showMsg(`🔮 +${d.val} Crystal (now ${player.crystals})`, 1500);
       } else if (TROPHY_META[d.type]) {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
         // type (fangs, fingers, bones, wings, organs, feathers, scales, …).
