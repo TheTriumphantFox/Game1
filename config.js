@@ -101,7 +101,20 @@ const T = {
   // are passable, 1-HP, sword-cuttable foliage that revert to SCREE when cut
   // (like the forest's flowers): a MOUNTAIN_SAGE shrub (drops sage), a MOSS_CLUMP
   // ground cover (drops moss), and a CRYSTAL_CLUSTER of amethyst (drops crystals).
-  MOUNTAIN_SAGE:83, MOSS_CLUMP:84, CRYSTAL_CLUSTER:85
+  MOUNTAIN_SAGE:83, MOSS_CLUMP:84, CRYSTAL_CLUSTER:85,
+  // Air region. The hero walks on a floor of cloud: CLOUD is the base walkable
+  // cloud surface and CLOUDBANK is the brighter, fluffier second cloud tile
+  // dappled across it, so the floor reads as a rolling bank of two cloud tiles
+  // (both passable). SKY_GROUND is the solid border framing the map — the
+  // distant earth seen far below, beyond the edge of the cloud, from the height
+  // of the clouds (a hazy patchwork of fields and water). (CLOUDWALL, the old
+  // solid cloud border, is retained for backward compatibility but no longer
+  // placed in fresh air maps.)
+  CLOUDBANK:86, SKY_GROUND:87,
+  // The impassable fluffy lip of the cloud — a 2-to-4-tile band ringing the whole
+  // walkable area, so the cloud the hero stands on has a billowing edge they
+  // can't step past (beyond it is the SKY_GROUND earth far below). Solid.
+  CLOUD_EDGE:88
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -171,6 +184,13 @@ const TILE_COLORS = {
   // Earth region natural growth — sage-green shrub, mossy green cushion, and a
   // pale amethyst crystal cluster, all readable against the grey SCREE.
   [T.MOUNTAIN_SAGE]: '#7c9a6a', [T.MOSS_CLUMP]: '#5a7a3a', [T.CRYSTAL_CLUSTER]: '#a87fd0',
+  // Air region — CLOUDBANK is the brighter puff dappled across the walkable
+  // CLOUD floor (whiter than the base cloud), and SKY_GROUND is the solid border:
+  // a hazy blue-green of the distant earth seen far below from cloud height.
+  [T.CLOUDBANK]: '#eaf1fb', [T.SKY_GROUND]: '#8fa48f',
+  // Cloud edge — the impassable rim, a touch greyer/shaded than the bright floor
+  // so the lip reads distinctly from the cloud the hero walks on.
+  [T.CLOUD_EDGE]: '#bcc8de',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.

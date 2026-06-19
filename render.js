@@ -208,6 +208,123 @@ function drawTile(col, row, t, sx, sy, s) {
         ctx.fillRect(x + s*fx + jx, y + s*fy + jy, sz, sz);
       }
       break; }
+    case T.CLOUDWALL: {
+      // Air region border — a solid bank of cloud. Puffy white lobes overlapping
+      // the tile edges so the frame reads as one continuous cloud mass rather
+      // than a grid, lit on top and shaded along the underside. Hashed per tile
+      // so the bank rolls instead of repeating. Static (no per-frame work — there
+      // are a lot of border tiles).
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#9fb0c8'; ctx.fillRect(x, y, s, s);              // cloud body
+      ctx.fillStyle = '#8595af'; ctx.fillRect(x, y + s*0.62, s, s*0.38);// shaded underside
+      ctx.fillStyle = '#eef3fb';                                        // puffy white lobes
+      ctx.beginPath();
+      ctx.arc(x + s*(0.30 + j(0,0.10)), y + s*(0.38 + j(2,0.08)), s*(0.30 + j(4,0.06)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.72 + j(6,0.08)), y + s*(0.44 + j(8,0.06)), s*(0.26 + j(0,0.06)), 0, Math.PI*2);
+      ctx.arc(x + s*0.52,               y + s*(0.26 + j(4,0.06)), s*0.22, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';                          // sunlit crest
+      ctx.beginPath(); ctx.arc(x + s*0.40, y + s*0.30, s*0.15, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.CLOUDBANK: {
+      // The brighter, fluffier second cloud tile dappled across the walkable cloud
+      // floor — denser, whiter puffs than the base CLOUD so the surface reads as a
+      // rolling bank of cloud rather than one flat sheet. Passable. Static, hashed.
+      const h = (col * 97 + row * 57);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#eef4fc'; ctx.fillRect(x, y, s, s);              // bright cloud base
+      ctx.fillStyle = '#ffffff';                                        // fluffy white lobes
+      ctx.beginPath();
+      ctx.arc(x + s*(0.32 + j(0,0.10)), y + s*(0.40 + j(2,0.08)), s*(0.26 + j(4,0.05)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.62 + j(6,0.08)), y + s*(0.36 + j(8,0.06)), s*(0.24 + j(0,0.05)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.50 + j(2,0.06)), y + s*(0.62 + j(4,0.06)), s*0.20, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(180,198,222,0.30)';                         // faint dimple shadow
+      ctx.beginPath(); ctx.arc(x + s*0.74, y + s*0.66, s*0.10, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';                         // glint of sun
+      ctx.fillRect(x + s*0.34, y + s*0.30, 2, 2);
+      break; }
+    case T.SKY_GROUND: {
+      // The air region's solid border — the earth seen far below from the height
+      // of the clouds, framing the cloud the hero walks on. A hazy blue-green land
+      // base dappled with muted field and forest patches and the odd thread of a
+      // river/road, all desaturated by the distance (aerial perspective) and
+      // veiled with a soft haze so the edge reads as the world far below. Hashed,
+      // static.
+      const h = (col * 73 + row * 51);
+      const q = (a) => (h >> a) & 3;
+      ctx.fillStyle = '#8fa48f'; ctx.fillRect(x, y, s, s);              // hazy land base
+      // Muted patchwork of fields / forest / water far below.
+      const patches = [
+        ['#7e9a74', 0.04, 0.08, 0.44, 0.40],
+        ['#9aa884', 0.50, 0.46, 0.46, 0.48],
+        ['#6f8f8a', 0.16, 0.56, 0.34, 0.36],
+      ];
+      for (let i = 0; i < patches.length; i++) {
+        const [cstr, fx, fy, fw, fh] = patches[i];
+        ctx.fillStyle = cstr;
+        ctx.fillRect(x + s*fx + q(i*2), y + s*fy, s*fw, s*fh);
+      }
+      // A tiny far-below river/road winding through some tiles.
+      if (q(6) === 0) {
+        ctx.strokeStyle = 'rgba(160,188,206,0.55)'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x,         y + s*(0.30 + 0.10*q(0)));
+        ctx.lineTo(x + s*0.5, y + s*(0.54 + 0.06*q(2)));
+        ctx.lineTo(x + s,     y + s*(0.40 + 0.10*q(4)));
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+      // Field-boundary speckles, then a soft atmospheric haze veil over it all.
+      ctx.fillStyle = 'rgba(70,92,80,0.40)';
+      ctx.fillRect(x + s*0.30 + q(0), y + s*0.32 + q(2), 1, 1);
+      ctx.fillRect(x + s*0.66,        y + s*0.70,        1, 1);
+      ctx.fillStyle = 'rgba(212,226,238,0.20)'; ctx.fillRect(x, y, s, s);
+      break; }
+    case T.CLOUD: {
+      // The air region's walkable ground — a soft floor of cloud the hero strolls
+      // across (you're standing on the cloud, so it's opaque, not a see-through
+      // wisp). Pale cloud base with hashed sunlit puffs and faint blue dimples so
+      // the surface rolls gently instead of reading flat. Passable. Static.
+      const h = (col * 61 + row * 97);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#e3ecf7'; ctx.fillRect(x, y, s, s);              // cloud floor base
+      ctx.fillStyle = '#ffffff';                                        // sunlit puffs
+      ctx.beginPath();
+      ctx.arc(x + s*(0.30 + j(0,0.12)), y + s*(0.34 + j(2,0.10)), s*(0.20 + j(4,0.05)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.68 + j(6,0.10)), y + s*(0.60 + j(8,0.08)), s*(0.18 + j(0,0.05)), 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(150,170,200,0.22)';                         // soft dimple shadows
+      ctx.beginPath();
+      ctx.arc(x + s*(0.58 + j(2,0.08)), y + s*(0.30 + j(4,0.06)), s*0.12, 0, Math.PI*2);
+      ctx.arc(x + s*(0.28 + j(8,0.06)), y + s*(0.66 + j(6,0.06)), s*0.10, 0, Math.PI*2);
+      ctx.fill();
+      break; }
+    case T.CLOUD_EDGE: {
+      // The impassable lip of the cloud ringing the walkable floor. Billowing
+      // white puffs along the top curl down into a shaded, wispy underside so the
+      // tile reads as the rounded edge of the cloud dropping away — clearly puffier
+      // and darker-bottomed than the flat CLOUD floor, signalling "can't walk off
+      // here." Lobes overlap the tile edges so the rim stays continuous. Hashed
+      // per tile, static.
+      const h = (col * 89 + row * 53);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#cfd9ea'; ctx.fillRect(x, y, s, s);              // cloud-edge body
+      ctx.fillStyle = '#9aa8c2'; ctx.fillRect(x, y + s*0.56, s, s*0.44);// shaded underside (curls under)
+      ctx.fillStyle = '#7e8ca8'; ctx.fillRect(x, y + s*0.82, s, s*0.18);// deepest shadow (the drop-off)
+      ctx.fillStyle = '#f4f8fe';                                        // billowing white puffs on top
+      ctx.beginPath();
+      ctx.arc(x + s*(0.26 + j(0,0.10)), y + s*(0.34 + j(2,0.08)), s*(0.24 + j(4,0.06)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.62 + j(6,0.08)), y + s*(0.30 + j(8,0.06)), s*(0.26 + j(0,0.06)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.90 + j(2,0.05)), y + s*(0.42 + j(4,0.05)), s*0.18, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(210,220,236,0.5)'; ctx.lineWidth = 1;     // wispy tendrils trailing off
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.30 + j(6,0.10)), y + s*0.64); ctx.lineTo(x + s*(0.24 + j(8,0.10)), y + s*0.92);
+      ctx.moveTo(x + s*(0.70 + j(2,0.10)), y + s*0.68); ctx.lineTo(x + s*(0.78 + j(4,0.10)), y + s*0.95);
+      ctx.stroke(); ctx.lineWidth = 1;
+      break; }
     case T.FLOWER: {
       // ── Grass base (static — doesn't sway) ─────────────────────────────
       ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x, y, s, s);

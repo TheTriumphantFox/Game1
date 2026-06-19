@@ -30,6 +30,7 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
              t === T.WATERFALL || t === T.CLIFF || t === T.PLATEAU ||
              // Elemental region borders
              t === T.GLACIER || t === T.SNOW_PINE || t === T.MOUNTAIN || t === T.CLOUDWALL ||
+             t === T.SKY_GROUND || t === T.CLOUD_EDGE ||
              t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||
              t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL);
   };

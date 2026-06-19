@@ -58,7 +58,7 @@ const REGIONS = [
       'Old Roads','Tumulus Field','Caveborn Path','Sediment Flats','Mossy Crag',
       'Sunken Plateau','Iron Gulch','Echo Canyon','Magmaroot Hollow','Petrified Grove'
     ], villageName:'Stoneheart Burrow',         enemyTier:4, boss:'gaia_colossus'  },
-  { id:'air',       element:'wind',      border:T.CLOUDWALL,       ground:T.CLOUD,          decoration:T.CLOUD,    accent:T.WATER,       names:[
+  { id:'air',       element:'wind',      border:T.SKY_GROUND,      ground:T.CLOUD,          decoration:T.CLOUDBANK, accent:T.WATER,      names:[
       'Skywharf','Cumulus Crossing','Zephyr Vault','Updraft Reach','Drifting Bastion',
       'Thunderhead Pass','Mist-veiled Path','Featherfall Hollow','Cirrus Ribbon','Stratos Spine',
       'Galewall','Wisp Field','Halcyon Reach','Stormthrone Approach','Falcon Roost',
@@ -1414,6 +1414,15 @@ function buildRegionMap(seed, depth, openSides, region) {
   // onto the remaining plain scree, not the bog clumps.
   scatterEarthFoliage(m, region.id);
 
+  // Air region: dapple the walkable cloud floor with brighter CLOUDBANK puffs so
+  // it reads as a rolling bank of two cloud tiles (the hero walks on the cloud;
+  // the SKY_GROUND border frames it with the distant earth far below).
+  sprinkleCloudFloor(m, region.id);
+
+  // Air region: wrap the walkable cloud in an impassable 2–4 tile CLOUD_EDGE rim
+  // so it reads as an island of cloud with a billowing lip the hero can't cross.
+  ringCloudEdges(m, region.id);
+
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
 
@@ -1482,6 +1491,66 @@ function scatterEarthFoliage(m, regionId) {
   scatterOn(m, T.MOUNTAIN_SAGE, 60, T.SCREE);
   scatterOn(m, T.MOSS_CLUMP, 60, T.SCREE);
   scatterOn(m, T.CRYSTAL_CLUSTER, 40, T.SCREE);
+}
+
+// Air region: the hero walks on a floor of cloud (CLOUD). Dapple a share of that
+// floor with the brighter, fluffier CLOUDBANK puffs so the walkable surface reads
+// as a rolling bank of two cloud tiles instead of one flat sheet. Both tiles are
+// passable, so this never affects connectivity. Runs after the seal, like the
+// other regions' decorative passes. No-op for every other region.
+function sprinkleCloudFloor(m, regionId) {
+  if (regionId !== 'air') return;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.CLOUD && Math.random() < 0.22) m[r][c] = T.CLOUDBANK;
+}
+
+// Air region: ring the entire walkable area with an impassable band of CLOUD_EDGE
+// — the billowing lip of the cloud the hero stands on, so they can't step off it.
+// The band is ~2 tiles solid, fraying out irregularly to 3–4 tiles so the rim
+// reads as a ragged cloud edge rather than a clean wall; beyond it the SKY_GROUND
+// earth far below remains. Measured by BFS distance from every passable tile and
+// only ever converts solid SKY_GROUND (never walkable tiles or the accent sky-
+// pools), so the passable graph — and thus connectivity and the exits — is
+// untouched. Runs after the connectivity seal. No-op for every other region.
+function ringCloudEdges(m, regionId) {
+  if (regionId !== 'air') return;
+  const W = MCOLS, H = MROWS, MAXB = 4;
+  const NB4 = [[1,0],[-1,0],[0,1],[0,-1]];
+  // Multi-source BFS: distance (in tiles) from the nearest passable tile, capped
+  // at MAXB. Sources are every walkable tile (cloud floor, paths, bridges).
+  const dist = new Int16Array(W * H).fill(-1);
+  const q = [];
+  for (let r = 0; r < H; r++)
+    for (let c = 0; c < W; c++)
+      if (!isSolid(m, c, r)) { dist[r * W + c] = 0; q.push(r * W + c); }
+  for (let head = 0; head < q.length; head++) {
+    const idx = q[head], r = (idx / W) | 0, c = idx % W, d = dist[idx];
+    if (d >= MAXB) continue;
+    for (const [dr, dc] of NB4) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nc < 0 || nr >= H || nc >= W) continue;
+      const ni = nr * W + nc;
+      if (dist[ni] !== -1) continue;
+      dist[ni] = d + 1; q.push(ni);
+    }
+  }
+  // Paint the band. The inner 2 tiles are always edge; tiles 3–4 out are frayed
+  // in via a coarse (2×2-block) spatial hash so the outer boundary is clumpy and
+  // organic, giving a rim that wavers between 2 and 4 tiles wide.
+  for (let r = 0; r < H; r++)
+    for (let c = 0; c < W; c++) {
+      if (m[r][c] !== T.SKY_GROUND) continue;            // only eat the earth border
+      const d = dist[r * W + c];
+      if (d < 1) continue;
+      let inBand = d <= 2;
+      if (!inBand && d <= MAXB) {
+        const fray = ((((c >> 1) * 73) ^ ((r >> 1) * 131)) >>> 0);
+        inBand = (d === 3) ? ((fray & 3) !== 0)          // ~75% at 3 out
+                           : ((fray & 7) < 3);           // ~37% at 4 out
+      }
+      if (inBand) m[r][c] = T.CLOUD_EDGE;
+    }
 }
 
 // ─── Water village flooding ──────────────────────────────────────────────────
