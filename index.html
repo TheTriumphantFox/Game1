@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyrule Quest — Forest</title>
+<link rel="stylesheet" href="game.css">
+<link rel="stylesheet" href="modal.css">
+</head>
+<body>
+
+<!-- Inn modal -->
+<div id="inn-modal-overlay" class="shop-overlay">
+  <div id="inn-modal" class="shop-modal"></div>
+</div>
+<!-- General Store modal -->
+<div id="store-modal-overlay" class="shop-overlay">
+  <div id="store-modal" class="shop-modal"></div>
+</div>
+<!-- Herbalist modal -->
+<div id="herb-modal-overlay" class="shop-overlay">
+  <div id="herb-modal" class="shop-modal"></div>
+</div>
+<!-- Blacksmith modal -->
+<div id="smith-modal-overlay" class="shop-overlay">
+  <div id="smith-modal" class="shop-modal"></div>
+</div>
+<!-- Cabin portal — fast-travel destination select -->
+<div id="portal-modal-overlay" class="shop-overlay">
+  <div id="portal-modal" class="shop-modal"></div>
+</div>
+
+<!-- Save / Load modal -->
+<div id="save-modal-overlay">
+  <div id="save-modal">
+    <h2 id="modal-title">💾 Save Game</h2>
+    <div id="modal-mode-label"></div>
+    <div id="slot-list"></div>
+    <div id="modal-name-row" style="display:none">
+      <input id="modal-name-input" type="text" placeholder="Name this save…" maxlength="32">
+      <button class="ssbtn" id="modal-confirm-btn">Save</button>
+    </div>
+    <button id="modal-close" onclick="closeModal()">✕ Close</button>
+  </div>
+</div>
+
+<!-- Main game wrapper -->
+<div id="wrap">
+  <div id="hud">
+    <span id="hearts"></span>
+    <span style="margin-left:6px">💰<span id="rupees">0</span></span>
+    <span>⚔️Lv<span id="level">1</span></span>
+    <span style="color:#88aaff">XP:<span id="xp">0</span>/<span id="xpnext">500</span></span>
+    <span style="margin-left:auto;color:#8c8" id="roomName">Forest Clearing</span>
+  </div>
+  <div id="msg-bar"></div>
+  <canvas id="c"></canvas>
+  <!-- Large transient banner for map/area messages — overlays the top third
+       of the screen, centered. Driven by showMapMsg() in ui.js. -->
+  <div id="map-banner"></div>
+  <div id="weapon-bar">
+    <span class="weapon-slot weapon-active" id="ws-sword">⚔️ Sword [Z]</span>
+    <span class="weapon-slot" id="ws-bow">🏹 Bow [X]</span>
+    <span class="weapon-slot" id="ws-bomb">💣 Bomb [C]</span>
+    <span class="weapon-slot" id="ws-armor" style="display:none"></span>
+    <span class="weapon-slot" id="ws-interact" style="display:none"></span>
+    <span style="margin-left:auto;color:#557">Tab: Minimap</span>
+  </div>
+  <div id="ctrl-bar">
+    <span>WASD/Arrows: Move</span><span>Shift: Strafe</span><span>V: Menu</span>
+  </div>
+  <div id="save-row">
+    <button onclick="openSaveModal()">💾 Save</button>
+    <button onclick="openLoadModal()">📂 Load</button>
+    <button onclick="newGame()">🆕 New</button>
+    <span id="save-status" style="font-size:11px;color:#466"></span>
+  </div>
+</div>
+
+<!--
+  Script load order matters — each module relies on those declared above it.
+  Plain <script> (no modules) so file:// works without a dev server.
+-->
+<script src="config.js"></script>
+<script src="map-helpers.js"></script>
+<script src="connectivity.js"></script>
+<script src="map-gen.js"></script>
+<script src="enemies.js"></script>
+<script src="world.js"></script>
+<script src="fog.js"></script>
+<script src="player.js"></script>
+<script src="projectiles.js"></script>
+<script src="render.js"></script>
+<script src="ui.js"></script>
+<script src="save.js"></script>
+<script src="elements.js"></script>
+<script src="shop.js"></script>
+<script src="villagers.js"></script>
+<script src="radial.js"></script>
+<script src="portal.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
