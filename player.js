@@ -869,14 +869,15 @@ function stepPlayerMovement() {
     }
     if (!mx && !my) return;
   }
-  // Trudging through a sand DUNE (fire region), a SNOW_DRIFT (ice region), or a
-  // MUD clump (earth region) halves walk speed; swimming through MEDIUM_WATER is
-  // slower still — 40% of normal pace (interval × 2.5). The step gate stretches to
-  // match while standing on one.
+  // Trudging through a sand DUNE (fire region), a SNOW_DRIFT (ice region), a
+  // MUD clump (earth region), or a boggy BOG mire (poison region) halves walk
+  // speed; swimming through MEDIUM_WATER is slower still — 40% of normal pace
+  // (interval × 2.5). The step gate stretches to match while standing on one.
   const standTile = map[player.y][player.x];
   const stepMs = standTile === T.DUNE         ? MOVE_MS * 2
                : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
                : standTile === T.MUD          ? MOVE_MS * 2
+               : standTile === T.BOG          ? MOVE_MS * 2
                : standTile === T.MEDIUM_WATER ? MOVE_MS * 2.5
                : MOVE_MS;
   if (moveTimer < stepMs) return;

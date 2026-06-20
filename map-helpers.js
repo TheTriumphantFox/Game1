@@ -51,8 +51,11 @@ function isSolid(map, c, r) {
          // Elemental region borders (solid)
          t === T.GLACIER || t === T.SNOW_PINE || t === T.MOUNTAIN || t === T.CLOUDWALL ||
          t === T.SKY_GROUND || t === T.CLOUD_EDGE ||
-         t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL ||
+         t === T.STORM_CLOUD || t === T.STORM_EDGE || t === T.LUMINOUS_CRYSTAL ||
+         t === T.LIGHT_PILLAR ||
          t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL ||
+         t === T.DEAD_TREE || t === T.TOMBSTONE ||
+         t === T.BOG_POOL || t === T.MANGROVE ||
          isChestTile(t);
 }
 

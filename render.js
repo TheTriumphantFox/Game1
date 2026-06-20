@@ -325,6 +325,117 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.moveTo(x + s*(0.70 + j(2,0.10)), y + s*0.68); ctx.lineTo(x + s*(0.78 + j(4,0.10)), y + s*0.95);
       ctx.stroke(); ctx.lineWidth = 1;
       break; }
+    case T.STORM_GROUND: {
+      // Lightning region's walkable floor — the dark-storm twin of CLOUD. The hero
+      // strolls across a floor of brooding dark cloud: a dark slate base with
+      // hashed, faintly-lit billows and deep shadow dimples so the surface rolls
+      // gently, plus the odd cold electric glint hinting at the charge in the air.
+      // Passable. Static, hashed per tile.
+      const h = (col * 61 + row * 97);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#2f3548'; ctx.fillRect(x, y, s, s);              // dark cloud-floor base
+      ctx.fillStyle = '#3c4360';                                        // faintly lit billows
+      ctx.beginPath();
+      ctx.arc(x + s*(0.30 + j(0,0.12)), y + s*(0.34 + j(2,0.10)), s*(0.20 + j(4,0.05)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.68 + j(6,0.10)), y + s*(0.60 + j(8,0.08)), s*(0.18 + j(0,0.05)), 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(8,10,22,0.42)';                             // deep shadow dimples
+      ctx.beginPath();
+      ctx.arc(x + s*(0.58 + j(2,0.08)), y + s*(0.30 + j(4,0.06)), s*0.12, 0, Math.PI*2);
+      ctx.arc(x + s*(0.28 + j(8,0.06)), y + s*(0.66 + j(6,0.06)), s*0.10, 0, Math.PI*2);
+      ctx.fill();
+      if (((h >> 4) & 7) === 0) {                                       // rare cold electric glint
+        ctx.fillStyle = 'rgba(150,192,240,0.55)';
+        ctx.fillRect(x + s*(0.44 + j(2,0.18)), y + s*(0.40 + j(6,0.20)), 1.5, 1.5);
+      }
+      break; }
+    case T.STORM_BANK: {
+      // The brighter, lit storm puff dappled across the walkable STORM_GROUND floor
+      // — the dark-storm twin of CLOUDBANK. Raised, slightly paler dark lobes catch
+      // a cold crest of light so the floor reads as a rolling bank of storm cloud
+      // rather than one flat dark sheet. Passable. Static, hashed.
+      const h = (col * 97 + row * 57);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#3a4158'; ctx.fillRect(x, y, s, s);              // lit storm-puff base
+      ctx.fillStyle = '#49516f';                                        // raised dark lobes
+      ctx.beginPath();
+      ctx.arc(x + s*(0.32 + j(0,0.10)), y + s*(0.40 + j(2,0.08)), s*(0.26 + j(4,0.05)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.62 + j(6,0.08)), y + s*(0.36 + j(8,0.06)), s*(0.24 + j(0,0.05)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.50 + j(2,0.06)), y + s*(0.62 + j(4,0.06)), s*0.20, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(6,8,18,0.38)';                              // dimple shadow
+      ctx.beginPath(); ctx.arc(x + s*0.74, y + s*0.66, s*0.10, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(172,206,246,0.5)';                          // cold crest glint
+      ctx.fillRect(x + s*0.34, y + s*0.30, 2, 2);
+      break; }
+    case T.STORM_EDGE: {
+      // The impassable lip of the storm island ringing the walkable floor — the
+      // dark-storm twin of CLOUD_EDGE. Billowing dark lobes along the top curl down
+      // into a near-black, wispy underside so the tile reads as the rounded edge of
+      // the cloud dropping away into the thunderheads below — clearly puffier and
+      // darker-bottomed than the flat STORM_GROUND floor, signalling "can't walk off
+      // here." A faint cold rim light catches the lobe crests. Hashed, static.
+      const h = (col * 89 + row * 53);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#333950'; ctx.fillRect(x, y, s, s);              // storm-edge body
+      ctx.fillStyle = '#22273a'; ctx.fillRect(x, y + s*0.56, s, s*0.44);// shaded underside (curls under)
+      ctx.fillStyle = '#131723'; ctx.fillRect(x, y + s*0.82, s, s*0.18); // deepest shadow (the drop-off)
+      ctx.fillStyle = '#3f475f';                                        // billowing dark lobes on top
+      ctx.beginPath();
+      ctx.arc(x + s*(0.26 + j(0,0.10)), y + s*(0.34 + j(2,0.08)), s*(0.24 + j(4,0.06)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.62 + j(6,0.08)), y + s*(0.30 + j(8,0.06)), s*(0.26 + j(0,0.06)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.90 + j(2,0.05)), y + s*(0.42 + j(4,0.05)), s*0.18, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(150,190,240,0.30)'; ctx.lineWidth = 1;    // cold rim light on the crests
+      ctx.beginPath();
+      ctx.arc(x + s*(0.26 + j(0,0.10)), y + s*(0.30 + j(2,0.08)), s*(0.24 + j(4,0.06)), Math.PI*1.15, Math.PI*1.85);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(20,24,38,0.7)'; ctx.lineWidth = 1;        // wispy dark tendrils trailing off
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.30 + j(6,0.10)), y + s*0.64); ctx.lineTo(x + s*(0.24 + j(8,0.10)), y + s*0.92);
+      ctx.moveTo(x + s*(0.70 + j(2,0.10)), y + s*0.68); ctx.lineTo(x + s*(0.78 + j(4,0.10)), y + s*0.95);
+      ctx.stroke(); ctx.lineWidth = 1;
+      break; }
+    case T.STORM_CLOUD: {
+      // Lightning region's solid border — the dark-storm twin of SKY_GROUND. Where
+      // air frames its cloud island with the hazy earth far below, lightning frames
+      // it with a churning sea of near-black thunderheads: overlapping dark lobes in
+      // a couple of cold shades, a shadowed underbelly, and — on a scattered ~1-in-8
+      // of tiles — a frozen fork of lightning veining through, so the whole border
+      // reads as a wall of very angry storm cloud. Hashed, static (a lot of border
+      // tiles, so no per-frame work).
+      const h = (col * 73 + row * 51);
+      const q = (a) => (h >> a) & 3;
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#1a1e2b'; ctx.fillRect(x, y, s, s);              // near-black storm base
+      ctx.fillStyle = '#242a3b';                                        // dark thunderhead lobes
+      ctx.beginPath();
+      ctx.arc(x + s*(0.30 + j(0,0.12)), y + s*(0.36 + j(2,0.10)), s*(0.30 + j(4,0.06)), 0, Math.PI*2);
+      ctx.arc(x + s*(0.74 + j(6,0.10)), y + s*(0.46 + j(8,0.08)), s*(0.26 + j(0,0.06)), 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#2e354a';                                        // cold-lit crest of a lobe
+      ctx.beginPath();
+      ctx.arc(x + s*(0.40 + j(2,0.08)), y + s*(0.28 + j(4,0.06)), s*0.16, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(4,6,14,0.55)';                              // shadowed underbelly
+      ctx.fillRect(x, y + s*0.66, s, s*0.34);
+      if (((h >> 5) & 7) === 0) {                                       // a lightning vein in the cloud
+        // Faint as charged-cloud texture between strikes, then blazes in sync
+        // with the whole-screen flash (stormFlashLevel, set once per frame).
+        const fl = stormFlashLevel;
+        ctx.strokeStyle = 'rgba(110,150,225,' + (0.12 + 0.5*fl).toFixed(3) + ')'; ctx.lineWidth = 3; // soft glow
+        ctx.beginPath();
+        ctx.moveTo(x + s*(0.38 + 0.12*q(0)), y);
+        ctx.lineTo(x + s*0.50,               y + s*0.44);
+        ctx.lineTo(x + s*(0.38 + 0.12*q(2)), y + s*0.50);
+        ctx.lineTo(x + s*(0.58 + 0.10*q(4)), y + s);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(178,212,252,' + (0.22 + 0.73*fl).toFixed(3) + ')'; ctx.lineWidth = 1.2; // bright core
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+      ctx.fillStyle = 'rgba(8,10,20,0.18)'; ctx.fillRect(x, y, s, s);   // faint dark haze veil
+      break; }
     case T.FLOWER: {
       // ── Grass base (static — doesn't sway) ─────────────────────────────
       ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x, y, s, s);
@@ -1734,6 +1845,327 @@ function drawTile(col, row, t, sx, sy, s) {
       shard(x + s*0.62, x + s*0.68, y + s*0.42, s*0.10, '#6a4296', '#9a6fc4', '#dcc6f0');
       shard(x + s*0.50, x + s*0.50, y + s*0.24, s*0.12, '#8a5ec0', '#b890e0', '#f0e6fc');
       break; }
+    case T.SKY_BLOOM: {
+      // Cloud-floor base, a slender green stem with one leaf, and a six-petal
+      // pink sky bloom lit from above with a bright golden center.
+      ctx.fillStyle = '#e3ecf7'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#d2deec'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      ctx.strokeStyle = '#4a8a5e'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x + s*0.5, y + s*0.9); ctx.lineTo(x + s*0.5, y + s*0.46); ctx.stroke();
+      ctx.fillStyle = '#5aa070';
+      ctx.beginPath(); ctx.ellipse(x + s*0.40, y + s*0.70, s*0.10, s*0.045, -0.5, 0, Math.PI*2); ctx.fill();
+      const sbx = x + s*0.5, sby = y + s*0.38;
+      ctx.fillStyle = '#f2a8d0';
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI/2;
+        ctx.beginPath();
+        ctx.ellipse(sbx + Math.cos(a)*s*0.16, sby + Math.sin(a)*s*0.16, s*0.10, s*0.055, a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffd6ec';
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI/2;
+        ctx.beginPath();
+        ctx.ellipse(sbx + Math.cos(a)*s*0.13, sby + Math.sin(a)*s*0.13, s*0.06, s*0.03, a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#f4c84a';
+      ctx.beginPath(); ctx.arc(sbx, sby, s*0.05, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff2c0';
+      ctx.beginPath(); ctx.arc(sbx - s*0.015, sby - s*0.015, s*0.02, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.WIND_REED: {
+      // Cloud-floor base + a tuft of tall, pale-gold reed blades all sweeping to
+      // one side in the wind, each tipped with a fluffy seed head. Static per tile.
+      ctx.fillStyle = '#e3ecf7'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#d2deec'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      const blade = (bx, ctrlx, tipx, tipy, base, head) => {
+        ctx.strokeStyle = base; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(bx, y + s*0.9);
+        ctx.quadraticCurveTo(ctrlx, y + s*0.55, tipx, tipy);
+        ctx.stroke();
+        ctx.fillStyle = head;
+        ctx.beginPath(); ctx.ellipse(tipx, tipy, s*0.05, s*0.085, 0.6, 0, Math.PI*2); ctx.fill();
+      };
+      blade(x + s*0.42, x + s*0.55, x + s*0.72, y + s*0.26, '#c4ad62', '#f0e2a6');
+      blade(x + s*0.50, x + s*0.62, x + s*0.80, y + s*0.34, '#d8c47a', '#f6ecc0');
+      blade(x + s*0.38, x + s*0.46, x + s*0.58, y + s*0.34, '#b89e54', '#e8d894');
+      break; }
+    case T.STORM_THISTLE: {
+      // Cloud-floor base + a short stem topped by a spiky electric-blue thistle:
+      // a rounded puff head ringed with radiating spikes, with a brighter crown.
+      ctx.fillStyle = '#e3ecf7'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#d2deec'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      ctx.strokeStyle = '#5a7a9a'; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x + s*0.5, y + s*0.9); ctx.lineTo(x + s*0.5, y + s*0.5); ctx.stroke();
+      const tcx = x + s*0.5, tcy = y + s*0.40;
+      // radiating spikes
+      ctx.strokeStyle = '#9cc4e6'; ctx.lineWidth = Math.max(1, s*0.03);
+      for (let i = 0; i < 10; i++) {
+        const a = i * Math.PI / 5;
+        ctx.beginPath();
+        ctx.moveTo(tcx + Math.cos(a)*s*0.10, tcy + Math.sin(a)*s*0.10);
+        ctx.lineTo(tcx + Math.cos(a)*s*0.22, tcy + Math.sin(a)*s*0.22);
+        ctx.stroke();
+      }
+      // puff head
+      ctx.fillStyle = '#a8d0f0';
+      ctx.beginPath(); ctx.arc(tcx, tcy, s*0.13, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#dcefff';
+      ctx.beginPath(); ctx.arc(tcx - s*0.04, tcy - s*0.04, s*0.07, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(tcx - s*0.05, tcy - s*0.05, s*0.025, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.VOLT_BLOOM: {
+      // Storm-floor base + a slender stem and a six-petal electric-blue bloom with
+      // a bright crackling yellow-white core — the lightning region's storm-cloud
+      // twin of the air region's pink SKY_BLOOM. Static per tile.
+      ctx.fillStyle = '#2f3548'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#272c3c'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      ctx.strokeStyle = '#3f6a86'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x + s*0.5, y + s*0.9); ctx.lineTo(x + s*0.5, y + s*0.46); ctx.stroke();
+      ctx.fillStyle = '#3e7a90';
+      ctx.beginPath(); ctx.ellipse(x + s*0.40, y + s*0.70, s*0.10, s*0.045, -0.5, 0, Math.PI*2); ctx.fill();
+      const vbx = x + s*0.5, vby = y + s*0.38;
+      ctx.fillStyle = '#4aa6ee';                                         // electric-blue petals
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI/2;
+        ctx.beginPath();
+        ctx.ellipse(vbx + Math.cos(a)*s*0.16, vby + Math.sin(a)*s*0.16, s*0.10, s*0.055, a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#b6e6ff';                                         // brighter inner petal faces
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI/2;
+        ctx.beginPath();
+        ctx.ellipse(vbx + Math.cos(a)*s*0.13, vby + Math.sin(a)*s*0.13, s*0.06, s*0.03, a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#fff2a0';                                         // crackling charged core
+      ctx.beginPath(); ctx.arc(vbx, vby, s*0.055, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(vbx - s*0.015, vby - s*0.015, s*0.022, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.SPARK_REED: {
+      // Storm-floor base + a tuft of dark reed blades sweeping to one side, each
+      // tipped with a bright glowing spark instead of a seed head — the storm twin
+      // of the air region's golden WIND_REED. Static per tile.
+      ctx.fillStyle = '#2f3548'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#272c3c'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      const sblade = (bx, ctrlx, tipx, tipy, base, spark) => {
+        ctx.strokeStyle = base; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(bx, y + s*0.9);
+        ctx.quadraticCurveTo(ctrlx, y + s*0.55, tipx, tipy);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,238,150,0.45)';                        // spark glow
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.07, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = spark;                                           // bright spark tip
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.035, 0, Math.PI*2); ctx.fill();
+      };
+      sblade(x + s*0.42, x + s*0.55, x + s*0.72, y + s*0.26, '#4a5570', '#fff2a0');
+      sblade(x + s*0.50, x + s*0.62, x + s*0.80, y + s*0.34, '#576285', '#fff8c8');
+      sblade(x + s*0.38, x + s*0.46, x + s*0.58, y + s*0.34, '#404a63', '#ffe28a');
+      break; }
+    case T.FULGURITE: {
+      // Storm-floor base + a small cluster of angular lightning-fused glass shards
+      // jutting up, each a tapered violet-white prism with a lit face and a bright
+      // tip — the storm twin of the earth region's amethyst CRYSTAL_CLUSTER. Static.
+      ctx.fillStyle = '#2f3548'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#272c3c';
+      ctx.beginPath(); ctx.ellipse(x + s*0.5, y + s*0.82, s*0.30, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      const fshard = (bx, tipx, tipy, halfw, base, lit, tip) => {
+        const baseY = y + s*0.84;
+        ctx.fillStyle = base;
+        ctx.beginPath();
+        ctx.moveTo(bx - halfw, baseY);
+        ctx.lineTo(tipx, tipy);
+        ctx.lineTo(bx + halfw, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = lit;                                             // lit left face
+        ctx.beginPath();
+        ctx.moveTo(bx - halfw, baseY);
+        ctx.lineTo(tipx, tipy);
+        ctx.lineTo(bx, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = tip;                                             // bright glassy tip
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.035, 0, Math.PI*2); ctx.fill();
+      };
+      fshard(x + s*0.38, x + s*0.34, y + s*0.34, s*0.11, '#6a5ec0', '#9a8fe0', '#e6e0ff');
+      fshard(x + s*0.62, x + s*0.68, y + s*0.42, s*0.10, '#5a4fb0', '#8a7fd6', '#dcd4ff');
+      fshard(x + s*0.50, x + s*0.50, y + s*0.24, s*0.12, '#7a6ed0', '#a89ff0', '#f2eeff');
+      break; }
+    case T.LUMINOUS_FLOOR: {
+      // Warm, sun-washed ivory floor of the sanctum: a gentle wash of light from
+      // above, fine gold flecks bedded in the stone, and the occasional mote
+      // drifting and twinkling like dust caught in a shaft of sunlight.
+      const tt = Date.now() / 900;
+      ctx.fillStyle = 'rgba(255,251,232,0.30)'; ctx.fillRect(x, y, s, s*0.55);
+      ctx.fillStyle = 'rgba(255,251,232,0.16)'; ctx.fillRect(x, y + s*0.55, s, s*0.25);
+      const hf = (col * 73856093) ^ (row * 19349663);
+      ctx.fillStyle = 'rgba(220,188,112,0.55)';
+      ctx.fillRect(x + (hf & 7)/7*s*0.74 + s*0.12, y + ((hf>>3)&7)/7*s*0.74 + s*0.12, 2, 2);
+      ctx.fillStyle = 'rgba(232,206,140,0.45)';
+      ctx.fillRect(x + ((hf>>6)&7)/7*s*0.74 + s*0.12, y + ((hf>>9)&7)/7*s*0.74 + s*0.12, 1, 1);
+      const tw = Math.sin(tt + col*0.7 + row*0.5);
+      if (tw > 0.4) {
+        const mx = x + s*0.5 + Math.sin(tt*0.8 + row)*s*0.24;
+        const my = y + s*0.5 + Math.cos(tt*0.6 + col)*s*0.2;
+        ctx.fillStyle = `rgba(255,246,206,${0.25 + tw*0.45})`;
+        ctx.beginPath(); ctx.arc(mx, my, s*0.06*tw, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${tw*0.5})`;
+        ctx.beginPath(); ctx.arc(mx, my, s*0.022*tw, 0, Math.PI*2); ctx.fill();
+      }
+      break; }
+    case T.LUMINOUS_GLOW: {
+      // A pool where the healing light gathers more thickly — brighter and warmer
+      // than the surrounding floor, breathing a soft radiant bloom with a bright
+      // twinkle at its heart. Dappled sparsely, so the glows read as pools.
+      const tt = Date.now() / 800;
+      const pulse = 0.5 + 0.5 * Math.sin(tt + col*0.4 + row*0.4);
+      ctx.fillStyle = `rgba(255,250,224,${0.32 + pulse*0.20})`;
+      ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.5, s*0.5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = `rgba(255,253,240,${0.28 + pulse*0.24})`;
+      ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.5, s*0.3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = `rgba(255,255,255,${0.35 + pulse*0.45})`;
+      ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.46, s*0.05, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.LUMINOUS_CRYSTAL: {
+      // The sanctum's border: a wall of glowing white-gold crystal. A warm bed,
+      // then upright faceted shards with lit faces and bright tips, washed in a
+      // soft, slowly breathing halo so the frame reads as luminous, not stone.
+      ctx.fillStyle = '#e9cd86'; ctx.fillRect(x, y, s, s);
+      const sh = 0.4 + 0.12 * Math.sin(Date.now()/700 + col*0.5 + row*0.5);
+      ctx.fillStyle = `rgba(255,248,214,${sh})`;
+      ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.5, s*0.52, 0, Math.PI*2); ctx.fill();
+      const cshard = (bx, halfw, tipy, base, lit, tip) => {
+        const baseY = y + s*0.98;
+        ctx.fillStyle = base;
+        ctx.beginPath();
+        ctx.moveTo(x + s*(bx - halfw), baseY);
+        ctx.lineTo(x + s*bx, y + s*tipy);
+        ctx.lineTo(x + s*(bx + halfw), baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = lit;
+        ctx.beginPath();
+        ctx.moveTo(x + s*(bx - halfw), baseY);
+        ctx.lineTo(x + s*bx, y + s*tipy);
+        ctx.lineTo(x + s*bx, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = tip;
+        ctx.beginPath(); ctx.arc(x + s*bx, y + s*tipy, s*0.05, 0, Math.PI*2); ctx.fill();
+      };
+      cshard(0.28, 0.16, 0.30, '#f0d99a', '#fbeec2', '#ffffff');
+      cshard(0.70, 0.15, 0.22, '#ecd592', '#f8e8b8', '#fffdf2');
+      cshard(0.50, 0.20, 0.08, '#f6e3ab', '#fff2cc', '#ffffff');
+      break; }
+    case T.RADIANT_BLOOM: {
+      // Floor base + a slender stem and a six-petal white-gold bloom ringed by a
+      // soft, breathing halo of light with a brilliant glowing core — the luminous
+      // sanctum's flower, twin of the air region's pink SKY_BLOOM.
+      ctx.fillStyle = '#f5edd8'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#ece1c4'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      ctx.strokeStyle = '#b8a86a'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x + s*0.5, y + s*0.9); ctx.lineTo(x + s*0.5, y + s*0.46); ctx.stroke();
+      ctx.fillStyle = '#cdb96e';
+      ctx.beginPath(); ctx.ellipse(x + s*0.40, y + s*0.70, s*0.10, s*0.045, -0.5, 0, Math.PI*2); ctx.fill();
+      const rbx = x + s*0.5, rby = y + s*0.38;
+      const halo = 0.4 + 0.18 * Math.sin(Date.now()/600 + col*0.6 + row*0.6);
+      ctx.fillStyle = `rgba(255,244,200,${halo})`;
+      ctx.beginPath(); ctx.arc(rbx, rby, s*0.30, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fbf3da';
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI/2;
+        ctx.beginPath();
+        ctx.ellipse(rbx + Math.cos(a)*s*0.16, rby + Math.sin(a)*s*0.16, s*0.10, s*0.055, a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffffff';
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI/2;
+        ctx.beginPath();
+        ctx.ellipse(rbx + Math.cos(a)*s*0.13, rby + Math.sin(a)*s*0.13, s*0.06, s*0.03, a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#f2c84a';
+      ctx.beginPath(); ctx.arc(rbx, rby, s*0.055, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff7d8';
+      ctx.beginPath(); ctx.arc(rbx - s*0.015, rby - s*0.015, s*0.025, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.GLOW_REED: {
+      // Floor base + a tuft of slender pale-gold light-stalks, each rising and
+      // tipped with a softly glowing mote of warm light — the luminous twin of the
+      // air region's golden WIND_REED, standing still in the hallowed calm. Static.
+      ctx.fillStyle = '#f5edd8'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#ece1c4'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      const stalk = (bx, ctrlx, tipx, tipy, base) => {
+        ctx.strokeStyle = base; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(bx, y + s*0.9);
+        ctx.quadraticCurveTo(ctrlx, y + s*0.55, tipx, tipy);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,244,190,0.5)';
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.08, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff6d6';
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.035, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(tipx - s*0.01, tipy - s*0.01, s*0.015, 0, Math.PI*2); ctx.fill();
+      };
+      stalk(x + s*0.42, x + s*0.50, x + s*0.60, y + s*0.24, '#d8c684');
+      stalk(x + s*0.52, x + s*0.60, x + s*0.72, y + s*0.32, '#e4d49a');
+      stalk(x + s*0.38, x + s*0.40, x + s*0.42, y + s*0.30, '#ccb86e');
+      break; }
+    case T.LUMEN_SHARD: {
+      // Floor base + a small cluster of glowing white-gold crystal shards jutting
+      // up, each a tapered prism with a lit face and a brilliant tip, wrapped in a
+      // soft breathing halo — the luminous twin of the earth region's amethyst.
+      ctx.fillStyle = '#f5edd8'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#ece1c4';
+      ctx.beginPath(); ctx.ellipse(x + s*0.5, y + s*0.82, s*0.30, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      const lhalo = 0.32 + 0.14 * Math.sin(Date.now()/650 + col*0.5 + row*0.5);
+      ctx.fillStyle = `rgba(255,246,206,${lhalo})`;
+      ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.5, s*0.34, 0, Math.PI*2); ctx.fill();
+      const lshard = (bx, tipx, tipy, halfw, base, lit, tip) => {
+        const baseY = y + s*0.84;
+        ctx.fillStyle = base;
+        ctx.beginPath();
+        ctx.moveTo(bx - halfw, baseY); ctx.lineTo(tipx, tipy); ctx.lineTo(bx + halfw, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = lit;
+        ctx.beginPath();
+        ctx.moveTo(bx - halfw, baseY); ctx.lineTo(tipx, tipy); ctx.lineTo(bx, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = tip;
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.04, 0, Math.PI*2); ctx.fill();
+      };
+      lshard(x + s*0.38, x + s*0.34, y + s*0.34, s*0.11, '#e6cf90', '#f6e8bc', '#ffffff');
+      lshard(x + s*0.62, x + s*0.68, y + s*0.42, s*0.10, '#dcc684', '#efdcab', '#fffdf0');
+      lshard(x + s*0.50, x + s*0.50, y + s*0.22, s*0.12, '#f0dba0', '#fdefca', '#ffffff');
+      break; }
+    case T.LIGHT_PILLAR: {
+      // A solid shaft of radiant light rising from the sanctum floor — a luminous
+      // landmark. A warm-gold crystalline column with a brilliant white core,
+      // breathing a soft halo, capped in light at the top.
+      ctx.fillStyle = '#f4ead0'; ctx.fillRect(x, y, s, s);
+      const pulse = 0.5 + 0.5 * Math.sin(Date.now()/700 + col*0.4 + row*0.4);
+      ctx.fillStyle = `rgba(255,246,206,${0.4 + pulse*0.25})`;
+      ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.5, s*0.5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#f0dca0';
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.34, y + s*0.96); ctx.lineTo(x + s*0.40, y + s*0.06);
+      ctx.lineTo(x + s*0.60, y + s*0.06); ctx.lineTo(x + s*0.66, y + s*0.96);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff8e4';
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.42, y + s*0.96); ctx.lineTo(x + s*0.46, y + s*0.06);
+      ctx.lineTo(x + s*0.54, y + s*0.06); ctx.lineTo(x + s*0.58, y + s*0.96);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${0.7 + pulse*0.3})`; ctx.lineWidth = Math.max(1, s*0.04);
+      ctx.beginPath(); ctx.moveTo(x + s*0.5, y + s*0.04); ctx.lineTo(x + s*0.5, y + s*0.96); ctx.stroke();
+      ctx.fillStyle = `rgba(255,255,255,${0.5 + pulse*0.4})`;
+      ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.1, s*0.1, 0, Math.PI*2); ctx.fill();
+      break; }
     case T.BONES: {
       // Sand backdrop + a small bleached skull-and-rib silhouette.
       ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
@@ -1745,6 +2177,382 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#5a4a30';
       ctx.fillRect(x + s*0.30, y + s*0.42, 2, 2);
       ctx.fillRect(x + s*0.38, y + s*0.42, 2, 2);
+      break; }
+    case T.BLIGHT: {
+      // Blighted underworld earth — a dark mottled purple-grey crust patched with
+      // rot, raked by hairline cracks, and breathing a faint sickly-green miasma.
+      // Detail is hashed per tile so the wastes read as living decay, not a grid.
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s);            // base crust
+      ctx.fillStyle = '#2a1b2c';                                       // rot blotches
+      ctx.beginPath(); ctx.arc(x + s*(0.30 + j(0,0.35)), y + s*(0.32 + j(2,0.30)), s*(0.13 + j(4,0.06)), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*(0.66 - j(6,0.20)), y + s*(0.70 - j(8,0.20)), s*(0.10 + j(10,0.05)), 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#45354b';                                       // pale ashen scuff
+      ctx.fillRect(x + s*(0.12 + j(2,0.20)), y + s*(0.16 + j(0,0.30)), s*0.16, s*0.045);
+      ctx.strokeStyle = '#1c121f'; ctx.lineWidth = 1;                  // hairline crack
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.18 + j(4,0.20)), y + s*(0.84 - j(6,0.20)));
+      ctx.lineTo(x + s*(0.46 + j(8,0.18)), y + s*(0.56 - j(2,0.18)));
+      ctx.lineTo(x + s*(0.82 - j(0,0.20)), y + s*(0.70 - j(4,0.18)));
+      ctx.stroke();
+      if ((h & 1) === 0) {                                             // miasma breath on ~half
+        const mia = 0.05 + 0.05 * Math.sin(Date.now()/900 + col*0.7 + row*0.5);
+        ctx.fillStyle = `rgba(120,170,70,${mia})`;
+        ctx.beginPath(); ctx.arc(x + s*(0.5 + j(6,0.18)), y + s*(0.5 - j(8,0.18)), s*0.34, 0, Math.PI*2); ctx.fill();
+      }
+      break; }
+    case T.BLIGHTED_WALL: {
+      // Crypt wall of the necrotic wastes — packed grave-dark stone, faceted and
+      // mortar-seamed, veined with a faint breathing necrotic-green glow and
+      // embedded with bones (a half-buried skull or a rib cage). Hashed per tile
+      // so the catacomb wall never reads as a tiled grid.
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#1a0e1c'; ctx.fillRect(x, y, s, s);            // grave-dark stone
+      ctx.fillStyle = '#281830';                                       // lit block (upper-left)
+      ctx.fillRect(x, y, s*(0.58 + j(0,0.18)), s*(0.50 + j(2,0.16)));
+      ctx.fillStyle = '#120812';                                       // shadowed recess (lower-right)
+      ctx.fillRect(x + s*(0.50 - j(4,0.10)), y + s*(0.50 + j(6,0.08)), s*0.5, s*0.5);
+      ctx.strokeStyle = '#0c060e'; ctx.lineWidth = 1;                  // mortar seam
+      ctx.beginPath(); ctx.moveTo(x, y + s*(0.50 + j(8,0.10))); ctx.lineTo(x + s, y + s*(0.46 + j(0,0.10))); ctx.stroke();
+      const gl = 0.28 + 0.18 * Math.sin(Date.now()/700 + col*0.6 + row*0.4);   // necrotic vein glow
+      ctx.strokeStyle = `rgba(126,196,92,${gl})`; ctx.lineWidth = Math.max(1, s*0.04); ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.20 + j(2,0.18)), y + s*0.08);
+      ctx.lineTo(x + s*(0.42 + j(4,0.10)), y + s*0.50);
+      ctx.lineTo(x + s*(0.30 + j(6,0.18)), y + s*0.94);
+      ctx.stroke();
+      ctx.fillStyle = '#cfc6ac';                                       // embedded bone
+      if ((h % 3) === 0) {
+        const skx = x + s*(0.62 + j(8,0.08)), sky = y + s*(0.60 - j(0,0.08));
+        ctx.beginPath(); ctx.arc(skx, sky, s*0.13, 0, Math.PI*2); ctx.fill();
+        ctx.fillRect(skx - s*0.10, sky + s*0.08, s*0.20, s*0.07);     // jaw
+        ctx.fillStyle = '#0c060e';
+        ctx.fillRect(skx - s*0.075, sky - s*0.02, s*0.045, s*0.045);  // eye sockets
+        ctx.fillRect(skx + s*0.03,  sky - s*0.02, s*0.045, s*0.045);
+        ctx.fillRect(skx - s*0.012, sky + s*0.04, s*0.025, s*0.04);   // nasal
+      } else {
+        const rbx = x + s*(0.66 + j(8,0.06)), rby = y + s*(0.28 + j(2,0.10));
+        ctx.fillRect(rbx, rby, s*0.022, s*0.36);                      // spine
+        for (let i = 0; i < 3; i++) {
+          ctx.fillRect(rbx - s*0.12, rby + i*s*0.12, s*0.12, s*0.025);
+          ctx.fillRect(rbx + s*0.02, rby + i*s*0.12, s*0.12, s*0.025);
+        }
+      }
+      break; }
+    case T.GRAVE_DIRT: {
+      // A mound of fresh-turned grave soil heaped on the blight — darker churned
+      // earth, raked furrows, and a stray splinter of bone working its way up.
+      // Hashed per tile; static.
+      const h = (col * 137 + row * 89);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s);            // blight base
+      ctx.fillStyle = '#241a1c';                                       // heaped mound
+      ctx.beginPath(); ctx.ellipse(x + s*0.5, y + s*0.64, s*0.40, s*0.26, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2f2122';
+      ctx.beginPath(); ctx.ellipse(x + s*0.5, y + s*0.58, s*0.32, s*0.19, 0, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#1a1214'; ctx.lineWidth = 1;                  // raked furrows
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + s*(0.26 + i*0.18 + j(0,0.04)), y + s*0.48);
+        ctx.lineTo(x + s*(0.32 + i*0.18 + j(2,0.04)), y + s*0.80);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#cfc6ac'; ctx.lineWidth = Math.max(1, s*0.04); ctx.lineCap = 'round';  // bone splinter
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.58 + j(4,0.1)), y + s*0.62);
+      ctx.lineTo(x + s*(0.66 + j(6,0.1)), y + s*0.44);
+      ctx.stroke();
+      break; }
+    case T.DEAD_TREE: {
+      // A gnarled, leafless dead tree clawing up from the wastes — the necrotic
+      // region's border growth (replaces stretches of crypt wall, like the ice
+      // region's snow pines). Grave-dark backdrop, a twisted pale-grey trunk
+      // leaning per hash, and bare forking branches. Static, solid.
+      const h = (col * 131 + row * 83);
+      const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.16;
+      ctx.fillStyle = '#160c18'; ctx.fillRect(x, y, s, s);            // grave-dark backdrop
+      const bx = x + s*0.5, basey = y + s*0.97, forky = y + s*0.46;
+      ctx.strokeStyle = '#4a4048'; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(1.5, s*0.10);                           // trunk
+      ctx.beginPath(); ctx.moveTo(bx, basey); ctx.lineTo(x + s*(0.5+lean), forky); ctx.stroke();
+      ctx.lineWidth = Math.max(1, s*0.05);                             // branches
+      const branch = (x1,y1,x2,y2,x3,y3) => {
+        ctx.beginPath(); ctx.moveTo(x + s*x1, y + s*y1);
+        ctx.lineTo(x + s*x2, y + s*y2); ctx.lineTo(x + s*x3, y + s*y3); ctx.stroke();
+      };
+      branch(0.5+lean, 0.52, 0.28, 0.36, 0.14, 0.20);
+      branch(0.5+lean, 0.46, 0.72, 0.30, 0.86, 0.14);
+      branch(0.5+lean, 0.46, 0.5+lean*1.6, 0.18, 0.40, 0.06);
+      ctx.strokeStyle = '#5e5460'; ctx.lineWidth = Math.max(1, s*0.03);  // trunk highlight
+      ctx.beginPath(); ctx.moveTo(bx - s*0.02, basey); ctx.lineTo(x + s*(0.5+lean) - s*0.02, forky); ctx.stroke();
+      break; }
+    case T.WITHERED_SHRUB: {
+      // A dead, leafless bramble of grey thorny twigs — the wastes' withered shrub
+      // (cut for bone meal). Blight base with a faint shadow, then a tangle of bare
+      // forking twigs ticked with thorns and clinging a couple of shrivelled
+      // berries. Static.
+      ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#281c2a'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.82, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();
+      ctx.lineCap = 'round';
+      const twig = (x1,y1,x2,y2,w) => { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x+s*x1,y+s*y1); ctx.lineTo(x+s*x2,y+s*y2); ctx.stroke(); };
+      ctx.strokeStyle = '#6a5a52';
+      twig(0.5,0.86, 0.36,0.40, Math.max(1,s*0.045)); twig(0.36,0.40, 0.22,0.22, Math.max(1,s*0.04)); twig(0.36,0.40, 0.42,0.18, Math.max(1,s*0.035));
+      twig(0.5,0.86, 0.62,0.44, Math.max(1,s*0.045)); twig(0.62,0.44, 0.78,0.28, Math.max(1,s*0.04)); twig(0.62,0.44, 0.58,0.20, Math.max(1,s*0.035));
+      twig(0.5,0.86, 0.5,0.32, Math.max(1,s*0.04));
+      ctx.strokeStyle = '#7a6a60';                                     // thorns
+      twig(0.30,0.30, 0.24,0.34, Math.max(1,s*0.022)); twig(0.70,0.34, 0.76,0.38, Math.max(1,s*0.022)); twig(0.46,0.24, 0.40,0.28, Math.max(1,s*0.022));
+      ctx.fillStyle = '#4a2a3a';                                       // shrivelled berries
+      ctx.beginPath(); ctx.arc(x+s*0.42,y+s*0.30, s*0.04,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*0.66,y+s*0.36, s*0.035,0,Math.PI*2); ctx.fill();
+      break; }
+    case T.CORPSE_FLOWER: {
+      // A carrion bloom of the underworld — a drooping black stalk with a limp
+      // leaf, crowned by a pale, sickly grey-green flower exhaling a faint, slowly
+      // breathing spore-glow over a dark rotten core (cut for bone meal). Blight base.
+      ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#281c2a'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.84, s*0.26, s*0.07, 0,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#3a2e34'; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round';   // drooping stalk
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.9); ctx.quadraticCurveTo(x+s*0.62, y+s*0.58, x+s*0.5, y+s*0.42); ctx.stroke();
+      ctx.fillStyle = '#4a4a30';                                       // limp leaf
+      ctx.beginPath(); ctx.ellipse(x+s*0.36, y+s*0.66, s*0.11, s*0.04, -0.3, 0, Math.PI*2); ctx.fill();
+      const fcx = x+s*0.5, fcy = y+s*0.36;
+      const gl = 0.16 + 0.12*Math.sin(Date.now()/700 + col*0.6 + row*0.6);   // spore-glow halo
+      ctx.fillStyle = `rgba(150,190,90,${gl})`;
+      ctx.beginPath(); ctx.arc(fcx, fcy, s*0.24, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#b9c29a';                                       // sickly five-petal bloom
+      for (let i=0;i<5;i++){ const a=i*Math.PI*2/5 - Math.PI/2; ctx.beginPath(); ctx.ellipse(fcx+Math.cos(a)*s*0.13, fcy+Math.sin(a)*s*0.13, s*0.09, s*0.05, a, 0, Math.PI*2); ctx.fill(); }
+      ctx.fillStyle = '#3a2a1a'; ctx.beginPath(); ctx.arc(fcx, fcy, s*0.06, 0, Math.PI*2); ctx.fill();        // rotten core
+      ctx.fillStyle = '#7a8a4a'; ctx.beginPath(); ctx.arc(fcx-s*0.015, fcy-s*0.015, s*0.025, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.BONE_PILE: {
+      // A heap of bones cast across the blight — crossed long bones, a grinning
+      // skull, and a jaw (cut for bone meal). The necrotic region's blight-backed
+      // answer to the desert's sand-backed BONES. Static.
+      ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#281c2a'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.78, s*0.34, s*0.10, 0,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#d8cfb2'; ctx.lineWidth = Math.max(1.5, s*0.07); ctx.lineCap = 'round';   // crossed long bones
+      ctx.beginPath(); ctx.moveTo(x+s*0.26, y+s*0.74); ctx.lineTo(x+s*0.74, y+s*0.56); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+s*0.30, y+s*0.56); ctx.lineTo(x+s*0.70, y+s*0.78); ctx.stroke();
+      const skx = x+s*0.42, sky = y+s*0.40;                            // skull
+      ctx.fillStyle = '#e6dcc0'; ctx.beginPath(); ctx.arc(skx, sky, s*0.16, 0, Math.PI*2); ctx.fill();
+      ctx.fillRect(skx - s*0.10, sky + s*0.10, s*0.20, s*0.10);        // jaw
+      ctx.fillStyle = '#2a1d22';
+      ctx.beginPath(); ctx.arc(skx - s*0.06, sky - s*0.01, s*0.035, 0, Math.PI*2); ctx.fill();   // eye sockets
+      ctx.beginPath(); ctx.arc(skx + s*0.06, sky - s*0.01, s*0.035, 0, Math.PI*2); ctx.fill();
+      ctx.fillRect(skx - s*0.015, sky + s*0.05, s*0.03, s*0.05);       // nasal
+      ctx.fillRect(skx - s*0.06, sky + s*0.13, s*0.025, s*0.05);       // teeth gaps
+      ctx.fillRect(skx + s*0.035, sky + s*0.13, s*0.025, s*0.05);
+      break; }
+    case T.TOMBSTONE: {
+      // A cracked, leaning headstone rising from the wastes — a solid graveyard
+      // landmark. Blight base with a cast shadow, a rounded grey slab canted to one
+      // side (per hash), a chiselled cross, a fracture, and dead lichen at its foot.
+      const h = (col * 137 + row * 71);
+      const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.16;
+      ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s);            // blight base
+      ctx.fillStyle = '#221820';                                       // cast shadow
+      ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.86, s*0.34, s*0.09, 0,0,Math.PI*2); ctx.fill();
+      ctx.save();
+      ctx.translate(x+s*0.5, y+s*0.7); ctx.rotate(lean); ctx.translate(-(x+s*0.5), -(y+s*0.7));
+      ctx.fillStyle = '#6a6470';                                       // rounded slab body
+      ctx.beginPath();
+      ctx.moveTo(x+s*0.30, y+s*0.88);
+      ctx.lineTo(x+s*0.30, y+s*0.36);
+      ctx.arc(x+s*0.5, y+s*0.36, s*0.20, Math.PI, 0);
+      ctx.lineTo(x+s*0.70, y+s*0.88);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#807a86'; ctx.fillRect(x+s*0.30, y+s*0.36, s*0.05, s*0.52);   // lit left edge
+      ctx.fillStyle = '#4e4856'; ctx.fillRect(x+s*0.65, y+s*0.36, s*0.05, s*0.52);   // shadowed right edge
+      ctx.fillStyle = '#3e3844';                                       // chiselled cross
+      ctx.fillRect(x+s*0.47, y+s*0.42, s*0.06, s*0.26);
+      ctx.fillRect(x+s*0.40, y+s*0.50, s*0.20, s*0.06);
+      ctx.strokeStyle = '#2e2a34'; ctx.lineWidth = 1;                  // fracture
+      ctx.beginPath(); ctx.moveTo(x+s*0.40, y+s*0.30); ctx.lineTo(x+s*0.52, y+s*0.52); ctx.lineTo(x+s*0.44, y+s*0.76); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#4a5a30';                                       // dead lichen at the foot
+      ctx.beginPath(); ctx.arc(x+s*0.36, y+s*0.84, s*0.04, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*0.62, y+s*0.86, s*0.03, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.SLUDGE: {
+      // Swamp mire floor — a murky olive muck mottled with dark wet blotches and
+      // patches of pale algae scum, weeping a stray gas bubble or two. Hashed per
+      // tile so the swamp reads as living muck rather than a flat green grid. Static.
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // murky mire base
+      ctx.fillStyle = '#3b4a1e';                                       // dark wet blotches
+      ctx.beginPath(); ctx.ellipse(x+s*(0.32+j(0,0.30)), y+s*(0.34+j(2,0.28)), s*(0.16+j(4,0.06)), s*(0.11+j(6,0.05)), 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x+s*(0.68-j(8,0.20)), y+s*(0.70-j(10,0.20)), s*(0.13+j(0,0.05)), s*(0.09+j(2,0.04)), 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#6f8438';                                       // pale algae scum
+      ctx.beginPath(); ctx.ellipse(x+s*(0.60+j(4,0.20)), y+s*(0.30+j(6,0.20)), s*0.10, s*0.06, 0.4, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#5a6c2e'; ctx.fillRect(x+s*(0.14+j(2,0.10)), y+s*(0.60+j(8,0.10)), s*0.12, s*0.04);  // muck streak
+      ctx.fillStyle = '#7b8c44';                                       // gas bubbles
+      ctx.beginPath(); ctx.arc(x+s*(0.44+j(6,0.20)), y+s*(0.50-j(4,0.20)), s*0.03, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*(0.50+j(10,0.20)), y+s*(0.62-j(0,0.20)), s*0.022, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.POISON_WALL: {
+      // Dense swamp thicket — the impassable border. Layered clumps of dark, rank
+      // foliage massed over a deep shadow, a hanging vine, a sickly-lit crown, and a
+      // glowing spore or two. Hashed per tile so the hedge never reads as a grid.
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#16280e'; ctx.fillRect(x, y, s, s);            // deep thicket shadow
+      ctx.fillStyle = '#1f3a14';                                       // massed foliage clumps
+      ctx.beginPath(); ctx.arc(x+s*(0.32+j(0,0.12)), y+s*(0.40+j(2,0.12)), s*(0.34+j(4,0.06)), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*(0.70-j(6,0.12)), y+s*(0.58-j(8,0.12)), s*(0.30+j(10,0.06)), 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2c4d1c';
+      ctx.beginPath(); ctx.arc(x+s*(0.50+j(2,0.12)), y+s*(0.34+j(6,0.10)), s*0.22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3a6126';                                       // sickly-lit leaves (upper-left)
+      ctx.beginPath(); ctx.arc(x+s*(0.34+j(4,0.10)), y+s*(0.30+j(0,0.10)), s*0.12, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#24401a'; ctx.lineWidth = Math.max(1, s*0.04); ctx.lineCap = 'round';   // hanging vine
+      ctx.beginPath();
+      ctx.moveTo(x+s*(0.62+j(8,0.10)), y);
+      ctx.quadraticCurveTo(x+s*(0.70+j(2,0.10)), y+s*0.40, x+s*(0.60+j(6,0.10)), y+s*0.80);
+      ctx.stroke();
+      ctx.fillStyle = '#6fae3a';                                       // glowing spore
+      ctx.beginPath(); ctx.arc(x+s*(0.46+j(0,0.10)), y+s*(0.52+j(8,0.10)), s*0.03, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.BOG: {
+      // A sunken, waterlogged bog hollow churned into the mire — darker, wetter muck
+      // with a glossy skin of standing water, a reflective glint, and a gas bubble
+      // slowly rising and bursting. The hollow's centre and size are jittered per
+      // tile so a cluster of bogs reads as organic puddles, not a grid of pods.
+      // Trudging through it halves walk speed. Animated.
+      const h = (col * 137 + row * 71);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      const hcx = 0.5 + j(0,0.18) - 0.09, hcy = 0.56 + j(2,0.16) - 0.08;   // hollow centre
+      ctx.fillStyle = '#39481d'; ctx.fillRect(x, y, s, s);            // wet mire base
+      ctx.fillStyle = '#2a3716';                                       // sunken hollow
+      ctx.beginPath(); ctx.ellipse(x+s*hcx, y+s*hcy, s*(0.34+j(4,0.12)), s*(0.27+j(6,0.10)), j(8,0.6), 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#46602a';                                       // glossy standing-water skin
+      ctx.beginPath(); ctx.ellipse(x+s*(hcx-0.02), y+s*(hcy-0.06), s*(0.22+j(10,0.08)), s*0.16, j(8,0.6), 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(150,190,120,0.35)';                        // reflective highlight
+      ctx.beginPath(); ctx.ellipse(x+s*(hcx-0.10), y+s*(hcy-0.12), s*0.10, s*0.04, -0.4, 0, Math.PI*2); ctx.fill();
+      const bb = 0.5 + 0.5*Math.sin(Date.now()/600 + col*0.7 + row*0.5);   // rising gas bubble
+      ctx.fillStyle = `rgba(170,200,120,${0.30+0.30*bb})`;
+      ctx.beginPath(); ctx.arc(x+s*(hcx+0.12), y+s*(hcy+0.02-bb*0.12), s*0.035, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.BOG_POOL: {
+      // A deep pool of stagnant bog water — the poison region's accent (crossed by
+      // plank bridges). Near-black toxic murk with a darker trough below, drifting
+      // streaks of green scum on the surface, and a lily pad floating on some tiles.
+      // Surface slides slowly; the murky counterpart of the water region's depths.
+      const tt = Date.now() / 800;
+      const a = Math.sin(tt + col * 0.5 + row * 0.3);
+      const h = (col * 131 + row * 83);
+      ctx.fillStyle = '#16280f'; ctx.fillRect(x, y, s, s);            // deep murk base
+      ctx.fillStyle = '#1d3415'; ctx.fillRect(x, y + s*0.5, s, s*0.5); // darker deep trough
+      ctx.fillStyle = '#33521f'; ctx.fillRect(x+s*0.10, y+s*0.30+a*2, s*0.50, s*0.05);   // scum streaks
+      ctx.fillStyle = '#284018'; ctx.fillRect(x+s*0.45, y+s*0.62-a*2, s*0.40, s*0.05);
+      if ((h & 1) === 0) {                                             // green scum film
+        ctx.fillStyle = '#4a7a2c';
+        ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.5, s*0.18, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      }
+      if ((h % 4) === 0) {                                            // floating lily pad
+        const lx = x + s*(0.40 + ((h>>3)&3)/3*0.28), ly = y + s*(0.38 + ((h>>5)&3)/3*0.30);
+        ctx.fillStyle = '#3f7a30';
+        ctx.beginPath(); ctx.arc(lx, ly, s*0.15, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#1a2f13';                                     // notch wedge
+        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx+s*0.17, ly-s*0.07); ctx.lineTo(lx+s*0.17, ly+s*0.07); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#4f9038';                                     // pad highlight
+        ctx.beginPath(); ctx.arc(lx-s*0.03, ly-s*0.03, s*0.06, 0, Math.PI*2); ctx.fill();
+      }
+      break; }
+    case T.CATTAIL: {
+      // A clump of bulrush reeds in the mire — arching reed blades and a couple of
+      // brown cattail seed-heads on tall stalks (cut for an Herbal). Muck base with
+      // a wet shadow. Static.
+      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // muck base
+      ctx.fillStyle = '#3b4a1e'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.84, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();  // wet shadow
+      ctx.lineCap = 'round';
+      const reed = (tx, col2) => { ctx.strokeStyle = col2; ctx.lineWidth = Math.max(1, s*0.04);
+        ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.9); ctx.quadraticCurveTo(x+s*(0.5+(tx-0.5)*0.5), y+s*0.42, x+s*tx, y+s*0.12); ctx.stroke(); };
+      reed(0.30, '#5c8a34'); reed(0.72, '#5c8a34'); reed(0.52, '#6a9a40');
+      reed(0.40, '#4a722a'); reed(0.62, '#4a722a');
+      ctx.strokeStyle = '#6a8a3a'; ctx.lineWidth = Math.max(1, s*0.05);   // cattail stalks
+      ctx.beginPath(); ctx.moveTo(x+s*0.42, y+s*0.9); ctx.lineTo(x+s*0.42, y+s*0.32); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+s*0.60, y+s*0.9); ctx.lineTo(x+s*0.60, y+s*0.40); ctx.stroke();
+      ctx.fillStyle = '#6b4a22';                                       // brown bulrush spikes
+      ctx.beginPath(); ctx.ellipse(x+s*0.42, y+s*0.26, s*0.06, s*0.13, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x+s*0.60, y+s*0.34, s*0.05, s*0.11, 0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#8a6533';                                       // spike highlight
+      ctx.beginPath(); ctx.ellipse(x+s*0.405, y+s*0.22, s*0.02, s*0.05, 0,0,Math.PI*2); ctx.fill();
+      break; }
+    case T.SWAMP_FERN: {
+      // A bushy marsh fern — a fanning rosette of arching fronds ticked with
+      // leaflets, lusher and broader than the forest fern (cut for an Herbal). Muck
+      // base with a wet shadow. Static.
+      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // muck base
+      ctx.fillStyle = '#3b4a1e'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.82, s*0.28, s*0.08, 0,0,Math.PI*2); ctx.fill();
+      const cx2 = x+s*0.5, base = y+s*0.86;
+      for (let i = 0; i < 5; i++) {
+        const ang = -Math.PI/2 + (i-2)*0.5;                           // fan the fronds out
+        const tipx = cx2 + Math.cos(ang)*s*0.42, tipy = base + Math.sin(ang)*s*0.42;
+        const midx = cx2 + Math.cos(ang)*s*0.22 - Math.sin(ang)*s*0.06, midy = base + Math.sin(ang)*s*0.22;
+        ctx.strokeStyle = (i % 2) ? '#3f7a30' : '#4f8f38'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx2, base); ctx.quadraticCurveTo(midx, midy, tipx, tipy); ctx.stroke();
+        ctx.lineWidth = Math.max(1, s*0.02);                          // leaflet ticks
+        for (let k = 1; k <= 3; k++) {
+          const t = k/4, px = cx2 + (tipx-cx2)*t, py = base + (tipy-base)*t;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px+Math.cos(ang+1.2)*s*0.06, py+Math.sin(ang+1.2)*s*0.06); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px+Math.cos(ang-1.2)*s*0.06, py+Math.sin(ang-1.2)*s*0.06); ctx.stroke();
+        }
+      }
+      break; }
+    case T.MANGROVE: {
+      // A gnarled, moss-draped mangrove clawing up out of the thicket — the swamp's
+      // border tree (replaces stretches of POISON_WALL, like the necrotic region's
+      // dead trees). Deep shadow, splayed prop roots, a leaning trunk, a heavy dark
+      // canopy with a sickly-lit crown, and curtains of hanging moss. Static, solid.
+      const h = (col * 131 + row * 83);
+      const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.14;
+      ctx.fillStyle = '#14240d'; ctx.fillRect(x, y, s, s);            // deep swamp shadow
+      ctx.strokeStyle = '#3a2e1c'; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.70); ctx.quadraticCurveTo(x+s*0.34, y+s*0.82, x+s*0.24, y+s*0.98); ctx.stroke();  // prop roots
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.70); ctx.quadraticCurveTo(x+s*0.66, y+s*0.82, x+s*0.78, y+s*0.98); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.72); ctx.lineTo(x+s*0.5, y+s*0.98); ctx.stroke();
+      ctx.strokeStyle = '#46371f'; ctx.lineWidth = Math.max(1.5, s*0.11);   // leaning trunk
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.74); ctx.lineTo(x+s*(0.5+lean), y+s*0.40); ctx.stroke();
+      ctx.fillStyle = '#1d3a13';                                       // heavy dark canopy
+      ctx.beginPath(); ctx.arc(x+s*(0.42+lean), y+s*0.34, s*0.26, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*(0.64+lean), y+s*0.40, s*0.20, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2c5320';
+      ctx.beginPath(); ctx.arc(x+s*(0.40+lean), y+s*0.28, s*0.16, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3a6a28';                                       // sickly-lit crown
+      ctx.beginPath(); ctx.arc(x+s*(0.36+lean), y+s*0.24, s*0.09, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,150,90,0.6)'; ctx.lineWidth = Math.max(1, s*0.022);   // hanging moss
+      ctx.beginPath(); ctx.moveTo(x+s*(0.50+lean), y+s*0.42); ctx.lineTo(x+s*(0.52+lean), y+s*0.62); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+s*(0.66+lean), y+s*0.46); ctx.lineTo(x+s*(0.64+lean), y+s*0.64); ctx.stroke();
+      break; }
+    case T.SWAMP_MUSHROOM: {
+      // A cluster of sickly poison toadstools on the mire — drawn on the muck base
+      // so it sits in the swamp instead of clashing like the forest's grass-backed
+      // mushroom. A taller capped toadstool and a small one, lurid purple caps
+      // freckled with pale spots, each breathing a faint, slowly pulsing spore-glow
+      // (cut for a Mushroom). Animated glow.
+      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // muck base
+      ctx.fillStyle = '#3b4a1e'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.84, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();  // wet shadow
+      const glow = 0.16 + 0.12*Math.sin(Date.now()/700 + col*0.6 + row*0.5);
+      // taller toadstool (left)
+      const ax = 0.40, ay = 0.40;
+      ctx.fillStyle = `rgba(170,120,210,${glow})`;                     // spore-glow halo
+      ctx.beginPath(); ctx.arc(x+s*ax, y+s*ay, s*0.24, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#cfc2a0'; ctx.fillRect(x+s*(ax-0.045), y+s*ay, s*0.09, s*0.34);   // pale stalk
+      ctx.fillStyle = '#7a4aa0';                                       // lurid purple cap
+      ctx.beginPath(); ctx.arc(x+s*ax, y+s*ay, s*0.20, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#5e3683'; ctx.beginPath(); ctx.arc(x+s*ax, y+s*(ay+0.02), s*0.20, 0, Math.PI); ctx.fill();   // cap underside
+      ctx.fillStyle = '#e6d8f2';                                       // freckled spots
+      ctx.fillRect(x+s*(ax-0.10), y+s*(ay-0.07), s*0.04, s*0.04);
+      ctx.fillRect(x+s*(ax+0.05), y+s*(ay-0.05), s*0.035, s*0.035);
+      ctx.fillRect(x+s*(ax-0.02), y+s*(ay-0.11), s*0.03, s*0.03);
+      // small toadstool (right)
+      const bx2 = 0.66, by2 = 0.58;
+      ctx.fillStyle = '#cfc2a0'; ctx.fillRect(x+s*(bx2-0.03), y+s*by2, s*0.06, s*0.22);  // stalk
+      ctx.fillStyle = '#8a55b4';
+      ctx.beginPath(); ctx.arc(x+s*bx2, y+s*by2, s*0.13, Math.PI, 0); ctx.fill();        // cap
+      ctx.fillStyle = '#e6d8f2'; ctx.fillRect(x+s*(bx2-0.05), y+s*(by2-0.05), s*0.03, s*0.03);
       break; }
     case T.WATERFALL: {
       // Falling water — deep-blue base with bright vertical streaks scrolling
@@ -4678,6 +5486,15 @@ function drawDrop(d, ts) {
     d.type === 'sage'        ? '124,154,106' :  // sage green
     d.type === 'moss'        ? '120,168,80'  :  // moss green
     d.type === 'crystal'     ? '168,127,208' :  // amethyst violet
+    d.type === 'skypetal'    ? '242,168,208' :  // pink sky bloom
+    d.type === 'windseed'    ? '216,196,122' :  // golden wind seed
+    d.type === 'thistledown' ? '168,208,240' :  // airy storm-blue
+    d.type === 'voltpetal'   ? '126,200,255' :  // electric-blue volt bloom
+    d.type === 'sparkseed'   ? '255,226,122' :  // bright spark gold
+    d.type === 'fulgurite'   ? '179,166,255' :  // fused-glass violet
+    d.type === 'witherwood'  ? '106,90,82'   :  // grey deadwood
+    d.type === 'gravebloom'  ? '154,168,106' :  // sickly carrion green
+    d.type === 'mote'        ? '255,232,160' :  // warm white-gold light mote
     arrowElem             ? hexToRGB(arrowElem.color) :
     d.type === 'arrows'   ? '221,170,68' :  // plain arrows: warm tan/wood
     trophy                ? hexToRGB(trophy.color) :
@@ -4782,7 +5599,7 @@ function drawDrop(d, ts) {
     leaf(cx,             cy - s * 0.75, 0);
     leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
     leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
-  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal') {
+  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal' || d.type === 'skypetal' || d.type === 'windseed' || d.type === 'thistledown' || d.type === 'voltpetal' || d.type === 'sparkseed' || d.type === 'fulgurite' || d.type === 'witherwood' || d.type === 'gravebloom' || d.type === 'mote') {
     // Trophy items + potion + arrow bundle + mushroom + bone meal + winter berry
     // + frost petal: render as a glyph centered on the tile. Arrow drops show the
     // elemental icon and the count; the rest show their thematic icon.
@@ -4798,6 +5615,15 @@ function drawDrop(d, ts) {
       d.type === 'sage'        ? '🌿' :
       d.type === 'moss'        ? '🌱' :
       d.type === 'crystal'     ? '🔮' :
+      d.type === 'skypetal'    ? '🌸' :
+      d.type === 'windseed'    ? '🌾' :
+      d.type === 'thistledown' ? '💨' :
+      d.type === 'voltpetal'   ? '🌼' :
+      d.type === 'sparkseed'   ? '🌾' :
+      d.type === 'fulgurite'   ? '🔷' :
+      d.type === 'witherwood'  ? '🪵' :
+      d.type === 'gravebloom'  ? '🥀' :
+      d.type === 'mote'        ? '✨' :
       (trophy ? trophy.icon : '❓');
     const size = Math.round(ts * 0.42 * pulse);
     ctx.font = `${size}px serif`;
@@ -5034,11 +5860,229 @@ function drawWhirlpoolSuction(col, row, s) {
   ctx.restore();
 }
 
+// ─── Lightning-region storm flashes ───────────────────────────────────────────
+// The lightning region's sky periodically cracks with lightning: a brief whole-
+// screen illumination (sometimes a quick double/triple flicker) plus a couple of
+// jagged forks streaking down from the top of the view, and the dark thunderhead
+// border (STORM_CLOUD) blazes its veins in sync. Driven once per frame from
+// render(); `stormFlashLevel` (0..1) is the current brightness, read both here
+// for the overlay and by drawTile's STORM_CLOUD case for the border crackle.
+let stormFlashLevel = 0;
+const stormFlash = { pulses: null, end: 0, next: 0, bolts: [] };
+
+// A strike is 1–3 sharp pulses, each an exponential decay (amp, time-constant k),
+// spaced a few tens of ms apart — that spacing is what gives the flickery,
+// stuttering quality of real lightning rather than one clean fade.
+function buildStormBolts() {
+  const n = Math.random() < 0.62 ? 1 : (Math.random() < 0.7 ? 2 : 0);
+  const bolts = [];
+  for (let i = 0; i < n; i++) {
+    const segs = 5 + (Math.random() * 4 | 0);
+    const yEnd = 0.42 + Math.random() * 0.42;
+    let bx = 0.1 + Math.random() * 0.8;
+    const pts = [{ x: bx, y: 0 }];
+    for (let s = 1; s <= segs; s++) {
+      bx += (Math.random() - 0.5) * 0.13;
+      pts.push({ x: bx, y: (s / segs) * yEnd });
+    }
+    // Optional single side-branch forking off a mid joint.
+    const branch = [];
+    if (Math.random() < 0.6 && pts.length > 3) {
+      const j = 2 + (Math.random() * (pts.length - 3) | 0);
+      let fx = pts[j].x, fy = pts[j].y;
+      const bsegs = 2 + (Math.random() * 3 | 0);
+      branch.push({ x: fx, y: fy });
+      for (let s = 1; s <= bsegs; s++) {
+        fx += (Math.random() - 0.5) * 0.16 + 0.05;
+        fy += (yEnd - fy) * 0.4 * Math.random() + 0.04;
+        branch.push({ x: fx, y: Math.min(1, fy) });
+      }
+    }
+    bolts.push({ main: pts, branch });
+  }
+  return bolts;
+}
+
+function updateStormFlash(now, isStorm) {
+  if (!isStorm) {
+    stormFlashLevel = 0; stormFlash.pulses = null;
+    if (!stormFlash.next) stormFlash.next = now + 1200;
+    return;
+  }
+  if (now >= stormFlash.next && !stormFlash.pulses) {
+    const n = 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < 0.3 ? 1 : 0);
+    const pulses = [];
+    let t = now;
+    for (let i = 0; i < n; i++) {
+      pulses.push({ t, amp: 0.7 + Math.random() * 0.3, k: 85 + Math.random() * 80 });
+      t += 45 + Math.random() * 95;
+    }
+    stormFlash.pulses = pulses;
+    stormFlash.end = t + 220;
+    stormFlash.bolts = buildStormBolts();
+    stormFlash.next = stormFlash.end + 2200 + Math.random() * 6000;   // 2.2–8.4s between strikes
+  }
+  let lvl = 0;
+  if (stormFlash.pulses) {
+    for (const p of stormFlash.pulses)
+      if (now >= p.t) lvl = Math.max(lvl, p.amp * Math.exp(-(now - p.t) / p.k));
+    if (now > stormFlash.end) stormFlash.pulses = null;
+  }
+  stormFlashLevel = lvl;
+}
+
+// The whole-screen wash + sky forks for the current flash level. Drawn over the
+// world but under the HUD/minimap so it lights the scene without washing out UI.
+function drawStormFlash() {
+  const a = stormFlashLevel;
+  if (a <= 0.001) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(150,180,236,' + (0.42 * a).toFixed(3) + ')';   // pale blue-white illumination
+  ctx.fillRect(0, 0, PW, PH);
+  if (a > 0.35 && stormFlash.bolts && stormFlash.bolts.length) {
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const b of stormFlash.bolts) {
+      const trace = (pts, glowW, coreW) => {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x * PW, pts[0].y * PH);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * PW, pts[i].y * PH);
+        ctx.strokeStyle = 'rgba(140,176,238,' + (0.55 * a).toFixed(3) + ')'; ctx.lineWidth = glowW; ctx.stroke();
+        ctx.strokeStyle = 'rgba(242,248,255,' + (0.95 * a).toFixed(3) + ')'; ctx.lineWidth = coreW; ctx.stroke();
+      };
+      trace(b.main, 7, 2.2);
+      if (b.branch && b.branch.length > 1) trace(b.branch, 4, 1.4);
+    }
+  }
+  ctx.restore();
+}
+
+// ─── Drifting overhead clouds (earth & air overworld) ─────────────────────────
+// A purely decorative top layer: a handful of soft, transparent clouds floating
+// over the mountain slopes (earth) and cloud islands (air). They are anchored to
+// the world, not the screen — each cloud's centre is a world-tile coordinate, so
+// as the player walks and the camera follows, the clouds scroll past the view
+// instead of riding along with the player. They are NOT snapped to the tile grid
+// (free-floating sub-tile soft sprites), and they also drift slowly on their own
+// wind. Each is a pre-rendered soft sprite blitted at low alpha so the world shows
+// through; once a cloud leaves the view (from the wind or the camera scrolling) it
+// recycles in on the opposite edge so the field keeps covering wherever the player
+// is. Driven from render() via drawDriftClouds() only on the relevant maps.
+// Two sprite sets, the same soft shapes in different colours: white clouds for the
+// earth/air maps, dark slate-grey clouds for the lightning region's storm sky. The
+// active set is chosen per-frame by render() from the current map's region.
+let cloudSpritesLight = null;  // white clouds (earth, air)
+let cloudSpritesDark = null;   // dark-grey storm clouds (lightning)
+let driftClouds = null;        // live cloud instances (positions in world-tile coords)
+let driftCloudsLast = 0;       // timestamp of the previous drift step
+
+// Pre-render one fluffy cloud to an offscreen canvas as a cluster of soft
+// radial-gradient lobes (in colour `rgb`, e.g. '255,255,255') on a transparent
+// ground. Three variants give some shape variety. Drawn once; the per-frame cost
+// is just drawImage.
+function buildCloudSprite(variant, rgb) {
+  const W = 240, H = 130;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const lobeSets = [
+    [[0.50,0.58,0.42],[0.30,0.62,0.30],[0.70,0.62,0.30],[0.40,0.46,0.26],[0.62,0.47,0.24],[0.50,0.40,0.22]],
+    [[0.50,0.60,0.40],[0.26,0.64,0.27],[0.74,0.63,0.26],[0.44,0.47,0.24],[0.60,0.50,0.21]],
+    [[0.50,0.58,0.44],[0.32,0.61,0.31],[0.68,0.60,0.28],[0.50,0.43,0.25],[0.38,0.52,0.20]],
+  ];
+  for (const [fx, fy, fr] of lobeSets[variant % lobeSets.length]) {
+    const cx = fx * W, cy = fy * H, r = fr * W;
+    const g = c.createRadialGradient(cx, cy, r * 0.12, cx, cy, r);
+    g.addColorStop(0,    `rgba(${rgb},0.95)`);
+    g.addColorStop(0.55, `rgba(${rgb},0.50)`);
+    g.addColorStop(1,    `rgba(${rgb},0)`);
+    c.fillStyle = g;
+    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+  }
+  return cv;
+}
+
+// Spawn the cloud field. Sizes are a fraction of the viewport (so the layer adapts
+// to any window size), but each cloud's POSITION is a world-tile coordinate — it is
+// scattered across the current view and then anchored to the map underneath it.
+function initDriftClouds() {
+  // Build both colour sets up front (shapes shared, just recoloured). The dark set
+  // is a cool slate-grey to read as brooding storm cloud over the dark lightning map.
+  cloudSpritesLight = [buildCloudSprite(0,'255,255,255'), buildCloudSprite(1,'255,255,255'), buildCloudSprite(2,'255,255,255')];
+  cloudSpritesDark  = [buildCloudSprite(0,'92,101,125'),  buildCloudSprite(1,'92,101,125'),  buildCloudSprite(2,'92,101,125')];
+  driftClouds = [];
+  const ts = TILE_PX || 48;
+  for (let i = 0; i < 7; i++) {
+    const scale = 0.26 + Math.random() * 0.40;          // width as a fraction of the viewport
+    const w = scale * PW;
+    const sx = Math.random() * (PW + 2 * w) - w;          // scatter across the view (+ margin)…
+    const sy = Math.random() * (PH * 0.85);
+    driftClouds.push({
+      sprite: i % 3,
+      wx: camC + sx / ts,                                 // …then anchor to the world (tile coords)
+      wy: camR + sy / ts,
+      scale,
+      speed: 0.25 + Math.random() * 0.45,                 // wind drift: world tiles/sec, eastward
+      vy:    (Math.random() - 0.5) * 0.12,                // slight vertical wander
+      alpha: 0.10 + Math.random() * 0.12,                 // transparency — keep the world visible
+    });
+  }
+}
+
+// Advance and draw the cloud field. Called once per frame on cloud-drift maps,
+// after the world/HUD-less scene is laid down. `dark` picks the colour set (dark
+// grey over lightning, white over earth/air); `alphaMul` scales the per-cloud
+// transparency so the darker storm clouds can read a touch stronger on the dark map.
+// The set is resolved AFTER initDriftClouds() so it's never read before it's built.
+function drawDriftClouds(dark, alphaMul) {
+  if (!driftClouds) initDriftClouds();
+  const sprites = dark ? cloudSpritesDark : cloudSpritesLight;
+  alphaMul = alphaMul || 1;
+  const now = Date.now();
+  let dt = now - (driftCloudsLast || now);
+  driftCloudsLast = now;
+  if (dt < 0 || dt > 120) dt = 16;           // seed first frame / clamp after tab-away
+  const ds = dt / 1000;
+  const ts = TILE_PX || 48;
+  ctx.save();
+  for (const cl of driftClouds) {
+    cl.wx += cl.speed * ds;                   // drift on the wind, in world space
+    cl.wy += cl.vy * ds;
+    const w = cl.scale * PW, h = w * 0.54;    // sprite aspect (130/240)
+    // World → screen via the same camera transform the tiles use.
+    const sx = (cl.wx - camC) * ts, sy = (cl.wy - camR) * ts;
+    // Recycle once it leaves the view — whether from the wind or from the camera
+    // scrolling with the player — by re-entering on the OPPOSITE edge, so the field
+    // keeps covering wherever the player has moved to.
+    let tx = null, ty = null;
+    if      (sx - w / 2 > PW) { tx = -w / 2 - Math.random() * 0.15 * PW; ty = Math.random() * (PH + h) - h / 2; }
+    else if (sx + w / 2 < 0)  { tx = PW + w / 2 + Math.random() * 0.15 * PW; ty = Math.random() * (PH + h) - h / 2; }
+    else if (sy - h / 2 > PH) { ty = -h / 2 - Math.random() * 0.15 * PH; tx = Math.random() * (PW + w) - w / 2; }
+    else if (sy + h / 2 < 0)  { ty = PH + h / 2 + Math.random() * 0.15 * PH; tx = Math.random() * (PW + w) - w / 2; }
+    if (tx !== null) {
+      cl.scale  = 0.26 + Math.random() * 0.40;
+      cl.alpha  = 0.10 + Math.random() * 0.12;
+      cl.sprite = Math.floor(Math.random() * sprites.length);
+      cl.wx = camC + tx / ts;                 // re-anchor the recycled cloud to the world
+      cl.wy = camR + ty / ts;
+      continue;
+    }
+    ctx.globalAlpha = Math.min(0.6, cl.alpha * alphaMul);
+    ctx.drawImage(sprites[cl.sprite], sx - w / 2, sy - h / 2, w, h);
+  }
+  ctx.restore();
+}
+
 function render() {
   ctx.clearRect(0, 0, PW, PH);
   const ts = TILE_PX;
   const map = mapData();
   const mapObj = currentMap();
+
+  // Advance the lightning-region storm flash (no-op on every other map). Done
+  // before the tile pass so the STORM_CLOUD border can crackle in sync this frame.
+  const isStormMap = !!mapObj && mapObj.biome === 'lightning' &&
+                     (mapObj.type === 'lightning' || mapObj.type === 'village');
+  updateStormFlash(Date.now(), isStormMap);
 
   // Only render the visible viewport range (+1 tile margin on each side)
   const startC = Math.floor(camC), startR = Math.floor(camR);
@@ -5081,6 +6125,9 @@ function render() {
   }
   drawPlayer(ts);
 
+  // Lightning-region storm flash — over the world, under the HUD/minimap.
+  drawStormFlash();
+
   // Particles
   ctx.save();
   particles.forEach(p => {
@@ -5109,6 +6156,19 @@ function render() {
   });
   ctx.textAlign = 'left';
   ctx.restore();
+
+  // Drifting overhead clouds — a top layer of soft, transparent clouds floating
+  // over the earth (high mountain slopes), air (cloud islands), and lightning
+  // (storm sky) overworld maps. White over earth/air; dark slate-grey, a touch
+  // stronger, over the dark lightning region. World-anchored so they scroll past
+  // as the player moves (not glued to the camera), free-floating off the tile grid,
+  // and drawn over the whole scene but under the HUD/minimap. (Villages, caves, and
+  // other regions skip it.)
+  const cloudBiome = (!!mapObj && mapObj.type === mapObj.biome &&
+      (mapObj.biome === 'earth' || mapObj.biome === 'air' || mapObj.biome === 'lightning'))
+    ? mapObj.biome : null;
+  if (cloudBiome === 'lightning') drawDriftClouds(true, 1.5);
+  else if (cloudBiome)            drawDriftClouds(false, 1.0);
 
   if (showMinimap) drawMinimap();
 

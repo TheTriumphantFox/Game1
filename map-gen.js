@@ -34,6 +34,13 @@ const DESERT_NAMES = [
 //   villageName  fixed name shown when the region's boss arena is generated
 //   enemyTier    index into ENEMY_POOLS for non-village spawns
 //   boss         DND_ENEMIES key spawned in the region's village
+//   skyRegion    (optional) marks a "cloud island" region — the hero walks on a
+//                floor of cloud (ground) dappled with brighter puffs (decoration),
+//                ringed by an impassable frayed lip (cloudEdge) carved out of the
+//                surrounding border, and bare rock is suppressed. Air (white) and
+//                lightning (dark, angry storm clouds) share this build.
+//   cloudEdge    (skyRegion only) impassable lip tile fraying the cloud island's
+//                rim, eaten out of the border by ringCloudEdges
 //
 // The first two entries (forest, fire) keep their bespoke builders, but the
 // table still drives village palette, enemy pool, names, and progression order.
@@ -58,31 +65,31 @@ const REGIONS = [
       'Old Roads','Tumulus Field','Caveborn Path','Sediment Flats','Mossy Crag',
       'Sunken Plateau','Iron Gulch','Echo Canyon','Magmaroot Hollow','Petrified Grove'
     ], villageName:'Stoneheart Burrow',         enemyTier:4, boss:'gaia_colossus'  },
-  { id:'air',       element:'wind',      border:T.SKY_GROUND,      ground:T.CLOUD,          decoration:T.CLOUDBANK, accent:T.WATER,      names:[
+  { id:'air',       element:'wind',      skyRegion:true, cloudEdge:T.CLOUD_EDGE, border:T.SKY_GROUND,      ground:T.CLOUD,          decoration:T.CLOUDBANK, accent:T.WATER,      names:[
       'Skywharf','Cumulus Crossing','Zephyr Vault','Updraft Reach','Drifting Bastion',
       'Thunderhead Pass','Mist-veiled Path','Featherfall Hollow','Cirrus Ribbon','Stratos Spine',
       'Galewall','Wisp Field','Halcyon Reach','Stormthrone Approach','Falcon Roost',
       'Cloudbreak','Sky-stair','High Tundra','Whispering Currents','Aetherwake'
     ], villageName:'Stormcrown Aerie',          enemyTier:5, boss:'wind_djinn'     },
-  { id:'lightning', element:null,        border:T.STORM_CLOUD,     ground:T.STORM_GROUND,   decoration:T.ROCK,     accent:T.LAVA,        names:[
+  { id:'lightning', element:null,        skyRegion:true, cloudEdge:T.STORM_EDGE, border:T.STORM_CLOUD,     ground:T.STORM_GROUND,   decoration:T.STORM_BANK, accent:T.WATER,      names:[
       'Sparkfen','Voltaic Plain','Thunderfork Pass','Stormglass Reach','Static Maze',
       'Galvanic Hollow','Arcwire Crossing','Lichtning Field','Tesla Spires','Surge Basin',
       'Brimwire','Ferrum Edge','Crackleway','Boltcaster Ridge','Shockmarsh',
       'Magnet Crag','Glasspowder Plain','Filament Gardens','Plasma Bowl','Coronet'
     ], villageName:'Voltheart Bastion',         enemyTier:6, boss:'storm_lord'     },
-  { id:'luminous',  element:'luminous',  border:T.LUMINOUS_CRYSTAL, ground:T.LUMINOUS_FLOOR, decoration:T.MUSHROOM, accent:T.WATER, names:[
+  { id:'luminous',  element:'luminous',  border:T.LUMINOUS_CRYSTAL, ground:T.LUMINOUS_FLOOR, decoration:T.LUMINOUS_GLOW, accent:T.WATER, names:[
       'Sunhalo Reach','Dawnlit Field','Prism Garden','Goldenmoss Hollow','Halo Pass',
       'Bright Causeway','Aureate Steps','Lambent Glade','Daystar Crossing','Lustrous Vault',
       'Beacon Plain','Argent Maze','Lumenrise','Suncast Ridge','Mirrorbright Atrium',
       'Effulgent Brook','Coronal Field','Glimmerwash','Radiant Apse','Shining Sanctum'
     ], villageName:'Solarspire Sanctum',        enemyTier:7, boss:'seraph_judge'   },
-  { id:'necrotic',  element:'necrotic',  border:T.BLIGHTED_WALL,   ground:T.BLIGHT,         decoration:T.BONES,    accent:T.LAVA,        names:[
+  { id:'necrotic',  element:'necrotic',  border:T.BLIGHTED_WALL,   ground:T.BLIGHT,         decoration:T.BONE_PILE, accent:T.LAVA,        names:[
       'Witherfen','Boneyard Crossing','Pall Glade','Hollow Reach','Decay Plain',
       'Shroudwood','Mourner\'s Pass','Cinderash Field','Gravesong Maze','Black Marrow',
       'Pall-veiled Ruins','Tomb-iron Reach','Carrion Flats','Sepulchre Trail','Funeral Causeway',
       'Witch-light Hollow','Coffinroot','Wraithmire','Reliquary Ribs','Last Rites Plain'
     ], villageName:'Ossuary of the Pale King',  enemyTier:8, boss:'death_knight'   },
-  { id:'poison',    element:'poison',    border:T.POISON_WALL,     ground:T.SLUDGE,         decoration:T.MUSHROOM, accent:T.DEEP_WATER,  names:[
+  { id:'poison',    element:'poison',    border:T.POISON_WALL,     ground:T.SLUDGE,         decoration:T.MUSHROOM, accent:T.BOG_POOL,    names:[
       'Venomvale','Toxic Bog','Spore Pass','Mireheart','Slime Reach',
       'Acidlake Crossing','Foulweed Hollow','Plague Trail','Hexbog Maze','Murkfen',
       'Rotwood Edge','Stagnant Causeway','Bilegrove','Cankerstump','Pestilent Field',
@@ -169,18 +176,24 @@ function addMudBogs(m, regionId) {
 }
 
 // Grow one organic clump of up to `size` MUD tiles outward from a random SCREE
-// seed, converting SCREE only (so the dirt PATH, walls, structures, and decor are
-// never touched). Picks a random frontier cell each step so the blob spreads into a
-// rounded bog rather than a line. MUD is passable, so this never affects connectivity.
-function growMudClump(m, size) {
+// seed. MUD is passable, so this never affects connectivity.
+function growMudClump(m, size) { return growClump(m, size, T.SCREE, T.MUD); }
+
+// Grow one organic blob of up to `size` `fill` tiles outward from a random `base`
+// seed, converting `base` only (so paths, walls, structures, and decor are never
+// touched). Picks a random frontier cell each step so the blob spreads into a
+// rounded clump rather than a line. Used for the earth region's mud bogs and the
+// poison region's boggy mire — both `fill` tiles are passable, so this never
+// affects connectivity.
+function growClump(m, size, base, fill) {
   const NB4 = [[1,0],[-1,0],[0,1],[0,-1]];
   let sr = -1, sc = -1;
   for (let t = 0; t < 200; t++) {
     const r = rnd(3, MROWS - 4), c = rnd(3, MCOLS - 4);
-    if (m[r][c] === T.SCREE) { sr = r; sc = c; break; }
+    if (m[r][c] === base) { sr = r; sc = c; break; }
   }
   if (sr < 0) return 0;
-  m[sr][sc] = T.MUD;
+  m[sr][sc] = fill;
   let placed = 1;
   const frontier = [[sr, sc]];
   while (placed < size && frontier.length) {
@@ -189,11 +202,11 @@ function growMudClump(m, size) {
     const opts = [];
     for (const [dr, dc] of NB4) {
       const nr = r + dr, nc = c + dc;
-      if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1 && m[nr][nc] === T.SCREE) opts.push([nr, nc]);
+      if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1 && m[nr][nc] === base) opts.push([nr, nc]);
     }
     if (!opts.length) { frontier.splice(fi, 1); continue; }   // dead end — retire this cell
     const [nr, nc] = opts[Math.floor(Math.random() * opts.length)];
-    m[nr][nc] = T.MUD; placed++;
+    m[nr][nc] = fill; placed++;
     frontier.push([nr, nc]);
   }
   return placed;
@@ -1237,22 +1250,33 @@ function buildRegionMap(seed, depth, openSides, region) {
   }
 
   // Phase 4: accent features (water pools, lava pits, ice patches, etc.) with
-  // bridges across them so the map stays traversable.
-  const accentCount = 2 + Math.floor(depth / 4);
-  for (let i = 0; i < accentCount; i++) {
-    const ar = rnd(20, MROWS - 25), ac = rnd(20, MCOLS - 25);
-    const sz = rnd(5, 10);
-    const ar2 = Math.min(ar + sz, MROWS - 2), ac2 = Math.min(ac + sz, MCOLS - 2);
-    setRect(m, ar, ac, ar2, ac2, ACCENT);
-    const bridgeR = Math.floor((ar + ar2) / 2);
-    setRow(m, bridgeR, Math.max(1, ac - 1), Math.min(MCOLS - 2, ac2 + 1), T.BRIDGE);
+  // bridges across them so the map stays traversable. Skipped for the sky regions
+  // (air, lightning): a cloud island floating above the world holds no standing
+  // water, so there are no pools to place — and thus no bridges. (Their accent is
+  // WATER, which the demote pass below would have turned into MEDIUM_WATER; with
+  // this skipped no water tile is ever laid, and placeWhirlpool — which needs
+  // existing medium water — becomes a no-op too.)
+  if (!region.skyRegion) {
+    const accentCount = 2 + Math.floor(depth / 4);
+    for (let i = 0; i < accentCount; i++) {
+      const ar = rnd(20, MROWS - 25), ac = rnd(20, MCOLS - 25);
+      const sz = rnd(5, 10);
+      const ar2 = Math.min(ar + sz, MROWS - 2), ac2 = Math.min(ac + sz, MCOLS - 2);
+      setRect(m, ar, ac, ar2, ac2, ACCENT);
+      const bridgeR = Math.floor((ar + ar2) / 2);
+      setRow(m, bridgeR, Math.max(1, ac - 1), Math.min(MCOLS - 2, ac2 + 1), T.BRIDGE);
+    }
   }
 
-  // Phase 5: scattered rocks (bombable cover) — palette stays neutral.
-  for (let i = 0; i < 80 + depth; i++) {
-    const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
-    if ((m[rr][rc] === GROUND || m[rr][rc] === T.PATH) && Math.random() < 0.3) {
-      m[rr][rc] = T.ROCK;
+  // Phase 5: scattered rocks (bombable cover) — palette stays neutral. Skipped in
+  // the sky regions (air, lightning): bare rocks have no place resting on a
+  // floor of cloud.
+  if (!region.skyRegion) {
+    for (let i = 0; i < 80 + depth; i++) {
+      const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
+      if ((m[rr][rc] === GROUND || m[rr][rc] === T.PATH) && Math.random() < 0.3) {
+        m[rr][rc] = T.ROCK;
+      }
     }
   }
 
@@ -1349,8 +1373,9 @@ function buildRegionMap(seed, depth, openSides, region) {
     freezeWaterToIce(m);
   } else {
     // Every other region is outside the water region, so it keeps no deep/
-    // standing water — demote its accent pools (WATER, DEEP_WATER for poison/
-    // mana, etc.) to MEDIUM_WATER.
+    // standing water — demote its accent pools (WATER, DEEP_WATER for the mana
+    // region, etc.) to MEDIUM_WATER. (The poison region's accent is BOG_POOL, a
+    // solid murk tile that isn't water, so this leaves its bog pools untouched.)
     demoteWaterToMedium(m);
   }
 
@@ -1414,13 +1439,54 @@ function buildRegionMap(seed, depth, openSides, region) {
   // onto the remaining plain scree, not the bog clumps.
   scatterEarthFoliage(m, region.id);
 
-  // Air region: dapple the walkable cloud floor with brighter CLOUDBANK puffs so
-  // it reads as a rolling bank of two cloud tiles (the hero walks on the cloud;
-  // the SKY_GROUND border frames it with the distant earth far below).
+  // Sky regions (air, lightning): dapple the walkable cloud floor with the
+  // brighter puff tile so it reads as a rolling bank of two cloud tiles (the hero
+  // walks on the cloud; the border frames it — distant earth for air, churning
+  // thunderheads for lightning).
   sprinkleCloudFloor(m, region.id);
 
-  // Air region: wrap the walkable cloud in an impassable 2–4 tile CLOUD_EDGE rim
-  // so it reads as an island of cloud with a billowing lip the hero can't cross.
+  // Air region only: sky growth on the open cloud floor — sky blooms, wind reeds,
+  // and storm thistles. Runs after the cloud-floor dapple so it seeds onto the
+  // remaining plain CLOUD, not the brighter CLOUDBANK puffs.
+  scatterAirFoliage(m, region.id);
+
+  // Lightning region only: storm growth on the open storm-cloud floor — volt
+  // blooms, spark reeds, and fulgurite shards. Same idea as the air foliage above,
+  // seeded onto the remaining plain STORM_GROUND, not the STORM_BANK puffs.
+  scatterLightningFoliage(m, region.id);
+
+  // Luminous region: pool brighter LUMINOUS_GLOW across the warm-white floor, then
+  // strew the sanctum's radiant growth onto the remaining plain floor, and finally
+  // raise solid LIGHT_PILLAR shafts of light as landmarks. Order mirrors the sky
+  // regions (dapple the floor, then seed foliage onto what's left). No-ops elsewhere.
+  sprinkleLuminousGlow(m, region.id);
+  scatterLuminousFoliage(m, region.id);
+  addLightPillars(m, region.id, depth);
+
+  // Necrotic region: dress the plain blighted wastes into a morbid underworld.
+  // Dapple the floor with mounds of fresh-turned GRAVE_DIRT, strew the wastes'
+  // decay across the remaining blight (bone heaps, withered thorn brambles,
+  // carrion blooms), claw gnarled DEAD_TREEs up out of the crypt-wall border,
+  // and stand cracked TOMBSTONEs out in the open. Order mirrors the luminous /
+  // sky regions: floor dapple first, then foliage onto the leftover plain floor,
+  // then the solid wall dressing and the connectivity-safe solid landmarks.
+  sprinkleGraveDirt(m, region.id);
+  scatterNecroticFoliage(m, region.id);
+  sprinkleDeadTrees(m, region.id);
+  addTombstones(m, region.id, depth);
+
+  // Poison region: dress the plain sludge into a fetid swamp. Churn boggy mire
+  // hollows into the open floor, strew the swamp's rank growth (reeds, ferns,
+  // toadstools) across the remaining mire, and claw moss-draped mangroves up out
+  // of the thicket border. Order mirrors the necrotic region: floor dapple first,
+  // then foliage onto the leftover plain floor, then the solid wall dressing.
+  addPoisonBogs(m, region.id, depth);
+  scatterPoisonFoliage(m, region.id);
+  sprinkleMangroves(m, region.id);
+
+  // Sky regions (air, lightning): wrap the walkable cloud in an impassable 2–4
+  // tile rim (cloudEdge) so it reads as an island of cloud with a billowing lip
+  // the hero can't cross.
   ringCloudEdges(m, region.id);
 
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
@@ -1493,28 +1559,226 @@ function scatterEarthFoliage(m, regionId) {
   scatterOn(m, T.CRYSTAL_CLUSTER, 40, T.SCREE);
 }
 
-// Air region: the hero walks on a floor of cloud (CLOUD). Dapple a share of that
-// floor with the brighter, fluffier CLOUDBANK puffs so the walkable surface reads
-// as a rolling bank of two cloud tiles instead of one flat sheet. Both tiles are
-// passable, so this never affects connectivity. Runs after the seal, like the
-// other regions' decorative passes. No-op for every other region.
-function sprinkleCloudFloor(m, regionId) {
+// Air region: scatter sky growth across the open cloud floor — sky blooms (cut
+// for sky petals), wind reeds (cut for wind seeds), and storm thistles (cut for
+// thistle down). Seeds onto open CLOUD only (the region's walkable floor off the
+// brighter CLOUDBANK puffs), so paths, cloud edges, and placed structures are
+// left untouched; all are passable 1-HP foliage that revert to CLOUD when cut,
+// so connectivity is unaffected. No-op for every other region.
+function scatterAirFoliage(m, regionId) {
   if (regionId !== 'air') return;
-  for (let r = 0; r < MROWS; r++)
-    for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.CLOUD && Math.random() < 0.22) m[r][c] = T.CLOUDBANK;
+  scatterOn(m, T.SKY_BLOOM, 60, T.CLOUD);
+  scatterOn(m, T.WIND_REED, 60, T.CLOUD);
+  scatterOn(m, T.STORM_THISTLE, 40, T.CLOUD);
 }
 
-// Air region: ring the entire walkable area with an impassable band of CLOUD_EDGE
-// — the billowing lip of the cloud the hero stands on, so they can't step off it.
-// The band is ~2 tiles solid, fraying out irregularly to 3–4 tiles so the rim
-// reads as a ragged cloud edge rather than a clean wall; beyond it the SKY_GROUND
-// earth far below remains. Measured by BFS distance from every passable tile and
-// only ever converts solid SKY_GROUND (never walkable tiles or the accent sky-
-// pools), so the passable graph — and thus connectivity and the exits — is
-// untouched. Runs after the connectivity seal. No-op for every other region.
+// Lightning region: scatter storm growth across the open storm-cloud floor — volt
+// blooms (cut for volt petals), spark reeds (cut for spark seeds), and fulgurite
+// shards (cut for fulgurite). Seeds onto open STORM_GROUND only (the region's
+// walkable floor off the brighter STORM_BANK puffs), so paths, storm edges, and
+// placed structures are left untouched; all are passable 1-HP foliage that revert
+// to STORM_GROUND when cut, so connectivity is unaffected. The storm-region twin
+// of scatterAirFoliage. No-op for every other region.
+function scatterLightningFoliage(m, regionId) {
+  if (regionId !== 'lightning') return;
+  scatterOn(m, T.VOLT_BLOOM, 60, T.STORM_GROUND);
+  scatterOn(m, T.SPARK_REED, 60, T.STORM_GROUND);
+  scatterOn(m, T.FULGURITE, 40, T.STORM_GROUND);
+}
+
+// Luminous region: dapple a share of the walkable LUMINOUS_FLOOR with brighter
+// LUMINOUS_GLOW pools — places where the warm healing light pools more thickly —
+// so the floor reads as a living wash of radiance rather than one flat sheet.
+// Both tiles are passable, so connectivity is unaffected. The luminous twin of
+// sprinkleCloudFloor; runs after the seal, before the foliage scatter (so growth
+// seeds onto the remaining plain floor, not the glow pools). No-op elsewhere.
+function sprinkleLuminousGlow(m, regionId) {
+  if (regionId !== 'luminous') return;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.LUMINOUS_FLOOR && Math.random() < 0.20) m[r][c] = T.LUMINOUS_GLOW;
+}
+
+// Luminous region: scatter the sanctum's radiant growth across the open floor —
+// haloed radiant blooms, slender glow-reeds, and glowing lumen-shards. All seed
+// onto plain LUMINOUS_FLOOR only (off the brighter glow pools), so paths, pillars,
+// and placed structures are left untouched; all are passable, 1-HP, sword-cuttable
+// foliage that revert to LUMINOUS_FLOOR when cut (and each shed a Light Mote), so
+// connectivity is unaffected. The luminous twin of scatterAirFoliage. No-op
+// for every other region.
+function scatterLuminousFoliage(m, regionId) {
+  if (regionId !== 'luminous') return;
+  scatterOn(m, T.RADIANT_BLOOM, 70, T.LUMINOUS_FLOOR);
+  scatterOn(m, T.GLOW_REED,     55, T.LUMINOUS_FLOOR);
+  scatterOn(m, T.LUMEN_SHARD,   40, T.LUMINOUS_FLOOR);
+}
+
+// Luminous region: raise a scattering of LIGHT_PILLAR shafts — solid columns of
+// radiant light — as cathedral-like landmarks across the sanctum. Each is placed
+// only on an open floor/glow tile whose whole 8-neighbourhood is also open, so a
+// lone solid pillar can never pinch a corridor or seal a pocket; that makes it
+// safe to run after the connectivity seal (like the other regions' decorative
+// passes). No-op for every other region.
+function addLightPillars(m, regionId, depth) {
+  if (regionId !== 'luminous') return;
+  const isOpen = (r, c) => m[r][c] === T.LUMINOUS_FLOOR || m[r][c] === T.LUMINOUS_GLOW;
+  const pillarCount = 10 + Math.floor(depth / 2);
+  let placed = 0, tries = 0;
+  while (placed < pillarCount && tries < pillarCount * 40) {
+    tries++;
+    const r = rnd(4, MROWS - 5), c = rnd(4, MCOLS - 5);
+    if (!isOpen(r, c)) continue;
+    let clear = true;
+    for (let dr = -1; dr <= 1 && clear; dr++)
+      for (let dc = -1; dc <= 1; dc++)
+        if ((dr || dc) && !isOpen(r + dr, c + dc)) { clear = false; break; }
+    if (!clear) continue;
+    m[r][c] = T.LIGHT_PILLAR;
+    placed++;
+  }
+}
+
+// Necrotic region: dapple a share of the walkable BLIGHT floor with GRAVE_DIRT —
+// mounds of fresh-turned burial soil — so the wastes read as a churned, mass-grave
+// burial ground rather than one flat sheet of blight. Both tiles are passable, so
+// connectivity is unaffected. The necrotic twin of sprinkleLuminousGlow; runs
+// after the seal, before the foliage scatter (so growth seeds onto the remaining
+// plain floor, not the grave mounds). No-op for every other region.
+function sprinkleGraveDirt(m, regionId) {
+  if (regionId !== 'necrotic') return;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.BLIGHT && Math.random() < 0.16) m[r][c] = T.GRAVE_DIRT;
+}
+
+// Necrotic region: strew the wastes' decay across the open BLIGHT — heaps of
+// BONE_PILE, dead WITHERED_SHRUB brambles, and pale CORPSE_FLOWER carrion blooms.
+// All seed onto plain BLIGHT only (off the grave-dirt mounds), so paths, lava
+// pits, and placed structures are left untouched; all are passable, 1-HP,
+// sword-cuttable foliage that revert to BLIGHT when cut (shedding bone meal,
+// witherwood, and grave blooms respectively), so connectivity is unaffected.
+// The necrotic twin of scatterLuminousFoliage.
+// No-op for every other region.
+function scatterNecroticFoliage(m, regionId) {
+  if (regionId !== 'necrotic') return;
+  scatterOn(m, T.BONE_PILE,      80, T.BLIGHT);
+  scatterOn(m, T.WITHERED_SHRUB, 60, T.BLIGHT);
+  scatterOn(m, T.CORPSE_FLOWER,  45, T.BLIGHT);
+}
+
+// Necrotic region: claw a share of the crypt-wall (BLIGHTED_WALL) border up into
+// gnarled, leafless DEAD_TREEs so the wastes are ringed by a dead forest rather
+// than bare walls. Runs after the connectivity seal so sealed pockets get trees
+// too; DEAD_TREE is solid like BLIGHTED_WALL, so traversal is unaffected. The
+// necrotic twin of sprinkleSnowPines. No-op for every other region.
+function sprinkleDeadTrees(m, regionId, chance = 0.30) {
+  if (regionId !== 'necrotic') return;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.BLIGHTED_WALL && Math.random() < chance) m[r][c] = T.DEAD_TREE;
+}
+
+// Necrotic region: stand a scattering of cracked TOMBSTONEs across the wastes as
+// graveyard landmarks. Each is placed only on an open blight/grave-dirt tile whose
+// whole 8-neighbourhood is also open, so a lone solid headstone can never pinch a
+// corridor or seal a pocket — making it safe to run after the connectivity seal
+// (exactly like the luminous region's light pillars). No-op for every other region.
+function addTombstones(m, regionId, depth) {
+  if (regionId !== 'necrotic') return;
+  const isOpen = (r, c) => m[r][c] === T.BLIGHT || m[r][c] === T.GRAVE_DIRT;
+  const count = 14 + Math.floor(depth / 2);
+  let placed = 0, tries = 0;
+  while (placed < count && tries < count * 40) {
+    tries++;
+    const r = rnd(4, MROWS - 5), c = rnd(4, MCOLS - 5);
+    if (!isOpen(r, c)) continue;
+    let clear = true;
+    for (let dr = -1; dr <= 1 && clear; dr++)
+      for (let dc = -1; dc <= 1; dc++)
+        if ((dr || dc) && !isOpen(r + dr, c + dc)) { clear = false; break; }
+    if (!clear) continue;
+    m[r][c] = T.TOMBSTONE;
+    placed++;
+  }
+}
+
+// Poison region: churn boggy BOG mire into the open SLUDGE floor — sunken,
+// waterlogged hollows where the swamp pools into mud (each one slows the hero to
+// half speed, like the earth region's MUD clumps / the ice region's drifts).
+// Grown as organic clumps over SLUDGE only, so paths, the thicket border, bog
+// pools, and placed structures are left untouched; BOG is passable, so this never
+// affects connectivity. Runs after the seal, before the foliage scatter (so growth
+// seeds onto the remaining plain SLUDGE, not the mire). The swamp twin of the
+// necrotic region's sprinkleGraveDirt. No-op for every other region.
+function addPoisonBogs(m, regionId, depth) {
+  if (regionId !== 'poison') return;
+  const clumps = 12 + Math.floor(depth / 2);
+  for (let i = 0; i < clumps; i++) growClump(m, rnd(10, 44), T.SLUDGE, T.BOG);
+}
+
+// Poison region: choke the open mire with the swamp's rank growth — clumps of
+// CATTAIL bulrush reeds, bushy SWAMP_FERN fronds, and glowing SWAMP_MUSHROOM
+// toadstools. Done as a probability sweep over the open SLUDGE floor (rather than a
+// sparse scatter) so the swamp reads as densely overgrown: roughly a third of the
+// bare mire sprouts growth, with the rest left open to walk. Seeds onto plain
+// SLUDGE only (off the boggy mire and bog pools), so paths and placed structures
+// are untouched; all are passable, 1-HP, sword-cuttable foliage that revert to
+// SLUDGE when cut (reeds and ferns shed an Herbal, toadstools a Mushroom), so
+// connectivity is unaffected. The swamp twin of scatterNecroticFoliage. No-op for
+// every other region.
+function scatterPoisonFoliage(m, regionId) {
+  if (regionId !== 'poison') return;
+  for (let r = 1; r < MROWS - 1; r++)
+    for (let c = 1; c < MCOLS - 1; c++) {
+      if (m[r][c] !== T.SLUDGE) continue;
+      const roll = Math.random();
+      if      (roll < 0.14) m[r][c] = T.CATTAIL;
+      else if (roll < 0.26) m[r][c] = T.SWAMP_FERN;
+      else if (roll < 0.35) m[r][c] = T.SWAMP_MUSHROOM;
+    }
+}
+
+// Poison region: claw a share of the thicket border (POISON_WALL) up into gnarled,
+// moss-draped MANGROVE swamp trees so the mire is ringed by a drowned forest rather
+// than a bare hedge. Runs after the connectivity seal so sealed pockets get trees
+// too; MANGROVE is solid like POISON_WALL, so traversal is unaffected. The swamp
+// twin of the necrotic region's sprinkleDeadTrees. No-op for every other region.
+function sprinkleMangroves(m, regionId, chance = 0.28) {
+  if (regionId !== 'poison') return;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.POISON_WALL && Math.random() < chance) m[r][c] = T.MANGROVE;
+}
+
+// Sky regions (air, lightning): the hero walks on a floor of cloud (region.ground
+// — CLOUD for air, STORM_GROUND for lightning). Dapple a share of that floor with
+// the brighter puff tile (region.decoration — CLOUDBANK / STORM_BANK) so the
+// walkable surface reads as a rolling bank of two cloud tiles instead of one flat
+// sheet. Both tiles are passable, so this never affects connectivity. Runs after
+// the seal, like the other regions' decorative passes. No-op for non-sky regions.
+function sprinkleCloudFloor(m, regionId) {
+  const region = regionById(regionId);
+  if (!region.skyRegion) return;
+  const FLOOR = region.ground, PUFF = region.decoration;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === FLOOR && Math.random() < 0.22) m[r][c] = PUFF;
+}
+
+// Sky regions (air, lightning): ring the entire walkable area with an impassable
+// band of the cloudEdge tile (CLOUD_EDGE / STORM_EDGE) — the billowing lip of the
+// cloud the hero stands on, so they can't step off it. The band is ~2 tiles solid,
+// fraying out irregularly to 3–4 tiles so the rim reads as a ragged cloud edge
+// rather than a clean wall; beyond it the region's border (SKY_GROUND earth below
+// for air, churning STORM_CLOUD thunderheads for lightning) remains. Measured by
+// BFS distance from every passable tile and only ever converts the solid border
+// tile (never walkable tiles or the accent sky-pools), so the passable graph — and
+// thus connectivity and the exits — is untouched. Runs after the connectivity
+// seal. No-op for non-sky regions.
 function ringCloudEdges(m, regionId) {
-  if (regionId !== 'air') return;
+  const region = regionById(regionId);
+  if (!region.skyRegion) return;
+  const BORDER = region.border, EDGE = region.cloudEdge;
   const W = MCOLS, H = MROWS, MAXB = 4;
   const NB4 = [[1,0],[-1,0],[0,1],[0,-1]];
   // Multi-source BFS: distance (in tiles) from the nearest passable tile, capped
@@ -1540,7 +1804,7 @@ function ringCloudEdges(m, regionId) {
   // organic, giving a rim that wavers between 2 and 4 tiles wide.
   for (let r = 0; r < H; r++)
     for (let c = 0; c < W; c++) {
-      if (m[r][c] !== T.SKY_GROUND) continue;            // only eat the earth border
+      if (m[r][c] !== BORDER) continue;                  // only eat the solid border
       const d = dist[r * W + c];
       if (d < 1) continue;
       let inBand = d <= 2;
@@ -1549,7 +1813,7 @@ function ringCloudEdges(m, regionId) {
         inBand = (d === 3) ? ((fray & 3) !== 0)          // ~75% at 3 out
                            : ((fray & 7) < 3);           // ~37% at 4 out
       }
-      if (inBand) m[r][c] = T.CLOUD_EDGE;
+      if (inBand) m[r][c] = EDGE;
     }
 }
 
@@ -1921,14 +2185,30 @@ function buildVillageMap(biome) {
   const isDoor = (c, r) =>
     r >= 0 && r < MROWS && c >= 0 && c < MCOLS &&
     (m[r][c] === T.DOOR || m[r][c] === T.INN_DOOR || m[r][c] === T.STORE_DOOR);
-  // The water, ice, and earth villages skip this and dress their own exteriors
-  // below. The water village's DECOR is solid WATER (which must never hug a house
-  // wall: floodWaterVillage keeps the wall ring dry SAND, then a beach-find pass
-  // adds coral + seashells). The ice village's DECOR is ICE — removed here in
-  // favour of winter foliage hugging the houses, so the ice village carries no ICE
-  // at all. The earth village's DECOR is MUD — replaced below with mountain
-  // foliage (sage, moss, crystals), so the earth village carries no MUD at all.
-  if (regionId !== 'water' && regionId !== 'ice' && regionId !== 'earth') {
+  // The water, ice, earth, and air villages skip this and dress their own
+  // exteriors below. The water village's DECOR is solid WATER (which must never
+  // hug a house wall: floodWaterVillage keeps the wall ring dry SAND, then a
+  // beach-find pass adds coral + seashells). The ice village's DECOR is ICE —
+  // removed here in favour of winter foliage hugging the houses, so the ice
+  // village carries no ICE at all. The earth village's DECOR is MUD — replaced
+  // below with mountain foliage (sage, moss, crystals), so the earth village
+  // carries no MUD at all. The air village's DECOR is CLOUDBANK — replaced below
+  // with sky foliage (sky blooms, wind reeds, storm thistles), so the air village
+  // keeps a plain CLOUD floor instead.
+  // (Lightning is also excluded — like air, it dresses its house rings with storm
+  // foliage below instead of the STORM_BANK puffs this generic pass would lay.
+  // Luminous is excluded too — it rings its houses with the sanctum's radiant
+  // growth below instead of the LUMINOUS_GLOW pools this generic pass would lay,
+  // so the luminous village keeps a plain warm LUMINOUS_FLOOR. Necrotic is
+  // excluded too — it dresses its house rings with the wastes' decay (bone piles,
+  // withered shrubs, carrion blooms) below, then rings the whole village in dead
+  // trees, grave-dirt mounds, and cracked tombstones as a graveyard.)
+  // (Poison is excluded too — it rings its houses with the swamp's rank growth
+  // below, in place of the grass-backed MUSHROOM this generic pass would lay, then
+  // claws mangroves out of the thicket border as a drowned forest.)
+  if (regionId !== 'water' && regionId !== 'ice' && regionId !== 'earth' &&
+      regionId !== 'air' && regionId !== 'lightning' && regionId !== 'luminous' &&
+      regionId !== 'necrotic' && regionId !== 'poison') {
     for (let r = 1; r < MROWS - 1; r++) {
       for (let c = 1; c < MCOLS - 1; c++) {
         if (m[r][c] !== GROUND) continue;
@@ -1988,6 +2268,130 @@ function buildVillageMap(biome) {
     }
   }
 
+  // Air region: dress the cloud ring around every house with sky foliage — sky
+  // blooms, wind reeds, and storm thistles — in place of the CLOUDBANK puffs the
+  // generic pass above would have laid (the air village carries no CLOUDBANK).
+  // Mirrors that scan: every CLOUD tile touching a house WALL gets a chance,
+  // skipping tiles next to a door so entrances stay clear. All three are passable
+  // 1-HP foliage that revert to CLOUD when cut, so connectivity is unaffected.
+  if (regionId === 'air') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.CLOUD here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) {
+          const roll = Math.random();
+          m[r][c] = roll < 0.4 ? T.SKY_BLOOM : roll < 0.8 ? T.WIND_REED : T.STORM_THISTLE;
+        }
+      }
+    }
+  }
+
+  // Lightning region: dress the storm-cloud ring around every house with storm
+  // foliage — volt blooms, spark reeds, and fulgurite shards — in place of the
+  // STORM_BANK puffs the generic pass above would have laid (the lightning village
+  // carries no STORM_BANK). The storm-region twin of the air block above: every
+  // STORM_GROUND tile touching a house WALL gets a chance, skipping tiles next to a
+  // door so entrances stay clear. All three are passable 1-HP foliage that revert
+  // to STORM_GROUND when cut, so connectivity is unaffected.
+  if (regionId === 'lightning') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.STORM_GROUND here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) {
+          const roll = Math.random();
+          m[r][c] = roll < 0.4 ? T.VOLT_BLOOM : roll < 0.8 ? T.SPARK_REED : T.FULGURITE;
+        }
+      }
+    }
+  }
+
+  // Luminous region: dress the radiant floor ring around every house with the
+  // sanctum's growth — radiant blooms, glow-reeds, and lumen-shards — in place of
+  // the LUMINOUS_GLOW pools the generic pass above would have laid (the luminous
+  // village carries none). The luminous twin of the air/earth blocks: every
+  // LUMINOUS_FLOOR tile touching a house WALL gets a chance, skipping tiles next to
+  // a door so entrances stay clear. All three are passable 1-HP foliage that revert
+  // to LUMINOUS_FLOOR when cut, so connectivity is unaffected.
+  if (regionId === 'luminous') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.LUMINOUS_FLOOR here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) {
+          const roll = Math.random();
+          m[r][c] = roll < 0.4 ? T.RADIANT_BLOOM : roll < 0.8 ? T.GLOW_REED : T.LUMEN_SHARD;
+        }
+      }
+    }
+  }
+
+  // Necrotic region: dress the blight ring around every house with the wastes'
+  // decay — bone piles, withered thorn brambles, and pale carrion blooms — in
+  // place of the BONE_PILE the generic pass above would have laid. The necrotic
+  // twin of the earth/air/luminous blocks: every BLIGHT tile touching a house WALL
+  // gets a chance, skipping tiles next to a door so entrances stay clear. All three
+  // are passable 1-HP foliage that revert to BLIGHT when cut, so connectivity is
+  // unaffected.
+  if (regionId === 'necrotic') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.BLIGHT here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) {
+          const roll = Math.random();
+          m[r][c] = roll < 0.4 ? T.BONE_PILE : roll < 0.8 ? T.WITHERED_SHRUB : T.CORPSE_FLOWER;
+        }
+      }
+    }
+  }
+
+  // Poison region: dress the mire ring around every house with the swamp's rank
+  // growth — cattail reeds, swamp ferns, and glowing poison toadstools — in place
+  // of the grass-backed MUSHROOM the generic pass above would have laid. The swamp
+  // twin of the earth/necrotic blocks: every SLUDGE tile touching a house WALL gets
+  // a chance, skipping tiles next to a door so entrances stay clear. All three are
+  // passable 1-HP foliage that revert to SLUDGE when cut, so connectivity is
+  // unaffected.
+  if (regionId === 'poison') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.SLUDGE here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) {
+          const roll = Math.random();
+          m[r][c] = roll < 0.4 ? T.CATTAIL : roll < 0.8 ? T.SWAMP_FERN : T.SWAMP_MUSHROOM;
+        }
+      }
+    }
+  }
+
   // Water region: flood ~80% of the open village ground to wadeable SHALLOW_WATER,
   // keeping a 3-tile sand margin along the cobble roads and a dry sand ring around
   // every house. Done after the roads/exteriors are final and before connectivity.
@@ -2020,6 +2424,32 @@ function buildVillageMap(biome) {
 
   // The ice village gets the same snowy treeline as its overworld maps.
   sprinkleSnowPines(m, regionId);
+
+  // The necrotic village ("Ossuary of the Pale King") is dressed as a graveyard
+  // like its overworld maps: gnarled DEAD_TREEs clawing out of the crypt-wall
+  // border, mounds of GRAVE_DIRT churned across the open ground, and cracked
+  // TOMBSTONEs standing among them. Run after the connectivity seal —
+  // sprinkleDeadTrees only swaps solid wall for solid dead tree, sprinkleGraveDirt
+  // only swaps passable blight for passable grave dirt, and addTombstones places
+  // lone solid headstones only where the whole 8-neighbourhood is open — so the
+  // passable graph (and the village's connectivity) is never affected.
+  sprinkleDeadTrees(m, regionId);
+  sprinkleGraveDirt(m, regionId);
+  addTombstones(m, regionId, 8);
+
+  // The poison village ("Mire-warden Citadel") is framed like its overworld swamp
+  // maps: moss-draped MANGROVE trees clawing out of the thicket border so the
+  // citadel sits in a drowned forest. Run after the connectivity seal —
+  // sprinkleMangroves only swaps solid wall for solid mangrove (solid → solid), so
+  // the passable graph (and the village's connectivity) is never affected.
+  sprinkleMangroves(m, regionId);
+
+  // The air village gets the same billowing cloud lip as its overworld maps — a
+  // CLOUD_EDGE band ringing the walkable plaza just inside the SKY_GROUND border,
+  // so the cloud the hero stands on has a fluffy edge in front of the distant
+  // earth far below. Run after the connectivity seal: CLOUD_EDGE only ever
+  // replaces solid SKY_GROUND (solid → solid), so the passable graph is untouched.
+  ringCloudEdges(m, regionId);
 
   // Note: the fast-travel portal is NOT placed here. A village only gains a
   // portal once it is cleared of monsters — see activateVillage, which stamps

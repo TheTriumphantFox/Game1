@@ -45,6 +45,12 @@ const T = {
   SNOW:46, ICE:47, GLACIER:48,                       // ice region
   MUD:49, MOUNTAIN:50,                               // earth region (MOUNTAIN wall; SCREE ground, dirt PATH trails, ROCK accent, MUD bogs)
   CLOUD:51, CLOUDWALL:52,                            // air region
+  // Lightning region — built exactly like the air region (a cloud island the
+  // hero walks across), but rendered as dark, angry storm clouds. STORM_GROUND
+  // is the walkable dark storm-cloud floor (CLOUD's counterpart) and STORM_CLOUD
+  // is the solid border: a churning sea of black thunderheads, veined with
+  // lightning, surrounding the island (SKY_GROUND's counterpart). STORM_BANK and
+  // STORM_EDGE are defined further down with the other late tiles.
   STORM_GROUND:53, STORM_CLOUD:54,                   // lightning region
   LUMINOUS_FLOOR:55, LUMINOUS_CRYSTAL:56,            // luminous region
   BLIGHT:57, BLIGHTED_WALL:58,                       // necrotic region
@@ -114,7 +120,64 @@ const T = {
   // The impassable fluffy lip of the cloud — a 2-to-4-tile band ringing the whole
   // walkable area, so the cloud the hero stands on has a billowing edge they
   // can't step past (beyond it is the SKY_GROUND earth far below). Solid.
-  CLOUD_EDGE:88
+  CLOUD_EDGE:88,
+  // Air region natural growth strewn across the open CLOUD floor. All three are
+  // passable, 1-HP, sword-cuttable foliage that revert to CLOUD when cut (like
+  // the forest's flowers): a SKY_BLOOM flower (drops sky petals), a tuft of
+  // WIND_REED grass (drops wind seeds), and a STORM_THISTLE puff (drops thistle
+  // down).
+  SKY_BLOOM:89, WIND_REED:90, STORM_THISTLE:91,
+  // Lightning region's two extra cloud-island tiles, the dark counterparts of
+  // the air region's CLOUDBANK / CLOUD_EDGE. STORM_BANK is the brighter, lit
+  // storm puff dappled across the walkable STORM_GROUND floor (passable, like
+  // CLOUDBANK); STORM_EDGE is the impassable, billowing dark lip ringing the
+  // walkable area where the storm island drops away into the thunderheads
+  // (solid, like CLOUD_EDGE).
+  STORM_BANK:92, STORM_EDGE:93,
+  // Lightning region natural growth strewn across the open STORM_GROUND floor —
+  // the storm region's answer to the air region's sky blooms / wind reeds /
+  // storm thistles. All three are passable, 1-HP, sword-cuttable foliage that
+  // revert to STORM_GROUND when cut (like the forest's flowers): a VOLT_BLOOM
+  // flower (drops volt petals), a tuft of SPARK_REED grass (drops spark seeds),
+  // and a FULGURITE cluster of lightning-fused glass shards (drops fulgurite).
+  VOLT_BLOOM:94, SPARK_REED:95, FULGURITE:96,
+  // Luminous region — a hallowed, sun-washed sanctum of warm white healing light.
+  // LUMINOUS_GLOW is a brighter pool of concentrated radiance dappled across the
+  // walkable LUMINOUS_FLOOR (passable, the luminous twin of the cloud regions'
+  // CLOUDBANK). The three growths are passable, 1-HP, sword-cuttable foliage that
+  // revert to LUMINOUS_FLOOR when cut and each shed a Light Mote: a RADIANT_BLOOM
+  // (haloed white-gold flower), a GLOW_REED (slender light-stalks tipped with
+  // glowing motes), and a LUMEN_SHARD (cluster of glowing crystal). LIGHT_PILLAR
+  // is a solid shaft of radiant light rising from the floor — a luminous landmark
+  // (solid, like a column), placed only out in the open so it never walls a path.
+  LUMINOUS_GLOW:97, RADIANT_BLOOM:98, GLOW_REED:99, LUMEN_SHARD:100, LIGHT_PILLAR:101,
+  // Necrotic region — a morbid underworld of undead and decay. GRAVE_DIRT is a
+  // mound of fresh-turned burial soil dappled across the walkable BLIGHT floor
+  // (passable, the necrotic twin of the cloud regions' CLOUDBANK / the luminous
+  // LUMINOUS_GLOW). The three growths are passable, 1-HP, sword-cuttable foliage
+  // that revert to BLIGHT when cut: a BONE_PILE (heap of bones, the blight-backed
+  // answer to the desert BONES, sheds bone meal), a WITHERED_SHRUB (dead thorn
+  // bramble, sheds witherwood), and a CORPSE_FLOWER (pale carrion bloom, sheds a
+  // grave bloom). DEAD_TREE is
+  // a gnarled leafless tree clawing up out of the crypt-wall border (solid, like
+  // the ice region's SNOW_PINE); TOMBSTONE is a cracked leaning headstone — a
+  // solid graveyard landmark placed only in the open so it never walls a path.
+  GRAVE_DIRT:102, DEAD_TREE:103, WITHERED_SHRUB:104, CORPSE_FLOWER:105, BONE_PILE:106, TOMBSTONE:107,
+  // Poison region — a fetid swamp of bog and rank vegetation. SLUDGE is the
+  // walkable mire floor and POISON_WALL the dense thicket border. BOG is a
+  // sunken, waterlogged patch of mire dappled across the SLUDGE (passable, but
+  // trudging through one halves walk speed — the swamp twin of the earth MUD /
+  // ice SNOW_DRIFT); BOG_POOL is a deep pool of stagnant, scum-skinned bog water
+  // (solid, the poison region's accent — crossed by plank bridges, the murky
+  // counterpart of the water region's DEEP/MEDIUM_WATER). CATTAIL (a clump of
+  // bulrush reeds) and SWAMP_FERN (a bushy marsh fern) are passable, 1-HP,
+  // sword-cuttable foliage that revert to SLUDGE when cut and shed an Herbal;
+  // MANGROVE is a gnarled, moss-draped swamp tree clawing up out of the thicket
+  // border (solid, like the necrotic region's DEAD_TREE). SWAMP_MUSHROOM is a
+  // cluster of glowing, sickly poison toadstools — the swamp's own muck-backed
+  // toadstool (passable, 1-HP, cut for a Mushroom), drawn on the mire so it blends
+  // where the forest's grass-backed MUSHROOM would clash.
+  BOG:108, BOG_POOL:109, CATTAIL:110, SWAMP_FERN:111, MANGROVE:112, SWAMP_MUSHROOM:113
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -148,10 +211,38 @@ const TILE_COLORS = {
   [T.SNOW_DRIFT]: '#c9d6e4',
   [T.MUD]: '#5a3a18',             [T.MOUNTAIN]: '#4a4035',
   [T.CLOUD]: '#dde6f2',           [T.CLOUDWALL]: '#a0b0c8',
-  [T.STORM_GROUND]: '#3a3a4a',    [T.STORM_CLOUD]: '#2a2a40',
-  [T.LUMINOUS_FLOOR]: '#f0e8a8',  [T.LUMINOUS_CRYSTAL]: '#ffe055',
+  // Lightning region — the air palette gone dark and stormy. STORM_GROUND is the
+  // walkable dark-slate cloud floor, STORM_BANK the slightly lit puff dappled
+  // across it, STORM_EDGE the shaded lip, and STORM_CLOUD the near-black
+  // thunderhead border. Brightness order mirrors air (floor < bank, edge between
+  // floor and border) so the island reads on the minimap.
+  [T.STORM_GROUND]: '#313749',    [T.STORM_CLOUD]: '#1b1f2c',
+  [T.STORM_BANK]: '#3e4660',      [T.STORM_EDGE]: '#272c3c',
+  // Luminous region — warm white healing light. The floor is a hallowed,
+  // sun-washed ivory; the brighter LUMINOUS_GLOW pools read whiter still; and the
+  // border crystal is a glowing white-gold so the sanctum is framed in radiance.
+  [T.LUMINOUS_FLOOR]: '#f5edd8',  [T.LUMINOUS_CRYSTAL]: '#ffe9a6',
+  [T.LUMINOUS_GLOW]: '#fdf4d2',   [T.LIGHT_PILLAR]: '#fff6e0',
+  // Luminous growth — all bright warm-gold so they read against the pale floor on
+  // the minimap: a haloed bloom, light-tipped reeds, and a glowing crystal shard.
+  [T.RADIANT_BLOOM]: '#ffe9a0', [T.GLOW_REED]: '#f4e6b0', [T.LUMEN_SHARD]: '#fdf0c8',
   [T.BLIGHT]: '#3a2a3a',          [T.BLIGHTED_WALL]: '#1a0a1a',
-  [T.SLUDGE]: '#5a7a2a',          [T.POISON_WALL]: '#2a4a18',
+  // Necrotic decay — grave dirt reads a shade darker/browner than the blight
+  // floor (like SNOW_DRIFT against SNOW); a dead tree and withered shrub are grey
+  // deadwood against the dark wall/ground; the carrion bloom a sickly grey-green;
+  // the bone pile bleached bone; the tombstone a pale grave-grey, all readable on
+  // the minimap.
+  [T.GRAVE_DIRT]: '#2a1f28',      [T.DEAD_TREE]: '#4a4048',
+  [T.WITHERED_SHRUB]: '#6a5a52',  [T.CORPSE_FLOWER]: '#9aa86a',
+  [T.BONE_PILE]: '#d8cfb2',       [T.TOMBSTONE]: '#7a747e',
+  // Poison swamp — a murky olive mire floor framed by a dark thicket border.
+  // BOG patches read a shade darker/wetter than the SLUDGE (like SNOW_DRIFT vs
+  // SNOW); BOG_POOL is near-black stagnant water; the reeds and fern are
+  // readable greens; the mangrove a dark mossy trunk-green against the thicket.
+  [T.SLUDGE]: '#566b2c',          [T.POISON_WALL]: '#28401a',
+  [T.BOG]: '#3c4a1f',             [T.BOG_POOL]: '#1f3018',
+  [T.CATTAIL]: '#7e8a44',         [T.SWAMP_FERN]: '#3f7a30',  [T.MANGROVE]: '#2c3c1a',
+  [T.SWAMP_MUSHROOM]: '#8a6fb0',
   [T.MANA_FLOOR]: '#5a3a8a',      [T.MANA_CRYSTAL]: '#aa66ee',
   [T.PORTAL]: '#aa66ff',
   // Shallow water — lighter/greener than deep WATER so a wadeable channel reads
@@ -191,6 +282,13 @@ const TILE_COLORS = {
   // Cloud edge — the impassable rim, a touch greyer/shaded than the bright floor
   // so the lip reads distinctly from the cloud the hero walks on.
   [T.CLOUD_EDGE]: '#bcc8de',
+  // Air region natural growth — a pink sky bloom, golden wind reed, and an
+  // electric-blue storm thistle, all readable against the pale cloud floor.
+  [T.SKY_BLOOM]: '#f2a8d0', [T.WIND_REED]: '#d8c47a', [T.STORM_THISTLE]: '#a8d0f0',
+  // Lightning region natural growth — an electric-blue volt bloom, a golden
+  // spark reed, and a violet-white fulgurite cluster, all bright enough to read
+  // against the dark storm-cloud floor on the minimap.
+  [T.VOLT_BLOOM]: '#7ec8ff', [T.SPARK_REED]: '#e8c468', [T.FULGURITE]: '#b3a6ff',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.

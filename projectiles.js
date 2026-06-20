@@ -292,6 +292,9 @@ function doSwordSwing() {
     else if (tile === T.MUSHROOM)         { dropType = 'mushroom'; dropChance = 0.50; }
     else if (tile === T.FLOWERING_CACTUS) { dropType = 'herbal';   dropChance = 0.50; }
     else if (tile === T.BONES)            { dropType = 'bonemeal'; dropChance = 0.50; }
+    else if (tile === T.BONE_PILE)        { dropType = 'bonemeal';   dropChance = 0.50; }
+    else if (tile === T.WITHERED_SHRUB)   { dropType = 'witherwood'; dropChance = 0.45; }
+    else if (tile === T.CORPSE_FLOWER)    { dropType = 'gravebloom'; dropChance = 0.45; }
     else if (tile === T.WINTER_BERRY_BUSH){ dropType = 'winterberry'; dropChance = 0.60; }
     else if (tile === T.FROST_LILY)       { dropType = 'frostpetal';  dropChance = 0.50; }
     else if (tile === T.STONES)           { dropType = 'stone';     dropChance = 0.50; }
@@ -300,6 +303,18 @@ function doSwordSwing() {
     else if (tile === T.MOUNTAIN_SAGE)    { dropType = 'sage';      dropChance = 0.50; }
     else if (tile === T.MOSS_CLUMP)       { dropType = 'moss';      dropChance = 0.50; }
     else if (tile === T.CRYSTAL_CLUSTER)  { dropType = 'crystal';   dropChance = 0.45; }
+    else if (tile === T.SKY_BLOOM)        { dropType = 'skypetal';  dropChance = 0.50; }
+    else if (tile === T.WIND_REED)        { dropType = 'windseed';  dropChance = 0.50; }
+    else if (tile === T.STORM_THISTLE)    { dropType = 'thistledown'; dropChance = 0.45; }
+    else if (tile === T.VOLT_BLOOM)       { dropType = 'voltpetal';  dropChance = 0.50; }
+    else if (tile === T.SPARK_REED)       { dropType = 'sparkseed';  dropChance = 0.50; }
+    else if (tile === T.FULGURITE)        { dropType = 'fulgurite';  dropChance = 0.45; }
+    else if (tile === T.RADIANT_BLOOM)    { dropType = 'mote';       dropChance = 0.50; }
+    else if (tile === T.GLOW_REED)        { dropType = 'mote';       dropChance = 0.50; }
+    else if (tile === T.LUMEN_SHARD)      { dropType = 'mote';       dropChance = 0.45; }
+    else if (tile === T.CATTAIL)          { dropType = 'herbal';     dropChance = 0.50; }
+    else if (tile === T.SWAMP_FERN)       { dropType = 'herbal';     dropChance = 0.50; }
+    else if (tile === T.SWAMP_MUSHROOM)   { dropType = 'mushroom';   dropChance = 0.50; }
     else continue;
     map[tr][tc] = ground;
     if (dropType && Math.random() < dropChance) {
@@ -546,6 +561,18 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#e8e0c8', 10, 3);
         spawnParticle(sp.x, sp.y, '#fffaf0', 6, 2);
         showMsg(`🦴 +${d.val} Bone Meal (now ${player.bonemeal})`, 1500);
+      } else if (d.type === 'witherwood') {
+        addItem('witherwood', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#6a5a52', 10, 3);
+        spawnParticle(sp.x, sp.y, '#a08c80', 6, 2);
+        showMsg(`🪵 +${d.val} Witherwood (now ${player.witherwood})`, 1500);
+      } else if (d.type === 'gravebloom') {
+        addItem('graveblooms', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#9aa86a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#c4d09a', 6, 2);
+        showMsg(`🥀 +${d.val} Grave Bloom (now ${player.graveblooms})`, 1500);
       } else if (d.type === 'winterberry') {
         addItem('winterberries', d.val);
         const sp = screenPX(d.x, d.y);
@@ -588,6 +615,48 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#a87fd0', 10, 3);
         spawnParticle(sp.x, sp.y, '#d8c0f0', 6, 2);
         showMsg(`🔮 +${d.val} Crystal (now ${player.crystals})`, 1500);
+      } else if (d.type === 'skypetal') {
+        addItem('skypetals', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#f2a8d0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#ffd6ec', 6, 2);
+        showMsg(`🌸 +${d.val} Sky Petal (now ${player.skypetals})`, 1500);
+      } else if (d.type === 'windseed') {
+        addItem('windseeds', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#d8c47a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#f0e2a6', 6, 2);
+        showMsg(`🌾 +${d.val} Wind Seed (now ${player.windseeds})`, 1500);
+      } else if (d.type === 'thistledown') {
+        addItem('thistledown', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#a8d0f0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#dcefff', 6, 2);
+        showMsg(`💨 +${d.val} Thistle Down (now ${player.thistledown})`, 1500);
+      } else if (d.type === 'voltpetal') {
+        addItem('voltpetals', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#7ec8ff', 10, 3);
+        spawnParticle(sp.x, sp.y, '#d6f0ff', 6, 2);
+        showMsg(`🌼 +${d.val} Volt Petal (now ${player.voltpetals})`, 1500);
+      } else if (d.type === 'sparkseed') {
+        addItem('sparkseeds', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#ffe27a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#fff6c8', 6, 2);
+        showMsg(`🌾 +${d.val} Spark Seed (now ${player.sparkseeds})`, 1500);
+      } else if (d.type === 'fulgurite') {
+        addItem('fulgurites', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#b3a6ff', 10, 3);
+        spawnParticle(sp.x, sp.y, '#e8e0ff', 6, 2);
+        showMsg(`🔷 +${d.val} Fulgurite (now ${player.fulgurites})`, 1500);
+      } else if (d.type === 'mote') {
+        addItem('motes', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#ffe8a0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#fffbe8', 6, 2);
+        showMsg(`✨ +${d.val} Light Mote (now ${player.motes})`, 1500);
       } else if (TROPHY_META[d.type]) {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
         // type (fangs, fingers, bones, wings, organs, feathers, scales, …).
