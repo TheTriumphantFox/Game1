@@ -150,24 +150,21 @@ const RADIAL_RINGS = [
       }
       return items;
     }},
-  // ── Bow / arrows: base bow + plain stock + one slot per elemental arrow ───────
+  // ── Arrows: a single Plain Arrow entry (the bow's default ammo) + one slot per
+  // elemental arrow. There's no separate "Bow" slot — firing plain arrows IS the
+  // bow, so the always-present Plain Arrow stands in for it; bow level shows in the
+  // damage badge. Each elemental arrow uses just its element symbol as its icon
+  // (matching the swords ring) rather than a busy bow + element pair. ────────────
   { name: 'arrows', radius: RADIAL_RADIUS, getItems: () => {
       const bowDmg = (player.bowLevel || 1) * 2 + 1;
       const items = [
-        { type: 'bow', icon: '🏹', label: 'Bow',
-          val: () => 'Lv' + (player.bowLevel || 1),
+        { type: 'bow_plain', icon: '➳', label: 'Plain Arrow',
+          val: () => 'x' + ((player.arrows && player.arrows.plain) || 0),
           dmg: () => String(bowDmg),
           action: () => { player.weapon = 'bow'; player.activeArrowElement = null; },
           isActive: () => player.weapon === 'bow' && !player.activeArrowElement }
       ];
       const arrows = player.arrows || {};
-      if ((arrows.plain || 0) > 0) {
-        items.push({ type: 'bow_plain', icon: '➳', label: 'Plain Arrow',
-          val: () => 'x' + (player.arrows.plain || 0),
-          dmg: () => String(bowDmg),
-          action: () => { player.weapon = 'bow'; player.activeArrowElement = null; },
-          isActive: () => player.weapon === 'bow' && !player.activeArrowElement });
-      }
       for (const id of Object.keys(arrows)) {
         if (id === 'plain') continue;
         const count = arrows[id] || 0;
@@ -176,8 +173,8 @@ const RADIAL_RINGS = [
         if (!elem) continue;
         items.push({
           type: 'bow_' + id,
-          icon: '🏹' + elem.icon,
-          iconImg: elem.iconImg, iconPrefix: '🏹',
+          icon: elem.icon,
+          iconImg: elem.iconImg, iconPrefix: '',
           label: elem.label + ' Arrow',
           val: () => 'x' + (player.arrows[id] || 0),
           dmg: () => `${bowDmg}+${elem.icon}1-4`,
