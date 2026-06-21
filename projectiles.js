@@ -427,7 +427,7 @@ function stepEnemies(dt, map) {
     // Melee contact damage (re-check distance after move)
     const mdx = player.x - e.x, mdy = player.y - e.y;
     if (Math.abs(mdx) <= 1 && Math.abs(mdy) <= 1 && player.invincible <= 0 && !e.ranged) {
-      damagePlayer(1, e.element);
+      damagePlayer(e.dmg, e.element);
       player.invincible = 900;
       if (player.hp <= 0) respawn();
     }
@@ -563,7 +563,7 @@ function stepProjectiles(dt, map) {
     } else if (p.type === 'enemy') {
       const dx = player.x - p.tx, dy = player.y - p.ty;
       if (Math.abs(dx) < 0.8 && Math.abs(dy) < 0.8 && player.invincible <= 0) {
-        damagePlayer(1, p.element);
+        damagePlayer(p.dmg, p.element);
         player.invincible = 800;
         p.life = -999;
         if (player.hp <= 0) respawn();
