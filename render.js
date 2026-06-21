@@ -1733,6 +1733,31 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#ffffff';
       ctx.beginPath(); ctx.arc(fcx - s*0.015, fcy - s*0.015, s*0.02, 0, Math.PI*2); ctx.fill();
       break; }
+    case T.FROST_FERN: {
+      // Snowfield base + a frost-rimed fern: a pair of arching fronds, each a
+      // green midrib lined with little leaflets and dusted white with frost at the
+      // tip. Static per tile.
+      ctx.fillStyle = '#e4ecf2'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#d2dde8'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      const ffrond = (bx, by, tipx, tipy, base, frost) => {
+        ctx.strokeStyle = base; ctx.lineCap = 'round';
+        ctx.lineWidth = Math.max(1, s*0.045);
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo((bx+tipx)/2, by - s*0.12, tipx, tipy); ctx.stroke();
+        ctx.lineWidth = Math.max(1, s*0.022);
+        for (let i = 1; i <= 5; i++) {
+          const t = i / 6;
+          const mx = bx + (tipx - bx) * t;
+          const my = by + (tipy - by) * t - Math.sin(t*Math.PI) * s*0.06;
+          const ll = s*0.10 * (1 - t*0.45);
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx - ll, my - ll*0.7); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + ll, my - ll*0.7); ctx.stroke();
+        }
+        ctx.fillStyle = frost;
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.05, 0, Math.PI*2); ctx.fill();
+      };
+      ffrond(x + s*0.5, y + s*0.9, x + s*0.30, y + s*0.30, '#4e9a72', '#eaf6fd');
+      ffrond(x + s*0.5, y + s*0.9, x + s*0.74, y + s*0.40, '#3e8a62', '#eaf6fd');
+      break; }
     case T.STONES: {
       // Sand backdrop + a small cluster of smooth grey beach stones, each lit
       // from the upper-left with a soft highlight.
@@ -2896,6 +2921,31 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.beginPath(); ctx.arc(x + s*0.77, y + s*0.42, s*0.06, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#ffd24a';
       ctx.fillRect(x + s*0.48, y + s*0.24, 3, 3);
+      break; }
+    case T.DESERT_SUCCULENT: {
+      // Sand backdrop + a low agave/aloe rosette: a ring of thick blue-green
+      // blades fanning out from a central crown, each lit along one edge. Static
+      // per tile.
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);
+      const dcx = x + s*0.5, dcy = y + s*0.60;
+      const blade = (ang, len, half, base, lit) => {
+        ctx.save(); ctx.translate(dcx, dcy); ctx.rotate(ang);
+        ctx.fillStyle = base;
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(-half, -len*0.5); ctx.lineTo(0, -len); ctx.lineTo(half, -len*0.5);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = lit;
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(0, -len); ctx.lineTo(half, -len*0.5);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      };
+      const blades = 7;
+      for (let i = 0; i < blades; i++) blade((i / blades) * Math.PI*2, s*0.34, s*0.07, '#4f9a64', '#6fc488');
+      ctx.fillStyle = '#3a7a4e';
+      ctx.beginPath(); ctx.arc(dcx, dcy, s*0.07, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#bfe6c8';
+      ctx.beginPath(); ctx.arc(dcx - s*0.02, dcy - s*0.02, s*0.03, 0, Math.PI*2); ctx.fill();
       break; }
     case T.MANA_FLOOR: {
       // Verdant, mana-rich turf of the flourishing forest — a lush emerald sward
@@ -5826,6 +5876,12 @@ function drawDrop(d, ts) {
     d.type === 'manapetal'   ? '182,108,224' :  // violet mana bloom
     d.type === 'heartfrond'  ? '99,200,116'  :  // lush fern green
     d.type === 'glowcap'     ? '170,120,224' :  // glowing violet cap
+    d.type === 'fiddlehead'  ? '63,154,58'   :  // coiled fern shoot green
+    d.type === 'aloe'        ? '90,168,106'  :  // desert succulent green
+    d.type === 'frostfern'   ? '168,216,192' :  // frost-rimed fern green
+    d.type === 'sunseed'     ? '244,230,176' :  // warm gold light-seed
+    d.type === 'prism'       ? '253,240,200' :  // bright prism shard
+    d.type === 'reedpith'    ? '200,184,106' :  // pale reed-pith tan
     arrowElem             ? hexToRGB(arrowElem.color) :
     d.type === 'arrows'   ? '221,170,68' :  // plain arrows: warm tan/wood
     trophy                ? hexToRGB(trophy.color) :
@@ -5930,7 +5986,7 @@ function drawDrop(d, ts) {
     leaf(cx,             cy - s * 0.75, 0);
     leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
     leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
-  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal' || d.type === 'skypetal' || d.type === 'windseed' || d.type === 'thistledown' || d.type === 'voltpetal' || d.type === 'sparkseed' || d.type === 'fulgurite' || d.type === 'witherwood' || d.type === 'gravebloom' || d.type === 'mote' || d.type === 'manapetal' || d.type === 'heartfrond' || d.type === 'glowcap') {
+  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal' || d.type === 'skypetal' || d.type === 'windseed' || d.type === 'thistledown' || d.type === 'voltpetal' || d.type === 'sparkseed' || d.type === 'fulgurite' || d.type === 'witherwood' || d.type === 'gravebloom' || d.type === 'mote' || d.type === 'manapetal' || d.type === 'heartfrond' || d.type === 'glowcap' || d.type === 'fiddlehead' || d.type === 'aloe' || d.type === 'frostfern' || d.type === 'sunseed' || d.type === 'prism' || d.type === 'reedpith') {
     // Trophy items + potion + arrow bundle + mushroom + bone meal + winter berry
     // + frost petal: render as a glyph centered on the tile. Arrow drops show the
     // elemental icon and the count; the rest show their thematic icon.
@@ -5958,6 +6014,12 @@ function drawDrop(d, ts) {
       d.type === 'manapetal'   ? '🪻' :
       d.type === 'heartfrond'  ? '🍃' :
       d.type === 'glowcap'     ? '🍄' :
+      d.type === 'fiddlehead'  ? '🌿' :
+      d.type === 'aloe'        ? '🪴' :
+      d.type === 'frostfern'   ? '❄️' :
+      d.type === 'sunseed'     ? '🌟' :
+      d.type === 'prism'       ? '🔆' :
+      d.type === 'reedpith'    ? '🌾' :
       (trophy ? trophy.icon : '❓');
     const size = Math.round(ts * 0.42 * pulse);
     ctx.font = `${size}px monospace`;

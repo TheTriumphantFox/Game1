@@ -675,6 +675,10 @@ function buildDesertMap(seed, depth, openSides) {
   // GRASS, so seed them onto SAND.) Bones have 1 HP and drop bone meal when cut
   // by a sword swing — see doSwordSwing.
   scatterOn(m, T.BONES, 80, T.SAND);
+  // Desert succulents — low aloe/agave rosettes strewn across the open sand.
+  // Passable 1-HP foliage that revert to SAND when cut, each shedding Aloe (the
+  // desert's third forage alongside bone meal and the near-water cacti's herbal).
+  scatterOn(m, T.DESERT_SUCCULENT, 55, T.SAND);
   // Sparse cacti scattered as obstacles in open sand
   for (let i = 0; i < 120; i++) {
     const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
@@ -1545,14 +1549,15 @@ function sprinkleSnowPines(m, regionId, chance = 0.45) {
 }
 
 // Ice region: scatter wintry natural growth across the open snowfields — winter
-// berry bushes (cut for winter berries) and frost lilies (cut for frost petals).
-// Both seed onto open SNOW only, so paths, ice sheets, drifts, and placed
-// structures are left untouched; both are passable 1-HP foliage, so connectivity
-// is unaffected. No-op for every other region.
+// berry bushes (cut for winter berries), frost lilies (cut for frost petals), and
+// frost ferns (cut for a frost fern frond). All seed onto open SNOW only, so paths,
+// ice sheets, drifts, and placed structures are left untouched; all are passable
+// 1-HP foliage, so connectivity is unaffected. No-op for every other region.
 function scatterWinterFoliage(m, regionId) {
   if (regionId !== 'ice') return;
   scatterOn(m, T.WINTER_BERRY_BUSH, 70, T.SNOW);
   scatterOn(m, T.FROST_LILY, 55, T.SNOW);
+  scatterOn(m, T.FROST_FERN, 50, T.SNOW);
 }
 
 // Water region: scatter beach finds across the open sand — clusters of stones
@@ -1624,7 +1629,8 @@ function sprinkleLuminousGlow(m, regionId) {
 // haloed radiant blooms, slender glow-reeds, and glowing lumen-shards. All seed
 // onto plain LUMINOUS_FLOOR only (off the brighter glow pools), so paths, pillars,
 // and placed structures are left untouched; all are passable, 1-HP, sword-cuttable
-// foliage that revert to LUMINOUS_FLOOR when cut (and each shed a Light Mote), so
+// foliage that revert to LUMINOUS_FLOOR when cut, each shedding its own forage (the
+// bloom a Light Mote, the reed a Sun Seed, the shard a Prism Shard), so
 // connectivity is unaffected. The luminous twin of scatterAirFoliage. No-op
 // for every other region.
 function scatterLuminousFoliage(m, regionId) {
@@ -1744,9 +1750,9 @@ function addPoisonBogs(m, regionId, depth) {
 // bare mire sprouts growth, with the rest left open to walk. Seeds onto plain
 // SLUDGE only (off the boggy mire and bog pools), so paths and placed structures
 // are untouched; all are passable, 1-HP, sword-cuttable foliage that revert to
-// SLUDGE when cut (reeds and ferns shed an Herbal, toadstools a Mushroom), so
-// connectivity is unaffected. The swamp twin of scatterNecroticFoliage. No-op for
-// every other region.
+// SLUDGE when cut (cattails shed Reed Pith, ferns an Herbal, toadstools a
+// Mushroom), so connectivity is unaffected. The swamp twin of scatterNecroticFoliage.
+// No-op for every other region.
 function scatterPoisonFoliage(m, regionId) {
   if (regionId !== 'poison') return;
   for (let r = 1; r < MROWS - 1; r++)

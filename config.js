@@ -145,9 +145,10 @@ const T = {
   // LUMINOUS_GLOW is a brighter pool of concentrated radiance dappled across the
   // walkable LUMINOUS_FLOOR (passable, the luminous twin of the cloud regions'
   // CLOUDBANK). The three growths are passable, 1-HP, sword-cuttable foliage that
-  // revert to LUMINOUS_FLOOR when cut and each shed a Light Mote: a RADIANT_BLOOM
-  // (haloed white-gold flower), a GLOW_REED (slender light-stalks tipped with
-  // glowing motes), and a LUMEN_SHARD (cluster of glowing crystal). LIGHT_PILLAR
+  // revert to LUMINOUS_FLOOR when cut, each shedding a distinct radiant forage: a
+  // RADIANT_BLOOM (haloed white-gold flower, sheds a Light Mote), a GLOW_REED
+  // (slender light-stalks tipped with glowing motes, sheds a Sun Seed), and a
+  // LUMEN_SHARD (cluster of glowing crystal, sheds a Prism Shard). LIGHT_PILLAR
   // is a solid shaft of radiant light rising from the floor — a luminous landmark
   // (solid, like a column), placed only out in the open so it never walls a path.
   LUMINOUS_GLOW:97, RADIANT_BLOOM:98, GLOW_REED:99, LUMEN_SHARD:100, LIGHT_PILLAR:101,
@@ -171,7 +172,8 @@ const T = {
   // (solid, the poison region's accent — crossed by plank bridges, the murky
   // counterpart of the water region's DEEP/MEDIUM_WATER). CATTAIL (a clump of
   // bulrush reeds) and SWAMP_FERN (a bushy marsh fern) are passable, 1-HP,
-  // sword-cuttable foliage that revert to SLUDGE when cut and shed an Herbal;
+  // sword-cuttable foliage that revert to SLUDGE when cut — the cattail sheds Reed
+  // Pith, the fern an Herbal;
   // MANGROVE is a gnarled, moss-draped swamp tree clawing up out of the thicket
   // border (solid, like the necrotic region's DEAD_TREE). SWAMP_MUSHROOM is a
   // cluster of glowing, sickly poison toadstools — the swamp's own muck-backed
@@ -203,7 +205,18 @@ const T = {
   // tiles, overflowing its own tile into the neighbouring border/canopy. Solid,
   // and only ever placed on already-solid border tiles, so connectivity is
   // unaffected.
-  COLOSSAL_TREE:120
+  COLOSSAL_TREE:120,
+  // Fire (desert) region natural growth — a DESERT_SUCCULENT: a low agave/aloe
+  // rosette of blue-green blades growing in the open sand. Passable, 1-HP,
+  // sword-cuttable foliage that reverts to SAND when cut and sheds Aloe — the
+  // desert's third forage alongside the bone piles (bone meal) and the
+  // near-water flowering cacti (herbal).
+  DESERT_SUCCULENT:121,
+  // Ice region natural growth — a FROST_FERN: a hardy, frost-rimed fern frond
+  // unfurling from the snow. Passable, 1-HP, sword-cuttable foliage that reverts
+  // to SNOW when cut and sheds a Frost Fern frond — the snowfield's third forage
+  // alongside the winter berry bushes and frost lilies.
+  FROST_FERN:122
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -324,6 +337,10 @@ const TILE_COLORS = {
   // spark reed, and a violet-white fulgurite cluster, all bright enough to read
   // against the dark storm-cloud floor on the minimap.
   [T.VOLT_BLOOM]: '#7ec8ff', [T.SPARK_REED]: '#e8c468', [T.FULGURITE]: '#b3a6ff',
+  // Fire region desert succulent — a blue-green rosette readable against the sand.
+  [T.DESERT_SUCCULENT]: '#5aa86a',
+  // Ice region frost fern — a pale frosted green readable against the snowfield.
+  [T.FROST_FERN]: '#a8d8c0',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.

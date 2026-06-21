@@ -290,13 +290,16 @@ function doSwordSwing() {
     let dropType = null, dropChance = 0;
     if      (tile === T.FLOWER)           { dropType = 'herbal';   dropChance = 0.50; }
     else if (tile === T.MUSHROOM)         { dropType = 'mushroom'; dropChance = 0.50; }
+    else if (tile === T.FERN)             { dropType = 'fiddlehead'; dropChance = 0.50; }
     else if (tile === T.FLOWERING_CACTUS) { dropType = 'herbal';   dropChance = 0.50; }
+    else if (tile === T.DESERT_SUCCULENT) { dropType = 'aloe';     dropChance = 0.50; }
     else if (tile === T.BONES)            { dropType = 'bonemeal'; dropChance = 0.50; }
     else if (tile === T.BONE_PILE)        { dropType = 'bonemeal';   dropChance = 0.50; }
     else if (tile === T.WITHERED_SHRUB)   { dropType = 'witherwood'; dropChance = 0.45; }
     else if (tile === T.CORPSE_FLOWER)    { dropType = 'gravebloom'; dropChance = 0.45; }
     else if (tile === T.WINTER_BERRY_BUSH){ dropType = 'winterberry'; dropChance = 0.60; }
     else if (tile === T.FROST_LILY)       { dropType = 'frostpetal';  dropChance = 0.50; }
+    else if (tile === T.FROST_FERN)       { dropType = 'frostfern';   dropChance = 0.50; }
     else if (tile === T.STONES)           { dropType = 'stone';     dropChance = 0.50; }
     else if (tile === T.SEASHELL)         { dropType = 'seashell';  dropChance = 0.50; }
     else if (tile === T.CORAL)            { dropType = 'coral';     dropChance = 0.50; }
@@ -310,9 +313,9 @@ function doSwordSwing() {
     else if (tile === T.SPARK_REED)       { dropType = 'sparkseed';  dropChance = 0.50; }
     else if (tile === T.FULGURITE)        { dropType = 'fulgurite';  dropChance = 0.45; }
     else if (tile === T.RADIANT_BLOOM)    { dropType = 'mote';       dropChance = 0.50; }
-    else if (tile === T.GLOW_REED)        { dropType = 'mote';       dropChance = 0.50; }
-    else if (tile === T.LUMEN_SHARD)      { dropType = 'mote';       dropChance = 0.45; }
-    else if (tile === T.CATTAIL)          { dropType = 'herbal';     dropChance = 0.50; }
+    else if (tile === T.GLOW_REED)        { dropType = 'sunseed';    dropChance = 0.50; }
+    else if (tile === T.LUMEN_SHARD)      { dropType = 'prism';      dropChance = 0.45; }
+    else if (tile === T.CATTAIL)          { dropType = 'reedpith';   dropChance = 0.50; }
     else if (tile === T.SWAMP_FERN)       { dropType = 'herbal';     dropChance = 0.50; }
     else if (tile === T.SWAMP_MUSHROOM)   { dropType = 'mushroom';   dropChance = 0.50; }
     else if (tile === T.GIANT_BLOOM)      { dropType = 'manapetal';  dropChance = 0.55; }
@@ -678,6 +681,42 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#a070d8', 10, 3);
         spawnParticle(sp.x, sp.y, '#ddc8f2', 6, 2);
         showMsg(`🍄 +${d.val} Glow Cap (now ${player.glowcaps})`, 1500);
+      } else if (d.type === 'fiddlehead') {
+        addItem('fiddleheads', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#3f9a3a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#9ad08a', 6, 2);
+        showMsg(`🌿 +${d.val} Fiddlehead (now ${player.fiddleheads})`, 1500);
+      } else if (d.type === 'aloe') {
+        addItem('aloe', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#5aa86a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#a8d8b0', 6, 2);
+        showMsg(`🪴 +${d.val} Aloe (now ${player.aloe})`, 1500);
+      } else if (d.type === 'frostfern') {
+        addItem('frostferns', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#a8d8c0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#e0f2ea', 6, 2);
+        showMsg(`❄️ +${d.val} Frost Fern (now ${player.frostferns})`, 1500);
+      } else if (d.type === 'sunseed') {
+        addItem('sunseeds', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#f4e6b0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#fff6d6', 6, 2);
+        showMsg(`🌟 +${d.val} Sun Seed (now ${player.sunseeds})`, 1500);
+      } else if (d.type === 'prism') {
+        addItem('prisms', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#fdf0c8', 10, 3);
+        spawnParticle(sp.x, sp.y, '#ffffff', 6, 2);
+        showMsg(`🔆 +${d.val} Prism Shard (now ${player.prisms})`, 1500);
+      } else if (d.type === 'reedpith') {
+        addItem('reedpith', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#c8b86a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#e8dca6', 6, 2);
+        showMsg(`🌾 +${d.val} Reed Pith (now ${player.reedpith})`, 1500);
       } else if (TROPHY_META[d.type]) {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
         // type (fangs, fingers, bones, wings, organs, feathers, scales, …).

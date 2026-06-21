@@ -89,6 +89,12 @@ const PASSIVE_DROPS = [
   { type: 'manapetals',    icon: '🪻', label: 'Mana Petal',   key: 'manapetals'    },
   { type: 'heartfronds',   icon: '🍃', label: 'Heart Frond',  key: 'heartfronds'   },
   { type: 'glowcaps',      icon: '🍄', label: 'Glow Cap',     key: 'glowcaps'      },
+  { type: 'fiddleheads',   icon: '🌿', label: 'Fiddlehead',   key: 'fiddleheads'   },
+  { type: 'aloe',          icon: '🪴', label: 'Aloe',         key: 'aloe'          },
+  { type: 'frostferns',    icon: '❄️', label: 'Frost Fern',   key: 'frostferns'    },
+  { type: 'sunseeds',      icon: '🌟', label: 'Sun Seed',     key: 'sunseeds'      },
+  { type: 'prisms',        icon: '🔆', label: 'Prism Shard',  key: 'prisms'        },
+  { type: 'reedpith',      icon: '🌾', label: 'Reed Pith',    key: 'reedpith'      },
 ];
 
 // Ledger grouping. The drops ledger (ledger.js) renders ~45 pickups under these
@@ -107,6 +113,7 @@ const DROP_CAT_OF = {
   moss: 'herbal', skypetals: 'herbal', windseeds: 'herbal', thistledown: 'herbal',
   voltpetals: 'herbal', sparkseeds: 'herbal', manapetals: 'herbal', heartfronds: 'herbal',
   glowcaps: 'herbal', witherwood: 'herbal', graveblooms: 'herbal',
+  fiddleheads: 'herbal', aloe: 'herbal', frostferns: 'herbal', sunseeds: 'herbal', reedpith: 'herbal',
   fangs: 'monster', fingers: 'monster', bones: 'monster', wings: 'monster', organs: 'monster',
   feathers: 'monster', venoms: 'monster', fins: 'monster', pelts: 'monster', tusks: 'monster',
   scales: 'monster', horns: 'monster', ectoplasms: 'monster', eyes: 'monster', brains: 'monster',
