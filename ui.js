@@ -59,7 +59,7 @@ function updateHUD() {
     const se = player.activeSwordElement;
     if (se && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[se]) {
       const elem = SWORD_ELEMENTS[se];
-      swordSlot.textContent = `⚔️${elem.icon} ${elem.label} Sword [Z]`;
+      swordSlot.innerHTML = `⚔️${elemIconHTML(elem, 14)} ${elem.label} Sword [Z]`;
     } else {
       swordSlot.textContent = '⚔️ Sword [Z]';
     }
@@ -72,7 +72,7 @@ function updateHUD() {
     const stock = ae && player.arrows ? (player.arrows[ae] || 0) : 0;
     if (ae && stock > 0 && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[ae]) {
       const elem = SWORD_ELEMENTS[ae];
-      bowSlot.textContent = `🏹${elem.icon} ${elem.label} Arrow x${stock} [X]`;
+      bowSlot.innerHTML = `🏹${elemIconHTML(elem, 14)} ${elem.label} Arrow x${stock} [X]`;
     } else {
       bowSlot.textContent = '🏹 Bow [X]';
     }
@@ -94,7 +94,7 @@ function updateHUD() {
     const ae = player.activeArmorElement;
     if (ae && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[ae]) {
       const elem = SWORD_ELEMENTS[ae];
-      armorSlot.textContent = `🛡${elem.icon} ${elem.label} (−50%)`;
+      armorSlot.innerHTML = `🛡${elemIconHTML(elem, 14)} ${elem.label} (−50%)`;
       armorSlot.className = 'weapon-slot weapon-active';
       armorSlot.style.display = '';
     } else {
