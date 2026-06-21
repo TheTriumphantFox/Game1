@@ -187,3 +187,20 @@
   width: 100%;
 }
 .shop-close:hover { background: #1a2a1a; }
+
+/* ─── Drops ledger ─── */
+.ledger-cat {
+  font-size: 11px;
+  color: #5f8f5f;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 12px 0 4px;
+  border-bottom: 1px dashed #2a4a2a;
+  padding-bottom: 4px;
+}
+.ledger-cat:first-of-type { margin-top: 2px; }
+.ledger-count {
+  font-size: 13px;
+  font-family: monospace;
+  color: #ffcc44;
+}

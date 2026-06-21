@@ -7,7 +7,8 @@ function update(dt) {
   // still called every frame so the menu animates, and the HUD still refreshes
   // (so the menu's purchases / item use visually update), but every dt-based
   // state change is frozen.
-  if (typeof radialMenuOpen !== 'undefined' && radialMenuOpen) {
+  if ((typeof radialMenuOpen !== 'undefined' && radialMenuOpen) ||
+      (typeof ledgerOpen     !== 'undefined' && ledgerOpen)) {
     updateHUD();
     return;
   }
@@ -95,6 +96,11 @@ document.addEventListener('keydown', e => {
   if (typeof portalOpen !== 'undefined' && portalOpen) {
     if (e.key === 'Escape') closePortalModal();
     return;   // portal modal swallows gameplay input
+  }
+  if (typeof ledgerOpen !== 'undefined' && ledgerOpen) {
+    // Esc — or V again, the key that opened the path — closes the ledger.
+    if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeDropLedger();
+    return;   // ledger modal swallows gameplay input
   }
   // 'V' toggles the radial inventory menu (works whether open or closed)
   if (e.key === 'v' || e.key === 'V') {

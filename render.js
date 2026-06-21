@@ -5960,7 +5960,7 @@ function drawDrop(d, ts) {
       d.type === 'glowcap'     ? '🍄' :
       (trophy ? trophy.icon : '❓');
     const size = Math.round(ts * 0.42 * pulse);
-    ctx.font = `${size}px serif`;
+    ctx.font = `${size}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(icon, cx, cy);

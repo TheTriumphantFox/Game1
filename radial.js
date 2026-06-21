@@ -20,6 +20,12 @@ let radialMenuOpen = false;
 let radialMenuOpenTime = 0;
 let radialRingIndex = 0;     // index into RADIAL_RINGS
 let radialItemIndex = 0;     // selected item within the current ring
+// Ring spin: the selected item is pinned to the top (12 o'clock) and the whole
+// ring rotates to bring it there, instead of a highlight hopping between fixed
+// slots. radialSpinAngle is the live rotation (radians), eased toward
+// radialSpinTarget each frame in drawRadialMenu.
+let radialSpinAngle = 0;
+let radialSpinTarget = 0;
 // The consumable bound to the C quick-use key + HUD [C] slot, stored by *type*
 // so it survives the item going out of stock. Defaults to Bomb; updated whenever
 // the player highlights a consumable in any ring.
@@ -84,6 +90,29 @@ const PASSIVE_DROPS = [
   { type: 'heartfronds',   icon: '🍃', label: 'Heart Frond',  key: 'heartfronds'   },
   { type: 'glowcaps',      icon: '🍄', label: 'Glow Cap',     key: 'glowcaps'      },
 ];
+
+// Ledger grouping. The drops ledger (ledger.js) renders ~45 pickups under these
+// buckets in this order instead of one flat list. DROP_CAT_OF maps a drop type to
+// its bucket; anything unlisted falls through to 'material' (the elemental /
+// crafting bits — embers, shards, cores, stones, sparks, pearls, motes, …).
+const DROP_CATEGORIES = [
+  { id: 'currency', label: 'Currency'       },
+  { id: 'monster',  label: 'Monster Parts'  },
+  { id: 'herbal',   label: 'Herbs & Plants' },
+  { id: 'material', label: 'Materials'      },
+];
+const DROP_CAT_OF = {
+  rupees: 'currency',
+  herbals: 'herbal', winterberries: 'herbal', frostpetals: 'herbal', sage: 'herbal',
+  moss: 'herbal', skypetals: 'herbal', windseeds: 'herbal', thistledown: 'herbal',
+  voltpetals: 'herbal', sparkseeds: 'herbal', manapetals: 'herbal', heartfronds: 'herbal',
+  glowcaps: 'herbal', witherwood: 'herbal', graveblooms: 'herbal',
+  fangs: 'monster', fingers: 'monster', bones: 'monster', wings: 'monster', organs: 'monster',
+  feathers: 'monster', venoms: 'monster', fins: 'monster', pelts: 'monster', tusks: 'monster',
+  scales: 'monster', horns: 'monster', ectoplasms: 'monster', eyes: 'monster', brains: 'monster',
+  silks: 'monster',
+};
+function dropCatOf(type) { return DROP_CAT_OF[type] || 'material'; }
 
 // Each ring is a function returning live items so values track player state
 // without us having to rebuild on every change.
@@ -175,18 +204,6 @@ const RADIAL_RINGS = [
       }
       return items;
     }},
-  // ── Drops: passive pickups the player has collected ──────────────────────────
-  { name: 'drops', radius: RADIAL_RADIUS, getItems: () => {
-      const items = [];
-      for (const d of PASSIVE_DROPS) {
-        const n = player[d.key] || 0;
-        if (n <= 0) continue;
-        items.push({ type: d.type, icon: d.icon, label: d.label,
-          val: () => 'x' + (player[d.key] || 0),
-          action: null });
-      }
-      return items;
-    }},
   // ── Armor: base armor pad + each owned elemental armor ──────────────────────
   // The base entry just summarizes flat armor; the elemental entries are
   // equippable — picking one halves incoming damage of that element.
@@ -219,6 +236,19 @@ const RADIAL_RINGS = [
         });
       }
       return items;
+    }},
+  // ── Menu: non-actionable launchers. Unlike gear these don't equip — each opens
+  // its own panel and fires on Enter/click ONLY (navigating past one must not
+  // trigger it), so they're flagged `launcher` and skipped by radialAutoPick.
+  // Drop a settings or character launcher in here later with no other changes. ──
+  { name: 'menu', radius: RADIAL_RADIUS, getItems: () => {
+      const kinds = PASSIVE_DROPS.reduce(
+        (n, d) => n + ((player[d.key] || 0) > 0 ? 1 : 0), 0);
+      return [
+        { type: 'drops', icon: '🎒', label: 'Drops', launcher: true,
+          val: () => kinds ? 'x' + kinds : '—',
+          action: () => { if (typeof openDropLedger === 'function') openDropLedger(); } },
+      ];
     }},
 ];
 
@@ -263,6 +293,7 @@ function toggleRadialMenu() {
   }
   const items = RADIAL_RINGS[radialRingIndex].getItems();
   radialItemIndex = indexForSelectionName(items, RADIAL_RINGS[radialRingIndex].name);
+  radialSpinToSelected(true);
   if (typeof clearAllKeys === 'function') clearAllKeys();
 }
 
@@ -285,6 +316,7 @@ function radialNavRing(delta) {
   radialRingIndex = idx;
   const items = RADIAL_RINGS[idx].getItems();
   radialItemIndex = indexForSelectionName(items, RADIAL_RINGS[idx].name);
+  radialSpinToSelected(true);   // snap — switching rings shouldn't spin
   radialMenuOpenTime = Date.now();   // replay emerge animation for the new ring
   radialAutoPick();
 }
@@ -295,6 +327,7 @@ function radialNavItem(delta) {
   const N = items.length;
   if (N === 0) return;
   radialItemIndex = ((radialItemIndex + delta) % N + N) % N;
+  radialSpinToSelected(false);   // spin the new selection up to the top
   rememberSelection(radialCurrentName(), items[radialItemIndex]);
   radialAutoPick();
 }
@@ -305,7 +338,7 @@ function radialNavItem(delta) {
 // only on an explicit Enter/click or the C key.
 function radialAutoPick() {
   const item = radialCurrentItems()[radialItemIndex];
-  if (item && item.action && !item.consumable) {
+  if (item && item.action && !item.consumable && !item.launcher) {
     item.action();
     updateHUD();
   }
@@ -351,6 +384,19 @@ function radialEase() {
   return 1 - Math.pow(1 - t, 3);
 }
 
+// Aim the spin so the currently-selected item rotates up to the top. Picks the
+// rotation nearest the current angle so the ring always takes the short way
+// round (and wraps smoothly from the last item back to the first). `snap` jumps
+// there instantly — used on open / ring change so only item nav actually spins.
+function radialSpinToSelected(snap) {
+  const N = Math.max(1, radialCurrentItems().length);
+  const step = (2 * Math.PI) / N;
+  let target = -radialItemIndex * step;
+  target += Math.round((radialSpinAngle - target) / (2 * Math.PI)) * (2 * Math.PI);
+  radialSpinTarget = target;
+  if (snap) radialSpinAngle = target;
+}
+
 // Compute slot positions for the active ring only.
 function radialSlots() {
   if (!radialMenuOpen) return [];
@@ -363,7 +409,7 @@ function radialSlots() {
   const N = items.length;
   const slots = [];
   for (let i = 0; i < N; i++) {
-    const angle = -Math.PI / 2 + (i / N) * Math.PI * 2;
+    const angle = -Math.PI / 2 + (i / N) * Math.PI * 2 + radialSpinAngle;
     slots.push({
       x: pcx + Math.cos(angle) * r,
       y: pcy + Math.sin(angle) * r,
@@ -402,6 +448,7 @@ function radialOnClick(e) {
   const slot = radialHoveredSlot();
   if (slot) {
     radialItemIndex = slot.index;   // sync keyboard selection to mouse
+    radialSpinToSelected(false);    // spin the clicked item up to the selector
     rememberSelection(radialCurrentName(), slot.item);
     if (slot.item.action) { slot.item.action(); updateHUD(); }
   } else {
@@ -453,6 +500,11 @@ function drawRadialMenu() {
   const pcx = (player.renderX - camC + 0.5) * TILE_PX;
   const pcy = (player.renderY - camR + 0.5) * TILE_PX;
   const ring = radialCurrentRing();
+
+  // Ease the live rotation toward its target so the ring visibly spins the
+  // selected item up to the top rather than the highlight jumping between slots.
+  radialSpinAngle += (radialSpinTarget - radialSpinAngle) * 0.25;
+  if (Math.abs(radialSpinTarget - radialSpinAngle) < 0.0005) radialSpinAngle = radialSpinTarget;
 
   ctx.save();
 
@@ -510,7 +562,7 @@ function drawRadialMenu() {
     // Icon
     ctx.fillStyle = '#fff';
     const iconSz = Math.round(slot.radius * 1.05);
-    ctx.font = `${iconSz}px sans-serif`;
+    ctx.font = `${iconSz}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const img = slot.item.iconImg;
@@ -529,8 +581,9 @@ function drawRadialMenu() {
       ctx.fillText(slot.item.icon, slot.x, slot.y);
     }
 
-    // Value badge below
-    const v = slot.item.val();
+    // Value + damage sub-text show only for the selected (top) item, so the
+    // rest of the ring stays uncluttered icons.
+    const v = isSelected ? slot.item.val() : null;
     if (v) {
       ctx.font = 'bold 12px monospace';
       const w = Math.ceil(radialChipWidth(ctx, v, slot.item.iconImg)) + 10;
@@ -543,8 +596,8 @@ function drawRadialMenu() {
       ctx.fillStyle = '#ffcc44';
       radialDrawChip(ctx, v, bx, by, slot.item.iconImg);
     }
-    // Damage badge (only for items that deal damage)
-    if (typeof slot.item.dmg === 'function') {
+    // Damage badge (only for the selected item, and only if it deals damage)
+    if (isSelected && typeof slot.item.dmg === 'function') {
       const d = slot.item.dmg();
       if (d) {
         ctx.font = 'bold 11px monospace';
@@ -560,6 +613,19 @@ function drawRadialMenu() {
         radialDrawChip(ctx, label, bx, by, slot.item.iconImg);
       }
     }
+  }
+
+  // Fixed selector caret — a small marker pinned at the top that the ring spins
+  // its selected item up into, signalling where the "selection" actually sits.
+  if (ease > 0.2) {
+    const tipY = pcy - ring.radius * ease - 28 * ease - 4;
+    ctx.fillStyle = `rgba(255, 220, 120, ${0.9 * ease})`;
+    ctx.beginPath();
+    ctx.moveTo(pcx, tipY + 9);
+    ctx.lineTo(pcx - 7, tipY);
+    ctx.lineTo(pcx + 7, tipY);
+    ctx.closePath();
+    ctx.fill();
   }
 
   // ── Center: ring name + chevrons + selected-item label ────────────────────
