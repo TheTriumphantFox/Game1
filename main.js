@@ -126,13 +126,12 @@ document.addEventListener('keydown', e => {
   //      adjacent chest — chests are solid, so this is how you loot them.
   // Either interaction swallows the keypress so SPACE doesn't also swing.
   if (e.key === ' ' && !e.repeat) {
-    const cm2 = currentMap();
-    if (cm2 && cm2.type === 'village' && cm2.activated &&
-        typeof tryVillagerInteraction === 'function') {
-      if (tryVillagerInteraction()) {
-        e.preventDefault();
-        return;
-      }
+    // Talk to an adjacent villager / shopkeeper / Gatekeeper. Safe to try on
+    // any map: it's a no-op unless a villager is adjacent (the cabin only has
+    // the portal Gatekeeper; villages have the full crowd).
+    if (typeof tryVillagerInteraction === 'function' && tryVillagerInteraction()) {
+      e.preventDefault();
+      return;
     }
     if (typeof tryChestInteraction === 'function' && tryChestInteraction()) {
       e.preventDefault();

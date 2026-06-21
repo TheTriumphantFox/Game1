@@ -1104,15 +1104,16 @@ function ejectFromWhirlpool(map) {
   spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#5aa8c8', 5, 2);
 }
 
-// Stepping onto the cabin's PORTAL tile opens the destination-select modal.
-// Movement is paused via portalOpen while the modal is up.
+// The Gatekeeper now controls the gate — stepping onto the PORTAL tile no
+// longer opens the menu. Point the player toward the keeper instead. (Returns
+// true to swallow the step so no map-transition logic runs on the portal tile.)
 function tryPortalInteraction() {
   if (transitionCooldown > 0) return false;
   const map = mapData();
   const t = map[player.y][player.x];
   if (t !== T.PORTAL) return false;
-  if (typeof openPortalModal !== 'function') return false;
-  if (typeof portalOpen !== 'undefined' && portalOpen) return true;
-  openPortalModal();
+  if (typeof showMsg === 'function') {
+    showMsg('🌀 The Gatekeeper controls this gate — speak with them to travel.', 2600);
+  }
   return true;
 }

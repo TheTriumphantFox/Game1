@@ -884,7 +884,8 @@ function buildStarterHouseMap() {
   m[r2 - 2][c1 + 2] = T.CHEST;
 
   // Fast-travel portal — opposite the chest, in the SE corner of the cabin.
-  // Step onto it to open the destinations menu (see tryPortalInteraction).
+  // A Gatekeeper spawns beside it (see ensurePortalKeeper); talk to them to
+  // open the destinations menu — stepping on the tile no longer does.
   m[r2 - 2][c2 - 2] = T.PORTAL;
 
   // South-only exit: cut the standard 5-wide PATH gate at the map border
