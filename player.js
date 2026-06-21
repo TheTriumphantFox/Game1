@@ -44,7 +44,7 @@ let player = {
   // operates on integer (x, y). renderX/Y lerps toward x/y each frame at the
   // same rate as the camera so the player stays visually centered.
   renderX: EXIT_COL, renderY: EXIT_ROW,
-  hp: 8, maxHp: 8,
+  hp: 12, maxHp: 12,
   // Temporary HP — a green-heart buffer (bought at the General Store) that
   // absorbs damage before real HP. Not healed by potions/hearts/rest.
   tempHp: 0,
