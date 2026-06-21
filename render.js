@@ -2554,6 +2554,71 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.beginPath(); ctx.arc(x+s*bx2, y+s*by2, s*0.13, Math.PI, 0); ctx.fill();        // cap
       ctx.fillStyle = '#e6d8f2'; ctx.fillRect(x+s*(bx2-0.05), y+s*(by2-0.05), s*0.03, s*0.03);
       break; }
+    case T.FALLEN_LOG: {
+      // A rotting, moss-grown tree trunk lying across the swamp — the poison
+      // region's tombstone-style landmark, but a straight 2–4 tile run. Orientation
+      // and which ends are open are read from the neighbouring tiles, so a multi-tile
+      // trunk joins seamlessly and caps its true ends with exposed tree-ring end
+      // grain. (Placement keeps runs straight, so only horizontal/vertical and a lone
+      // single-tile log occur.) Static.
+      const M = (typeof mapData === 'function') ? mapData() : null;
+      const isLog = (rr, cc) => !!M && rr >= 0 && cc >= 0 && rr < MROWS && cc < MCOLS && M[rr][cc] === T.FALLEN_LOG;
+      const leftL = isLog(row, col-1), rightL = isLog(row, col+1);
+      const upL = isLog(row-1, col), downL = isLog(row+1, col);
+      const vert = upL || downL;                                      // vertical run?
+      const h = (col*131 + row*83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // muck base
+      if (!vert) {
+        // ── Horizontal trunk (spans the tile width so runs join) ──
+        const top = y + s*0.28, bh = s*0.44;
+        ctx.fillStyle = '#2e3a18'; ctx.fillRect(x, top + bh*0.86, s, s*0.12);   // cast shadow
+        ctx.fillStyle = '#4a3622'; ctx.fillRect(x, top, s, bh);                 // bark mid
+        ctx.fillStyle = '#5e472b'; ctx.fillRect(x, top, s, bh*0.34);            // lit upper curve
+        ctx.fillStyle = '#332415'; ctx.fillRect(x, top + bh*0.74, s, bh*0.26);  // shadowed underside
+        ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = Math.max(1, s*0.02);       // bark grooves
+        for (let i = 0; i < 3; i++) {
+          const gy = top + bh*(0.30 + i*0.22) + j(i*2,0.04)*s;
+          ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x+s, gy + (j(i*2+1,0.06)-0.03)*s); ctx.stroke();
+        }
+        ctx.fillStyle = '#4f7a35';                                              // moss on the lit top
+        ctx.beginPath(); ctx.ellipse(x+s*(0.30+j(0,0.40)), top+bh*0.22, s*0.12, s*0.05, 0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#5e9040';
+        ctx.beginPath(); ctx.ellipse(x+s*(0.66-j(4,0.30)), top+bh*0.16, s*0.07, s*0.035, 0,0,Math.PI*2); ctx.fill();
+        const cap = (ex) => {                                                   // sawn end grain
+          ctx.fillStyle = '#6a5232'; ctx.beginPath(); ctx.ellipse(ex, top+bh/2, s*0.07, bh*0.5, 0, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = '#4a3a22'; ctx.lineWidth = Math.max(1, s*0.015);
+          for (let rr = 1; rr <= 2; rr++) { ctx.beginPath(); ctx.ellipse(ex, top+bh/2, s*0.07*rr/2.6, bh*0.5*rr/2.6, 0,0,Math.PI*2); ctx.stroke(); }
+          ctx.fillStyle = '#2e2415'; ctx.beginPath(); ctx.arc(ex, top+bh/2, s*0.014, 0, Math.PI*2); ctx.fill();
+        };
+        if (!leftL)  cap(x + s*0.05);
+        if (!rightL) cap(x + s*0.95);
+      } else {
+        // ── Vertical trunk (spans the tile height so runs join) ──
+        const left = x + s*0.28, bw = s*0.44;
+        ctx.fillStyle = '#2e3a18'; ctx.fillRect(left + bw*0.86, y, s*0.12, s);   // cast shadow
+        ctx.fillStyle = '#4a3622'; ctx.fillRect(left, y, bw, s);                 // bark mid
+        ctx.fillStyle = '#5e472b'; ctx.fillRect(left, y, bw*0.34, s);            // lit left curve
+        ctx.fillStyle = '#332415'; ctx.fillRect(left + bw*0.74, y, bw*0.26, s);  // shadowed side
+        ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = Math.max(1, s*0.02);        // bark grooves
+        for (let i = 0; i < 3; i++) {
+          const gx = left + bw*(0.30 + i*0.22) + j(i*2,0.04)*s;
+          ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx + (j(i*2+1,0.06)-0.03)*s, y+s); ctx.stroke();
+        }
+        ctx.fillStyle = '#4f7a35';                                              // moss on the lit side
+        ctx.beginPath(); ctx.ellipse(left+bw*0.22, y+s*(0.30+j(0,0.40)), s*0.05, s*0.12, 0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#5e9040';
+        ctx.beginPath(); ctx.ellipse(left+bw*0.16, y+s*(0.66-j(4,0.30)), s*0.035, s*0.07, 0,0,Math.PI*2); ctx.fill();
+        const cap = (ey) => {
+          ctx.fillStyle = '#6a5232'; ctx.beginPath(); ctx.ellipse(left+bw/2, ey, bw*0.5, s*0.07, 0, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = '#4a3a22'; ctx.lineWidth = Math.max(1, s*0.015);
+          for (let rr = 1; rr <= 2; rr++) { ctx.beginPath(); ctx.ellipse(left+bw/2, ey, bw*0.5*rr/2.6, s*0.07*rr/2.6, 0,0,Math.PI*2); ctx.stroke(); }
+          ctx.fillStyle = '#2e2415'; ctx.beginPath(); ctx.arc(left+bw/2, ey, s*0.014, 0, Math.PI*2); ctx.fill();
+        };
+        if (!upL)   cap(y + s*0.05);
+        if (!downL) cap(y + s*0.95);
+      }
+      break; }
     case T.WATERFALL: {
       // Falling water — deep-blue base with bright vertical streaks scrolling
       // downward and a flicker of mist. The scroll uses a wrapped offset so the
@@ -2832,7 +2897,270 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#ffd24a';
       ctx.fillRect(x + s*0.48, y + s*0.24, 3, 3);
       break; }
+    case T.MANA_FLOOR: {
+      // Verdant, mana-rich turf of the flourishing forest — a lush emerald sward
+      // mottled with darker grass clumps, a couple of short lit blades, and a
+      // faint static mote of violet life-energy welling up from the soil. Hashed
+      // per tile so the floor reads as living turf rather than a flat grid. Static.
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // lush turf base
+      ctx.fillStyle = '#276e45';                                      // darker grass clumps
+      ctx.beginPath(); ctx.ellipse(x+s*(0.30+j(0,0.30)), y+s*(0.34+j(2,0.28)), s*(0.16+j(4,0.06)), s*(0.11+j(6,0.05)), 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x+s*(0.70-j(8,0.22)), y+s*(0.70-j(10,0.20)), s*(0.13+j(0,0.05)), s*(0.09+j(2,0.04)), 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3a945c';                                      // lit grass tufts
+      ctx.fillRect(x+s*(0.18+j(2,0.10)), y+s*(0.58+j(8,0.10)), s*0.03, s*0.10);
+      ctx.fillRect(x+s*(0.64+j(6,0.12)), y+s*(0.28+j(4,0.10)), s*0.03, s*0.09);
+      ctx.fillStyle = 'rgba(190,130,235,0.22)';                       // faint violet mana mote
+      ctx.beginPath(); ctx.arc(x+s*(0.40+j(4,0.24)), y+s*(0.46+j(10,0.20)), s*0.045, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.MANA_MOSS: {
+      // A thicker cushion of overgrown moss pooled across the turf — the floor
+      // dapple where life energy gathers, lusher and brighter than the plain turf,
+      // freckled with tiny violet sporelings. Passable; the mana twin of the
+      // luminous region's glow pools. Hashed per tile. Static.
+      const h = (col * 137 + row * 71);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // turf base
+      ctx.fillStyle = '#39a062';                                      // mossy cushion
+      ctx.beginPath(); ctx.ellipse(x+s*(0.48+j(0,0.14)-0.07), y+s*(0.52+j(2,0.14)-0.07), s*(0.36+j(4,0.08)), s*(0.30+j(6,0.07)), j(8,0.5), 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#46bd76';                                      // lit moss clumps
+      ctx.beginPath(); ctx.arc(x+s*(0.36+j(2,0.16)), y+s*(0.40+j(8,0.14)), s*0.11, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*(0.64-j(6,0.16)), y+s*(0.62-j(4,0.14)), s*0.09, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(198,142,238,0.55)';                       // violet sporelings
+      ctx.beginPath(); ctx.arc(x+s*(0.30+j(10,0.4)), y+s*(0.64+j(0,0.2)), s*0.025, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*(0.66+j(4,0.2)), y+s*(0.34+j(8,0.2)), s*0.02, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.COLOSSAL_TREE:   // the anchor tile renders as treeline; the giant tree
+                            // itself is drawn in the drawColossalTree overlay pass
+    case T.MANA_CRYSTAL: {
+      // The flourishing forest's border — a dense, towering treeline gorged on
+      // mana: massed clumps of deep canopy over a shadow, a hanging vine, a
+      // sickly-lit crown, and a glowing violet sap-vein threading up the trunk with
+      // a mote of life-energy. The mana twin of the poison region's thicket wall.
+      // Hashed per tile so the treeline never reads as a grid. Static, solid.
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#0f2c1c'; ctx.fillRect(x, y, s, s);            // deep treeline shadow
+      ctx.fillStyle = '#1c4a2e';                                       // massed canopy clumps
+      ctx.beginPath(); ctx.arc(x+s*(0.32+j(0,0.12)), y+s*(0.40+j(2,0.12)), s*(0.34+j(4,0.06)), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*(0.70-j(6,0.12)), y+s*(0.58-j(8,0.12)), s*(0.30+j(10,0.06)), 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2a6440';
+      ctx.beginPath(); ctx.arc(x+s*(0.50+j(2,0.12)), y+s*(0.34+j(6,0.10)), s*0.22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3f8a55';                                       // lush-lit crown (upper-left)
+      ctx.beginPath(); ctx.arc(x+s*(0.34+j(4,0.10)), y+s*(0.30+j(0,0.10)), s*0.12, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(176,116,228,0.6)'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap = 'round';   // glowing mana vein
+      ctx.beginPath();
+      ctx.moveTo(x+s*(0.60+j(8,0.10)), y+s);
+      ctx.quadraticCurveTo(x+s*(0.66+j(2,0.10)), y+s*0.50, x+s*(0.58+j(6,0.10)), y+s*0.16);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(206,150,244,0.85)';                       // violet life-mote
+      ctx.beginPath(); ctx.arc(x+s*(0.46+j(0,0.10)), y+s*(0.46+j(8,0.10)), s*0.035, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.GREAT_TREE: {
+      // An abnormally large ancient tree gorged on mana — a colossal landmark used
+      // both as the treeline border dressing and standing proud in the open
+      // clearings. A heavy buttressed trunk with splayed roots, a vast multi-lobed
+      // canopy overflowing the tile, a sickly-lit crown, and a scatter of glowing
+      // violet blossoms with one slowly breathing brighter. Static trunk, faint
+      // pulse on the blossoms. Solid.
+      const h = (col * 113 + row * 71);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.10;
+      ctx.fillStyle = '#0e2c1c'; ctx.fillRect(x, y, s, s);            // forest-floor shadow
+      ctx.strokeStyle = '#3a2c1a'; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.72); ctx.quadraticCurveTo(x+s*0.34, y+s*0.84, x+s*0.22, y+s); ctx.stroke();   // splayed roots
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.72); ctx.quadraticCurveTo(x+s*0.66, y+s*0.84, x+s*0.78, y+s); ctx.stroke();
+      ctx.fillStyle = '#4a3820';                                       // buttressed trunk
+      ctx.beginPath();
+      ctx.moveTo(x+s*0.40, y+s);
+      ctx.lineTo(x+s*(0.45+lean), y+s*0.40);
+      ctx.lineTo(x+s*(0.55+lean), y+s*0.40);
+      ctx.lineTo(x+s*0.60, y+s);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#5a4628'; ctx.fillRect(x+s*(0.45+lean), y+s*0.42, s*0.04, s*0.56);   // lit trunk edge
+      ctx.fillStyle = '#143d26';                                       // vast canopy
+      ctx.beginPath(); ctx.arc(x+s*(0.40+lean), y+s*0.34, s*0.30, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*(0.66+lean), y+s*0.40, s*0.24, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*(0.56+lean), y+s*0.20, s*0.22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#205a38';
+      ctx.beginPath(); ctx.arc(x+s*(0.44+lean), y+s*0.28, s*0.18, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2f7a49';                                       // sickly-lit crown (upper-left)
+      ctx.beginPath(); ctx.arc(x+s*(0.36+lean), y+s*0.20, s*0.11, 0, Math.PI*2); ctx.fill();
+      const bp = 0.5 + 0.5*Math.sin(Date.now()/700 + col*0.5 + row*0.4);   // breathing blossom
+      const blossom = (bx, by, rad, a) => { ctx.fillStyle = `rgba(200,142,242,${a})`; ctx.beginPath(); ctx.arc(x+s*bx, y+s*by, s*rad, 0, Math.PI*2); ctx.fill(); };
+      blossom(0.34+lean, 0.30, 0.035, 0.85);
+      blossom(0.58+lean, 0.24, 0.030, 0.80);
+      blossom(0.64+lean, 0.44, 0.030, 0.75);
+      blossom(0.46+lean, 0.42, 0.045, 0.55 + 0.40*bp);   // the breathing one
+      break; }
+    case T.GIANT_BLOOM: {
+      // An abnormally large arcane flower gorged on mana — a thick green stalk and
+      // two broad leaves carrying a huge violet many-petalled bloom around a
+      // glowing golden-violet heart that slowly pulses. Drawn on the verdant turf
+      // so it sits in the forest (cut for a Mana Petal). Animated heart-glow.
+      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // turf base
+      ctx.fillStyle = '#276e45'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.86, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();   // ground shadow
+      ctx.strokeStyle = '#3f9a4a'; ctx.lineWidth = Math.max(1.5, s*0.07); ctx.lineCap = 'round';   // thick stalk
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.92); ctx.lineTo(x+s*0.5, y+s*0.40); ctx.stroke();
+      ctx.fillStyle = '#358a40';                                       // broad leaves
+      ctx.beginPath(); ctx.ellipse(x+s*0.34, y+s*0.66, s*0.16, s*0.07, -0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x+s*0.66, y+s*0.72, s*0.14, s*0.06, 0.5, 0, Math.PI*2); ctx.fill();
+      const cx2 = x+s*0.5, cy2 = y+s*0.34;                            // bloom centre
+      ctx.fillStyle = '#9a4fcf';                                       // violet petals
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * Math.PI * 2;
+        ctx.beginPath(); ctx.ellipse(cx2 + Math.cos(a)*s*0.18, cy2 + Math.sin(a)*s*0.18, s*0.12, s*0.07, a, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.fillStyle = '#b76ce6';                                       // lit inner petals
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * Math.PI * 2 + 0.39;
+        ctx.beginPath(); ctx.ellipse(cx2 + Math.cos(a)*s*0.10, cy2 + Math.sin(a)*s*0.10, s*0.07, s*0.045, a, 0, Math.PI*2); ctx.fill();
+      }
+      const gp = 0.5 + 0.5*Math.sin(Date.now()/600 + col*0.6 + row*0.5);   // pulsing heart-glow
+      const grad = ctx.createRadialGradient(cx2, cy2, 1, cx2, cy2, s*0.16);
+      grad.addColorStop(0, `rgba(255,228,150,${0.7+0.3*gp})`);
+      grad.addColorStop(0.5, `rgba(210,150,244,${0.5+0.3*gp})`);
+      grad.addColorStop(1, 'rgba(210,150,244,0)');
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cx2, cy2, s*0.16, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ffe9b0'; ctx.beginPath(); ctx.arc(cx2, cy2, s*0.05, 0, Math.PI*2); ctx.fill();   // bright core
+      break; }
+    case T.VERDANT_FERN: {
+      // A towering, lush fern gorged on mana — a fanning rosette of tall arching
+      // fronds ticked with leaflets, broader and taller than the forest fern, the
+      // newest fronds tipped violet with fresh growth. Drawn on the verdant turf
+      // (cut for a Heart Frond). Static.
+      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // turf base
+      ctx.fillStyle = '#276e45'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.84, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();   // shadow
+      const cx2 = x+s*0.5, base = y+s*0.90;
+      for (let i = 0; i < 7; i++) {
+        const ang = -Math.PI/2 + (i-3)*0.42;                         // fan the fronds wide
+        const reach = s*(0.46 - Math.abs(i-3)*0.02);
+        const tipx = cx2 + Math.cos(ang)*reach, tipy = base + Math.sin(ang)*reach;
+        const midx = cx2 + Math.cos(ang)*reach*0.5 - Math.sin(ang)*s*0.06, midy = base + Math.sin(ang)*reach*0.5;
+        ctx.strokeStyle = (i % 2) ? '#368a3f' : '#45a851'; ctx.lineWidth = Math.max(1, s*0.05); ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx2, base); ctx.quadraticCurveTo(midx, midy, tipx, tipy); ctx.stroke();
+        ctx.lineWidth = Math.max(1, s*0.022);                        // leaflet ticks
+        for (let k = 1; k <= 3; k++) {
+          const t = k/4, px = cx2 + (tipx-cx2)*t, py = base + (tipy-base)*t;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px+Math.cos(ang+1.2)*s*0.07, py+Math.sin(ang+1.2)*s*0.07); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px+Math.cos(ang-1.2)*s*0.07, py+Math.sin(ang-1.2)*s*0.07); ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(196,140,236,0.85)';                     // violet new-growth tip
+        ctx.beginPath(); ctx.arc(tipx, tipy, s*0.025, 0, Math.PI*2); ctx.fill();
+      }
+      break; }
+    case T.GIANT_MUSHROOM: {
+      // A colossal toadstool gorged on mana — a fat pale stalk and a great violet
+      // cap glowing from beneath, freckled with pale spots and breathing a slow
+      // violet spore-glow. Far larger than the swamp's toadstool. Drawn on the
+      // verdant turf (cut for a Glow Cap). Animated glow.
+      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // turf base
+      ctx.fillStyle = '#276e45'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.86, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();   // shadow
+      const glow = 0.18 + 0.14*Math.sin(Date.now()/650 + col*0.6 + row*0.5);
+      ctx.fillStyle = `rgba(186,128,232,${glow})`;                     // spore-glow halo
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.42, s*0.40, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#d8cfb0';                                       // fat pale stalk
+      ctx.beginPath();
+      ctx.moveTo(x+s*0.40, y+s*0.92);
+      ctx.quadraticCurveTo(x+s*0.42, y+s*0.56, x+s*0.44, y+s*0.46);
+      ctx.lineTo(x+s*0.56, y+s*0.46);
+      ctx.quadraticCurveTo(x+s*0.58, y+s*0.56, x+s*0.60, y+s*0.92);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#bdb393'; ctx.fillRect(x+s*0.53, y+s*0.48, s*0.04, s*0.42);   // stalk shadow
+      ctx.fillStyle = '#7a8c52';                                       // green glowing underside
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.46, s*0.30, s*0.10, 0, 0, Math.PI); ctx.fill();
+      ctx.fillStyle = '#8a4fc0';                                       // great violet cap
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.44, s*0.34, s*0.26, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#a06cda';                                       // lit cap dome
+      ctx.beginPath(); ctx.ellipse(x+s*0.44, y+s*0.36, s*0.18, s*0.14, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#e8d8f4';                                       // pale freckles
+      ctx.beginPath(); ctx.arc(x+s*0.36, y+s*0.34, s*0.035, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*0.56, y+s*0.30, s*0.030, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*0.62, y+s*0.40, s*0.025, 0, Math.PI*2); ctx.fill();
+      break; }
   }
+}
+
+// ─── Colossal tree overlay ──────────────────────────────────────────────────
+// An exceptionally large ancient tree of the mana forest, NOT bound to the tile
+// grid: anchored at one solid border tile (col,row) but drawn as a single giant
+// sprite ~3–4 tiles tall and ~3–4 wide, overflowing into the neighbouring tiles.
+// Drawn in a dedicated pass after the tile grid (like drawWhirlpoolSuction) so the
+// surrounding tiles can't overdraw it. A heavy buttressed trunk rises from the
+// anchor's foot into a vast multi-lobed canopy with a sun-lit crown and a scatter
+// of glowing violet mana-blossoms (one slowly breathing) under a soft glow halo.
+// Size and lean are hashed per anchor so no two read alike. Static trunk/canopy,
+// faint pulse on the blossoms + halo.
+function drawColossalTree(col, row, ts) {
+  const s = ts;
+  const baseX = (col - camC) * s + s * 0.5;     // trunk foot — tile centre
+  const baseY = (row - camR) * s + s;           // trunk foot — tile bottom
+  const h = (col * 113 + row * 71);
+  const j = (a, n) => (((h >> a) & 3) / 3) * n;
+  const W = s * (1.05 + j(0, 0.35));            // unit scale (1.05 .. 1.40 tiles)
+  const lean = (j(2, 1) - 0.5) * 0.18;          // slight trunk lean
+  const canX = baseX + lean * W * 2.2;          // canopy centre
+  const canY = baseY - W * 1.95;
+
+  // Ground shadow at the foot.
+  ctx.fillStyle = 'rgba(8,24,14,0.45)';
+  ctx.beginPath(); ctx.ellipse(baseX, baseY - s*0.04, W*0.72, W*0.20, 0, 0, Math.PI*2); ctx.fill();
+
+  // Splayed buttress roots.
+  ctx.strokeStyle = '#33271a'; ctx.lineWidth = Math.max(2, W*0.07); ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(baseX, baseY - W*0.12); ctx.quadraticCurveTo(baseX - W*0.38, baseY - W*0.02, baseX - W*0.62, baseY + s*0.12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(baseX, baseY - W*0.12); ctx.quadraticCurveTo(baseX + W*0.38, baseY - W*0.02, baseX + W*0.62, baseY + s*0.12); ctx.stroke();
+
+  // Thick tapering trunk from foot to canopy.
+  const topY = canY + W*0.65;
+  ctx.fillStyle = '#4a3820';
+  ctx.beginPath();
+  ctx.moveTo(baseX - W*0.24, baseY);
+  ctx.quadraticCurveTo(baseX - W*0.17, baseY - W*0.9, canX - W*0.13, topY);
+  ctx.lineTo(canX + W*0.13, topY);
+  ctx.quadraticCurveTo(baseX + W*0.17, baseY - W*0.9, baseX + W*0.24, baseY);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#5a4628';                    // lit trunk edge (upper-left)
+  ctx.beginPath();
+  ctx.moveTo(baseX - W*0.24, baseY);
+  ctx.quadraticCurveTo(baseX - W*0.17, baseY - W*0.9, canX - W*0.13, topY);
+  ctx.lineTo(canX - W*0.05, topY);
+  ctx.quadraticCurveTo(baseX - W*0.07, baseY - W*0.9, baseX - W*0.11, baseY);
+  ctx.closePath(); ctx.fill();
+
+  // A couple of arcing boughs up into the canopy.
+  ctx.strokeStyle = '#4a3820'; ctx.lineWidth = Math.max(2, W*0.08); ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(baseX, baseY - W*0.95); ctx.quadraticCurveTo(canX - W*0.7, canY + W*0.5, canX - W*0.98, canY + W*0.15); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(baseX, baseY - W*1.15); ctx.quadraticCurveTo(canX + W*0.7, canY + W*0.45, canX + W*1.0, canY); ctx.stroke();
+
+  // Vast canopy — overlapping blobs, dark base → mid green → lit crown.
+  const blob = (dx, dy, r, c2) => { ctx.fillStyle = c2; ctx.beginPath(); ctx.arc(canX + dx*W, canY + dy*W, r*W, 0, Math.PI*2); ctx.fill(); };
+  blob(0,    0.25, 1.18, '#0f2c1c');
+  blob(-0.85, 0.4, 0.82, '#0f2c1c');
+  blob(0.9,   0.42, 0.82, '#0f2c1c');
+  blob(-0.5, -0.05, 0.9,  '#163f29');
+  blob(0.55, -0.02, 0.9,  '#163f29');
+  blob(0,   -0.5,  0.82, '#163f29');
+  blob(0.05, 0.18, 1.0,  '#1c5234');
+  blob(-0.55,-0.5,  0.5,  '#2f7a49');           // sun-lit crown (upper-left)
+  blob(-0.18,-0.62, 0.42, '#2f7a49');
+  blob(0.25,-0.32,  0.4,  '#256b3e');
+
+  // Glowing violet mana-blossoms, one slowly breathing.
+  const bp = 0.5 + 0.5*Math.sin(Date.now()/700 + col*0.5 + row*0.4);
+  const blossom = (dx, dy, r, a) => { ctx.fillStyle = `rgba(202,144,244,${a})`; ctx.beginPath(); ctx.arc(canX+dx*W, canY+dy*W, r*W, 0, Math.PI*2); ctx.fill(); };
+  blossom(-0.58, -0.46, 0.07, 0.85);
+  blossom(0.38, -0.42, 0.06, 0.8);
+  blossom(0.62, 0.12, 0.06, 0.72);
+  blossom(-0.32, 0.28, 0.06, 0.7);
+  blossom(0.06, -0.16, 0.09, 0.45 + 0.4*bp);    // the breathing one
+
+  // Soft violet glow halo over the crown.
+  const g = ctx.createRadialGradient(canX, canY, W*0.2, canX, canY, W*1.55);
+  g.addColorStop(0, `rgba(150,90,210,${0.05 + 0.06*bp})`);
+  g.addColorStop(1, 'rgba(150,90,210,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(canX, canY, W*1.55, 0, Math.PI*2); ctx.fill();
 }
 
 // ─── Player sprite ────────────────────────────────────────────────────────────
@@ -5495,6 +5823,9 @@ function drawDrop(d, ts) {
     d.type === 'witherwood'  ? '106,90,82'   :  // grey deadwood
     d.type === 'gravebloom'  ? '154,168,106' :  // sickly carrion green
     d.type === 'mote'        ? '255,232,160' :  // warm white-gold light mote
+    d.type === 'manapetal'   ? '182,108,224' :  // violet mana bloom
+    d.type === 'heartfrond'  ? '99,200,116'  :  // lush fern green
+    d.type === 'glowcap'     ? '170,120,224' :  // glowing violet cap
     arrowElem             ? hexToRGB(arrowElem.color) :
     d.type === 'arrows'   ? '221,170,68' :  // plain arrows: warm tan/wood
     trophy                ? hexToRGB(trophy.color) :
@@ -5599,7 +5930,7 @@ function drawDrop(d, ts) {
     leaf(cx,             cy - s * 0.75, 0);
     leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
     leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
-  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal' || d.type === 'skypetal' || d.type === 'windseed' || d.type === 'thistledown' || d.type === 'voltpetal' || d.type === 'sparkseed' || d.type === 'fulgurite' || d.type === 'witherwood' || d.type === 'gravebloom' || d.type === 'mote') {
+  } else if (trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal' || d.type === 'skypetal' || d.type === 'windseed' || d.type === 'thistledown' || d.type === 'voltpetal' || d.type === 'sparkseed' || d.type === 'fulgurite' || d.type === 'witherwood' || d.type === 'gravebloom' || d.type === 'mote' || d.type === 'manapetal' || d.type === 'heartfrond' || d.type === 'glowcap') {
     // Trophy items + potion + arrow bundle + mushroom + bone meal + winter berry
     // + frost petal: render as a glyph centered on the tile. Arrow drops show the
     // elemental icon and the count; the rest show their thematic icon.
@@ -5624,6 +5955,9 @@ function drawDrop(d, ts) {
       d.type === 'witherwood'  ? '🪵' :
       d.type === 'gravebloom'  ? '🥀' :
       d.type === 'mote'        ? '✨' :
+      d.type === 'manapetal'   ? '🪻' :
+      d.type === 'heartfrond'  ? '🍃' :
+      d.type === 'glowcap'     ? '🍄' :
       (trophy ? trophy.icon : '❓');
     const size = Math.round(ts * 0.42 * pulse);
     ctx.font = `${size}px serif`;
@@ -6124,6 +6458,20 @@ function render() {
     });
   }
   drawPlayer(ts);
+
+  // Colossal-tree canopies — drawn AFTER the entities (drops, enemies, villagers,
+  // player) so the player and enemies pass BEHIND the overhanging canopy, and after
+  // the tile grid so neighbours can't overdraw the giant. The scan range is widened
+  // a few tiles below / either side of the viewport so a giant whose anchor sits just
+  // off-screen still pokes its canopy into view. Only drawn once the anchor tile is
+  // unfogged (its ~3-tile canopy reveals together with the base, so fog clipping the
+  // canopy is unnecessary — the player can't see a tree without standing near it).
+  for (let mr = startR - 1; mr <= endR + 4; mr++) {
+    for (let mc = startC - 3; mc <= endC + 3; mc++) {
+      if (mr < 0 || mr >= MROWS || mc < 0 || mc >= MCOLS) continue;
+      if (map[mr][mc] === T.COLOSSAL_TREE && !isFoggy(mapObj, mc, mr)) drawColossalTree(mc, mr, ts);
+    }
+  }
 
   // Lightning-region storm flash — over the world, under the HUD/minimap.
   drawStormFlash();

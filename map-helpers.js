@@ -55,7 +55,8 @@ function isSolid(map, c, r) {
          t === T.LIGHT_PILLAR ||
          t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL ||
          t === T.DEAD_TREE || t === T.TOMBSTONE ||
-         t === T.BOG_POOL || t === T.MANGROVE ||
+         t === T.BOG_POOL || t === T.MANGROVE || t === T.FALLEN_LOG ||
+         t === T.GREAT_TREE || t === T.COLOSSAL_TREE ||
          isChestTile(t);
 }
 

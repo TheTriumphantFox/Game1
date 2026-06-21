@@ -34,7 +34,8 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
              t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL || t === T.LIGHT_PILLAR ||
              t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL ||
              t === T.DEAD_TREE || t === T.TOMBSTONE ||
-             t === T.BOG_POOL || t === T.MANGROVE);
+             t === T.BOG_POOL || t === T.MANGROVE || t === T.FALLEN_LOG ||
+             t === T.GREAT_TREE || t === T.COLOSSAL_TREE);
   };
 
   // The flood may also swim through medium-depth water, so areas reachable only

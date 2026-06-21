@@ -80,6 +80,9 @@ const PASSIVE_DROPS = [
   { type: 'fulgurites',    icon: '🔷', label: 'Fulgurite',    key: 'fulgurites'    },
   { type: 'witherwood',    icon: '🪵', label: 'Witherwood',   key: 'witherwood'    },
   { type: 'graveblooms',   icon: '🥀', label: 'Grave Bloom',  key: 'graveblooms'   },
+  { type: 'manapetals',    icon: '🪻', label: 'Mana Petal',   key: 'manapetals'    },
+  { type: 'heartfronds',   icon: '🍃', label: 'Heart Frond',  key: 'heartfronds'   },
+  { type: 'glowcaps',      icon: '🍄', label: 'Glow Cap',     key: 'glowcaps'      },
 ];
 
 // Each ring is a function returning live items so values track player state

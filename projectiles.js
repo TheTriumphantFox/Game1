@@ -315,6 +315,9 @@ function doSwordSwing() {
     else if (tile === T.CATTAIL)          { dropType = 'herbal';     dropChance = 0.50; }
     else if (tile === T.SWAMP_FERN)       { dropType = 'herbal';     dropChance = 0.50; }
     else if (tile === T.SWAMP_MUSHROOM)   { dropType = 'mushroom';   dropChance = 0.50; }
+    else if (tile === T.GIANT_BLOOM)      { dropType = 'manapetal';  dropChance = 0.55; }
+    else if (tile === T.VERDANT_FERN)     { dropType = 'heartfrond'; dropChance = 0.55; }
+    else if (tile === T.GIANT_MUSHROOM)   { dropType = 'glowcap';    dropChance = 0.55; }
     else continue;
     map[tr][tc] = ground;
     if (dropType && Math.random() < dropChance) {
@@ -657,6 +660,24 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#ffe8a0', 10, 3);
         spawnParticle(sp.x, sp.y, '#fffbe8', 6, 2);
         showMsg(`✨ +${d.val} Light Mote (now ${player.motes})`, 1500);
+      } else if (d.type === 'manapetal') {
+        addItem('manapetals', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#b46ce0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#e8d2f6', 6, 2);
+        showMsg(`🪻 +${d.val} Mana Petal (now ${player.manapetals})`, 1500);
+      } else if (d.type === 'heartfrond') {
+        addItem('heartfronds', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#63c874', 10, 3);
+        spawnParticle(sp.x, sp.y, '#bfeec8', 6, 2);
+        showMsg(`🍃 +${d.val} Heart Frond (now ${player.heartfronds})`, 1500);
+      } else if (d.type === 'glowcap') {
+        addItem('glowcaps', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#a070d8', 10, 3);
+        spawnParticle(sp.x, sp.y, '#ddc8f2', 6, 2);
+        showMsg(`🍄 +${d.val} Glow Cap (now ${player.glowcaps})`, 1500);
       } else if (TROPHY_META[d.type]) {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
         // type (fangs, fingers, bones, wings, organs, feathers, scales, …).

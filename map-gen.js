@@ -1314,6 +1314,12 @@ function buildRegionMap(seed, depth, openSides, region) {
   // talus) before the exit corridors are re-cut through it. No-op elsewhere.
   addMountainTerrain(m, region.id);
 
+  // Mana region: carve 1d6 large rivers edge-to-edge. Carved here (as WATER, then
+  // demoted to swimmable MEDIUM_WATER by the water-handling block below) and BEFORE
+  // the exit re-cut, so the central corridors ford any river they cross while plank
+  // bridges span the rest. No-op elsewhere.
+  addManaRivers(m, region.id, depth);
+
   // Ensure exit corridors reach interior
   cutExits(m, open.left, open.right, open.up, open.down);
   if (open.left)  drunkWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    PATHTILE, 1);
@@ -1483,6 +1489,21 @@ function buildRegionMap(seed, depth, openSides, region) {
   addPoisonBogs(m, region.id, depth);
   scatterPoisonFoliage(m, region.id);
   sprinkleMangroves(m, region.id);
+  addFallenLogs(m, region.id, depth);
+
+  // Mana region: dress the bare mana wastes into a forest flourishing past nature,
+  // gorged on life energy so everything grows abnormally large. Pool thick MANA_MOSS
+  // across the turf, choke the open floor with oversized growth (giant blooms,
+  // towering ferns, colossal glowing mushrooms), claw GREAT_TREEs up out of the
+  // mana-veined treeline border, and raise more GREAT_TREEs as colossal landmarks in
+  // the clearings. Order mirrors the other late regions: floor dapple first, then
+  // dense foliage onto the leftover plain turf, then the solid border dressing, then
+  // the connectivity-safe solid landmarks.
+  sprinkleManaMoss(m, region.id);
+  scatterManaFoliage(m, region.id);
+  sprinkleGreatTrees(m, region.id);
+  addGreatTrees(m, region.id, depth);
+  addColossalTrees(m, region.id, (rnd(1, 4) + 2) * 3, 14);   // 3× the giants — a forest thick with them
 
   // Sky regions (air, lightning): wrap the walkable cloud in an impassable 2–4
   // tile rim (cloudEdge) so it reads as an island of cloud with a billowing lip
@@ -1748,6 +1769,201 @@ function sprinkleMangroves(m, regionId, chance = 0.28) {
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
       if (m[r][c] === T.POISON_WALL && Math.random() < chance) m[r][c] = T.MANGROVE;
+}
+
+// Poison region: lay a scattering of rotting FALLEN_LOG trunks across the swamp as
+// landmarks — the swamp's answer to the necrotic region's tombstones, but a 2–4
+// tile run instead of a single headstone. Each log is a straight horizontal or
+// vertical run placed only where its whole footprint AND the 8-neighbour ring
+// around it are open swamp terrain (mire, bog, or foliage) — so the solid trunk is
+// always an island in open ground that can never pinch a corridor or seal a pocket,
+// making it safe to run after the connectivity seal (exactly like addTombstones).
+// The ring check also keeps logs ≥1 tile apart, so runs stay straight and never
+// fuse into L/T/cross shapes (the renderer assumes straight runs). No-op elsewhere.
+function addFallenLogs(m, regionId, depth) {
+  if (regionId !== 'poison') return;
+  const isOpen = (r, c) => {
+    if (r < 1 || c < 1 || r >= MROWS - 1 || c >= MCOLS - 1) return false;
+    const t = m[r][c];
+    return t === T.SLUDGE || t === T.BOG || t === T.CATTAIL ||
+           t === T.SWAMP_FERN || t === T.SWAMP_MUSHROOM;
+  };
+  const count = 9 + Math.floor(depth / 3);
+  let placed = 0, tries = 0;
+  while (placed < count && tries < count * 80) {
+    tries++;
+    const horiz = Math.random() < 0.5;
+    const len = rnd(2, 4);
+    const r0 = rnd(2, MROWS - 3 - (horiz ? 0 : len));
+    const c0 = rnd(2, MCOLS - 3 - (horiz ? len : 0));
+    // Build the footprint, then require it plus its full 8-neighbour ring be open.
+    const cells = [];
+    for (let k = 0; k < len; k++) cells.push(horiz ? [r0, c0 + k] : [r0 + k, c0]);
+    let clear = true;
+    for (const [r, c] of cells) {
+      for (let dr = -1; dr <= 1 && clear; dr++)
+        for (let dc = -1; dc <= 1; dc++)
+          if (!isOpen(r + dr, c + dc)) { clear = false; break; }
+      if (!clear) break;
+    }
+    if (!clear) continue;
+    for (const [r, c] of cells) m[r][c] = T.FALLEN_LOG;
+    placed++;
+  }
+}
+
+// Mana region: carve 1d6 large rivers winding edge-to-edge across the map — W→E or
+// N→S, like the forest's water channels but wider (a 5-tile band vs the forest's
+// 3). Each is carved as WATER and spanned by one to three plank bridges, then the
+// water-handling block in buildRegionMap demotes it to swimmable MEDIUM_WATER (the
+// forest stream idiom, scaled up). Run BEFORE the exit re-cut so the central
+// corridors ford any river they cross; bridges span it elsewhere, and the swim-
+// reachable far banks keep connectivity intact (ensureConnectivity floods through
+// medium water). carveStream skips protected structures, so chests/shrines/doors
+// are never paved over. No-op for every other region.
+function addManaRivers(m, regionId, depth) {
+  if (regionId !== 'mana') return;
+  const rivers = rnd(1, 6);   // 1d6
+  for (let i = 0; i < rivers; i++) {
+    const cells = Math.random() < 0.5
+      ? carveStream(m, rnd(15, MROWS - 16), 1,                 rnd(15, MROWS - 16), MCOLS - 2, 2)  // W→E, 5-wide
+      : carveStream(m, 1,                   rnd(15, MCOLS - 16), MROWS - 2,          rnd(15, MCOLS - 16), 2); // N→S
+    if (cells.length > 6) {
+      bridgeStream(m, cells, Math.floor(cells.length / 2));
+      if (cells.length > 40) bridgeStream(m, cells, Math.floor(cells.length / 4));
+      if (cells.length > 80) bridgeStream(m, cells, Math.floor(cells.length * 3 / 4));
+    }
+  }
+}
+
+// Mana region: dapple a generous share of the walkable MANA_FLOOR with MANA_MOSS —
+// thick cushions of overgrown moss where the forest's life energy pools — so the
+// turf reads as a flourishing, overgrown floor rather than one flat sward. Both
+// tiles are passable, so connectivity is unaffected. The mana twin of the luminous
+// region's sprinkleLuminousGlow; runs after the seal, before the foliage scatter
+// (so growth seeds onto the remaining plain turf, not the moss). The dapple is
+// denser than the other regions' (~28%) to sell the "everything flourishing" look.
+// No-op for every other region.
+function sprinkleManaMoss(m, regionId) {
+  if (regionId !== 'mana') return;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.MANA_FLOOR && Math.random() < 0.28) m[r][c] = T.MANA_MOSS;
+}
+
+// Mana region: choke the open turf with the forest's abnormally large growth —
+// huge GIANT_BLOOM arcane flowers, towering VERDANT_FERN fronds, and colossal
+// GIANT_MUSHROOM toadstools. Done as a dense probability sweep over the open
+// MANA_FLOOR (rather than a sparse scatter) so the forest reads as wildly
+// overgrown: roughly 45% of the bare turf sprouts growth, with the rest left open
+// to walk. Seeds onto plain MANA_FLOOR only (off the moss dapple), so paths and
+// placed structures are untouched; all three are passable, 1-HP, sword-cuttable
+// foliage that revert to MANA_FLOOR when cut (blooms shed a Mana Petal, ferns a
+// Heart Frond, toadstools a Glow Cap), so connectivity is unaffected. The mana
+// twin of the poison region's scatterPoisonFoliage. No-op for every other region.
+function scatterManaFoliage(m, regionId) {
+  if (regionId !== 'mana') return;
+  for (let r = 1; r < MROWS - 1; r++)
+    for (let c = 1; c < MCOLS - 1; c++) {
+      if (m[r][c] !== T.MANA_FLOOR) continue;
+      const roll = Math.random();
+      if      (roll < 0.18) m[r][c] = T.GIANT_BLOOM;
+      else if (roll < 0.33) m[r][c] = T.VERDANT_FERN;
+      else if (roll < 0.45) m[r][c] = T.GIANT_MUSHROOM;
+    }
+}
+
+// Mana region: claw a share of the mana-veined treeline border (MANA_CRYSTAL) up
+// into abnormally large GREAT_TREEs so the flourishing forest is ringed by ancient
+// giants rather than a flat hedge. Runs after the connectivity seal so sealed
+// pockets get trees too; GREAT_TREE is solid like MANA_CRYSTAL, so traversal is
+// unaffected. The mana twin of the poison region's sprinkleMangroves. No-op for
+// every other region.
+function sprinkleGreatTrees(m, regionId, chance = 0.30) {
+  if (regionId !== 'mana') return;
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.MANA_CRYSTAL && Math.random() < chance) m[r][c] = T.GREAT_TREE;
+}
+
+// Mana region: raise a scattering of colossal GREAT_TREEs standing proud in the
+// open clearings — the forest's abnormally large landmark, the mana region's answer
+// to the luminous region's light pillars / the necrotic region's tombstones. Each
+// is placed only on an open turf/moss/growth tile whose whole 8-neighbourhood is
+// also open, so a lone solid giant can never pinch a corridor or seal a pocket —
+// making it safe to run after the connectivity seal. No-op for every other region.
+// `tile` is the landmark tile to stamp (default GREAT_TREE; the mana village passes
+// COLOSSAL_TREE so its open clearings sprout the giant trees instead). `count`
+// overrides the default density and `minGap` enforces a minimum Manhattan spacing
+// between landmarks (0 = none) — used to keep the big colossal canopies from
+// overlapping in the village.
+function addGreatTrees(m, regionId, depth, tile = T.GREAT_TREE, count, minGap = 0) {
+  if (regionId !== 'mana') return;
+  const isOpen = (r, c) => {
+    const t = m[r][c];
+    return t === T.MANA_FLOOR || t === T.MANA_MOSS || t === T.GIANT_BLOOM ||
+           t === T.VERDANT_FERN || t === T.GIANT_MUSHROOM;
+  };
+  if (count === undefined) count = 10 + Math.floor(depth / 2);
+  let placed = 0, tries = 0;
+  const at = [];
+  while (placed < count && tries < count * 40) {
+    tries++;
+    const r = rnd(4, MROWS - 5), c = rnd(4, MCOLS - 5);
+    if (!isOpen(r, c)) continue;
+    if (minGap > 0 && at.some(([pr, pc]) => Math.abs(pr - r) + Math.abs(pc - c) < minGap)) continue;
+    let clear = true;
+    for (let dr = -1; dr <= 1 && clear; dr++)
+      for (let dc = -1; dc <= 1; dc++)
+        if ((dr || dc) && !isOpen(r + dr, c + dc)) { clear = false; break; }
+    if (!clear) continue;
+    m[r][c] = tile;
+    at.push([r, c]);
+    placed++;
+  }
+}
+
+// Mana region: set a few exceptionally large COLOSSAL_TREEs sporadically into the
+// treeline border — the ancient giants of the flourishing forest. Each anchor is a
+// single solid border tile (MANA_CRYSTAL, or one of its GREAT_TREE dressings) sitting
+// at the inner rim of the border (open ground within 2 tiles) so the overlay canopy
+// the renderer draws — a single giant tree spanning several tiles, not bound to the
+// grid — overhangs into view rather than being buried off-screen. `count` (default
+// 1d4+2) and `minGap` (default 22-tile Manhattan spacing) tune how many and how
+// dense; the overworld passes ×3 the default for a forest thick with giants, the
+// village a smaller rim count. Always kept clear of the exit gates. Runs after the
+// connectivity seal — COLOSSAL_TREE only ever replaces an already-solid border tile
+// (solid → solid), so the passable graph is never affected. No-op elsewhere.
+function addColossalTrees(m, regionId, count, minGap = 22) {
+  if (regionId !== 'mana') return;
+  const isBorderTree = (t) => t === T.MANA_CRYSTAL || t === T.GREAT_TREE;
+  const isOpen = (t) => t === T.MANA_FLOOR || t === T.MANA_MOSS || t === T.PATH ||
+    t === T.GIANT_BLOOM || t === T.VERDANT_FERN || t === T.GIANT_MUSHROOM ||
+    t === T.MEDIUM_WATER || t === T.BRIDGE;
+  const NB = [[0,1],[0,-1],[1,0],[-1,0],[0,2],[0,-2],[2,0],[-2,0]];
+  const gates = [[EXIT_ROW,1],[EXIT_ROW,MCOLS-2],[1,EXIT_COL],[MROWS-2,EXIT_COL]];
+  const cands = [];
+  for (let r = 3; r < MROWS - 3; r++)
+    for (let c = 3; c < MCOLS - 3; c++) {
+      if (!isBorderTree(m[r][c])) continue;
+      if (gates.some(([gr, gc]) => Math.abs(gr - r) + Math.abs(gc - c) < 7)) continue;  // clear of exits
+      let rim = false;                                       // inner rim only
+      for (const [dr, dc] of NB) { const row2 = m[r + dr]; if (row2 && isOpen(row2[c + dc])) { rim = true; break; } }
+      if (rim) cands.push([r, c]);
+    }
+  if (!cands.length) return;
+  for (let i = cands.length - 1; i > 0; i--) {               // Fisher–Yates shuffle
+    const k = Math.floor(Math.random() * (i + 1));
+    const tmp = cands[i]; cands[i] = cands[k]; cands[k] = tmp;
+  }
+  const want = (count === undefined) ? rnd(1, 4) + 2 : count;
+  const placed = [];
+  for (const [r, c] of cands) {
+    if (placed.length >= want) break;
+    if (placed.some(([pr, pc]) => Math.abs(pr - r) + Math.abs(pc - c) < minGap)) continue;
+    m[r][c] = T.COLOSSAL_TREE;
+    placed.push([r, c]);
+  }
 }
 
 // Sky regions (air, lightning): the hero walks on a floor of cloud (region.ground
@@ -2206,9 +2422,12 @@ function buildVillageMap(biome) {
   // (Poison is excluded too — it rings its houses with the swamp's rank growth
   // below, in place of the grass-backed MUSHROOM this generic pass would lay, then
   // claws mangroves out of the thicket border as a drowned forest.)
+  // (Mana is excluded too — it rings its houses with the forest's abnormally large
+  // growth below, then claws great trees out of the treeline border and raises more
+  // as colossal landmarks, so the conclave sits in a flourishing overgrown forest.)
   if (regionId !== 'water' && regionId !== 'ice' && regionId !== 'earth' &&
       regionId !== 'air' && regionId !== 'lightning' && regionId !== 'luminous' &&
-      regionId !== 'necrotic' && regionId !== 'poison') {
+      regionId !== 'necrotic' && regionId !== 'poison' && regionId !== 'mana') {
     for (let r = 1; r < MROWS - 1; r++) {
       for (let c = 1; c < MCOLS - 1; c++) {
         if (m[r][c] !== GROUND) continue;
@@ -2392,6 +2611,31 @@ function buildVillageMap(biome) {
     }
   }
 
+  // Mana region: dress the turf ring around every house with the forest's abnormally
+  // large growth — giant blooms, towering ferns, and colossal glowing mushrooms — in
+  // place of the FLOWER the generic pass above would have laid. The mana twin of the
+  // earth/necrotic/poison blocks: every MANA_FLOOR tile touching a house WALL gets a
+  // chance, skipping tiles next to a door so entrances stay clear. All three are
+  // passable 1-HP foliage that revert to MANA_FLOOR when cut, so connectivity is
+  // unaffected.
+  if (regionId === 'mana') {
+    for (let r = 1; r < MROWS - 1; r++) {
+      for (let c = 1; c < MCOLS - 1; c++) {
+        if (m[r][c] !== GROUND) continue;   // GROUND === T.MANA_FLOOR here
+        const adjWall = isWall(c - 1, r) || isWall(c + 1, r) ||
+                        isWall(c, r - 1) || isWall(c, r + 1);
+        if (!adjWall) continue;
+        const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
+                        isDoor(c, r - 1) || isDoor(c, r + 1);
+        if (adjDoor) continue;
+        if (Math.random() < 0.55) {
+          const roll = Math.random();
+          m[r][c] = roll < 0.4 ? T.GIANT_BLOOM : roll < 0.8 ? T.VERDANT_FERN : T.GIANT_MUSHROOM;
+        }
+      }
+    }
+  }
+
   // Water region: flood ~80% of the open village ground to wadeable SHALLOW_WATER,
   // keeping a 3-tile sand margin along the cobble roads and a dry sand ring around
   // every house. Done after the roads/exteriors are final and before connectivity.
@@ -2439,10 +2683,29 @@ function buildVillageMap(biome) {
 
   // The poison village ("Mire-warden Citadel") is framed like its overworld swamp
   // maps: moss-draped MANGROVE trees clawing out of the thicket border so the
-  // citadel sits in a drowned forest. Run after the connectivity seal —
-  // sprinkleMangroves only swaps solid wall for solid mangrove (solid → solid), so
-  // the passable graph (and the village's connectivity) is never affected.
+  // citadel sits in a drowned forest, with rotting fallen logs strewn across the
+  // open mire. Run after the connectivity seal — sprinkleMangroves only swaps solid
+  // wall for solid mangrove (solid → solid), and addFallenLogs only lays solid logs
+  // where the whole footprint and its ring are open, so the passable graph (and the
+  // village's connectivity) is never affected.
   sprinkleMangroves(m, regionId);
+  addFallenLogs(m, regionId, 8);
+
+  // The mana village ("Heartstone Conclave") is framed like its overworld maps as a
+  // forest flourishing past nature: thick MANA_MOSS dappled across the open turf,
+  // abnormally large GREAT_TREEs clawed out of the mana-veined treeline border, and
+  // more GREAT_TREEs standing as colossal landmarks in the plaza. Run after the
+  // connectivity seal — sprinkleManaMoss only swaps passable turf for passable moss,
+  // sprinkleGreatTrees only swaps solid border for solid tree (solid → solid), and
+  // addGreatTrees places lone solid giants only where the whole 8-neighbourhood is
+  // open — so the passable graph (and the village's connectivity) is never affected.
+  sprinkleManaMoss(m, regionId);
+  sprinkleGreatTrees(m, regionId);
+  // The village's random open landmark trees are the exceptionally large
+  // COLOSSAL_TREE (not the smaller GREAT_TREE used in the overworld clearings),
+  // spaced out so their big canopies don't overlap; plus a few on the border rim.
+  addGreatTrees(m, regionId, 8, T.COLOSSAL_TREE, rnd(4, 6), 16);
+  addColossalTrees(m, regionId, rnd(2, 4), 18);
 
   // The air village gets the same billowing cloud lip as its overworld maps — a
   // CLOUD_EDGE band ringing the walkable plaza just inside the SKY_GROUND border,

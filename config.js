@@ -176,8 +176,34 @@ const T = {
   // border (solid, like the necrotic region's DEAD_TREE). SWAMP_MUSHROOM is a
   // cluster of glowing, sickly poison toadstools — the swamp's own muck-backed
   // toadstool (passable, 1-HP, cut for a Mushroom), drawn on the mire so it blends
-  // where the forest's grass-backed MUSHROOM would clash.
-  BOG:108, BOG_POOL:109, CATTAIL:110, SWAMP_FERN:111, MANGROVE:112, SWAMP_MUSHROOM:113
+  // where the forest's grass-backed MUSHROOM would clash. FALLEN_LOG is a rotting,
+  // moss-grown tree trunk lying across the swamp — a solid 2–4-tile landmark laid
+  // in straight horizontal or vertical runs (the swamp's answer to the necrotic
+  // region's TOMBSTONE), placed only out in the open so it never walls a path.
+  BOG:108, BOG_POOL:109, CATTAIL:110, SWAMP_FERN:111, MANGROVE:112, SWAMP_MUSHROOM:113,
+  FALLEN_LOG:114,
+  // Mana region — a forest flourishing past nature, gorged on raw life energy:
+  // everything grows abnormally large and lush, lit from within by violet mana.
+  // MANA_FLOOR is the walkable verdant turf and MANA_CRYSTAL the dense, mana-veined
+  // treeline border. MANA_MOSS is a thicker cushion of overgrown moss dappled
+  // across the floor (passable, the mana twin of the cloud regions' CLOUDBANK /
+  // the luminous LUMINOUS_GLOW). The three growths are passable, 1-HP,
+  // sword-cuttable foliage that revert to MANA_FLOOR when cut, each abnormally
+  // oversized: a GIANT_BLOOM (huge violet arcane flower, sheds a Mana Petal), a
+  // VERDANT_FERN (towering lush fern, sheds a Heart Frond), and a GIANT_MUSHROOM
+  // (colossal glowing toadstool, sheds a Glow Cap). GREAT_TREE is an abnormally
+  // large ancient tree — solid, like the necrotic region's DEAD_TREE — used both
+  // as the treeline border dressing (clawed out of MANA_CRYSTAL) and as a colossal
+  // landmark standing in the open clearings.
+  MANA_MOSS:115, GIANT_BLOOM:116, VERDANT_FERN:117, GIANT_MUSHROOM:118, GREAT_TREE:119,
+  // An exceptionally large ancient tree set sporadically into the mana treeline
+  // border — NOT bound to the tile grid: only this one anchor tile is solid, but
+  // it is rendered in a dedicated overlay pass (drawColossalTree, after the tile
+  // grid like the whirlpool suction) as a single giant tree sprite spanning several
+  // tiles, overflowing its own tile into the neighbouring border/canopy. Solid,
+  // and only ever placed on already-solid border tiles, so connectivity is
+  // unaffected.
+  COLOSSAL_TREE:120
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -242,8 +268,17 @@ const TILE_COLORS = {
   [T.SLUDGE]: '#566b2c',          [T.POISON_WALL]: '#28401a',
   [T.BOG]: '#3c4a1f',             [T.BOG_POOL]: '#1f3018',
   [T.CATTAIL]: '#7e8a44',         [T.SWAMP_FERN]: '#3f7a30',  [T.MANGROVE]: '#2c3c1a',
-  [T.SWAMP_MUSHROOM]: '#8a6fb0',
-  [T.MANA_FLOOR]: '#5a3a8a',      [T.MANA_CRYSTAL]: '#aa66ee',
+  [T.SWAMP_MUSHROOM]: '#8a6fb0',  [T.FALLEN_LOG]: '#5a4326',
+  // Mana region — a verdant, overgrown forest gorged on life energy. The floor is
+  // a lush emerald turf; the brighter MANA_MOSS cushions read greener still; the
+  // border is a deep, mana-veined treeline; and GREAT_TREE is the darkest, most
+  // massive canopy. The three growths are an oversized violet bloom, a rich-green
+  // towering fern, and a violet glowing toadstool, all readable on the minimap.
+  [T.MANA_FLOOR]: '#2e7d4f',      [T.MANA_CRYSTAL]: '#163d28',
+  [T.MANA_MOSS]: '#3da868',       [T.GREAT_TREE]: '#0e2c1c',
+  [T.COLOSSAL_TREE]: '#0a2216',   // exceptionally large ancient tree — darkest canopy
+  [T.GIANT_BLOOM]: '#b46ce0',     [T.VERDANT_FERN]: '#3f9a4a',
+  [T.GIANT_MUSHROOM]: '#a070d8',
   [T.PORTAL]: '#aa66ff',
   // Shallow water — lighter/greener than deep WATER so a wadeable channel reads
   // distinctly from the deep-water border and pools.
