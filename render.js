@@ -3129,6 +3129,175 @@ function drawTile(col, row, t, sx, sy, s) {
       ctx.beginPath(); ctx.arc(x+s*0.56, y+s*0.30, s*0.030, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(x+s*0.62, y+s*0.40, s*0.025, 0, Math.PI*2); ctx.fill();
       break; }
+    case T.MOSS_BOULDER: {
+      // A great lichen-and-moss-covered boulder squatting in a forest clearing — the
+      // forest's open-ground landmark (its answer to the necrotic tombstone / mana
+      // great tree). A rounded grey mass lit from the upper-left over a cast shadow on
+      // the grass, raked by weathered cracks, with cushions of moss on its crown. Solid.
+      const h = (col*137 + row*71);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x, y, s, s);             // grass base
+      ctx.fillStyle = '#3d7530'; ctx.fillRect(x+2, y+3, 4, 2); ctx.fillRect(x+s-6, y+s-5, 4, 2);
+      ctx.fillStyle = '#2c5a2c';                                       // cast shadow
+      ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.82, s*0.40, s*0.12, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#6e6a64';                                       // boulder mass
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.56, s*0.38, s*0.34, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#847f77';                                       // lit upper-left
+      ctx.beginPath(); ctx.ellipse(x+s*(0.40+j(0,0.04)), y+s*0.44, s*0.22, s*0.17, -0.5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#54514c';                                       // shadowed lower-right
+      ctx.beginPath(); ctx.ellipse(x+s*0.64, y+s*0.68, s*0.18, s*0.14, -0.4, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#4a4742'; ctx.lineWidth = Math.max(1, s*0.025);   // cracks
+      ctx.beginPath(); ctx.moveTo(x+s*0.46, y+s*0.30); ctx.lineTo(x+s*0.52, y+s*0.52); ctx.lineTo(x+s*0.46, y+s*0.74); ctx.stroke();
+      ctx.fillStyle = '#4f7a35';                                       // moss cushions on the crown
+      ctx.beginPath(); ctx.ellipse(x+s*(0.40+j(2,0.10)), y+s*0.38, s*0.14, s*0.07, -0.3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#5e9040';
+      ctx.beginPath(); ctx.ellipse(x+s*(0.60-j(4,0.08)), y+s*0.50, s*0.10, s*0.05, 0.2, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.DESERT_OBELISK: {
+      // A weathered sandstone obelisk half-buried in the dunes — the desert's
+      // open-ground landmark. A four-sided shaft narrowing to a pyramidion cap, its
+      // left face sunlit and right face shadowed, scored by a weather crack and worn
+      // glyph notches, with a drift of sand mounded at its foot. Static. Solid.
+      const cx = x+s*0.5;
+      const top = y+s*0.06, capH = s*0.13, shTop = top+capH, bot = y+s*0.9;
+      const htop = s*0.07, hbot = s*0.15;                              // half-widths at cap base / ground
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);             // sand base
+      ctx.fillStyle = '#b89055';                                       // sand drift / cast shadow
+      ctx.beginPath(); ctx.ellipse(cx+s*0.06, bot, s*0.28, s*0.08, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#cbb27e';                                       // shaft — lit left face
+      ctx.beginPath(); ctx.moveTo(cx-hbot, bot); ctx.lineTo(cx-htop, shTop); ctx.lineTo(cx, shTop); ctx.lineTo(cx, bot); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#a8895a';                                       // shaft — shadowed right face
+      ctx.beginPath(); ctx.moveTo(cx, bot); ctx.lineTo(cx, shTop); ctx.lineTo(cx+htop, shTop); ctx.lineTo(cx+hbot, bot); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#d8c08a';                                       // pyramidion — lit left
+      ctx.beginPath(); ctx.moveTo(cx-htop, shTop); ctx.lineTo(cx, top); ctx.lineTo(cx, shTop); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#b59a66';                                       // pyramidion — shadowed right
+      ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx+htop, shTop); ctx.lineTo(cx, shTop); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#8a6f44'; ctx.lineWidth = Math.max(1, s*0.02);   // weather crack
+      ctx.beginPath(); ctx.moveTo(cx-hbot*0.5, bot-s*0.06); ctx.lineTo(cx-hbot*0.3, shTop+s*0.10); ctx.stroke();
+      ctx.fillStyle = '#8a6f44';                                       // worn glyph notches
+      ctx.fillRect(cx-s*0.05, shTop+s*0.10, s*0.10, s*0.02);
+      ctx.fillRect(cx-s*0.04, shTop+s*0.20, s*0.08, s*0.02);
+      ctx.fillRect(cx-s*0.04, shTop+s*0.30, s*0.08, s*0.02);
+      break; }
+    case T.DRIFTWOOD: {
+      // A large bleached driftwood trunk washed up on the beach — the water region's
+      // open-ground landmark (its answer to the poison region's fallen log). A pale,
+      // sea-worn log lying at a slight angle with a broken forked branch, weather-split
+      // grooves, and exposed end grain, over a cast shadow on the sand. Static. Solid.
+      const h = (col*131 + row*83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);             // sand base
+      ctx.fillStyle = '#b8945a';                                       // cast shadow on sand
+      ctx.beginPath(); ctx.ellipse(x+s*0.52, y+s*0.66, s*0.40, s*0.12, -0.12, 0, Math.PI*2); ctx.fill();
+      ctx.save();
+      ctx.translate(x+s*0.5, y+s*0.52); ctx.rotate(-0.14 + j(0,0.12)); ctx.translate(-(x+s*0.5), -(y+s*0.52));
+      const ty = y+s*0.40, th = s*0.26;
+      ctx.fillStyle = '#b3a890'; ctx.fillRect(x+s*0.08, ty, s*0.84, th);              // log body
+      ctx.fillStyle = '#d8cdb6'; ctx.fillRect(x+s*0.08, ty, s*0.84, th*0.34);         // lit upper curve
+      ctx.fillStyle = '#94886f'; ctx.fillRect(x+s*0.08, ty+th*0.74, s*0.84, th*0.26); // shadowed underside
+      ctx.strokeStyle = '#9a8d74'; ctx.lineWidth = Math.max(1, s*0.018);              // weather-split grooves
+      for (let i = 0; i < 3; i++) {
+        const gy = ty + th*(0.34 + i*0.22);
+        ctx.beginPath(); ctx.moveTo(x+s*0.10, gy + j(i*2,0.03)*s); ctx.lineTo(x+s*0.90, gy + (j(i*2+1,0.04)-0.02)*s); ctx.stroke();
+      }
+      ctx.strokeStyle = '#b3a890'; ctx.lineWidth = Math.max(2, s*0.10); ctx.lineCap = 'round';   // forked broken branch
+      ctx.beginPath(); ctx.moveTo(x+s*0.70, ty+th*0.5); ctx.lineTo(x+s*0.92, ty-s*0.10); ctx.stroke();
+      ctx.fillStyle = '#c2b496';                                       // end grain (left end)
+      ctx.beginPath(); ctx.ellipse(x+s*0.09, ty+th*0.5, s*0.05, th*0.5, 0, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#9a8d74'; ctx.lineWidth = Math.max(1, s*0.012);
+      ctx.beginPath(); ctx.ellipse(x+s*0.09, ty+th*0.5, s*0.026, th*0.26, 0, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+      break; }
+    case T.ICE_SPIRE: {
+      // A jagged shard of blue glacial ice thrusting up from the snowfield — the ice
+      // region's open-ground landmark (its frozen answer to the luminous light pillar).
+      // A tall translucent crystal with a bright sunlit left facet and a deep blue
+      // shadow facet, a smaller shard at its foot, a cool cast shadow, and a glint. Solid.
+      const h = (col*137 + row*71);
+      const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
+      ctx.fillStyle = '#e4ecf2'; ctx.fillRect(x, y, s, s);             // snow base
+      ctx.fillStyle = '#cdd9e6';                                       // cast shadow on snow
+      ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.86, s*0.34, s*0.09, 0, 0, Math.PI*2); ctx.fill();
+      const apexX = x+s*(0.48+j(0,0.10)), apexY = y+s*0.06;
+      ctx.fillStyle = '#8cc2de';                                       // small side shard
+      ctx.beginPath(); ctx.moveTo(x+s*0.66, y+s*0.50); ctx.lineTo(x+s*0.78, y+s*0.88); ctx.lineTo(x+s*0.58, y+s*0.88); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#6fb0d6';                                       // main spire — shadow facet
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.62, y+s*0.9); ctx.lineTo(x+s*0.34, y+s*0.9); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#cdecf8';                                       // main spire — lit facet
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.48, y+s*0.9); ctx.lineTo(x+s*0.34, y+s*0.9); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = Math.max(1, s*0.03);   // bright edge
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.40, y+s*0.9); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';                         // glint
+      ctx.beginPath(); ctx.arc(apexX-s*0.02, apexY+s*0.12, s*0.03, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.STANDING_STONE: {
+      // A leaning megalithic standing stone (menhir) raised on the scree slopes — the
+      // earth region's open-ground landmark. A tall weathered slab canted slightly to
+      // one side, sunlit on the left and shadowed on the right, freckled with lichen
+      // and bearing a faint carved ring, over a cast shadow on the rubble. Solid.
+      const h = (col*131 + row*71);
+      const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.16;
+      ctx.fillStyle = '#8a8174'; ctx.fillRect(x, y, s, s);             // scree base
+      ctx.fillStyle = '#766d61'; ctx.fillRect(x+s*0.18, y+s*0.20, 3, 2); ctx.fillRect(x+s*0.66, y+s*0.74, 3, 2);   // rubble flecks
+      ctx.fillStyle = '#5f584e';                                       // cast shadow
+      ctx.beginPath(); ctx.ellipse(x+s*0.56, y+s*0.86, s*0.30, s*0.08, 0, 0, Math.PI*2); ctx.fill();
+      ctx.save();
+      ctx.translate(x+s*0.5, y+s*0.84); ctx.rotate(lean); ctx.translate(-(x+s*0.5), -(y+s*0.84));
+      ctx.fillStyle = '#7c756a';                                       // slab body (rounded top)
+      ctx.beginPath();
+      ctx.moveTo(x+s*0.36, y+s*0.86); ctx.lineTo(x+s*0.34, y+s*0.26);
+      ctx.arc(x+s*0.5, y+s*0.26, s*0.16, Math.PI, 0); ctx.lineTo(x+s*0.64, y+s*0.86); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#938b7e'; ctx.fillRect(x+s*0.35, y+s*0.18, s*0.05, s*0.68);    // lit left edge
+      ctx.fillStyle = '#5f594f'; ctx.fillRect(x+s*0.59, y+s*0.18, s*0.05, s*0.68);    // shadowed right edge
+      ctx.strokeStyle = '#615a50'; ctx.lineWidth = Math.max(1, s*0.025);              // carved ring
+      ctx.beginPath(); ctx.arc(x+s*0.49, y+s*0.46, s*0.07, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = '#8a9a5a';                                       // lichen freckles
+      ctx.beginPath(); ctx.arc(x+s*0.44, y+s*0.66, s*0.035, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+s*0.56, y+s*0.34, s*0.028, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+      break; }
+    case T.CLOUD_SPIRE: {
+      // A towering column of piled white cumulus rising from the cloud floor — the air
+      // region's open-ground landmark. A stack of overlapping billows, each lit bright
+      // on its upper-left and soft-shadowed beneath, brightening toward a sunlit crown.
+      // Solid.
+      const h = (col*131 + row*83);
+      const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
+      ctx.fillStyle = '#dde6f2'; ctx.fillRect(x, y, s, s);             // cloud base
+      const puff = (px, py, r, shade, lit) => {
+        ctx.fillStyle = shade; ctx.beginPath(); ctx.arc(x+s*px, y+s*py, s*r, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = lit;   ctx.beginPath(); ctx.arc(x+s*(px-0.05), y+s*(py-0.05), s*r*0.62, 0, Math.PI*2); ctx.fill();
+      };
+      puff(0.52, 0.78, 0.24, '#c4d2e6', '#eef4ff');                    // base billow
+      puff(0.44+j(2,0.06), 0.56, 0.22, '#ccd8ea', '#f2f7ff');
+      puff(0.56, 0.40, 0.19, '#d4deee', '#f6faff');
+      puff(0.48+j(4,0.06), 0.22, 0.15, '#dde6f2', '#ffffff');         // sunlit crown
+      break; }
+    case T.STORM_SPIRE: {
+      // The dark twin of the air region's cloud spire — a churning column of black
+      // thunderhead rising from the storm floor, veined by a crackling bolt of
+      // lightning that flickers down its core with a brief glow at the strike. The
+      // lightning region's open-ground landmark. Animated flicker. Solid.
+      const h = (col*131 + row*83);
+      const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
+      ctx.fillStyle = '#313749'; ctx.fillRect(x, y, s, s);             // storm floor base
+      const puff = (px, py, r, shade, lit) => {
+        ctx.fillStyle = shade; ctx.beginPath(); ctx.arc(x+s*px, y+s*py, s*r, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = lit;   ctx.beginPath(); ctx.arc(x+s*(px-0.05), y+s*(py-0.05), s*r*0.62, 0, Math.PI*2); ctx.fill();
+      };
+      puff(0.52, 0.78, 0.24, '#1b1f2c', '#3a4258');                    // base billow
+      puff(0.44+j(2,0.06), 0.56, 0.22, '#202636', '#404a64');
+      puff(0.56, 0.40, 0.19, '#262d40', '#48526e');
+      puff(0.48+j(4,0.06), 0.22, 0.15, '#2c3548', '#525d7e');         // lit crown
+      const flick = 0.35 + 0.65 * Math.pow(0.5 + 0.5*Math.sin(Date.now()/90 + col*1.3 + row*0.9), 3);
+      ctx.strokeStyle = `rgba(190,205,255,${flick})`; ctx.lineWidth = Math.max(1, s*0.04); ctx.lineCap = 'round';   // lightning vein
+      ctx.beginPath();
+      ctx.moveTo(x+s*0.50, y+s*0.10); ctx.lineTo(x+s*0.44, y+s*0.34); ctx.lineTo(x+s*0.56, y+s*0.50);
+      ctx.lineTo(x+s*0.46, y+s*0.72); ctx.lineTo(x+s*0.52, y+s*0.90); ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.fillStyle = `rgba(220,228,255,${flick*0.5})`;               // glow at a node
+      ctx.beginPath(); ctx.arc(x+s*0.56, y+s*0.50, s*0.06, 0, Math.PI*2); ctx.fill();
+      break; }
   }
 }
 

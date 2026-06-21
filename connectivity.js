@@ -35,7 +35,11 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
              t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL ||
              t === T.DEAD_TREE || t === T.TOMBSTONE ||
              t === T.BOG_POOL || t === T.MANGROVE || t === T.FALLEN_LOG ||
-             t === T.GREAT_TREE || t === T.COLOSSAL_TREE);
+             t === T.GREAT_TREE || t === T.COLOSSAL_TREE ||
+             // Elemental region open-ground landmarks (solid)
+             t === T.MOSS_BOULDER || t === T.DESERT_OBELISK || t === T.DRIFTWOOD ||
+             t === T.ICE_SPIRE || t === T.STANDING_STONE ||
+             t === T.CLOUD_SPIRE || t === T.STORM_SPIRE);
   };
 
   // The flood may also swim through medium-depth water, so areas reachable only

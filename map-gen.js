@@ -95,7 +95,7 @@ const REGIONS = [
       'Rotwood Edge','Stagnant Causeway','Bilegrove','Cankerstump','Pestilent Field',
       'Snake-fang Hollow','Greenfog Reach','Necrosis Plain','Bubble Marsh','Witherwart'
     ], villageName:'Mire-warden Citadel',       enemyTier:9, boss:'hydra_queen'    },
-  { id:'mana',      element:null,        border:T.MANA_CRYSTAL,    ground:T.MANA_FLOOR,     decoration:T.FLOWER, accent:T.DEEP_WATER, names:[
+  { id:'mana',      element:null,        edgeWater:true, border:T.MANA_CRYSTAL,    ground:T.MANA_FLOOR,     decoration:T.FLOWER, accent:T.DEEP_WATER, names:[
       'Arcanum Reach','Spellwell Plain','Sigil Garden','Channeled Pass','Aether Field',
       'Glyphvein Maze','Lifeweave Hollow','Runestone Crossing','Conduit Spire','Resonant Bowl',
       'Astral Causeway','Mage-glass Plateau','Echo Lattice','Filigree Field','Mantra Plain',
@@ -269,13 +269,12 @@ function buildForestMap(seed, depth, openSides) {
     setRect(m, pr, pc, Math.min(pr + ph, MROWS - 2), Math.min(pc + pw, MCOLS - 2), T.GRASS);
   }
 
-  // Phase 2: main path network connecting centre to each *open* exit
+  // Map centre — the hub the main path network and exit corridors fan out from.
+  // The corridors themselves are carved later (after the streams) so they bridge
+  // the water rather than fording it.
   const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
-  if (open.up)    drunkWalk(m, midR, midC, 1,         EXIT_COL,   T.PATH, 1);
-  if (open.down)  drunkWalk(m, midR, midC, MROWS - 2, EXIT_COL,   T.PATH, 1);
-  if (open.left)  drunkWalk(m, midR, midC, EXIT_ROW,  1,          T.PATH, 1);
-  if (open.right) drunkWalk(m, midR, midC, EXIT_ROW,  MCOLS - 2,  T.PATH, 1);
-  // Extra wandering grass paths for visual variety
+  // Extra wandering grass paths for visual variety. Carved before the streams and
+  // the main path network so the water (laid next) reads on top of them.
   for (let i = 0; i < 6; i++) {
     const r1 = rnd(10, MROWS - 10), c1 = rnd(10, MCOLS - 10);
     const r2 = rnd(10, MROWS - 10), c2 = rnd(10, MCOLS - 10);
@@ -290,6 +289,29 @@ function buildForestMap(seed, depth, openSides) {
     setRect(m, cr, cc, Math.min(cr + cr2, MROWS - 2), Math.min(cc + cc2, MCOLS - 2), T.GRASS);
     clearings.push({ r: cr + Math.floor(cr2 / 2), c: cc + Math.floor(cc2 / 2) });
   }
+
+  // Phase 3b: streams — winding water channels that cross the whole map edge to
+  // edge, each spanned by one or two plank bridges. Count is 1d4-1 (0–3 per map).
+  // Carved BEFORE the main path network below so the corridors meet the water and
+  // cross it on a slim plank (bridgeWalk) instead of fording it with a dirt path.
+  const streamCount = rnd(1, 4) - 1;
+  for (let i = 0; i < streamCount; i++) {
+    const cells = Math.random() < 0.5
+      ? carveStream(m, rnd(15, MROWS - 16), 1,                 rnd(15, MROWS - 16), MCOLS - 2, 1)  // W→E
+      : carveStream(m, 1,                   rnd(15, MCOLS - 16), MROWS - 2,          rnd(15, MCOLS - 16), 1); // N→S
+    if (cells.length > 6) {
+      bridgeStream(m, cells, Math.floor(cells.length / 2));
+      if (cells.length > 40) bridgeStream(m, cells, Math.floor(cells.length / 4));
+    }
+  }
+
+  // Phase 3c: main path network connecting centre to each *open* exit. Carved
+  // after the streams so each corridor bridges the water it meets (a slim plank
+  // no more than 2 tiles wide) rather than paving a dirt ford across it.
+  if (open.up)    bridgeWalk(m, midR, midC, 1,         EXIT_COL,   T.PATH, 1);
+  if (open.down)  bridgeWalk(m, midR, midC, MROWS - 2, EXIT_COL,   T.PATH, 1);
+  if (open.left)  bridgeWalk(m, midR, midC, EXIT_ROW,  1,          T.PATH, 1);
+  if (open.right) bridgeWalk(m, midR, midC, EXIT_ROW,  MCOLS - 2,  T.PATH, 1);
 
   // Phase 4: water features with bridges
   const waterCount = 2 + Math.floor(depth / 4);
@@ -345,21 +367,6 @@ function buildForestMap(seed, depth, openSides) {
     }
   }
 
-  // Phase 10: streams — winding water channels that cross the whole map, each
-  // spanned by one or two plank bridges so both banks stay reachable. Count is
-  // 1d4-1 (0–3 per map). Placed before the exit re-carve below so the central
-  // corridors ford any stream they cross.
-  const streamCount = rnd(1, 4) - 1;
-  for (let i = 0; i < streamCount; i++) {
-    const cells = Math.random() < 0.5
-      ? carveStream(m, rnd(15, MROWS - 16), 1,                 rnd(15, MROWS - 16), MCOLS - 2, 1)  // W→E
-      : carveStream(m, 1,                   rnd(15, MCOLS - 16), MROWS - 2,          rnd(15, MCOLS - 16), 1); // N→S
-    if (cells.length > 6) {
-      bridgeStream(m, cells, Math.floor(cells.length / 2));
-      if (cells.length > 40) bridgeStream(m, cells, Math.floor(cells.length / 4));
-    }
-  }
-
   // Phase 11: waterfalls — a source pool at the very top of the map spills down
   // a vertical waterfall into a splash pool, and a stream carries that water to
   // the central walking-path network (joined by a short dirt spur so the water
@@ -408,12 +415,13 @@ function buildForestMap(seed, depth, openSides) {
   const cliffCount = rnd(1, 4) - 1;
   for (let i = 0; i < cliffCount; i++) addCliffFace(m);
 
-  // Ensure exit corridors are wide and reach interior — only for *open* sides
+  // Ensure exit corridors are wide and reach interior — only for *open* sides.
+  // bridgeWalk so a corridor meeting a stream bridges it instead of fording it.
   cutExits(m, open.left, open.right, open.up, open.down);
-  if (open.left)  drunkWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    T.PATH, 1);
-  if (open.right) drunkWalk(m, EXIT_ROW, MCOLS - 2,   EXIT_ROW, midC,    T.PATH, 1);
-  if (open.up)    drunkWalk(m, 1,           EXIT_COL, midR,     EXIT_COL, T.PATH, 1);
-  if (open.down)  drunkWalk(m, MROWS - 2,   EXIT_COL, midR,     EXIT_COL, T.PATH, 1);
+  if (open.left)  bridgeWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    T.PATH, 1);
+  if (open.right) bridgeWalk(m, EXIT_ROW, MCOLS - 2,   EXIT_ROW, midC,    T.PATH, 1);
+  if (open.up)    bridgeWalk(m, 1,           EXIT_COL, midR,     EXIT_COL, T.PATH, 1);
+  if (open.down)  bridgeWalk(m, MROWS - 2,   EXIT_COL, midR,     EXIT_COL, T.PATH, 1);
 
   // Final border lock + re-cut exits
   for (let c = 0; c < MCOLS; c++) { m[0][c] = T.TREE; m[MROWS - 1][c] = T.TREE; }
@@ -430,11 +438,20 @@ function buildForestMap(seed, depth, openSides) {
   // bridges land first; WATERFALL falling tiles are left alone.
   demoteWaterToMedium(m);
 
-  // Make sure every plank bridge lands on solid ground at both ends.
-  anchorBridgesOnLand(m);
+  // Make sure every plank bridge lands on solid ground at both ends. The stub
+  // variant is used because the bridgeWalk corridors lay many slim stream-crossing
+  // planks close together — the full anchor sweep would fuse adjacent ones into a
+  // wide span, while this only tidies genuine dangling ends (keeps bridges ≤2 wide).
+  anchorBridgeStubs(m);
 
   // Guarantee everything passable is reachable from at least one exit
   ensureConnectivity(m);
+
+  // Stand a few great mossy BOULDERs out in the open clearings — the forest's
+  // open-ground landmark (its answer to the necrotic tombstones / mana great trees).
+  // Run after the seal: each lone boulder is placed only where its whole
+  // 8-neighbourhood is open grass, so it never walls a path.
+  addRegionLandmarks(m, 'forest', depth);
 
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
@@ -756,6 +773,12 @@ function buildDesertMap(seed, depth, openSides) {
   anchorBridgesOnLand(m);
 
   ensureConnectivity(m, false, T.CACTUS);
+
+  // Stand a few weathered sandstone OBELISKs out in the open sands — the desert's
+  // open-ground landmark (its answer to the necrotic tombstones / mana great trees).
+  // Run after the seal: each lone obelisk is placed only where its whole
+  // 8-neighbourhood is open desert ground, so it never walls a path.
+  addRegionLandmarks(m, 'fire', depth);
 
   // Fire region: 20% of desert maps hide a whirlpool in a pool/oasis. The
   // small clearance fits these little water bodies while still keeping the
@@ -1226,31 +1249,63 @@ function buildRegionMap(seed, depth, openSides, region) {
     setRect(m, pr, pc, Math.min(pr + ph, MROWS - 2), Math.min(pc + pw, MCOLS - 2), GROUND);
   }
 
-  // Phase 2: main paths from centre to each open exit
+  // Map centre — the hub the corridors and exit gates fan out from.
   const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
-  if (open.up)    drunkWalk(m, midR, midC, 1,         EXIT_COL,   PATHTILE, 1);
-  if (open.down)  drunkWalk(m, midR, midC, MROWS - 2, EXIT_COL,   PATHTILE, 1);
-  if (open.left)  drunkWalk(m, midR, midC, EXIT_ROW,  1,          PATHTILE, 1);
-  if (open.right) drunkWalk(m, midR, midC, EXIT_ROW,  MCOLS - 2,  PATHTILE, 1);
+
+  // Regions threaded by edge-to-edge water (mana rivers) carve their corridors
+  // with bridgeWalk, so a corridor meeting water crosses it on a slim plank (no
+  // more than 2 tiles wide) instead of fording it with dirt; every other region
+  // keeps the plain drunkWalk.
+  const corridorWalk = region.edgeWater ? bridgeWalk : drunkWalk;
+
+  // Phase 2: main paths from centre to each open exit.
+  const carveMainPaths = (walk) => {
+    if (open.up)    walk(m, midR, midC, 1,         EXIT_COL,   PATHTILE, 1);
+    if (open.down)  walk(m, midR, midC, MROWS - 2, EXIT_COL,   PATHTILE, 1);
+    if (open.left)  walk(m, midR, midC, EXIT_ROW,  1,          PATHTILE, 1);
+    if (open.right) walk(m, midR, midC, EXIT_ROW,  MCOLS - 2,  PATHTILE, 1);
+  };
   // Secondary connector paths. Every region but water links them with plain
   // GROUND here; the water region instead carves its secondary routes as
   // SHALLOW_WATER channels later (after the depth banding) so they wade through
   // the water rather than paving more sand.
-  if (region.id !== 'water') {
-    for (let i = 0; i < 6; i++) {
-      const r1 = rnd(10, MROWS - 10), c1 = rnd(10, MCOLS - 10);
-      const r2 = rnd(10, MROWS - 10), c2 = rnd(10, MCOLS - 10);
-      drunkWalk(m, r1, c1, r2, c2, GROUND, 1);
+  const carveSecondaryPaths = (walk) => {
+    if (region.id !== 'water') {
+      for (let i = 0; i < 6; i++) {
+        const r1 = rnd(10, MROWS - 10), c1 = rnd(10, MCOLS - 10);
+        const r2 = rnd(10, MROWS - 10), c2 = rnd(10, MCOLS - 10);
+        walk(m, r1, c1, r2, c2, GROUND, 1);
+      }
     }
-  }
+  };
 
   // Phase 3: special clearings (homes for chests / shrines)
   const clearings = [];
-  for (let i = 0; i < 8; i++) {
-    const cr = rnd(15, MROWS - 15), cc = rnd(15, MCOLS - 15);
-    const cw = rnd(8, 16), ch = rnd(8, 16);
-    setRect(m, cr, cc, Math.min(cr + ch, MROWS - 2), Math.min(cc + cw, MCOLS - 2), GROUND);
-    clearings.push({ r: cr + Math.floor(ch / 2), c: cc + Math.floor(cw / 2) });
+  const carveClearings = () => {
+    for (let i = 0; i < 8; i++) {
+      const cr = rnd(15, MROWS - 15), cc = rnd(15, MCOLS - 15);
+      const cw = rnd(8, 16), ch = rnd(8, 16);
+      setRect(m, cr, cc, Math.min(cr + ch, MROWS - 2), Math.min(cc + cw, MCOLS - 2), GROUND);
+      clearings.push({ r: cr + Math.floor(ch / 2), c: cc + Math.floor(cw / 2) });
+    }
+  };
+
+  // For edge-water regions the rivers must exist before the main corridors so the
+  // corridors bridge them. Carve the clearings and the decorative secondary
+  // connectors first, then the rivers (addManaRivers — mana only) over them (as in
+  // the original, so the secondary paths read as washed out beneath the water, not
+  // dirt fords across it), then the main paths — which bridgeWalk plank across the
+  // rivers. Every other region keeps the original order (corridors first, then the
+  // clearings; addManaRivers there is a later no-op).
+  if (region.edgeWater) {
+    carveClearings();
+    carveSecondaryPaths(drunkWalk);
+    addManaRivers(m, region.id, depth);
+    carveMainPaths(corridorWalk);
+  } else {
+    carveMainPaths(corridorWalk);
+    carveSecondaryPaths(corridorWalk);
+    carveClearings();
   }
 
   // Phase 4: accent features (water pools, lava pits, ice patches, etc.) with
@@ -1318,18 +1373,13 @@ function buildRegionMap(seed, depth, openSides, region) {
   // talus) before the exit corridors are re-cut through it. No-op elsewhere.
   addMountainTerrain(m, region.id);
 
-  // Mana region: carve 1d6 large rivers edge-to-edge. Carved here (as WATER, then
-  // demoted to swimmable MEDIUM_WATER by the water-handling block below) and BEFORE
-  // the exit re-cut, so the central corridors ford any river they cross while plank
-  // bridges span the rest. No-op elsewhere.
-  addManaRivers(m, region.id, depth);
-
-  // Ensure exit corridors reach interior
+  // Ensure exit corridors reach interior. corridorWalk bridges any edge-to-edge
+  // water (mana rivers, carved earlier) the corridor meets instead of fording it.
   cutExits(m, open.left, open.right, open.up, open.down);
-  if (open.left)  drunkWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    PATHTILE, 1);
-  if (open.right) drunkWalk(m, EXIT_ROW, MCOLS - 2,   EXIT_ROW, midC,    PATHTILE, 1);
-  if (open.up)    drunkWalk(m, 1,           EXIT_COL, midR,     EXIT_COL, PATHTILE, 1);
-  if (open.down)  drunkWalk(m, MROWS - 2,   EXIT_COL, midR,     EXIT_COL, PATHTILE, 1);
+  if (open.left)  corridorWalk(m, EXIT_ROW, 1,           EXIT_ROW, midC,    PATHTILE, 1);
+  if (open.right) corridorWalk(m, EXIT_ROW, MCOLS - 2,   EXIT_ROW, midC,    PATHTILE, 1);
+  if (open.up)    corridorWalk(m, 1,           EXIT_COL, midR,     EXIT_COL, PATHTILE, 1);
+  if (open.down)  corridorWalk(m, MROWS - 2,   EXIT_COL, midR,     EXIT_COL, PATHTILE, 1);
 
   // Final border lock + re-cut exits
   for (let c = 0; c < MCOLS; c++) { m[0][c] = BORDER; m[MROWS - 1][c] = BORDER; }
@@ -1390,8 +1440,11 @@ function buildRegionMap(seed, depth, openSides, region) {
   }
 
   // Make sure every plank bridge lands on solid ground at both ends (run after
-  // the water banding so it sees the final shallow/medium/deep tiles).
-  anchorBridgesOnLand(m);
+  // the water banding so it sees the final shallow/medium/deep tiles). Edge-water
+  // regions (mana rivers) use the stub variant so the many slim bridgeWalk planks
+  // crossing their rivers aren't fused into wide spans (kept ≤2 tiles wide).
+  if (region.edgeWater) anchorBridgeStubs(m);
+  else                  anchorBridgesOnLand(m);
 
   // Seal any orphan passable pockets with the region's border tile so the
   // visual matches the surrounding wall instead of leaking forest TREE. Rescue
@@ -1513,6 +1566,16 @@ function buildRegionMap(seed, depth, openSides, region) {
   // tile rim (cloudEdge) so it reads as an island of cloud with a billowing lip
   // the hero can't cross.
   ringCloudEdges(m, region.id);
+
+  // Early/elemental regions (water, ice, earth, air, lightning): stand a scattering
+  // of the region's signature landmark out in the open clearings — a driftwood trunk,
+  // an ice spire, a standing stone, a cloud spire, or a storm spire (their answer to
+  // the necrotic tombstones / poison logs / mana great trees). Run after the seal AND
+  // after ringCloudEdges (so the sky regions' billowing CLOUD_EDGE rim is already in
+  // place and never overwrites a spire): each lone landmark is placed only where its
+  // whole 8-neighbourhood is open ground, so it never walls a path. No-op for the
+  // late regions, which keep their own bespoke landmark passes above.
+  addRegionLandmarks(m, region.id, depth);
 
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
@@ -1729,6 +1792,53 @@ function addTombstones(m, regionId, depth) {
   }
 }
 
+// Per-region open-ground landmark spec for the early/elemental regions — each
+// region's own answer to the necrotic TOMBSTONE / poison FALLEN_LOG / mana
+// GREAT_TREE / luminous LIGHT_PILLAR. `tile` is the solid landmark stamped into a
+// clearing; `open` is the set of tiles that count as open ground there (the
+// region's floor, its slow/dapple variants, and its passable foliage) — a landmark
+// is placed only where its whole 8-neighbourhood is open ground, so it can never
+// pinch a corridor or seal a pocket. The four "later" regions keep their own bespoke
+// landmark passes and are intentionally absent here.
+const REGION_LANDMARKS = {
+  forest:    { tile: T.MOSS_BOULDER,   open: [T.GRASS, T.FLOWER, T.MUSHROOM, T.FERN] },
+  fire:      { tile: T.DESERT_OBELISK, open: [T.SAND, T.DUNE, T.DESERT_SUCCULENT, T.BONES] },
+  water:     { tile: T.DRIFTWOOD,      open: [T.SAND, T.STONES, T.SEASHELL, T.CORAL] },
+  ice:       { tile: T.ICE_SPIRE,      open: [T.SNOW, T.SNOW_DRIFT, T.WINTER_BERRY_BUSH, T.FROST_LILY, T.FROST_FERN] },
+  earth:     { tile: T.STANDING_STONE, open: [T.SCREE, T.MUD, T.MOUNTAIN_SAGE, T.MOSS_CLUMP, T.CRYSTAL_CLUSTER] },
+  air:       { tile: T.CLOUD_SPIRE,    open: [T.CLOUD, T.CLOUDBANK, T.SKY_BLOOM, T.WIND_REED, T.STORM_THISTLE] },
+  lightning: { tile: T.STORM_SPIRE,    open: [T.STORM_GROUND, T.STORM_BANK, T.VOLT_BLOOM, T.SPARK_REED, T.FULGURITE] },
+};
+
+// Early/elemental regions: stand a scattering of the region's signature landmark out
+// in the open clearings — a mossy boulder (forest), a sandstone obelisk (desert), a
+// driftwood trunk (water beach), an ice spire (ice), a standing stone (earth), a
+// cloud spire (air), or a storm spire (lightning). The exact "tombstone-style"
+// landmark idiom: each is placed only on an open ground tile whose whole
+// 8-neighbourhood is also open ground, so a lone solid landmark can never wall a path
+// — making it safe to run after the connectivity seal (exactly like addTombstones /
+// addGreatTrees). No-op for any region without a REGION_LANDMARKS entry.
+function addRegionLandmarks(m, regionId, depth) {
+  const spec = REGION_LANDMARKS[regionId];
+  if (!spec) return;
+  const open = spec.open;
+  const isOpen = (r, c) => open.includes(m[r][c]);
+  const count = 10 + Math.floor(depth / 2);
+  let placed = 0, tries = 0;
+  while (placed < count && tries < count * 40) {
+    tries++;
+    const r = rnd(4, MROWS - 5), c = rnd(4, MCOLS - 5);
+    if (!isOpen(r, c)) continue;
+    let clear = true;
+    for (let dr = -1; dr <= 1 && clear; dr++)
+      for (let dc = -1; dc <= 1; dc++)
+        if ((dr || dc) && !isOpen(r + dr, c + dc)) { clear = false; break; }
+    if (!clear) continue;
+    m[r][c] = spec.tile;
+    placed++;
+  }
+}
+
 // Poison region: churn boggy BOG mire into the open SLUDGE floor — sunken,
 // waterlogged hollows where the swamp pools into mud (each one slows the hero to
 // half speed, like the earth region's MUD clumps / the ice region's drifts).
@@ -1822,11 +1932,12 @@ function addFallenLogs(m, regionId, depth) {
 // N→S, like the forest's water channels but wider (a 5-tile band vs the forest's
 // 3). Each is carved as WATER and spanned by one to three plank bridges, then the
 // water-handling block in buildRegionMap demotes it to swimmable MEDIUM_WATER (the
-// forest stream idiom, scaled up). Run BEFORE the exit re-cut so the central
-// corridors ford any river they cross; bridges span it elsewhere, and the swim-
-// reachable far banks keep connectivity intact (ensureConnectivity floods through
-// medium water). carveStream skips protected structures, so chests/shrines/doors
-// are never paved over. No-op for every other region.
+// forest stream idiom, scaled up). Run BEFORE the main path network (mana sets
+// region.edgeWater) so the central corridors bridge any river they cross on a slim
+// plank rather than fording it with dirt; the decorative bridges here span it
+// elsewhere, and the swim-reachable far banks keep connectivity intact
+// (ensureConnectivity floods through medium water). carveStream skips protected
+// structures, so chests/shrines/doors are never paved over. No-op for every other region.
 function addManaRivers(m, regionId, depth) {
   if (regionId !== 'mana') return;
   const rivers = rnd(1, 6);   // 1d6
@@ -2719,6 +2830,14 @@ function buildVillageMap(biome) {
   // earth far below. Run after the connectivity seal: CLOUD_EDGE only ever
   // replaces solid SKY_GROUND (solid → solid), so the passable graph is untouched.
   ringCloudEdges(m, regionId);
+
+  // Early/elemental villages get the same open-ground landmark as their overworld
+  // maps — a mossy boulder (forest), obelisk (desert), driftwood (water), ice spire
+  // (ice), standing stone (earth), cloud spire (air), or storm spire (lightning) —
+  // standing in the open plaza. Run after the connectivity seal AND after
+  // ringCloudEdges, like the overworld: each lone landmark drops only where its whole
+  // 8-neighbourhood is open ground, so the village's connectivity is never affected.
+  addRegionLandmarks(m, regionId, 8);
 
   // Note: the fast-travel portal is NOT placed here. A village only gains a
   // portal once it is cleared of monsters — see activateVillage, which stamps

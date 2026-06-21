@@ -57,6 +57,10 @@ function isSolid(map, c, r) {
          t === T.DEAD_TREE || t === T.TOMBSTONE ||
          t === T.BOG_POOL || t === T.MANGROVE || t === T.FALLEN_LOG ||
          t === T.GREAT_TREE || t === T.COLOSSAL_TREE ||
+         // Elemental region open-ground landmarks (solid)
+         t === T.MOSS_BOULDER || t === T.DESERT_OBELISK || t === T.DRIFTWOOD ||
+         t === T.ICE_SPIRE || t === T.STANDING_STONE ||
+         t === T.CLOUD_SPIRE || t === T.STORM_SPIRE ||
          isChestTile(t);
 }
 
@@ -96,6 +100,103 @@ function drunkWalk(m, sr, sc, er, ec, t, width) {
       const nr = er + dr2, nc = ec + dc2;
       if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1) m[nr][nc] = t;
     }
+}
+
+// Water-aware corridor carve. On dry ground it behaves like drunkWalk — biasing
+// toward the target with the odd detour, painting `t` in a (2·width+1) brush.
+// But it never wades along or paves dirt over standing water laid earlier: when a
+// step would enter water it lays a single-tile BRIDGE plank straight across the
+// water to the far bank, choosing the SHORTEST of the four cardinal directions so
+// the plank always cuts transversely across the channel (never runs lengthwise
+// down it), then resumes walking from the far bank. Every crossing is therefore a
+// tidy 1-tile footbridge (well within "no wider than 2") meeting dry land at both
+// ends. If a plank already runs parallel right beside this crossing (another
+// corridor's, or a stream's bridgeStream plank), it reuses that one instead of
+// laying a second beside it — so crossings never stack into a wide span. Channels
+// wider than CAP are left alone (the walk routes around them). Used for the main
+// path network in regions threaded by edge-to-edge water (forest streams, mana
+// rivers): carve the water first, then run this so the corridors bridge it. Pair
+// with anchorBridgeStubs (not anchorBridgesOnLand) to tidy ends without widening.
+function bridgeWalk(m, sr, sc, er, ec, t, width) {
+  const CAP = 16;                                        // widest channel we'll plank across
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const paintLand = (cr, cc) => {
+    for (let dr = -width; dr <= width; dr++)
+      for (let dc = -width; dc <= width; dc++) {
+        const nr = cr + dr, nc = cc + dc;
+        if (nr <= 0 || nr >= MROWS - 1 || nc <= 0 || nc >= MCOLS - 1) continue;
+        const cur = m[nr][nc];
+        if (isBridgeWater(cur) || cur === T.BRIDGE) continue;   // leave water / planks be
+        if (!isProtectedFeature(cur)) m[nr][nc] = t;
+      }
+  };
+  // Shortest straight cardinal crossing from dry tile (lr,lc) over the adjacent
+  // water to the first dry tile beyond. Returns {dr,dc,fr,fc} or null.
+  const findCrossing = (lr, lc) => {
+    let best = null;
+    for (const [dr, dc] of DIRS) {
+      let pr = lr + dr, pc = lc + dc, steps = 1;
+      if (pr <= 0 || pr >= MROWS - 1 || pc <= 0 || pc >= MCOLS - 1) continue;
+      if (!isBridgeWater(m[pr][pc])) continue;           // this direction isn't into water
+      while (steps <= CAP && pr > 0 && pr < MROWS - 1 && pc > 0 && pc < MCOLS - 1 &&
+             isBridgeWater(m[pr][pc])) { pr += dr; pc += dc; steps++; }
+      if (pr <= 0 || pr >= MROWS - 1 || pc <= 0 || pc >= MCOLS - 1) continue;
+      if (isBridgeWater(m[pr][pc])) continue;            // no dry bank within CAP
+      if (!best || steps < best.steps) best = { dr, dc, fr: pr, fc: pc, steps };
+    }
+    return best;
+  };
+  let r = sr, c = sc;
+  const maxSteps = (MROWS + MCOLS) * 4;
+  // If we start on water — e.g. an exit corridor whose gate mouth sits on a
+  // stream/river mouth (they start right at the border) — plank straight toward
+  // the target to the first dry tile, so the corridor gets a foothold on land and
+  // the gate isn't left walled off by water. Without this the walk has no dry
+  // start to work from and the gate's whole side of the channel is cut off.
+  if (isBridgeWater(m[r][c])) {
+    let mr = Math.abs(er - r) > Math.abs(ec - c) ? Math.sign(er - r) : 0;
+    let mc = mr === 0 ? Math.sign(ec - c) : 0;
+    if (mr === 0 && mc === 0) mc = 1;
+    let steps = 0;
+    while (steps < CAP && r > 0 && r < MROWS - 1 && c > 0 && c < MCOLS - 1 &&
+           isBridgeWater(m[r][c])) {
+      if (!isProtectedFeature(m[r][c])) m[r][c] = T.BRIDGE;
+      r += mr; c += mc; steps++;
+    }
+  }
+  if (!isBridgeWater(m[r][c])) paintLand(r, c);
+  for (let i = 0; i < maxSteps && (Math.abs(r - er) + Math.abs(c - ec)) > 1; i++) {
+    const dr = er - r, dc = ec - c;
+    let mr = 0, mc = 0;
+    if (Math.random() < 0.65) {                          // bias toward target
+      if (Math.abs(dr) > Math.abs(dc)) mr = Math.sign(dr);
+      else                             mc = Math.sign(dc);
+    } else {                                             // occasional detour
+      if (Math.random() < 0.5) mr = (Math.random() < 0.5 ? 1 : -1);
+      else                     mc = (Math.random() < 0.5 ? 1 : -1);
+    }
+    const nr = r + mr, nc = c + mc;
+    if (nr <= 0 || nr >= MROWS - 1 || nc <= 0 || nc >= MCOLS - 1) continue;
+    if (isBridgeWater(m[nr][nc])) {                       // about to enter water — plank across
+      const x = findCrossing(r, c);
+      if (!x) continue;                                  // channel too wide here — route around
+      // Anti-stack: if a plank already runs parallel right beside this crossing
+      // (another corridor's, or a stream's bridgeStream plank), reuse it rather
+      // than laying a second parallel plank — that keeps every crossing 1 tile
+      // wide and never gives anchorBridgesOnLand a stacked pair to widen.
+      const pr = x.dr !== 0 ? 0 : 1, pc = x.dc !== 0 ? 0 : 1;   // perpendicular to the crossing
+      const f0r = r + x.dr, f0c = c + x.dc;
+      if (m[f0r + pr][f0c + pc] !== T.BRIDGE && m[f0r - pr][f0c - pc] !== T.BRIDGE) {
+        for (let qr = f0r, qc = f0c; qr !== x.fr || qc !== x.fc; qr += x.dr, qc += x.dc)
+          if (!isProtectedFeature(m[qr][qc])) m[qr][qc] = T.BRIDGE;
+      }
+      r = x.fr; c = x.fc;                                // resume on the far bank
+    } else {
+      r = nr; c = nc;
+    }
+    paintLand(r, c);
+  }
+  if (!isBridgeWater(m[er][ec])) paintLand(er, ec);
 }
 
 // Scatter decorative tiles only on plain grass — never overwrites chests etc.
@@ -293,6 +394,36 @@ function anchorBridgesOnLand(m) {
         for (let pr = r + dr, pc = c + dc; pr !== nr || pc !== nc; pr += dr, pc += dc)
           if (!isProtectedFeature(m[pr][pc])) m[pr][pc] = T.BRIDGE;
       }
+    }
+}
+
+// Conservative cousin of anchorBridgesOnLand for the edge-water regions (forest
+// streams, mana rivers), where bridgeWalk lays many slim crossing planks close
+// together. It only tidies a TRUE dangling stub — a BRIDGE tile with exactly one
+// bridge neighbour — extending it across the water to the far bank. A tile flanked
+// by parallel planks has two-plus bridge neighbours, so it is never touched: this
+// can't widen a crossing the way the full sweep above would when planks sit side
+// by side. Used in place of anchorBridgesOnLand so those regions' bridges still
+// always meet land at both ends while staying no more than 2 tiles wide.
+function anchorBridgeStubs(m) {
+  const CAP = 40;
+  const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  for (let r = 1; r < MROWS - 1; r++)
+    for (let c = 1; c < MCOLS - 1; c++) {
+      if (m[r][c] !== T.BRIDGE) continue;
+      let nbrs = 0, ndr = 0, ndc = 0;
+      for (const [dr, dc] of dirs) if (m[r + dr][c + dc] === T.BRIDGE) { nbrs++; ndr = dr; ndc = dc; }
+      if (nbrs !== 1) continue;                    // only a lone dangling end
+      const dr = -ndr, dc = -ndc;                  // point away from the one neighbour
+      if (!isBridgeWater(m[r + dr][c + dc])) continue;
+      let nr = r + dr, nc = c + dc, steps = 0, reached = false;
+      while (steps < CAP && nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1) {
+        if (!isBridgeWater(m[nr][nc])) { reached = true; break; }
+        nr += dr; nc += dc; steps++;
+      }
+      if (!reached) continue;
+      for (let pr = r + dr, pc = c + dc; pr !== nr || pc !== nc; pr += dr, pc += dc)
+        if (!isProtectedFeature(m[pr][pc])) m[pr][pc] = T.BRIDGE;
     }
 }
 

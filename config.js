@@ -216,7 +216,24 @@ const T = {
   // unfurling from the snow. Passable, 1-HP, sword-cuttable foliage that reverts
   // to SNOW when cut and sheds a Frost Fern frond — the snowfield's third forage
   // alongside the winter berry bushes and frost lilies.
-  FROST_FERN:122
+  FROST_FERN:122,
+  // ─── Elemental region open-ground landmarks ──────────────────────────────────
+  // One solid landmark per early region, standing out in a clearing — each
+  // region's own answer to the necrotic TOMBSTONE / poison FALLEN_LOG / mana
+  // GREAT_TREE / luminous LIGHT_PILLAR (the "later region" features). All are solid
+  // and, like those, placed only where the whole 8-neighbourhood is open ground, so
+  // a lone landmark can never wall a path (safe after the connectivity seal). See
+  // REGION_LANDMARKS / addRegionLandmarks in map-gen.js and their draws in render.js.
+  //   MOSS_BOULDER   — forest:    a great lichen-and-moss-covered grey boulder.
+  //   DESERT_OBELISK — fire:      a weathered, half-buried sandstone obelisk.
+  //   DRIFTWOOD      — water:     a large bleached driftwood trunk on the beach.
+  //   ICE_SPIRE      — ice:       a jagged shard of blue glacial ice from the snow.
+  //   STANDING_STONE — earth:     a leaning megalithic menhir on the scree slopes.
+  //   CLOUD_SPIRE    — air:       a towering column of piled white cumulus cloud.
+  //   STORM_SPIRE    — lightning: the dark twin — a thunderhead column veined with
+  //                               crackling lightning.
+  MOSS_BOULDER:123, DESERT_OBELISK:124, DRIFTWOOD:125, ICE_SPIRE:126,
+  STANDING_STONE:127, CLOUD_SPIRE:128, STORM_SPIRE:129
 };
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -341,6 +358,15 @@ const TILE_COLORS = {
   [T.DESERT_SUCCULENT]: '#5aa86a',
   // Ice region frost fern — a pale frosted green readable against the snowfield.
   [T.FROST_FERN]: '#a8d8c0',
+  // Elemental region open-ground landmarks — each readable against its region's
+  // ground on the minimap: a grey boulder on grass, a tan obelisk on sand, pale
+  // bleached driftwood on sand, a bright ice shard on snow, a dark menhir on scree,
+  // a brilliant white cloud spire on the pale cloud floor, and a dark storm spire
+  // on the slate storm floor.
+  [T.MOSS_BOULDER]: '#6b6a60',    [T.DESERT_OBELISK]: '#b59560',
+  [T.DRIFTWOOD]: '#cfc4b0',       [T.ICE_SPIRE]: '#7fc0e4',
+  [T.STANDING_STONE]: '#5f584e',  [T.CLOUD_SPIRE]: '#f4f8ff',
+  [T.STORM_SPIRE]: '#48527a',
 };
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.
