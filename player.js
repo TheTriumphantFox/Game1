@@ -86,6 +86,9 @@ let player = {
   // Snowballs — packed powder blasted out of ice-region snow drifts (50% per
   // bombed drift). Field-earned like bone meal, so it starts at 0.
   snowballs: 0,
+  // Raw ores (see ORE_TYPES in config.js) — a rare 5% find in small chests, the
+  // type set by the region. Field-earned, so all start at 0.
+  grimsilver: 0, emberbrass: 0, glimmerspar: 0, wyrmgold: 0, eclipsium: 0,
   // Region-specific brews from each region's Herbalist (forest excluded — it
   // keeps the classic 1d4 Health Potion). regionPotions[regionId] counts that
   // region's Health Potion (heals Nd4, N = region number, forest=1). Both are
@@ -641,7 +644,18 @@ function handlePickup(bnx, bny, map) {
       addItem('potions', 1);
       reward = `🧪 Health Potion! (now carrying ${player.potions}) — press P to drink`;
     }
-    showMsg(reward, 3000);
+    // 5% bonus: a chunk of raw ore tucked in the chest. Which ore is set by the
+    // region (see oreForMap / ORE_TYPES) — common Grimsilver in regions 1-3 up to
+    // priceless Eclipsium in regions 10-11. Added on top of the normal reward.
+    let oreNote = '';
+    if (Math.random() < 0.05) {
+      const ore = oreForMap(currentMap());
+      if (ore) {
+        addItem(ore.id, 1);
+        oreNote = ` ✦ ${ore.icon} ${ore.label} ore!`;
+      }
+    }
+    showMsg(reward + oreNote, 3000);
     const sp = screenPX(bnx, bny);
     spawnParticle(sp.x, sp.y, '#ffcc00', 12, 4);
   }

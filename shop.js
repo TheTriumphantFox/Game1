@@ -182,6 +182,14 @@ const TROPHY_SELL = [
   { key: 'manapetals',   icon: '🪻', label: 'Mana Petal',   value: 15 },  // mana
   { key: 'heartfronds',  icon: '🍃', label: 'Heart Frond',  value: 14 },  // mana
   { key: 'glowcaps',     icon: '🍄', label: 'Glow Cap',     value: 13 },  // mana
+  // Raw ores (see ORE_TYPES) — a rare 5% small-chest find, the type set by the
+  // region. Unlike forage, ores are prized everywhere: every General Store buys
+  // all five (see the ore section in renderStoreContents), not just the locals.
+  { key: 'grimsilver',  icon: '🔘', label: 'Grimsilver',  value: 20  },
+  { key: 'emberbrass',  icon: '🟠', label: 'Emberbrass',  value: 35  },
+  { key: 'glimmerspar', icon: '🔵', label: 'Glimmerspar', value: 60  },
+  { key: 'wyrmgold',    icon: '🟡', label: 'Wyrmgold',    value: 95  },
+  { key: 'eclipsium',   icon: '🟣', label: 'Eclipsium',   value: 150 },
 ];
 
 // Potions sell one at a time (selling the whole stack at once would be too
@@ -361,6 +369,30 @@ function renderStoreContents() {
           `;
         }).join(''));
 
+  // Precious ores — bought at every store regardless of region, since an ore
+  // isn't a local spoil (a rare small-chest find, see ORE_TYPES). All five are
+  // listed so their relative worth reads clearly; the sell button stays disabled
+  // until the player actually carries some.
+  const oreRows =
+    `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#cc9988">
+      We pay top rupee for raw ore — any kind, brought from anywhere:
+    </div>` +
+    (typeof ORE_TYPES === 'undefined' ? '' : ORE_TYPES.map(o => {
+      const count = player[o.id] || 0;
+      const none = count <= 0;
+      return `
+        <div class="shop-row">
+          <div class="shop-item">
+            <div class="shop-item-name">${o.icon} ${o.label} <span style="color:#88cc88">x${count}</span></div>
+            <div class="shop-item-meta">Sell for ${o.value}💰 each</div>
+          </div>
+          <button class="ssbtn" ${none ? 'disabled' : ''} onclick="sellTrophy('${o.id}')">
+            ${none ? `💰${o.value}` : `All ➜ 💰${count * o.value}`}
+          </button>
+        </div>
+      `;
+    }).join(''));
+
   // Potion buy-back rows — sold one at a time.
   const potionRows = POTION_SELL.map(p => {
     const count = player[p.key] || 0;
@@ -384,6 +416,7 @@ function renderStoreContents() {
     ${buyRows}
     ${arrowsRows}
     ${trophyRows}
+    ${oreRows}
     ${potionRows}
     ${sellRows}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>

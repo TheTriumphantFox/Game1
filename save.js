@@ -97,6 +97,8 @@ const DEFAULT_PLAYER = {
   eyestalks: 0, rakshasa_claws: 0,
   bonemeal: 0,
   snowballs: 0,
+  // Raw ores (see ORE_TYPES) — rare 5% small-chest find, type set by region.
+  grimsilver: 0, emberbrass: 0, glimmerspar: 0, wyrmgold: 0, eclipsium: 0,
   // Region Herbalist brews (objects keyed by region id) + active Elixir immunity.
   regionPotions: {}, elixirs: {},
   // Per-region Collector quests, keyed by region id (see openCollectorModal).
@@ -401,6 +403,7 @@ function newGame() {
     greendragon_scales: 0, worm_stingers: 0, horror_plates: 0, gith_blades: 0,
     eyestalks: 0, rakshasa_claws: 0,
     bonemeal: 0,
+    grimsilver: 0, emberbrass: 0, glimmerspar: 0, wyrmgold: 0, eclipsium: 0,
     regionPotions: {}, elixirs: {}, collectorQuests: {},
     immunityElement: null, immunityTimer: 0,
     swordElements: [], activeSwordElement: null,
