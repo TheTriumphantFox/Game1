@@ -594,14 +594,44 @@ function buyArmorPiece(id) {
 }
 
 // ─── Herbalist ──────────────────────────────────────────────────────────────
-// Trades foraged ingredients for medicine: 1 🍄 Mushroom + 1 🌿 Herbal + 5 💰
-// brews 1 🧪 Health Potion. Ingredients are gathered by cutting mushrooms and
-// flowers out in the forest (see projectiles.js).
+// The forest Herbalist trades foraged goods for medicine: 1 🍄 Mushroom +
+// 1 🌿 Herbal + 5 💰 brews 1 🧪 Health Potion (heals 1d4). Ingredients are
+// gathered by cutting mushrooms and flowers out in the forest (see projectiles.js).
 const HERB_POTION_RECIPE = { mushrooms: 1, herbals: 1, rupees: 5 };
 
-// Fire-region exclusive: the Herbalist of the Oasis brews a stronger remedy from
-// monster trophies — 1 🫀 Organ + 1 🪶 Feather + 50 💰 → 1 🍶 Medium Potion (1d8).
-const MED_POTION_RECIPE = { organs: 1, feathers: 1, rupees: 50 };
+// Every other region's Herbalist is bespoke (see renderHerbalistContents). Each
+// region N (1-indexed; forest=1) brews:
+//   • a Health Potion — 2 of its foraged goods + 5N 💰 → heals Nd4
+//   • an Elixir — 3 of its monster trophies (distinct from the potion's forage)
+//     + 5N 💰 → ELIXIR_IMMUNITY_MS of full immunity to that region's element.
+// `heal` keys are forage; `elixir` keys are trophies — both must be valid player
+// inventory keys (every key here also appears in TROPHY_SELL so itemMeta resolves
+// an icon + label). The immunity element id is the region id itself.
+const HERBALIST_RECIPES = {
+  fire:      { heal: ['aloe', 'herbals'],            elixir: ['embers', 'salamander_hides', 'hound_fangs'] },
+  water:     { heal: ['seashells', 'corals'],        elixir: ['fins', 'shark_tooths', 'cores'] },
+  ice:       { heal: ['winterberries', 'frostpetals'], elixir: ['shards', 'rimes', 'frost_fangs'] },
+  earth:     { heal: ['sage', 'moss'],               elixir: ['granites', 'earth_hearts', 'bulette_plates'] },
+  air:       { heal: ['skypetals', 'windseeds'],     elixir: ['zephyrs', 'griffon_feathers', 'roc_plumes'] },
+  lightning: { heal: ['voltpetals', 'sparkseeds'],   elixir: ['sparks', 'stormgiant_bolts', 'bluedragon_scales'] },
+  luminous:  { heal: ['sunseeds', 'prisms'],         elixir: ['motes', 'planetar_halos', 'kirin_horns'] },
+  necrotic:  { heal: ['witherwood', 'graveblooms'],  elixir: ['ectoplasms', 'phylacterys', 'wraith_shrouds'] },
+  poison:    { heal: ['herbals', 'mushrooms'],       elixir: ['crawler_venoms', 'greendragon_scales', 'worm_stingers'] },
+  mana:      { heal: ['manapetals', 'heartfronds'],  elixir: ['brains', 'eyestalks', 'rakshasa_claws'] },
+};
+
+// Resolve a stackable inventory key's icon + display label from TROPHY_SELL.
+function itemMeta(key) {
+  const t = TROPHY_SELL.find(x => x.key === key);
+  return t ? { icon: t.icon, label: t.label } : { icon: '•', label: key };
+}
+
+// Which region the Herbalist sits in (reuses storeRegion). N is the 1-indexed
+// region number (forest=1) that scales every recipe's heal dice and cost.
+function herbRegion() {
+  const { idx, region } = storeRegion();
+  return { idx, region, id: region ? region.id : 'forest', N: idx + 1 };
+}
 
 function openHerbalistModal() {
   shopOpen = true;
@@ -609,8 +639,67 @@ function openHerbalistModal() {
   renderHerbalistContents();
 }
 
-// True only when the player has every ingredient AND isn't already capped on
-// potions (brewing a potion you can't carry would waste the ingredients).
+function renderHerbalistContents() {
+  const { id: regionId, N } = herbRegion();
+  const recipe = HERBALIST_RECIPES[regionId];
+  // Forest (and any region without a bespoke recipe) keeps the classic brew.
+  if (!recipe) { renderForestHerbalist(); return; }
+
+  const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[regionId] : null;
+  const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
+  const elemName = elem ? elem.label : name;
+  const secs = ((typeof ELIXIR_IMMUNITY_MS !== 'undefined') ? ELIXIR_IMMUNITY_MS : 30000) / 1000;
+
+  // "You have" line: every ingredient this region's recipes consume + rupees.
+  const have = [...recipe.heal, ...recipe.elixir]
+    .map(k => { const m = itemMeta(k); return `${m.icon} ${player[k] || 0}`; })
+    .concat(`💰 ${player.rupees || 0}`).join(' · ');
+
+  // Healing-potion row.
+  const potCount = (player.regionPotions && player.regionPotions[regionId]) || 0;
+  const potCapped = potCount >= ITEM_CAP;
+  const healCost = recipe.heal.map(k => { const m = itemMeta(k); return `${m.icon} 1 ${m.label}`; }).join(' + ');
+  const healMeta = potCapped
+    ? `Your satchel can't hold more potions (max ${ITEM_CAP})`
+    : `Heals ${N}d4 · Costs ${healCost} + 💰 ${5 * N}`;
+  const healBtn = recipe.heal.map(k => itemMeta(k).icon).join('');
+
+  // Elixir row.
+  const elixCount = (player.elixirs && player.elixirs[regionId]) || 0;
+  const elixCapped = elixCount >= ITEM_CAP;
+  const elixCost = recipe.elixir.map(k => { const m = itemMeta(k); return `${m.icon} 1 ${m.label}`; }).join(' + ');
+  const elixMeta = elixCapped
+    ? `Your satchel can't hold more elixirs (max ${ITEM_CAP})`
+    : `Immune to ${elemName} for ${secs}s · Costs ${elixCost} + 💰 ${5 * N}`;
+  const elixBtn = recipe.elixir.map(k => itemMeta(k).icon).join('');
+
+  document.getElementById('herb-modal').innerHTML = `
+    <h2>🌿 Herbalist's Hut</h2>
+    <div class="shop-greeting">The ${name} remedies are my craft, traveler — what'll it be?</div>
+    <div class="shop-rupees">You have: ${have}</div>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🧪 Brew a ${name} Potion <span style="color:#88cc88">x${potCount}</span></div>
+        <div class="shop-item-meta">${healMeta}</div>
+      </div>
+      <button class="ssbtn" ${canBrewRegionPotion(regionId, N) ? '' : 'disabled'} onclick="brewRegionPotion('${regionId}', ${N})">
+        ${healBtn} + 💰${5 * N}
+      </button>
+    </div>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">⚗️ Brew a ${elemName} Elixir <span style="color:#88cc88">x${elixCount}</span></div>
+        <div class="shop-item-meta">${elixMeta}</div>
+      </div>
+      <button class="ssbtn" ${canBrewElixir(regionId, N) ? '' : 'disabled'} onclick="brewElixir('${regionId}', ${N})">
+        ${elixBtn} + 💰${5 * N}
+      </button>
+    </div>
+    <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
+  `;
+}
+
+// The forest Herbalist — unchanged classic 🍄 + 🌿 + 💰5 → 1d4 Health Potion.
 function canBrewHerbPotion() {
   return (player.mushrooms || 0) >= HERB_POTION_RECIPE.mushrooms &&
          (player.herbals   || 0) >= HERB_POTION_RECIPE.herbals   &&
@@ -618,39 +707,12 @@ function canBrewHerbPotion() {
          (player.potions   || 0) <  ITEM_CAP;
 }
 
-function renderHerbalistContents() {
-  // The fire-region Herbalist (Oasis of the Damned) also brews a stronger remedy.
-  const cm = currentMap();
-  const inFire = !!cm && cm.biome === 'fire';
-
-  const have = `🍄 ${player.mushrooms || 0} · 🌿 ${player.herbals || 0} · 💰 ${player.rupees || 0} · 🧪 ${player.potions || 0}` +
-    (inFire ? ` · 🫀 ${player.organs || 0} · 🪶 ${player.feathers || 0} · 🍶 ${player.medPotions || 0}` : '');
-
+function renderForestHerbalist() {
+  const have = `🍄 ${player.mushrooms || 0} · 🌿 ${player.herbals || 0} · 💰 ${player.rupees || 0} · 🧪 ${player.potions || 0}`;
   const capped = (player.potions || 0) >= ITEM_CAP;
   const meta = capped
     ? `Your satchel can't hold more potions (max ${ITEM_CAP})`
     : 'Heals 1d4 · Costs 🍄 1 Mushroom + 🌿 1 Herbal + 💰 5';
-
-  // Fire-only medium-potion recipe row.
-  let medRow = '';
-  if (inFire) {
-    const medCapped = (player.medPotions || 0) >= ITEM_CAP;
-    const medMeta = medCapped
-      ? `Your satchel can't hold more medium potions (max ${ITEM_CAP})`
-      : 'Heals 1d8 · Costs 🫀 1 Organ + 🪶 1 Feather + 💰 50';
-    medRow = `
-      <div class="shop-row">
-        <div class="shop-item">
-          <div class="shop-item-name">🍶 Brew a Medium Health Potion <span style="color:#88cc88">x${player.medPotions || 0}</span></div>
-          <div class="shop-item-meta">${medMeta}</div>
-        </div>
-        <button class="ssbtn" ${canBrewMedPotion() ? '' : 'disabled'} onclick="brewMedPotion()">
-          🫀🪶 + 💰50
-        </button>
-      </div>
-    `;
-  }
-
   document.getElementById('herb-modal').innerHTML = `
     <h2>🌿 Herbalist's Hut</h2>
     <div class="shop-greeting">Bring me mushrooms and herbs, and I'll brew you a remedy.</div>
@@ -664,7 +726,6 @@ function renderHerbalistContents() {
         🍄🌿 + 💰5
       </button>
     </div>
-    ${medRow}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
   `;
 }
@@ -680,21 +741,47 @@ function brewHerbPotion() {
   updateHUD();
 }
 
-// Fire-region medium potion: needs both trophies + rupees, and room to carry it.
-function canBrewMedPotion() {
-  return (player.organs    || 0) >= MED_POTION_RECIPE.organs   &&
-         (player.feathers  || 0) >= MED_POTION_RECIPE.feathers &&
-         (player.rupees    || 0) >= MED_POTION_RECIPE.rupees   &&
-         (player.medPotions || 0) <  ITEM_CAP;
+// Region Health Potion: needs both forage ingredients + 5N rupees, and room to
+// carry one more of that region's potion.
+function canBrewRegionPotion(regionId, N) {
+  const recipe = HERBALIST_RECIPES[regionId];
+  if (!recipe) return false;
+  if (((player.regionPotions && player.regionPotions[regionId]) || 0) >= ITEM_CAP) return false;
+  if ((player.rupees || 0) < 5 * N) return false;
+  return recipe.heal.every(k => (player[k] || 0) >= 1);
 }
 
-function brewMedPotion() {
-  if (!canBrewMedPotion()) return;
-  player.organs   -= MED_POTION_RECIPE.organs;
-  player.feathers -= MED_POTION_RECIPE.feathers;
-  player.rupees   -= MED_POTION_RECIPE.rupees;
-  addItem('medPotions', 1);
-  showMsg('🍶 The Herbalist brews you a Medium Health Potion (heals 1d8)!', 3000);
+function brewRegionPotion(regionId, N) {
+  if (!canBrewRegionPotion(regionId, N)) return;
+  const recipe = HERBALIST_RECIPES[regionId];
+  for (const k of recipe.heal) player[k] -= 1;
+  player.rupees -= 5 * N;
+  player.regionPotions = player.regionPotions || {};
+  player.regionPotions[regionId] = Math.min(ITEM_CAP, (player.regionPotions[regionId] || 0) + 1);
+  const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
+  showMsg(`🧪 The Herbalist brews you a ${name} Potion (heals ${N}d4)!`, 3000);
+  renderHerbalistContents();
+  updateHUD();
+}
+
+// Region Elixir: needs all three trophies + 5N rupees, and room to carry one more.
+function canBrewElixir(regionId, N) {
+  const recipe = HERBALIST_RECIPES[regionId];
+  if (!recipe) return false;
+  if (((player.elixirs && player.elixirs[regionId]) || 0) >= ITEM_CAP) return false;
+  if ((player.rupees || 0) < 5 * N) return false;
+  return recipe.elixir.every(k => (player[k] || 0) >= 1);
+}
+
+function brewElixir(regionId, N) {
+  if (!canBrewElixir(regionId, N)) return;
+  const recipe = HERBALIST_RECIPES[regionId];
+  for (const k of recipe.elixir) player[k] -= 1;
+  player.rupees -= 5 * N;
+  player.elixirs = player.elixirs || {};
+  player.elixirs[regionId] = Math.min(ITEM_CAP, (player.elixirs[regionId] || 0) + 1);
+  const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[regionId] : null;
+  showMsg(`⚗️ The Herbalist brews you a ${elem ? elem.label : regionId} Elixir!`, 3000);
   renderHerbalistContents();
   updateHUD();
 }

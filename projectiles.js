@@ -140,6 +140,22 @@ function rollNecroticVuln(e, level) {
 // still registers. Damage numbers are tagged with 🛡 when armor blocked any
 // portion of the hit so the player can see the proc.
 function damagePlayer(rawDmg, hitElement) {
+  // Herbalist Elixir — a full elemental immunity buff nullifies all matching-
+  // element damage outright (stronger than elemental armor's -50%). Off-element
+  // hits fall through to the normal armor/HP path below.
+  if (hitElement && player.immunityElement === hitElement && (player.immunityTimer || 0) > 0) {
+    const psp = screenPX(player.x, player.y);
+    const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[hitElement] : null;
+    spawnParticle(psp.x, psp.y, elem ? elem.color : '#ffffff', 8, 3);
+    damageNumbers.push({
+      entity: 'player',
+      val: `${elem ? elem.icon : ''}IMMUNE`,
+      color: elem ? elem.color : '#ffffff',
+      life: 1100, rise: -6
+    });
+    return 0;
+  }
+
   const { dmg: afterElem, resisted } = (typeof applyElementalArmor === 'function')
     ? applyElementalArmor(rawDmg, hitElement)
     : { dmg: rawDmg, resisted: null };
