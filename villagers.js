@@ -148,22 +148,76 @@ function placeShopkeepers(mapObj) {
   return list;
 }
 
+// Locate the (single) portal tile on a map. Returns {r,c} or null.
+function findPortalTile(m) {
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.PORTAL) return { r, c };
+  return null;
+}
+
+// Stand a stationary "Gatekeeper" beside the portal. The keeper controls the
+// gate: the player talks to them (and pays a toll) instead of stepping onto the
+// portal tile. No-op if the map has no portal or a keeper is already present —
+// the guard also retro-fits older saves whose savedVillagers predate this NPC.
+function ensurePortalKeeper(mapObj) {
+  if (!mapObj || !mapObj.map) return;
+  if (villagers.some(v => v.role === 'portal')) return;
+  const p = findPortalTile(mapObj.map);
+  if (!p) return;
+  const m = mapObj.map;
+  // First open tile beside the portal, preferring N/E/S so the western landing
+  // tile (where travelers arrive) stays clear.
+  const cands = [
+    { x: p.c,     y: p.r - 1 },
+    { x: p.c + 1, y: p.r     },
+    { x: p.c,     y: p.r + 1 },
+    { x: p.c - 1, y: p.r     },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 0 || s.y < 0 || s.x >= MCOLS || s.y >= MROWS) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (m[s.y][s.x] === T.PORTAL) continue;
+    if (villagers.some(v => v.x === s.x && v.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) return;
+  const nextId = villagers.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+  villagers.push({
+    id: nextId,
+    kind: 'Gatekeeper', role: 'portal',
+    robe: '#5a3a8a', hair: '#d8d0e8', skin: '#e0c098',
+    size: 1,
+    x: spot.x, y: spot.y,
+    renderX: spot.x, renderY: spot.y,
+    stationary: true,
+    dir: { x: Math.sign(p.c - spot.x), y: Math.sign(p.r - spot.y) }, // face the gate
+    timer: 0, stepMs: 9999,
+  });
+}
+
 // Called on every map enter. Mirrors spawnEnemiesForMap: restore from
 // savedVillagers if present, otherwise generate fresh (only if the map is an
-// activated village), otherwise empty.
+// activated village), otherwise empty. Any map with a portal also gets a
+// Gatekeeper standing watch beside it.
 function spawnVillagersForMap(mid) {
   const rm = worldMaps[mid];
   if (!rm) { villagers = []; return; }
   if (rm.savedVillagers) {
     villagers = rm.savedVillagers.map(v => ({ ...v, renderX: v.x, renderY: v.y }));
+    ensurePortalKeeper(rm);
     return;
   }
   if (rm.type === 'village' && rm.activated) {
     villagers = generateVillagers(rm);
-    rm.savedVillagers = villagers.map(v => ({ ...v }));
   } else {
     villagers = [];
   }
+  ensurePortalKeeper(rm);
+  // Persist so the keeper survives re-entry. Previously only villages saved;
+  // the cabin needs it too now that it has a portal keeper.
+  if (villagers.length) rm.savedVillagers = villagers.map(v => ({ ...v }));
 }
 
 function saveVillagersToMap(mid) {
@@ -301,9 +355,29 @@ function drawVillager(v, ts) {
   ctx.quadraticCurveTo(cx, py + s * 0.41, px + s * 0.57, py + s * 0.38);
   ctx.stroke();
 
+  // The Gatekeeper wears a deep hood and cradles a glowing portal-orb instead
+  // of a shopkeeper's apron, marking them as the gate's warden.
+  if (v.role === 'portal') {
+    // Hood pulled over the head
+    ctx.fillStyle = '#2e2148';
+    ctx.beginPath();
+    ctx.arc(cx, headY - s * 0.02, s * 0.22, Math.PI, 0); ctx.fill();
+    ctx.fillRect(px + s * 0.30, py + s * 0.18, s * 0.40, s * 0.10);
+    // Glowing orb at the chest, tinted like the portal tile (#aa66ff)
+    const orbT = Date.now() / 380 + phase;
+    const orbR = s * (0.10 + Math.sin(orbT) * 0.014);
+    const orbY = py + s * 0.60;
+    ctx.fillStyle = 'rgba(170,102,255,0.30)';
+    ctx.beginPath(); ctx.arc(cx, orbY, orbR * 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#aa66ff';
+    ctx.beginPath(); ctx.arc(cx, orbY, orbR, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#e8d8ff';
+    ctx.beginPath(); ctx.arc(cx - orbR * 0.3, orbY - orbR * 0.3, orbR * 0.4, 0, Math.PI * 2); ctx.fill();
+  }
+
   // Shopkeepers wear an apron — a lighter strip over the front of the robe
   // so they're easy to pick out across the counter.
-  if (v.role) {
+  if (v.role && v.role !== 'portal') {
     ctx.fillStyle = '#f0e8d8';
     ctx.fillRect(px + s * 0.32, py + s * 0.46, s * 0.36, s * 0.42);
     ctx.fillStyle = 'rgba(0,0,0,0.10)';
@@ -349,6 +423,12 @@ function tryVillagerInteraction() {
   if (v.role === 'store' && typeof openStoreModal      === 'function') { openStoreModal();      return true; }
   if (v.role === 'herb'  && typeof openHerbalistModal  === 'function') { openHerbalistModal();  return true; }
   if (v.role === 'smith' && typeof openBlacksmithModal === 'function') { openBlacksmithModal(); return true; }
+  // The Gatekeeper opens the portal gate (the toll is collected on travel).
+  if (v.role === 'portal') {
+    if (typeof portalOpen !== 'undefined' && portalOpen) return true;
+    if (typeof openPortalModal === 'function') openPortalModal();
+    return true;
+  }
 
   const lines = VILLAGER_CHAT[v.kind] || ["…"];
   const line = lines[Math.floor(Math.random() * lines.length)];

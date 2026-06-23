@@ -19,6 +19,17 @@ function update(dt) {
   if (bombCooldown         > 0) bombCooldown         -= dt;
   if (transitionCooldown   > 0) transitionCooldown   -= dt;
   if (player.swordTimer    > 0) player.swordTimer    -= dt;
+  // Elixir elemental immunity counts down; clear it (and notify) when it lapses.
+  if (player.immunityTimer > 0) {
+    player.immunityTimer -= dt;
+    if (player.immunityTimer <= 0) {
+      player.immunityTimer = 0;
+      const elem = (typeof SWORD_ELEMENTS !== 'undefined' && player.immunityElement)
+        ? SWORD_ELEMENTS[player.immunityElement] : null;
+      showMsg(`${elem ? elem.icon : '⚗️'} Elemental immunity faded.`, 1500);
+      player.immunityElement = null;
+    }
+  }
   moveTimer += dt;
 
   // Quick weapon switch
@@ -126,13 +137,12 @@ document.addEventListener('keydown', e => {
   //      adjacent chest — chests are solid, so this is how you loot them.
   // Either interaction swallows the keypress so SPACE doesn't also swing.
   if (e.key === ' ' && !e.repeat) {
-    const cm2 = currentMap();
-    if (cm2 && cm2.type === 'village' && cm2.activated &&
-        typeof tryVillagerInteraction === 'function') {
-      if (tryVillagerInteraction()) {
-        e.preventDefault();
-        return;
-      }
+    // Talk to an adjacent villager / shopkeeper / Gatekeeper. Safe to try on
+    // any map: it's a no-op unless a villager is adjacent (the cabin only has
+    // the portal Gatekeeper; villages have the full crowd).
+    if (typeof tryVillagerInteraction === 'function' && tryVillagerInteraction()) {
+      e.preventDefault();
+      return;
     }
     if (typeof tryChestInteraction === 'function' && tryChestInteraction()) {
       e.preventDefault();

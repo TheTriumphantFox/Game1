@@ -263,6 +263,30 @@ const RADIAL_RINGS = [
           consumable: true,
           action: () => useMedPotion() });
       }
+      // Region-specific Health Potions brewed by each region's Herbalist (heal Nd4).
+      const rp = player.regionPotions || {};
+      for (const rid of Object.keys(rp)) {
+        if ((rp[rid] || 0) <= 0) continue;
+        const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[rid] : null;
+        const nm = rid.charAt(0).toUpperCase() + rid.slice(1);
+        const N = (typeof regionNumberOf === 'function') ? regionNumberOf(rid) : 1;
+        items.push({ type: 'rpotion_' + rid, icon: '🧪' + (elem ? elem.icon : ''),
+          label: `${nm} Potion (${N}d4)`,
+          val: () => 'x' + (player.regionPotions[rid] || 0),
+          consumable: true,
+          action: () => useRegionPotion(rid) });
+      }
+      // Region Elixirs — drink for timed full immunity to that region's element.
+      const ex = player.elixirs || {};
+      for (const eid of Object.keys(ex)) {
+        if ((ex[eid] || 0) <= 0) continue;
+        const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[eid] : null;
+        items.push({ type: 'elixir_' + eid, icon: '⚗️' + (elem ? elem.icon : ''),
+          label: `${elem ? elem.label : eid} Elixir`,
+          val: () => 'x' + (player.elixirs[eid] || 0),
+          consumable: true,
+          action: () => useElixir(eid) });
+      }
       return items;
     }},
   // ── Armor: base armor pad + each owned elemental armor ──────────────────────
@@ -435,6 +459,12 @@ function useSelectedInventoryItem() {
     player.weapon = 'bomb';
     placePlayerBomb();
     return 1200;
+  }
+  // Generic consumables (region potions / elixirs): fire the action and throttle
+  // hold-to-spam like the basic potion does.
+  if (item.consumable && item.action) {
+    item.action();
+    return 600;
   }
   return 0;
 }

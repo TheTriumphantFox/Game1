@@ -86,6 +86,14 @@ let player = {
   // Snowballs — packed powder blasted out of ice-region snow drifts (50% per
   // bombed drift). Field-earned like bone meal, so it starts at 0.
   snowballs: 0,
+  // Region-specific brews from each region's Herbalist (forest excluded — it
+  // keeps the classic 1d4 Health Potion). regionPotions[regionId] counts that
+  // region's Health Potion (heals Nd4, N = region number, forest=1). Both are
+  // objects keyed by region id, empty for a fresh player.
+  regionPotions: {}, elixirs: {},
+  // Active elemental immunity from drinking an Elixir: the element id made
+  // immune and the remaining buff time in ms (ticked down in main.js update()).
+  immunityElement: null, immunityTimer: 0,
   // The collection of elemental swords the player owns (each id from
   // SWORD_ELEMENTS in elements.js). Elemental swords are now specific weapons
   // — they don't stack on the base sword. Only one is wielded at a time.
@@ -130,8 +138,9 @@ function usePotion() {
 }
 
 // Drink one Medium Health Potion. Heals 1d8 HP (1-8, random), clamped to maxHp.
-// No-op at full HP or with none left. Brewed by the fire-region Herbalist from
-// monster trophies (see brewMedPotion in shop.js).
+// No-op at full HP or with none left. Legacy item — the fire Herbalist used to
+// brew these but now brews region-scaled potions/elixirs (see HERBALIST_RECIPES
+// in shop.js); kept so older saves can still drink/sell any leftovers.
 function useMedPotion() {
   if ((player.medPotions || 0) <= 0) {
     showMsg('🍶 No medium potions left.', 1500);
@@ -150,6 +159,64 @@ function useMedPotion() {
   spawnParticle(sp.x, sp.y, '#66ddaa', 12, 3);
   spawnParticle(sp.x, sp.y, '#cceedd', 8, 2);
   showMsg(`🍶 Quaffed a Medium Potion — +${gained} HP!`, 2500);
+  updateHUD();
+}
+
+// ─── Regional Herbalist brews ─────────────────────────────────────────────────
+// Each region (forest excluded) has a 1-indexed "region number" N driving its
+// Herbalist recipes: the region's Health Potion heals Nd4 and its immunity
+// Elixir lasts ELIXIR_IMMUNITY_MS. Forest is N=1, fire N=2, … mana N=11.
+function regionNumberOf(regionId) {
+  const idx = (typeof REGIONS !== 'undefined') ? REGIONS.findIndex(r => r.id === regionId) : -1;
+  return idx >= 0 ? idx + 1 : 1;
+}
+
+// Drink one region Health Potion. Heals Nd4 (N = that region's number), clamped
+// to maxHp. No-op at full HP or with none of that region's potion left.
+function useRegionPotion(regionId) {
+  player.regionPotions = player.regionPotions || {};
+  if ((player.regionPotions[regionId] || 0) <= 0) {
+    showMsg('🧪 No potions of that brew left.', 1500);
+    return;
+  }
+  if (player.hp >= player.maxHp) {
+    showMsg('🧪 Already at full HP — saving the potion.', 1500);
+    return;
+  }
+  player.regionPotions[regionId]--;
+  const N = regionNumberOf(regionId);
+  let heal = 0;
+  for (let i = 0; i < N; i++) heal += 1 + Math.floor(Math.random() * 4);   // Nd4
+  const before = player.hp;
+  player.hp = Math.min(player.maxHp, player.hp + heal);
+  const gained = player.hp - before;
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, '#ff66aa', 12, 3);
+  spawnParticle(sp.x, sp.y, '#ffccdd', 8, 2);
+  const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
+  showMsg(`🧪 Quaffed a ${name} Potion — +${gained} HP!`, 2500);
+  updateHUD();
+}
+
+// How long an Elixir's elemental immunity lasts, in ms.
+const ELIXIR_IMMUNITY_MS = 30000;
+
+// Drink one region Elixir. Grants full immunity to that region's element for
+// ELIXIR_IMMUNITY_MS (see damagePlayer in projectiles.js). Re-drinking refreshes
+// the timer. No-op with none of that elixir left.
+function useElixir(elemId) {
+  player.elixirs = player.elixirs || {};
+  if ((player.elixirs[elemId] || 0) <= 0) {
+    showMsg('⚗️ No elixir of that kind left.', 1500);
+    return;
+  }
+  player.elixirs[elemId]--;
+  player.immunityElement = elemId;
+  player.immunityTimer = ELIXIR_IMMUNITY_MS;
+  const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[elemId] : null;
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, elem ? elem.color : '#ffffff', 14, 3);
+  showMsg(`${elem ? elem.icon : '⚗️'} Immune to ${elem ? elem.label : elemId} for ${ELIXIR_IMMUNITY_MS / 1000}s!`, 2500);
   updateHUD();
 }
 
@@ -1104,15 +1171,16 @@ function ejectFromWhirlpool(map) {
   spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#5aa8c8', 5, 2);
 }
 
-// Stepping onto the cabin's PORTAL tile opens the destination-select modal.
-// Movement is paused via portalOpen while the modal is up.
+// The Gatekeeper now controls the gate — stepping onto the PORTAL tile no
+// longer opens the menu. Point the player toward the keeper instead. (Returns
+// true to swallow the step so no map-transition logic runs on the portal tile.)
 function tryPortalInteraction() {
   if (transitionCooldown > 0) return false;
   const map = mapData();
   const t = map[player.y][player.x];
   if (t !== T.PORTAL) return false;
-  if (typeof openPortalModal !== 'function') return false;
-  if (typeof portalOpen !== 'undefined' && portalOpen) return true;
-  openPortalModal();
+  if (typeof showMsg === 'function') {
+    showMsg('🌀 The Gatekeeper controls this gate — speak with them to travel.', 2600);
+  }
   return true;
 }

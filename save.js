@@ -97,6 +97,9 @@ const DEFAULT_PLAYER = {
   eyestalks: 0, rakshasa_claws: 0,
   bonemeal: 0,
   snowballs: 0,
+  // Region Herbalist brews (objects keyed by region id) + active Elixir immunity.
+  regionPotions: {}, elixirs: {},
+  immunityElement: null, immunityTimer: 0,
   // swordElements / arrows are populated by applyStartingInventory() at boot
   // and on newGame, once SWORD_ELEMENTS has loaded.
   swordElements: [],
@@ -113,6 +116,10 @@ function applyLoadData(data) {
   // missing from older saves (e.g. armor) reset to their default rather than
   // leaking the current in-memory value.
   Object.assign(player, DEFAULT_PLAYER, data.player);
+  // Clone the object-valued brews so a save lacking them doesn't alias the shared
+  // DEFAULT_PLAYER literals (which would leak mutations across loads).
+  player.regionPotions = { ...((data.player && data.player.regionPotions) || {}) };
+  player.elixirs = { ...((data.player && data.player.elixirs) || {}) };
   // renderX/Y aren't meaningful values to load — they should match x/y after
   // an instant snap (clampCam(true) below will do the rest).
   player.renderX = player.x;
@@ -134,6 +141,7 @@ function applyLoadData(data) {
   attackCooldown = 0; bowCooldown = 0; bombCooldown = 0;
   transitionCooldown = 0; moveTimer = 0;
   player.invincible = 0; player.swordTimer = 0;
+  player.immunityTimer = 0; player.immunityElement = null;
   enemies = []; projectiles = []; particles = []; damageNumbers = []; drops = [];
   villagers = [];
   minimapCanvases = {}; minimapDirty = true;
@@ -390,6 +398,8 @@ function newGame() {
     greendragon_scales: 0, worm_stingers: 0, horror_plates: 0, gith_blades: 0,
     eyestalks: 0, rakshasa_claws: 0,
     bonemeal: 0,
+    regionPotions: {}, elixirs: {},
+    immunityElement: null, immunityTimer: 0,
     swordElements: [], activeSwordElement: null,
     arrows: {}, activeArrowElement: null,
     armorElements: [], activeArmorElement: null,

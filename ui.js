@@ -101,6 +101,21 @@ function updateHUD() {
       armorSlot.style.display = 'none';
     }
   }
+  // Active Elixir immunity slot — shows the element and seconds remaining while a
+  // Herbalist Elixir buff is up; hidden otherwise.
+  const immSlot = document.getElementById('ws-immunity');
+  if (immSlot) {
+    const ie = player.immunityElement;
+    if (ie && (player.immunityTimer || 0) > 0 && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[ie]) {
+      const elem = SWORD_ELEMENTS[ie];
+      const secs = Math.ceil((player.immunityTimer || 0) / 1000);
+      immSlot.innerHTML = `${elemIconHTML(elem, 14)} Immune ${secs}s`;
+      immSlot.className = 'weapon-slot weapon-active';
+      immSlot.style.display = '';
+    } else {
+      immSlot.style.display = 'none';
+    }
+  }
   // Interaction hint slot — appears after [C] only when SPACE can interact with
   // something nearby (talk/shop in town, or open an adjacent chest).
   const iSlot = document.getElementById('ws-interact');
