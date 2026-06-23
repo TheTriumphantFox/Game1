@@ -91,6 +91,11 @@ let player = {
   // region's Health Potion (heals Nd4, N = region number, forest=1). Both are
   // objects keyed by region id, empty for a fresh player.
   regionPotions: {}, elixirs: {},
+  // Per-region Collector quests (see openCollectorModal in shop.js), keyed by
+  // region id → { targets:[5 drop types], status:'active'|'done' }. Empty for a
+  // fresh player; each region's quest is rolled the first time its Collector is
+  // visited.
+  collectorQuests: {},
   // Active elemental immunity from drinking an Elixir: the element id made
   // immune and the remaining buff time in ms (ticked down in main.js update()).
   immunityElement: null, immunityTimer: 0,

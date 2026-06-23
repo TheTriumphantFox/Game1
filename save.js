@@ -99,6 +99,8 @@ const DEFAULT_PLAYER = {
   snowballs: 0,
   // Region Herbalist brews (objects keyed by region id) + active Elixir immunity.
   regionPotions: {}, elixirs: {},
+  // Per-region Collector quests, keyed by region id (see openCollectorModal).
+  collectorQuests: {},
   immunityElement: null, immunityTimer: 0,
   // swordElements / arrows are populated by applyStartingInventory() at boot
   // and on newGame, once SWORD_ELEMENTS has loaded.
@@ -120,6 +122,7 @@ function applyLoadData(data) {
   // DEFAULT_PLAYER literals (which would leak mutations across loads).
   player.regionPotions = { ...((data.player && data.player.regionPotions) || {}) };
   player.elixirs = { ...((data.player && data.player.elixirs) || {}) };
+  player.collectorQuests = { ...((data.player && data.player.collectorQuests) || {}) };
   // renderX/Y aren't meaningful values to load — they should match x/y after
   // an instant snap (clampCam(true) below will do the rest).
   player.renderX = player.x;
@@ -398,7 +401,7 @@ function newGame() {
     greendragon_scales: 0, worm_stingers: 0, horror_plates: 0, gith_blades: 0,
     eyestalks: 0, rakshasa_claws: 0,
     bonemeal: 0,
-    regionPotions: {}, elixirs: {},
+    regionPotions: {}, elixirs: {}, collectorQuests: {},
     immunityElement: null, immunityTimer: 0,
     swordElements: [], activeSwordElement: null,
     arrows: {}, activeArrowElement: null,

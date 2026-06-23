@@ -786,8 +786,140 @@ function brewElixir(regionId, N) {
   updateHUD();
 }
 
+// ─── The Collector: chest-house quest giver ────────────────────────────────────
+// A villager who lodges in the chest house of every region's village. They ask
+// the hero to gather COLLECTOR_QTY each of COLLECTOR_TARGET_COUNT random trophies
+// dropped by that region's monsters, paying 1.5× the General Store value of
+// everything handed in (see collectorReward) on completion. The quest is rolled
+// once per region and persisted on player.collectorQuests so the same five
+// trophies are asked for every visit.
+const COLLECTOR_QTY = 20;          // how many of each trophy the quest needs
+const COLLECTOR_TARGET_COUNT = 5;  // how many distinct trophies the quest asks for
+
+// All singular trophy drop types a region's monsters can drop (excludes the
+// generic potion / arrow drops). Derived from ENEMY_POOLS + ENEMY_DROPS so it
+// tracks the drop tables, exactly like regionBuyKeys.
+function regionDropTypes(regionIdx) {
+  const out = [];
+  const pool = (typeof ENEMY_POOLS !== 'undefined' && ENEMY_POOLS[regionIdx]) || [];
+  for (const type of pool) {
+    for (const d of ((typeof ENEMY_DROPS !== 'undefined' && ENEMY_DROPS[type]) || [])) {
+      if (d.type === 'potion' || d.type === 'arrows') continue;
+      if (!out.includes(d.type)) out.push(d.type);
+    }
+  }
+  return out;
+}
+
+// Lazily roll (and persist) this region's quest. Picks COLLECTOR_TARGET_COUNT
+// random distinct drop types from the region's monster spoils.
+function ensureCollectorQuest(regionIdx, regionId) {
+  player.collectorQuests = player.collectorQuests || {};
+  let q = player.collectorQuests[regionId];
+  if (q && q.targets) return q;
+  const pool = regionDropTypes(regionIdx).slice();
+  for (let i = pool.length - 1; i > 0; i--) {        // Fisher–Yates shuffle
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  q = { targets: pool.slice(0, Math.min(COLLECTOR_TARGET_COUNT, pool.length)), status: 'active' };
+  player.collectorQuests[regionId] = q;
+  return q;
+}
+
+// The General Store's per-unit buy price for a trophy drop type (inventory key
+// is the plural). 0 if the store doesn't trade it.
+function trophySellValue(type) {
+  const t = (typeof TROPHY_SELL !== 'undefined') ? TROPHY_SELL.find(x => x.key === type + 's') : null;
+  return t ? t.value : 0;
+}
+
+// Reward in rupees for a collection quest: 1.5× the shop price of every item it
+// asks for — COLLECTOR_QTY of each target trophy at its per-unit store value.
+function collectorReward(q) {
+  const total = (q && q.targets ? q.targets : [])
+    .reduce((sum, type) => sum + COLLECTOR_QTY * trophySellValue(type), 0);
+  return Math.round(total * 1.5);
+}
+
+// True once the player is holding at least COLLECTOR_QTY of every target trophy.
+function collectorQuestReady(q) {
+  return q.targets.every(type => (player[type + 's'] || 0) >= COLLECTOR_QTY);
+}
+
+function openCollectorModal() {
+  shopOpen = true;
+  document.getElementById('quest-modal-overlay').classList.add('open');
+  renderCollectorContents();
+}
+
+function renderCollectorContents() {
+  const { idx: regionIdx, region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const regionName = regionId.charAt(0).toUpperCase() + regionId.slice(1);
+  const q = ensureCollectorQuest(regionIdx, regionId);
+  const reward = collectorReward(q);
+
+  if (q.status === 'done') {
+    document.getElementById('quest-modal').innerHTML = `
+      <h2>📜 The Collector</h2>
+      <div class="shop-greeting">My shelves are full thanks to you, hero — the ${regionName} reaches hold no more secrets for me.</div>
+      <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
+    `;
+    return;
+  }
+
+  // One progress row per target trophy (icon · label · have/need).
+  const rows = q.targets.map(type => {
+    const have = player[type + 's'] || 0;
+    const meta = (typeof TROPHY_META !== 'undefined' && TROPHY_META[type])
+      ? TROPHY_META[type] : { icon: '•', label: type };
+    const done = have >= COLLECTOR_QTY;
+    return `
+      <div class="shop-row">
+        <div class="shop-item">
+          <div class="shop-item-name">${meta.icon} ${meta.label} ${done ? '<span style="color:#88cc88">✓</span>' : ''}</div>
+          <div class="shop-item-meta">${Math.min(have, COLLECTOR_QTY)} / ${COLLECTOR_QTY}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const ready = collectorQuestReady(q);
+  document.getElementById('quest-modal').innerHTML = `
+    <h2>📜 The Collector</h2>
+    <div class="shop-greeting">I'm cataloguing the spoils of the ${regionName} reaches. Bring me <b>${COLLECTOR_QTY}</b> each of these five and I'll pay you well.</div>
+    <div class="shop-rupees">Reward: 💰 <b>${reward}</b></div>
+    ${rows}
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🎁 Hand over the collection</div>
+        <div class="shop-item-meta">${ready ? 'Everything\'s here — claim your reward!' : 'Gather all five stacks first'}</div>
+      </div>
+      <button class="ssbtn" ${ready ? '' : 'disabled'} onclick="turnInCollectorQuest()">➜ 💰 ${reward}</button>
+    </div>
+    <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
+  `;
+}
+
+function turnInCollectorQuest() {
+  const { region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const q = (player.collectorQuests || {})[regionId];
+  if (!q || q.status === 'done') return;
+  // Re-verify against live inventory (guards against a stale enabled button).
+  if (!collectorQuestReady(q)) { renderCollectorContents(); return; }
+  for (const type of q.targets) player[type + 's'] -= COLLECTOR_QTY;
+  const reward = collectorReward(q);
+  player.rupees += reward;
+  q.status = 'done';
+  showMsg(`📜 Collection complete! The Collector pays 💰 ${reward}.`, 3500);
+  renderCollectorContents();
+  updateHUD();
+}
+
 // ─── Close / open helpers ─────────────────────────────────────────────────────
-const SHOP_OVERLAY_IDS = ['inn-modal-overlay', 'store-modal-overlay', 'herb-modal-overlay', 'smith-modal-overlay'];
+const SHOP_OVERLAY_IDS = ['inn-modal-overlay', 'store-modal-overlay', 'herb-modal-overlay', 'smith-modal-overlay', 'quest-modal-overlay'];
 
 function closeShopModals() {
   shopOpen = false;
