@@ -154,6 +154,34 @@ const TROPHY_SELL = [
   { key: 'mushrooms',  icon: '🍄', label: 'Mushroom',       value: 5  },
   { key: 'bonemeal',   icon: '🧂', label: 'Bone Meal',      value: 8  },
   { key: 'snowballs',  icon: '⚪', label: 'Snowball',       value: 6  },
+  // Region-specific foraged goods — cut from each region's signature foliage
+  // (see doSwordSwing in projectiles.js). Each is only collectible in one
+  // region, so each region's shop is the sole buyer (see REGION_FORAGE). Values
+  // climb gently with region tier but stay modest crafting-tier prices.
+  { key: 'fiddleheads',  icon: '🌿', label: 'Fiddlehead',   value: 5  },  // forest
+  { key: 'aloe',         icon: '🪴', label: 'Aloe',         value: 6  },  // fire
+  { key: 'seashells',    icon: '🐚', label: 'Seashell',     value: 7  },  // water
+  { key: 'corals',       icon: '🪸', label: 'Coral',        value: 8  },  // water
+  { key: 'winterberries',icon: '🫐', label: 'Winter Berry', value: 7  },  // ice
+  { key: 'frostpetals',  icon: '💮', label: 'Frost Petal',  value: 8  },  // ice
+  { key: 'frostferns',   icon: '❄️', label: 'Frost Fern',   value: 8  },  // ice
+  { key: 'sage',         icon: '🌿', label: 'Sage',         value: 8  },  // earth
+  { key: 'moss',         icon: '🌱', label: 'Moss',         value: 7  },  // earth
+  { key: 'crystals',     icon: '🔮', label: 'Crystal',      value: 12 },  // earth
+  { key: 'skypetals',    icon: '🌸', label: 'Sky Petal',    value: 9  },  // air
+  { key: 'windseeds',    icon: '🌾', label: 'Wind Seed',    value: 9  },  // air
+  { key: 'thistledown',  icon: '💨', label: 'Thistle Down', value: 10 },  // air
+  { key: 'voltpetals',   icon: '🌼', label: 'Volt Petal',   value: 10 },  // lightning
+  { key: 'sparkseeds',   icon: '🌾', label: 'Spark Seed',   value: 10 },  // lightning
+  { key: 'fulgurites',   icon: '🔷', label: 'Fulgurite',    value: 13 },  // lightning
+  { key: 'sunseeds',     icon: '🌟', label: 'Sun Seed',     value: 12 },  // luminous
+  { key: 'prisms',       icon: '🔆', label: 'Prism Shard',  value: 14 },  // luminous
+  { key: 'witherwood',   icon: '🪵', label: 'Witherwood',   value: 9  },  // necrotic
+  { key: 'graveblooms',  icon: '🥀', label: 'Grave Bloom',  value: 11 },  // necrotic
+  { key: 'reedpith',     icon: '🌾', label: 'Reed Pith',    value: 10 },  // poison
+  { key: 'manapetals',   icon: '🪻', label: 'Mana Petal',   value: 15 },  // mana
+  { key: 'heartfronds',  icon: '🍃', label: 'Heart Frond',  value: 14 },  // mana
+  { key: 'glowcaps',     icon: '🍄', label: 'Glow Cap',     value: 13 },  // mana
 ];
 
 // Potions sell one at a time (selling the whole stack at once would be too
@@ -163,6 +191,58 @@ const POTION_SELL = [
   { key: 'medPotions', icon: '🍶', label: 'Medium Potion', value: 25 },
 ];
 
+// ─── Region-specific stock ────────────────────────────────────────────────────
+// Each region's General Store only buys drops collectible in that region and
+// only sells arrows of that region's element. The buyable set per region is the
+// union of:
+//   • that region's monster trophies — computed at runtime from ENEMY_POOLS +
+//     ENEMY_DROPS so it stays in sync as the drop tables evolve, and
+//   • that region's foraged goods — keyed below by region id (the foliage each
+//     region scatters, see the scatter*Foliage builders in map-gen.js). Every
+//     key here must also have a TROPHY_SELL entry so the row can render.
+const REGION_FORAGE = {
+  forest:    ['herbals', 'mushrooms', 'fiddleheads'],
+  fire:      ['herbals', 'bonemeal', 'aloe'],
+  water:     ['stones', 'seashells', 'corals'],
+  ice:       ['winterberries', 'frostpetals', 'frostferns', 'snowballs'],
+  earth:     ['sage', 'moss', 'crystals'],
+  air:       ['skypetals', 'windseeds', 'thistledown'],
+  lightning: ['voltpetals', 'sparkseeds', 'fulgurites'],
+  luminous:  ['motes', 'sunseeds', 'prisms'],
+  necrotic:  ['bonemeal', 'witherwood', 'graveblooms'],
+  poison:    ['reedpith', 'herbals', 'mushrooms'],
+  mana:      ['manapetals', 'heartfronds', 'glowcaps'],
+};
+
+// Resolve the region the store sits in. Village/overworld maps both carry
+// `regionIdx`; fall back to the biome string, then to forest.
+function storeRegion() {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  let idx = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx : -1;
+  if (idx < 0 && cm && typeof REGIONS !== 'undefined') {
+    idx = REGIONS.findIndex(r => r.id === cm.biome);
+  }
+  if (idx < 0) idx = 0;
+  return { idx, region: (typeof REGIONS !== 'undefined' ? REGIONS[idx] : null) };
+}
+
+// The set of inventory keys this region's store buys: monster trophies (from the
+// region's enemy pool) plus its foraged goods.
+function regionBuyKeys(regionIdx, regionId) {
+  const keys = new Set();
+  const pool = (typeof ENEMY_POOLS !== 'undefined' && ENEMY_POOLS[regionIdx]) || [];
+  for (const type of pool) {
+    for (const d of ((typeof ENEMY_DROPS !== 'undefined' && ENEMY_DROPS[type]) || [])) {
+      // Skip non-trophy drops (potions, arrow packs); trophy inventory key is
+      // the plural of the drop type (fang → fangs), matching the pickup logic.
+      if (d.type === 'potion' || d.type === 'arrows') continue;
+      keys.add(d.type + 's');
+    }
+  }
+  for (const k of (REGION_FORAGE[regionId] || [])) keys.add(k);
+  return keys;
+}
+
 function openStoreModal() {
   shopOpen = true;
   const overlay = document.getElementById('store-modal-overlay');
@@ -171,6 +251,13 @@ function openStoreModal() {
 }
 
 function renderStoreContents() {
+  // Which region this store sits in — drives its region-specific stock.
+  const { idx: regionIdx, region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const regionName = region && region.id
+    ? region.id.charAt(0).toUpperCase() + region.id.slice(1)
+    : 'Forest';
+
   const buyRows = STORE_ITEMS.map(it => {
     const broke = player.rupees < it.cost;
     const owned = it.canBuy ? !it.canBuy() : false;
@@ -211,72 +298,64 @@ function renderStoreContents() {
       `;
     }).join('');
 
-  // Arrows section: a plain-arrow row first, then one row per element, each
-  // with buy + sell controls.
-  const plainCount = (player.arrows && player.arrows.plain) || 0;
-  const plainRow = `
-    <div class="shop-row">
-      <div class="shop-item">
-        <div class="shop-item-name">🏹 Plain Arrow <span style="color:#88cc88">x${plainCount}</span></div>
-        <div class="shop-item-meta">Standard ammunition — no elemental rider</div>
-      </div>
-      <button class="ssbtn" ${player.rupees < PLAIN_ARROW_PACK_COST ? 'disabled' : ''} onclick="buyElementalArrows('plain')">
-        +${ARROW_PACK_SIZE} 💰${PLAIN_ARROW_PACK_COST}
-      </button>
-      <button class="ssbtn" ${plainCount <= 0 ? 'disabled' : ''} onclick="sellElementalArrow('plain')">
-        -1 ➜ 💰${PLAIN_ARROW_SELL_VALUE}
-      </button>
-    </div>
-  `;
+  // Arrows section: each region's store stocks only ONE arrow type — its own
+  // element (plain in the elementless forest). A region with element 'fire'
+  // sells fire arrows; forest sells plain. Both buy + sell controls for that
+  // single type.
+  const arrowId = (typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[regionId])
+    ? regionId : 'plain';
+  const arrowPlain = arrowId === 'plain';
+  const arrowElem = arrowPlain
+    ? { label: 'Plain', icon: '🏹' }
+    : SWORD_ELEMENTS[arrowId];
+  const arrowCount = (player.arrows && player.arrows[arrowId]) || 0;
+  const arrowPackCost = arrowPlain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST;
+  const arrowSellVal  = arrowPlain ? PLAIN_ARROW_SELL_VALUE : ARROW_SELL_VALUE;
+  const arrowMeta = arrowPlain
+    ? 'Standard ammunition — no elemental rider'
+    : `+1d4 ${arrowElem.label} on hit`;
   const arrowsRows =
     `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#aacc88">
-      Arrows · plain ${ARROW_PACK_SIZE}-pack ${PLAIN_ARROW_PACK_COST}💰 (sell ${PLAIN_ARROW_SELL_VALUE}💰) · elemental ${ARROW_PACK_SIZE}-pack ${ARROW_PACK_COST}💰 (sell ${ARROW_SELL_VALUE}💰)
-    </div>` +
-    plainRow +
-    ELEMENT_ORDER.map(id => {
-      const elem = SWORD_ELEMENTS[id];
-      if (!elem) return '';
-      const count = (player.arrows && player.arrows[id]) || 0;
-      const cantBuy = player.rupees < ARROW_PACK_COST;
-      const cantSell = count <= 0;
-      return `
-        <div class="shop-row">
-          <div class="shop-item">
-            <div class="shop-item-name">${elemIconHTML(elem)} ${elem.label} Arrow <span style="color:#88cc88">x${count}</span></div>
-            <div class="shop-item-meta">+1d4 ${elem.label} on hit</div>
-          </div>
-          <button class="ssbtn" ${cantBuy ? 'disabled' : ''} onclick="buyElementalArrows('${id}')">
-            +${ARROW_PACK_SIZE} 💰${ARROW_PACK_COST}
-          </button>
-          <button class="ssbtn" ${cantSell ? 'disabled' : ''} onclick="sellElementalArrow('${id}')">
-            -1 ➜ 💰${ARROW_SELL_VALUE}
-          </button>
-        </div>
-      `;
-    }).join('');
+      ${regionName} arrows · ${ARROW_PACK_SIZE}-pack ${arrowPackCost}💰 (sell ${arrowSellVal}💰)
+    </div>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">${arrowPlain ? '🏹' : elemIconHTML(arrowElem)} ${arrowElem.label} Arrow <span style="color:#88cc88">x${arrowCount}</span></div>
+        <div class="shop-item-meta">${arrowMeta}</div>
+      </div>
+      <button class="ssbtn" ${player.rupees < arrowPackCost ? 'disabled' : ''} onclick="buyElementalArrows('${arrowId}')">
+        +${ARROW_PACK_SIZE} 💰${arrowPackCost}
+      </button>
+      <button class="ssbtn" ${arrowCount <= 0 ? 'disabled' : ''} onclick="sellElementalArrow('${arrowId}')">
+        -1 ➜ 💰${arrowSellVal}
+      </button>
+    </div>`;
 
-  // Trophy sell section — cash in monster spoils (fangs, scales, pearls, …).
-  // With two dozen trophy types, only the ones the player actually carries get
-  // a row; otherwise the modal would scroll forever.
-  const ownedTrophies = TROPHY_SELL.filter(t => (player[t.key] || 0) > 0);
+  // Trophy / forage sell section — region-scoped. The store only buys drops
+  // collectible in THIS region (its monster trophies + its foraged goods, see
+  // regionBuyKeys). All of them are shown so the shop's local specialty reads
+  // clearly; the sell button is disabled until the player actually carries some.
+  const buyKeys = regionBuyKeys(regionIdx, regionId);
+  const regionTrophies = TROPHY_SELL.filter(t => buyKeys.has(t.key));
   const trophyRows =
     `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#cc9988">
-      We buy monster trophies &amp; foraged goods — cash in your spoils:
+      We buy ${regionName} spoils — local trophies &amp; foraged goods only:
     </div>` +
-    (ownedTrophies.length === 0
+    (regionTrophies.length === 0
       ? `<div style="font-size:11px;color:#778877;padding:6px 2px">
-          Nothing to sell right now — every monster drops a trophy we'll pay for.
+          Nothing to trade here just yet.
         </div>`
-      : ownedTrophies.map(t => {
+      : regionTrophies.map(t => {
           const count = player[t.key] || 0;
+          const none = count <= 0;
           return `
             <div class="shop-row">
               <div class="shop-item">
                 <div class="shop-item-name">${t.icon} ${t.label} <span style="color:#88cc88">x${count}</span></div>
                 <div class="shop-item-meta">Sell for ${t.value}💰 each</div>
               </div>
-              <button class="ssbtn" onclick="sellTrophy('${t.key}')">
-                All ➜ 💰${count * t.value}
+              <button class="ssbtn" ${none ? 'disabled' : ''} onclick="sellTrophy('${t.key}')">
+                ${none ? `💰${t.value}` : `All ➜ 💰${count * t.value}`}
               </button>
             </div>
           `;
