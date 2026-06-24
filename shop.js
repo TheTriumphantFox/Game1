@@ -182,6 +182,14 @@ const TROPHY_SELL = [
   { key: 'manapetals',   icon: '🪻', label: 'Mana Petal',   value: 15 },  // mana
   { key: 'heartfronds',  icon: '🍃', label: 'Heart Frond',  value: 14 },  // mana
   { key: 'glowcaps',     icon: '🍄', label: 'Glow Cap',     value: 13 },  // mana
+  // Raw ores (see ORE_TYPES) — a rare 5% small-chest find, the type set by the
+  // region. Unlike forage, ores are prized everywhere: every General Store buys
+  // all five (see the ore section in renderStoreContents), not just the locals.
+  { key: 'grimsilver',  icon: '🔘', label: 'Grimsilver',  value: 20  },
+  { key: 'emberbrass',  icon: '🟠', label: 'Emberbrass',  value: 35  },
+  { key: 'glimmerspar', icon: '🔵', label: 'Glimmerspar', value: 60  },
+  { key: 'wyrmgold',    icon: '🟡', label: 'Wyrmgold',    value: 95  },
+  { key: 'eclipsium',   icon: '🟣', label: 'Eclipsium',   value: 150 },
 ];
 
 // Potions sell one at a time (selling the whole stack at once would be too
@@ -361,6 +369,30 @@ function renderStoreContents() {
           `;
         }).join(''));
 
+  // Precious ores — bought at every store regardless of region, since an ore
+  // isn't a local spoil (a rare small-chest find, see ORE_TYPES). All five are
+  // listed so their relative worth reads clearly; the sell button stays disabled
+  // until the player actually carries some.
+  const oreRows =
+    `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#cc9988">
+      We pay top rupee for raw ore — any kind, brought from anywhere:
+    </div>` +
+    (typeof ORE_TYPES === 'undefined' ? '' : ORE_TYPES.map(o => {
+      const count = player[o.id] || 0;
+      const none = count <= 0;
+      return `
+        <div class="shop-row">
+          <div class="shop-item">
+            <div class="shop-item-name">${o.icon} ${o.label} <span style="color:#88cc88">x${count}</span></div>
+            <div class="shop-item-meta">Sell for ${o.value}💰 each</div>
+          </div>
+          <button class="ssbtn" ${none ? 'disabled' : ''} onclick="sellTrophy('${o.id}')">
+            ${none ? `💰${o.value}` : `All ➜ 💰${count * o.value}`}
+          </button>
+        </div>
+      `;
+    }).join(''));
+
   // Potion buy-back rows — sold one at a time.
   const potionRows = POTION_SELL.map(p => {
     const count = player[p.key] || 0;
@@ -384,6 +416,7 @@ function renderStoreContents() {
     ${buyRows}
     ${arrowsRows}
     ${trophyRows}
+    ${oreRows}
     ${potionRows}
     ${sellRows}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
@@ -502,23 +535,37 @@ function buyStoreItem(id) {
 
 // ─── Blacksmith ───────────────────────────────────────────────────────────────
 // The armorer of the village — handles ALL armor. Forges flat physical armor
-// pieces (each adds to player.armor) and forges / buys back the elemental
-// armors that halve matching damage. No armor is sold anywhere else.
+// from the region's own ore (each adds to player.armor) and forges / buys back
+// the elemental armors that halve matching damage. No armor is sold elsewhere.
 
 // Elemental armor: forge any you sold; sell off ones you own for rupees.
 const ELEMENTAL_ARMOR_COST       = 200;
 const ELEMENTAL_ARMOR_SELL_VALUE = 100;
 
-// Flat physical-armor pieces. Repurchasable; each adds `armor` points to the
-// player's flat armor total (shown as 🛡 Armor +N in the HUD).
-const SMITH_ARMOR_PIECES = [
-  { id: 'leather', label: '🛡️ Leather Armor', armor: 1, cost: 60,
-    desc: '+1 Armor — light hide protection' },
-  { id: 'chain',   label: '🛡️ Chainmail',     armor: 2, cost: 140,
-    desc: '+2 Armor — interlocking steel rings' },
-  { id: 'plate',   label: '🛡️ Plate Armor',   armor: 3, cost: 240,
-    desc: '+3 Armor — full forged steel plate' },
-];
+// Flat physical armor is forged from the smith's regional ore (see oreForRegionIdx
+// / ORE_TYPES). The bonus scales with the ore's class — Grimsilver +2, Emberbrass
+// +4, Glimmerspar +6, Wyrmgold +8, Eclipsium +10, i.e. (tier+1)×2 where tier is
+// the ore's index in ORE_TYPES. Each forge consumes ORE_ARMOR_ORE_COST of that ore
+// plus a tier-scaled rupee fee and adds the bonus to player.armor; it's repeatable,
+// self-limited by how much ore the hero has hauled back. Both the ore stacks and
+// player.armor already persist, so no save changes are needed.
+const ORE_ARMOR_ORE_COST       = 3;   // raw ore consumed per forge
+const ORE_ARMOR_RUPEE_PER_TIER = 80;  // rupee fee = (tier+1) × this
+
+// Resolve the smith's region ore and the armor it forges. Null if the ore tables
+// are unavailable (keeps the Blacksmith working even if config is stripped).
+function smithOreArmor() {
+  if (typeof ORE_TYPES === 'undefined' || typeof oreForRegionIdx !== 'function') return null;
+  const { idx } = storeRegion();
+  const ore  = oreForRegionIdx(idx);
+  const tier = ORE_TYPES.indexOf(ore);
+  return {
+    ore, tier,
+    armor:     (tier + 1) * 2,
+    oreCost:   ORE_ARMOR_ORE_COST,
+    rupeeCost: (tier + 1) * ORE_ARMOR_RUPEE_PER_TIER,
+  };
+}
 
 function openBlacksmithModal() {
   shopOpen = true;
@@ -527,21 +574,24 @@ function openBlacksmithModal() {
 }
 
 function renderBlacksmithContents() {
-  // Flat physical armor pieces.
-  const pieceRows = SMITH_ARMOR_PIECES.map(p => {
-    const broke = player.rupees < p.cost;
-    return `
+  // Flat physical armor — a single forge whose strength is set by the region's ore.
+  const oa = smithOreArmor();
+  let pieceRows = '';
+  if (oa) {
+    const have  = player[oa.ore.id] || 0;
+    const broke = have < oa.oreCost || player.rupees < oa.rupeeCost;
+    pieceRows = `
       <div class="shop-row">
         <div class="shop-item">
-          <div class="shop-item-name">${p.label}</div>
-          <div class="shop-item-meta">${p.desc}</div>
+          <div class="shop-item-name">${oa.ore.icon} ${oa.ore.label} Armor</div>
+          <div class="shop-item-meta">+${oa.armor} Armor — forged from ${oa.ore.label} · You have ${oa.ore.icon} ${have}</div>
         </div>
-        <button class="ssbtn" ${broke ? 'disabled' : ''} onclick="buyArmorPiece('${p.id}')">
-          💰 ${p.cost}
+        <button class="ssbtn" ${broke ? 'disabled' : ''} onclick="forgeOreArmor()">
+          ${oa.ore.icon}${oa.oreCost} + 💰${oa.rupeeCost}
         </button>
       </div>
     `;
-  }).join('');
+  }
 
   // Elemental armor: one row per element, forge (buy) or sell back.
   const ownedArmors = new Set(player.armorElements || []);
@@ -582,13 +632,15 @@ function renderBlacksmithContents() {
   `;
 }
 
-function buyArmorPiece(id) {
-  const p = SMITH_ARMOR_PIECES.find(x => x.id === id);
-  if (!p) return;
-  if (player.rupees < p.cost) return;
-  player.rupees -= p.cost;
-  player.armor = (player.armor || 0) + p.armor;
-  showMsg(`🔨 Forged ${p.label} — Armor now +${player.armor}`, 3000);
+function forgeOreArmor() {
+  const oa = smithOreArmor();
+  if (!oa) return;
+  if ((player[oa.ore.id] || 0) < oa.oreCost) return;
+  if (player.rupees < oa.rupeeCost) return;
+  player[oa.ore.id] -= oa.oreCost;
+  player.rupees     -= oa.rupeeCost;
+  player.armor = (player.armor || 0) + oa.armor;
+  showMsg(`🔨 Forged ${oa.ore.label} Armor (+${oa.armor}) — Armor now +${player.armor}`, 3000);
   renderBlacksmithContents();
   updateHUD();
 }
@@ -786,8 +838,140 @@ function brewElixir(regionId, N) {
   updateHUD();
 }
 
+// ─── The Collector: chest-house quest giver ────────────────────────────────────
+// A villager who lodges in the chest house of every region's village. They ask
+// the hero to gather COLLECTOR_QTY each of COLLECTOR_TARGET_COUNT random trophies
+// dropped by that region's monsters, paying 1.5× the General Store value of
+// everything handed in (see collectorReward) on completion. The quest is rolled
+// once per region and persisted on player.collectorQuests so the same five
+// trophies are asked for every visit.
+const COLLECTOR_QTY = 20;          // how many of each trophy the quest needs
+const COLLECTOR_TARGET_COUNT = 5;  // how many distinct trophies the quest asks for
+
+// All singular trophy drop types a region's monsters can drop (excludes the
+// generic potion / arrow drops). Derived from ENEMY_POOLS + ENEMY_DROPS so it
+// tracks the drop tables, exactly like regionBuyKeys.
+function regionDropTypes(regionIdx) {
+  const out = [];
+  const pool = (typeof ENEMY_POOLS !== 'undefined' && ENEMY_POOLS[regionIdx]) || [];
+  for (const type of pool) {
+    for (const d of ((typeof ENEMY_DROPS !== 'undefined' && ENEMY_DROPS[type]) || [])) {
+      if (d.type === 'potion' || d.type === 'arrows') continue;
+      if (!out.includes(d.type)) out.push(d.type);
+    }
+  }
+  return out;
+}
+
+// Lazily roll (and persist) this region's quest. Picks COLLECTOR_TARGET_COUNT
+// random distinct drop types from the region's monster spoils.
+function ensureCollectorQuest(regionIdx, regionId) {
+  player.collectorQuests = player.collectorQuests || {};
+  let q = player.collectorQuests[regionId];
+  if (q && q.targets) return q;
+  const pool = regionDropTypes(regionIdx).slice();
+  for (let i = pool.length - 1; i > 0; i--) {        // Fisher–Yates shuffle
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  q = { targets: pool.slice(0, Math.min(COLLECTOR_TARGET_COUNT, pool.length)), status: 'active' };
+  player.collectorQuests[regionId] = q;
+  return q;
+}
+
+// The General Store's per-unit buy price for a trophy drop type (inventory key
+// is the plural). 0 if the store doesn't trade it.
+function trophySellValue(type) {
+  const t = (typeof TROPHY_SELL !== 'undefined') ? TROPHY_SELL.find(x => x.key === type + 's') : null;
+  return t ? t.value : 0;
+}
+
+// Reward in rupees for a collection quest: 1.5× the shop price of every item it
+// asks for — COLLECTOR_QTY of each target trophy at its per-unit store value.
+function collectorReward(q) {
+  const total = (q && q.targets ? q.targets : [])
+    .reduce((sum, type) => sum + COLLECTOR_QTY * trophySellValue(type), 0);
+  return Math.round(total * 1.5);
+}
+
+// True once the player is holding at least COLLECTOR_QTY of every target trophy.
+function collectorQuestReady(q) {
+  return q.targets.every(type => (player[type + 's'] || 0) >= COLLECTOR_QTY);
+}
+
+function openCollectorModal() {
+  shopOpen = true;
+  document.getElementById('quest-modal-overlay').classList.add('open');
+  renderCollectorContents();
+}
+
+function renderCollectorContents() {
+  const { idx: regionIdx, region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const regionName = regionId.charAt(0).toUpperCase() + regionId.slice(1);
+  const q = ensureCollectorQuest(regionIdx, regionId);
+  const reward = collectorReward(q);
+
+  if (q.status === 'done') {
+    document.getElementById('quest-modal').innerHTML = `
+      <h2>📜 The Collector</h2>
+      <div class="shop-greeting">My shelves are full thanks to you, hero — the ${regionName} reaches hold no more secrets for me.</div>
+      <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
+    `;
+    return;
+  }
+
+  // One progress row per target trophy (icon · label · have/need).
+  const rows = q.targets.map(type => {
+    const have = player[type + 's'] || 0;
+    const meta = (typeof TROPHY_META !== 'undefined' && TROPHY_META[type])
+      ? TROPHY_META[type] : { icon: '•', label: type };
+    const done = have >= COLLECTOR_QTY;
+    return `
+      <div class="shop-row">
+        <div class="shop-item">
+          <div class="shop-item-name">${meta.icon} ${meta.label} ${done ? '<span style="color:#88cc88">✓</span>' : ''}</div>
+          <div class="shop-item-meta">${Math.min(have, COLLECTOR_QTY)} / ${COLLECTOR_QTY}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const ready = collectorQuestReady(q);
+  document.getElementById('quest-modal').innerHTML = `
+    <h2>📜 The Collector</h2>
+    <div class="shop-greeting">I'm cataloguing the spoils of the ${regionName} reaches. Bring me <b>${COLLECTOR_QTY}</b> each of these five and I'll pay you well.</div>
+    <div class="shop-rupees">Reward: 💰 <b>${reward}</b></div>
+    ${rows}
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🎁 Hand over the collection</div>
+        <div class="shop-item-meta">${ready ? 'Everything\'s here — claim your reward!' : 'Gather all five stacks first'}</div>
+      </div>
+      <button class="ssbtn" ${ready ? '' : 'disabled'} onclick="turnInCollectorQuest()">➜ 💰 ${reward}</button>
+    </div>
+    <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
+  `;
+}
+
+function turnInCollectorQuest() {
+  const { region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const q = (player.collectorQuests || {})[regionId];
+  if (!q || q.status === 'done') return;
+  // Re-verify against live inventory (guards against a stale enabled button).
+  if (!collectorQuestReady(q)) { renderCollectorContents(); return; }
+  for (const type of q.targets) player[type + 's'] -= COLLECTOR_QTY;
+  const reward = collectorReward(q);
+  player.rupees += reward;
+  q.status = 'done';
+  showMsg(`📜 Collection complete! The Collector pays 💰 ${reward}.`, 3500);
+  renderCollectorContents();
+  updateHUD();
+}
+
 // ─── Close / open helpers ─────────────────────────────────────────────────────
-const SHOP_OVERLAY_IDS = ['inn-modal-overlay', 'store-modal-overlay', 'herb-modal-overlay', 'smith-modal-overlay'];
+const SHOP_OVERLAY_IDS = ['inn-modal-overlay', 'store-modal-overlay', 'herb-modal-overlay', 'smith-modal-overlay', 'quest-modal-overlay'];
 
 function closeShopModals() {
   shopOpen = false;

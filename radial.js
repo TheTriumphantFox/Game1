@@ -137,6 +137,12 @@ const PASSIVE_DROPS = [
   { type: 'sunseeds',      icon: '🌟', label: 'Sun Seed',     key: 'sunseeds'      },
   { type: 'prisms',        icon: '🔆', label: 'Prism Shard',  key: 'prisms'        },
   { type: 'reedpith',      icon: '🌾', label: 'Reed Pith',    key: 'reedpith'      },
+  // Raw ores — rare 5% small-chest find, type set by region (see ORE_TYPES).
+  { type: 'grimsilver',    icon: '🔘', label: 'Grimsilver',   key: 'grimsilver'    },
+  { type: 'emberbrass',    icon: '🟠', label: 'Emberbrass',   key: 'emberbrass'    },
+  { type: 'glimmerspar',   icon: '🔵', label: 'Glimmerspar',  key: 'glimmerspar'   },
+  { type: 'wyrmgold',      icon: '🟡', label: 'Wyrmgold',     key: 'wyrmgold'      },
+  { type: 'eclipsium',     icon: '🟣', label: 'Eclipsium',    key: 'eclipsium'     },
 ];
 
 // Ledger grouping. The drops ledger (ledger.js) renders ~45 pickups under these
@@ -148,6 +154,7 @@ const DROP_CATEGORIES = [
   { id: 'monster',  label: 'Monster Parts'  },
   { id: 'herbal',   label: 'Herbs & Plants' },
   { id: 'material', label: 'Materials'      },
+  { id: 'ore',      label: 'Ores'           },
 ];
 const DROP_CAT_OF = {
   rupees: 'currency',
@@ -175,6 +182,8 @@ const DROP_CAT_OF = {
   crawler_venoms: 'monster', troll_hides: 'monster', otyugh_tentacles: 'monster',
   greendragon_scales: 'monster', worm_stingers: 'monster',
   eyestalks: 'monster', rakshasa_claws: 'monster',
+  // Raw ores (see ORE_TYPES) get their own satchel bucket.
+  grimsilver: 'ore', emberbrass: 'ore', glimmerspar: 'ore', wyrmgold: 'ore', eclipsium: 'ore',
 };
 function dropCatOf(type) { return DROP_CAT_OF[type] || 'material'; }
 

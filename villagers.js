@@ -49,6 +49,7 @@ const VILLAGER_CHAT = {
   Shopkeeper:["Greetings, hero! Browse my wares."],
   Herbalist: ["Bring me mushrooms and herbs for a remedy."],
   Blacksmith:["Need armor? I forge the finest in the land."],
+  Collector: ["I'm cataloguing the spoils of this region — talk to me for a commission."],
 };
 
 // Live list for the current map (mirrors `enemies`).
@@ -72,7 +73,8 @@ function isVillagerOffLimits(tileId) {
 // the streets around the plaza.
 function generateVillagers(mapObj) {
   const list = placeShopkeepers(mapObj);
-  let nextId = list.length;
+  placeCollector(mapObj, list);
+  let nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
   const m = mapObj.map;
   const count = 20;
   const spread = 22;
@@ -146,6 +148,49 @@ function placeShopkeepers(mapObj) {
   setup(mapObj.herbDoor,  'herb',  'Herbalist',  '#5a8a3a');
   setup(mapObj.smithDoor, 'smith', 'Blacksmith', '#3a4a6a');
   return list;
+}
+
+// Stand a stationary "Collector" beside the village's chest. They lodge in the
+// chest house and hand out the region's trophy-gathering quest (see
+// openCollectorModal in shop.js). No-op if the map has no chest or no open
+// interior tile beside it. `list` is mutated in place (a fresh id is assigned).
+function placeCollector(mapObj, list) {
+  const m = mapObj.map;
+  // Find the single village chest.
+  let chest = null;
+  for (let r = 0; r < MROWS && !chest; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (m[r][c] === T.CHEST) { chest = { r, c }; break; }
+  if (!chest) return;
+  // First open interior tile beside the chest, preferring the south side (the
+  // chest sits near the house's north wall, so the floor below it is clear).
+  const cands = [
+    { x: chest.c,     y: chest.r + 1 },
+    { x: chest.c - 1, y: chest.r     },
+    { x: chest.c + 1, y: chest.r     },
+    { x: chest.c,     y: chest.r + 2 },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 0 || s.y < 0 || s.x >= MCOLS || s.y >= MROWS) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (isVillagerOffLimits(m[s.y][s.x])) continue;
+    if (list.some(v => v.x === s.x && v.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) return;
+  const nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+  list.push({
+    id: nextId,
+    kind: 'Collector', role: 'quest',
+    robe: '#7a5a2a', hair: '#d8c088', skin: '#e8c8a0',
+    size: 1,
+    x: spot.x, y: spot.y,
+    renderX: spot.x, renderY: spot.y,
+    stationary: true,
+    dir: { x: Math.sign(chest.c - spot.x), y: Math.sign(chest.r - spot.y) }, // face the chest
+    timer: 0, stepMs: 9999,
+  });
 }
 
 // Locate the (single) portal tile on a map. Returns {r,c} or null.
@@ -375,9 +420,49 @@ function drawVillager(v, ts) {
     ctx.beginPath(); ctx.arc(cx - orbR * 0.3, orbY - orbR * 0.3, orbR * 0.4, 0, Math.PI * 2); ctx.fill();
   }
 
+  // The Collector lodges by the chest: a leather satchel slung across the
+  // chest and a parchment scroll in hand, with a floating quest marker so the
+  // hero can spot the commission from across the room.
+  if (v.role === 'quest') {
+    // Satchel strap across the chest
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(px + s * 0.30, py + s * 0.44, s * 0.40, s * 0.06);
+    // Satchel pouch at the hip
+    ctx.fillStyle = '#6a4424';
+    ctx.fillRect(px + s * 0.60, py + s * 0.58, s * 0.16, s * 0.18);
+    ctx.fillStyle = '#3a2410';
+    ctx.fillRect(px + s * 0.60, py + s * 0.64, s * 0.16, s * 0.03);
+    // Rolled scroll held in the left hand
+    ctx.fillStyle = '#e8dcb0';
+    ctx.fillRect(px + s * 0.12, py + s * 0.62, s * 0.16, s * 0.06);
+    ctx.fillStyle = '#c8b078';
+    ctx.fillRect(px + s * 0.12, py + s * 0.62, s * 0.03, s * 0.06);
+    ctx.fillRect(px + s * 0.25, py + s * 0.62, s * 0.03, s * 0.06);
+
+    // Floating quest marker above the head — gold "!" while gathering, green
+    // "✓" once the region's collection has been turned in.
+    let done = false;
+    try {
+      const reg = (typeof storeRegion === 'function') ? storeRegion().region : null;
+      const rid = reg ? reg.id : null;
+      const q = (rid && player.collectorQuests) ? player.collectorQuests[rid] : null;
+      done = !!(q && q.status === 'done');
+    } catch (e) {}
+    const markBob = Math.sin(Date.now() / 300 + phase) * (s * 0.04);
+    ctx.fillStyle = done ? '#66dd88' : '#ffdd33';
+    ctx.font = `bold ${Math.round(s * 0.42)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 2;
+    const markY = py - s * 0.02 + markBob;
+    ctx.strokeText(done ? '✓' : '!', cx, markY);
+    ctx.fillText(done ? '✓' : '!', cx, markY);
+  }
+
   // Shopkeepers wear an apron — a lighter strip over the front of the robe
   // so they're easy to pick out across the counter.
-  if (v.role && v.role !== 'portal') {
+  if (v.role && v.role !== 'portal' && v.role !== 'quest') {
     ctx.fillStyle = '#f0e8d8';
     ctx.fillRect(px + s * 0.32, py + s * 0.46, s * 0.36, s * 0.42);
     ctx.fillStyle = 'rgba(0,0,0,0.10)';
@@ -423,6 +508,8 @@ function tryVillagerInteraction() {
   if (v.role === 'store' && typeof openStoreModal      === 'function') { openStoreModal();      return true; }
   if (v.role === 'herb'  && typeof openHerbalistModal  === 'function') { openHerbalistModal();  return true; }
   if (v.role === 'smith' && typeof openBlacksmithModal === 'function') { openBlacksmithModal(); return true; }
+  // The Collector hands out the region's trophy-gathering quest.
+  if (v.role === 'quest' && typeof openCollectorModal === 'function') { openCollectorModal(); return true; }
   // The Gatekeeper opens the portal gate (the toll is collected on travel).
   if (v.role === 'portal') {
     if (typeof portalOpen !== 'undefined' && portalOpen) return true;

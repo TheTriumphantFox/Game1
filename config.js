@@ -369,6 +369,43 @@ const TILE_COLORS = {
   [T.STORM_SPIRE]: '#48527a',
 };
 
+// ─── Ores ─────────────────────────────────────────────────────────────────────
+// Five raw ores, ordered common → rare. A 5% bonus find in any small chest (see
+// handlePickup in player.js); which ore drops is set entirely by the region the
+// chest sits in, so regions 1-3 always yield the most common Grimsilver and
+// regions 10-11 the priceless Eclipsium. Each ore is a stackable inventory item
+// (key), shows in the Drops satchel (PASSIVE_DROPS), and any General Store buys
+// the lot (TROPHY_SELL + the ore sell section in shop.js). The inventory key is
+// the id itself (already plural-ish), and `value` is the per-unit sell price.
+const ORE_TYPES = [
+  { id: 'grimsilver', icon: '🔘', label: 'Grimsilver', color: '#b9bcc6', value: 20  },
+  { id: 'emberbrass', icon: '🟠', label: 'Emberbrass', color: '#d98a3a', value: 35  },
+  { id: 'glimmerspar', icon: '🔵', label: 'Glimmerspar', color: '#4f8ff0', value: 60  },
+  { id: 'wyrmgold',   icon: '🟡', label: 'Wyrmgold',   color: '#e8c14a', value: 95  },
+  { id: 'eclipsium',  icon: '🟣', label: 'Eclipsium',  color: '#9a5cff', value: 150 },
+];
+
+// Map a 0-based region index (forest=0 … mana=10) to its ore tier. The 11 regions
+// band into the 5 ores: 1-3 → Grimsilver, 4-5 → Emberbrass, 6-7 → Glimmerspar,
+// 8-9 → Wyrmgold, 10-11 → Eclipsium (region numbers shown 1-indexed).
+function oreForRegionIdx(idx) {
+  const i = (typeof idx === 'number' && idx >= 0) ? idx : 0;
+  const tier = i <= 2 ? 0 : i <= 4 ? 1 : i <= 6 ? 2 : i <= 8 ? 3 : 4;
+  return ORE_TYPES[tier];
+}
+
+// Resolve which ore a map yields. Overworld/village maps carry `regionIdx`; cave
+// chains carry `sourceTier` (the source region's enemyTier, which equals its
+// region index); legacy caves fall back to `depth`. Defaults to region 0.
+function oreForMap(map) {
+  if (!map) return ORE_TYPES[0];
+  const idx = typeof map.regionIdx === 'number' ? map.regionIdx
+            : typeof map.sourceTier === 'number' ? map.sourceTier
+            : typeof map.depth === 'number'      ? map.depth
+            : 0;
+  return oreForRegionIdx(idx);
+}
+
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.
 function resizeCanvas() {
   const hudH  = document.getElementById('hud')?.offsetHeight        || 0;
