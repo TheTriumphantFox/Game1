@@ -33,7 +33,9 @@ function applyStartingInventory(p) {
   if (typeof SWORD_ELEMENTS === 'undefined') return;
   const ids = Object.keys(SWORD_ELEMENTS);
   p.swordElements = ids.slice();   // grant every elemental sword
-  p.armorElements = ids.slice();   // grant every elemental armor
+  p.armorElements = ids.slice();   // grant every elemental armor…
+  p.armorUpgrades = {};
+  for (const id of ids) p.armorUpgrades[id] = 5;   // …fully upgraded (god start)
   p.arrows = { plain: STARTING_ITEM_AMOUNT };
   for (const id of ids) p.arrows[id] = STARTING_ITEM_AMOUNT;
 }
@@ -116,8 +118,10 @@ let player = {
   // Which elemental arrow is currently nocked, or null for plain arrows.
   activeArrowElement: null,
   // Owned elemental armors and the one currently worn (or null for none).
-  // The active armor halves incoming damage of its matching element.
+  // Each armor's upgrade level (0–5) lives in armorUpgrades, keyed by element id;
+  // it drives the worn armor's physical defense and elemental block % (elements.js).
   armorElements: [],
+  armorUpgrades: {},
   activeArmorElement: null,
   defeatedBoss: false
 };

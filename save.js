@@ -111,6 +111,7 @@ const DEFAULT_PLAYER = {
   arrows: {},
   activeArrowElement: null,
   armorElements: [],
+  armorUpgrades: {},
   activeArmorElement: null,
   defeatedBoss: false
 };
@@ -125,6 +126,7 @@ function applyLoadData(data) {
   player.regionPotions = { ...((data.player && data.player.regionPotions) || {}) };
   player.elixirs = { ...((data.player && data.player.elixirs) || {}) };
   player.collectorQuests = { ...((data.player && data.player.collectorQuests) || {}) };
+  player.armorUpgrades = { ...((data.player && data.player.armorUpgrades) || {}) };
   // renderX/Y aren't meaningful values to load — they should match x/y after
   // an instant snap (clampCam(true) below will do the rest).
   player.renderX = player.x;
@@ -408,7 +410,7 @@ function newGame() {
     immunityElement: null, immunityTimer: 0,
     swordElements: [], activeSwordElement: null,
     arrows: {}, activeArrowElement: null,
-    armorElements: [], activeArmorElement: null,
+    armorElements: [], armorUpgrades: {}, activeArmorElement: null,
     defeatedBoss: false
   });
   applyStartingInventory(player);

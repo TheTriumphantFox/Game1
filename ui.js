@@ -94,7 +94,9 @@ function updateHUD() {
     const ae = player.activeArmorElement;
     if (ae && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[ae]) {
       const elem = SWORD_ELEMENTS[ae];
-      armorSlot.innerHTML = `🛡${elemIconHTML(elem, 14)} ${elem.label} (−50%)`;
+      const phys = (typeof elementalArmorPhys === 'function') ? elementalArmorPhys(ae) : 0;
+      const pct  = (typeof elementalArmorBlockPct === 'function') ? elementalArmorBlockPct(ae) : 50;
+      armorSlot.innerHTML = `🛡${elemIconHTML(elem, 14)} ${elem.label} +${phys}·−${pct}%`;
       armorSlot.className = 'weapon-slot weapon-active';
       armorSlot.style.display = '';
     } else {

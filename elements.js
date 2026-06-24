@@ -83,10 +83,44 @@ function grantSwordElement(elemId) {
 }
 
 // ─── Elemental armor ─────────────────────────────────────────────────────────
-// One armor per element. When equipped (player.activeArmorElement), incoming
-// damage of the matching element is multiplied by ELEMENTAL_ARMOR_REDUCTION,
-// floored to a minimum of 1. Non-matching damage is unaffected.
-const ELEMENTAL_ARMOR_REDUCTION = 0.5;
+// One armor per element, forged at its home region's Blacksmith and then upgraded
+// sequentially through the five ore tiers (see shop.js). An armor's upgrade level
+// (0–5, stored on player.armorUpgrades[id]) drives two stats while it is worn:
+//   • Physical defense = level × 2, matching the ore-armor bonus (+2/+4/+6/+8/+10).
+//     While worn this REPLACES the hero's plain flat armor (see damagePlayer).
+//   • An elemental block % that steps up on the 1st / 3rd / 5th upgrades:
+//       level 0 → 50%, levels 1–2 → 60%, levels 3–4 → 70%, level 5 → 80% blocked.
+// Only the active armor (player.activeArmorElement) applies; non-matching damage
+// is unaffected.
+
+// Upgrade level (0–5) of an owned elemental armor; 0 if unowned / freshly forged.
+function armorUpgradeLevel(elemId) {
+  return (player && player.armorUpgrades && player.armorUpgrades[elemId]) || 0;
+}
+
+// Physical-armor value an elemental armor grants while worn = level × 2, matching
+// the ore tier its last upgrade used (Grimsilver +2 … Eclipsium +10).
+function elementalArmorPhys(elemId) {
+  return armorUpgradeLevel(elemId) * 2;
+}
+
+// % of matching-element damage blocked at a given upgrade level. Steps up on the
+// 1st / 3rd / 5th upgrade.
+function elementalBlockPctForLevel(lv) {
+  if (lv >= 5) return 80;
+  if (lv >= 3) return 70;
+  if (lv >= 1) return 60;
+  return 50;
+}
+
+// Block % of an owned armor (for UI), and the inverse "fraction that gets through"
+// used to scale incoming damage.
+function elementalArmorBlockPct(elemId) {
+  return elementalBlockPctForLevel(armorUpgradeLevel(elemId));
+}
+function elementalArmorThrough(elemId) {
+  return (100 - elementalArmorBlockPct(elemId)) / 100;   // 50/60/70/80% → 0.5/0.4/0.3/0.2
+}
 
 function grantArmorElement(elemId) {
   if (!SWORD_ELEMENTS[elemId]) return false;
@@ -100,13 +134,13 @@ function grantArmorElement(elemId) {
 
 // Apply the active elemental armor's resistance to an incoming hit. Returns
 // the (possibly reduced) damage and the element id that was resisted, or null
-// if no reduction applied. Callers use the element id to color the damage
-// number so the player sees their armor proc.
+// if no reduction applied. The block fraction scales with the armor's upgrade
+// level. Callers use the element id to color the damage number on a proc.
 function applyElementalArmor(rawDmg, hitElement) {
   if (!hitElement || rawDmg <= 0) return { dmg: rawDmg, resisted: null };
   const active = player && player.activeArmorElement;
   if (active !== hitElement) return { dmg: rawDmg, resisted: null };
-  const reduced = Math.max(1, Math.floor(rawDmg * ELEMENTAL_ARMOR_REDUCTION));
+  const reduced = Math.max(1, Math.floor(rawDmg * elementalArmorThrough(active)));
   if (reduced >= rawDmg) return { dmg: rawDmg, resisted: null };
   return { dmg: reduced, resisted: hitElement };
 }
