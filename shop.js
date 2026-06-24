@@ -535,23 +535,37 @@ function buyStoreItem(id) {
 
 // ─── Blacksmith ───────────────────────────────────────────────────────────────
 // The armorer of the village — handles ALL armor. Forges flat physical armor
-// pieces (each adds to player.armor) and forges / buys back the elemental
-// armors that halve matching damage. No armor is sold anywhere else.
+// from the region's own ore (each adds to player.armor) and forges / buys back
+// the elemental armors that halve matching damage. No armor is sold elsewhere.
 
 // Elemental armor: forge any you sold; sell off ones you own for rupees.
 const ELEMENTAL_ARMOR_COST       = 200;
 const ELEMENTAL_ARMOR_SELL_VALUE = 100;
 
-// Flat physical-armor pieces. Repurchasable; each adds `armor` points to the
-// player's flat armor total (shown as 🛡 Armor +N in the HUD).
-const SMITH_ARMOR_PIECES = [
-  { id: 'leather', label: '🛡️ Leather Armor', armor: 1, cost: 60,
-    desc: '+1 Armor — light hide protection' },
-  { id: 'chain',   label: '🛡️ Chainmail',     armor: 2, cost: 140,
-    desc: '+2 Armor — interlocking steel rings' },
-  { id: 'plate',   label: '🛡️ Plate Armor',   armor: 3, cost: 240,
-    desc: '+3 Armor — full forged steel plate' },
-];
+// Flat physical armor is forged from the smith's regional ore (see oreForRegionIdx
+// / ORE_TYPES). The bonus scales with the ore's class — Grimsilver +2, Emberbrass
+// +4, Glimmerspar +6, Wyrmgold +8, Eclipsium +10, i.e. (tier+1)×2 where tier is
+// the ore's index in ORE_TYPES. Each forge consumes ORE_ARMOR_ORE_COST of that ore
+// plus a tier-scaled rupee fee and adds the bonus to player.armor; it's repeatable,
+// self-limited by how much ore the hero has hauled back. Both the ore stacks and
+// player.armor already persist, so no save changes are needed.
+const ORE_ARMOR_ORE_COST       = 3;   // raw ore consumed per forge
+const ORE_ARMOR_RUPEE_PER_TIER = 80;  // rupee fee = (tier+1) × this
+
+// Resolve the smith's region ore and the armor it forges. Null if the ore tables
+// are unavailable (keeps the Blacksmith working even if config is stripped).
+function smithOreArmor() {
+  if (typeof ORE_TYPES === 'undefined' || typeof oreForRegionIdx !== 'function') return null;
+  const { idx } = storeRegion();
+  const ore  = oreForRegionIdx(idx);
+  const tier = ORE_TYPES.indexOf(ore);
+  return {
+    ore, tier,
+    armor:     (tier + 1) * 2,
+    oreCost:   ORE_ARMOR_ORE_COST,
+    rupeeCost: (tier + 1) * ORE_ARMOR_RUPEE_PER_TIER,
+  };
+}
 
 function openBlacksmithModal() {
   shopOpen = true;
@@ -560,21 +574,24 @@ function openBlacksmithModal() {
 }
 
 function renderBlacksmithContents() {
-  // Flat physical armor pieces.
-  const pieceRows = SMITH_ARMOR_PIECES.map(p => {
-    const broke = player.rupees < p.cost;
-    return `
+  // Flat physical armor — a single forge whose strength is set by the region's ore.
+  const oa = smithOreArmor();
+  let pieceRows = '';
+  if (oa) {
+    const have  = player[oa.ore.id] || 0;
+    const broke = have < oa.oreCost || player.rupees < oa.rupeeCost;
+    pieceRows = `
       <div class="shop-row">
         <div class="shop-item">
-          <div class="shop-item-name">${p.label}</div>
-          <div class="shop-item-meta">${p.desc}</div>
+          <div class="shop-item-name">${oa.ore.icon} ${oa.ore.label} Armor</div>
+          <div class="shop-item-meta">+${oa.armor} Armor — forged from ${oa.ore.label} · You have ${oa.ore.icon} ${have}</div>
         </div>
-        <button class="ssbtn" ${broke ? 'disabled' : ''} onclick="buyArmorPiece('${p.id}')">
-          💰 ${p.cost}
+        <button class="ssbtn" ${broke ? 'disabled' : ''} onclick="forgeOreArmor()">
+          ${oa.ore.icon}${oa.oreCost} + 💰${oa.rupeeCost}
         </button>
       </div>
     `;
-  }).join('');
+  }
 
   // Elemental armor: one row per element, forge (buy) or sell back.
   const ownedArmors = new Set(player.armorElements || []);
@@ -615,13 +632,15 @@ function renderBlacksmithContents() {
   `;
 }
 
-function buyArmorPiece(id) {
-  const p = SMITH_ARMOR_PIECES.find(x => x.id === id);
-  if (!p) return;
-  if (player.rupees < p.cost) return;
-  player.rupees -= p.cost;
-  player.armor = (player.armor || 0) + p.armor;
-  showMsg(`🔨 Forged ${p.label} — Armor now +${player.armor}`, 3000);
+function forgeOreArmor() {
+  const oa = smithOreArmor();
+  if (!oa) return;
+  if ((player[oa.ore.id] || 0) < oa.oreCost) return;
+  if (player.rupees < oa.rupeeCost) return;
+  player[oa.ore.id] -= oa.oreCost;
+  player.rupees     -= oa.rupeeCost;
+  player.armor = (player.armor || 0) + oa.armor;
+  showMsg(`🔨 Forged ${oa.ore.label} Armor (+${oa.armor}) — Armor now +${player.armor}`, 3000);
   renderBlacksmithContents();
   updateHUD();
 }
