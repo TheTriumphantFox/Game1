@@ -126,8 +126,9 @@ function rollNecroticVuln(e, level) {
 
 // Resolve an incoming hit against the player's defenses and apply the HP loss.
 // Two layers, in order:
-//   1. Elemental armor — halves matching-element damage (see applyElementalArmor).
-//   2. Flat armor (player.armor) — at armor level N (≥2), each hit absorbs
+//   1. Elemental armor — blocks 50–80% of matching-element damage, scaling with
+//      the worn armor's upgrade level (see applyElementalArmor / elements.js).
+//   2. Flat armor — at armor level N (≥2), each hit absorbs
 //      ((N-1)d4 - N) damage, clamped to 0. So the scaling is:
 //        +2 → 1d4 - 2  (avg ≈0.75)
 //        +3 → 2d4 - 3  (avg ≈2.06)
@@ -163,8 +164,17 @@ function damagePlayer(rawDmg, hitElement) {
   // Flat armor roll. Only activates at +2 Armor and only when there's enough
   // damage left to actually shave — skipping the roll when afterElem === 1
   // keeps the min-1 floor from wasting a die.
+  //
+  // While an elemental armor is worn it REPLACES the hero's plain forged armor
+  // with its own ore-upgraded defense (level × 2: +2/+4/+6/+8/+10). A freshly
+  // forged elemental armor (level 0 → +0) therefore gives no flat mitigation
+  // until upgraded — the trade for its elemental block. Plain player.armor only
+  // applies when no elemental armor is equipped.
   let armorBlock = 0;
-  const armorLv = player.armor || 0;
+  let armorLv = player.armor || 0;
+  if (player.activeArmorElement && typeof elementalArmorPhys === 'function') {
+    armorLv = elementalArmorPhys(player.activeArmorElement);
+  }
   if (armorLv >= 2 && afterElem > 1) {
     // (N-1) d4 dice, then a single -N modifier applied to the sum. Negatives
     // are *not* clamped here — they're kept so the residual below can detect

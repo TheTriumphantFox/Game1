@@ -324,7 +324,13 @@ const RADIAL_RINGS = [
           icon: '🛡' + elem.icon,
           iconImg: elem.iconImg, iconPrefix: '🛡',
           label: elem.label + ' Armor',
-          val: () => '−50% ' + elem.icon,
+          // Show the worn armor's upgrade level / physical defense / block %.
+          val: () => {
+            const lv  = (typeof armorUpgradeLevel === 'function') ? armorUpgradeLevel(id) : 0;
+            const ph  = (typeof elementalArmorPhys === 'function') ? elementalArmorPhys(id) : 0;
+            const pct = (typeof elementalArmorBlockPct === 'function') ? elementalArmorBlockPct(id) : 50;
+            return `Lv${lv} +${ph} −${pct}%`;
+          },
           action: () => { player.activeArmorElement = id; },
           isActive: () => player.activeArmorElement === id
         });
@@ -561,7 +567,7 @@ canvas.addEventListener('click',     radialOnClick);
 
 // ─── Inline-image chip text ─────────────────────────────────────────────────
 // Stat chips (the val / dmg badges under each slot) embed an element's symbol,
-// e.g. "⚔1-3+🪨1-4" or "−50% 🪨". For Earth that symbol is a custom image, so
+// e.g. "⚔1-3+🪨1-4" or "Lv3 +6 −70%". For Earth that symbol is a custom image, so
 // these helpers substitute the rock image for the 🪨 emoji. Elements without an
 // iconImg fall back to plain centred text. ctx.font / fillStyle / textBaseline
 // are assumed already set by the caller.
