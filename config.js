@@ -3,7 +3,11 @@
 // All other modules import these via the global scope.
 
 const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+// `let` (not const) so the sprite cache can briefly redirect drawing into an
+// offscreen canvas while pre-painting tiles, then restore it (see render.js
+// buildTileSprite). The swap is fully synchronous, so nothing else ever observes
+// the redirected context.
+let ctx = canvas.getContext('2d');
 
 const TS = 16;          // tile size in logical px (not actually used for rendering — TILE_PX is)
 const MCOLS = 150;

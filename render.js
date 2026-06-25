@@ -2,10 +2,163 @@
 // Every frame: draw visible tiles, fog, projectiles, enemies, player,
 // particles, damage numbers, exit arrows, and (toggleable) minimap.
 
+// ─── Sprite cache ─────────────────────────────────────────────────────────────
+// Procedural tile/enemy art is otherwise re-issued as dozens of canvas calls per
+// sprite *every frame*. Instead we paint each static sprite once into an offscreen
+// canvas (keyed by type) and blit it with a single drawImage per frame. Animated
+// tiles (water, whirlpool, storm) and per-frame entity overlays (enemy hurt-flash,
+// HP bars, the idle bob) bypass the cache and keep drawing procedurally — they'll
+// be split out in later steps. This step only sets up the cache; nothing reads it
+// yet, so rendering is unchanged.
+//
+// Sprites are sized to the current TILE_PX. TILE_PX is effectively constant today
+// (config.js sets 48 and never reassigns it), but should a zoom ever change it,
+// the per-frame size guard drops every sprite so they repaint at the new size.
+
+let spriteCacheTS = 0;                 // the TILE_PX every cached sprite was painted at
+const tileSpriteCache  = new Map();    // tile type (number)  → { canvas, dx, dy } | false
+const enemySpriteCache = new Map();    // enemy type (string) → HTMLCanvasElement
+
+// Drop every cached sprite. Called when the tile pixel size changes so stale-size
+// art can't be blitted; the next draw of each type repaints it at the new size.
+function invalidateSpriteCaches() {
+  tileSpriteCache.clear();
+  enemySpriteCache.clear();
+}
+
+// Run once per frame (top of render). When the tile size differs from what the
+// caches were built at, wipe them so every sprite repaints at the current size.
+function ensureSpriteCacheSize() {
+  if (TILE_PX !== spriteCacheTS) {
+    invalidateSpriteCaches();
+    spriteCacheTS = TILE_PX;
+  }
+}
+
+// Allocate a transparent offscreen canvas to paint one sprite into. Dimensions are
+// rounded up so a fractional tile size never clips the sprite's right/bottom edge.
+function makeSpriteCanvas(w, h) {
+  const cv = document.createElement('canvas');
+  cv.width  = Math.max(1, Math.ceil(w));
+  cv.height = Math.max(1, Math.ceil(h));
+  return cv;
+}
+
+// Fetch the cached sprite for `key`, building it on first use. `paint` receives a
+// fresh offscreen 2D context plus the canvas size, and draws the sprite at origin
+// (0, 0). Subsequent calls return the stored canvas untouched.
+function getCachedSprite(cache, key, w, h, paint) {
+  let cv = cache.get(key);
+  if (!cv) {
+    cv = makeSpriteCanvas(w, h);
+    paint(cv.getContext('2d'), cv.width, cv.height);
+    cache.set(key, cv);
+  }
+  return cv;
+}
+
+// Tiles whose drawTile output is a pure function of (type, size) — identical
+// pixels regardless of column, row, neighbours, game state, or time. Only these
+// are safe to paint once and blit from cache; every other tile (animated
+// water/glow/torches, per-tile hash noise, neighbour-autotiled terrain like
+// mountains/cliffs/CLIMB, and state-driven chests) keeps drawing procedurally.
+//
+// Derived empirically rather than by reading the switch: each tile type was
+// rendered at several positions, Date.now() values, AND neighbourhood fills, and
+// kept only when every render came out pixel-identical (47 of the tile types).
+// That neighbour pass matters — CLIMB looked pure at fixed positions but is
+// mesa-edge autotiled, so it's correctly excluded. CHEST renders identically only
+// because the probe never opens it, so it's force-excluded as state-dependent.
+//
+// Fail-safe by construction: a tile missing here is simply never cached (still
+// correct, just unoptimised), so new tiles need no edit unless you want caching.
+// NOTE for step 3: several of these (TREE, CACTUS, STATUE, …) draw above/beside
+// their tile box, so the cache canvas must capture each sprite's full drawn
+// extent, not just s×s. Nothing reads this set yet.
+const CACHEABLE_TILES = new Set([
+  T.BED, T.BONES, T.BONE_PILE, T.BRIDGE, T.CACTUS, T.CATTAIL, T.CAVE_FLOOR,
+  T.CHAIR, T.CORAL, T.CRYSTAL_CLUSTER, T.DESERT_OBELISK, T.DESERT_SUCCULENT,
+  T.DOOR, T.DUNE, T.FERN, T.FLOOR, T.FLOWERING_CACTUS, T.FROST_FERN, T.FROST_LILY,
+  T.FULGURITE, T.GLACIER, T.GLOW_REED, T.GRASS, T.ICE, T.MOUNTAIN_SAGE,
+  T.MUSHROOM, T.PATH, T.PILLAR, T.ROCK, T.SEASHELL, T.SHRINE, T.SKY_BLOOM,
+  T.SNOW, T.SNOW_DRIFT, T.SNOW_PINE, T.SPARK_REED, T.STATUE, T.STONES,
+  T.STORM_THISTLE, T.SWAMP_FERN, T.TREE, T.VERDANT_FERN, T.VOLT_BLOOM, T.WALL,
+  T.WIND_REED, T.WINTER_BERRY_BUSH, T.WITHERED_SHRUB,
+].filter(v => v !== undefined));
+
+// Paint a pure tile once into a trimmed offscreen sprite. Renders into a scratch
+// canvas padded by a full tile on every side (so art that overhangs the tile box
+// — cactus arms, pine tips, statue heads — is captured), finds the drawn bounding
+// box, and trims to it. Returns { canvas, dx, dy } to blit at (sx+dx, sy+dy), or
+// null if the art reached the scratch edge (pad too small → keep it procedural).
+//
+// It reuses the existing procedural switch verbatim by briefly redirecting the
+// global `ctx` at the scratch context — synchronous, restored in finally.
+function buildTileSprite(t, s) {
+  const si  = Math.ceil(s);
+  const pad = si;                          // one tile of slack per side
+  const W   = si + pad * 2;
+  const scratch = makeSpriteCanvas(W, W);
+  const g = scratch.getContext('2d');
+  const saved = ctx;
+  ctx = g;                                 // redirect drawTileProcedural's draws
+  try { drawTileProcedural(0, 0, t, pad, pad, s); }
+  finally { ctx = saved; }
+
+  // Bounding box of every non-transparent pixel (the opaque base fill guarantees
+  // the box itself counts; overhang extends it).
+  const data = g.getImageData(0, 0, W, W).data;
+  let minX = W, minY = W, maxX = -1, maxY = -1;
+  for (let y = 0; y < W; y++) {
+    for (let x = 0; x < W; x++) {
+      if (data[(y * W + x) * 4 + 3] !== 0) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null;                                            // nothing drawn
+  if (minX === 0 || minY === 0 || maxX === W - 1 || maxY === W - 1)     // clipped — bail
+    return null;
+  const tw = maxX - minX + 1, th = maxY - minY + 1;
+  const cv = makeSpriteCanvas(tw, th);
+  cv.getContext('2d').drawImage(scratch, minX, minY, tw, th, 0, 0, tw, th);
+  return { canvas: cv, dx: minX - pad, dy: minY - pad };
+}
+
+// Fetch the cached sprite for a pure tile, building it on first use. Stores `false`
+// when a tile can't be cached (clipped) so it isn't re-probed every frame.
+function getTileSprite(t, s) {
+  let e = tileSpriteCache.get(t);
+  if (e === undefined) {
+    e = buildTileSprite(t, s) || false;
+    tileSpriteCache.set(t, e);
+  }
+  return e;
+}
+
 // ─── Tile rendering ───────────────────────────────────────────────────────────
+// Draw one map tile. Pure tiles (CACHEABLE_TILES) are painted once and blitted
+// from cache here; every other tile falls through to the procedural switch.
+function drawTile(col, row, t, sx, sy, s) {
+  if (CACHEABLE_TILES.has(t)) {
+    const spr = getTileSprite(t, s);
+    if (spr) {
+      ctx.drawImage(spr.canvas, Math.floor(sx) + spr.dx, Math.floor(sy) + spr.dy);
+      return;
+    }
+  }
+  drawTileProcedural(col, row, t, sx, sy, s);
+}
+
 // Each tile type has a base color (from TILE_COLORS) and a switch case below
 // that adds visual detail. `s` is the tile size in pixels (== TILE_PX).
-function drawTile(col, row, t, sx, sy, s) {
+//
+// This is the procedural path: it issues the tile's raw canvas calls. For pure
+// tiles it's invoked once by buildTileSprite to populate the cache; the thin
+// drawTile() wrapper above blits that cache thereafter. Animated / hashed /
+// autotiled / stateful tiles reach here every frame.
+function drawTileProcedural(col, row, t, sx, sy, s) {
   const x = sx, y = sy;
   ctx.fillStyle = TILE_COLORS[t] || '#111';
   ctx.fillRect(x, y, s, s);
@@ -6638,6 +6791,7 @@ function drawDriftClouds(dark, alphaMul) {
 }
 
 function render() {
+  ensureSpriteCacheSize();   // drop cached sprites if the tile size changed
   ctx.clearRect(0, 0, PW, PH);
   const ts = TILE_PX;
   const map = mapData();
