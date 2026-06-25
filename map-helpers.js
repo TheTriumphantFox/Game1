@@ -38,30 +38,13 @@ function isChestTile(t) {
 
 // Returns true if the tile at (c, r) blocks movement.
 // Used both by movement code and the connectivity flood-fill.
+// The blocking-tile list lives in SOLID_TILES (config.js); chests block too but
+// are kept separate (see SOLID_TILES / isChestTile) so the connectivity flood can
+// still treat them as walkable triggers.
 function isSolid(map, c, r) {
   if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return true;
   const t = map[r][c];
-  return t === T.TREE || t === T.WATER || t === T.WALL || t === T.ROCK ||
-         t === T.CAVE_WALL ||
-         t === T.DEEP_WATER || t === T.MEDIUM_WATER || t === T.WHIRLPOOL ||
-         t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
-         t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
-         t === T.CACTUS || t === T.OASIS_WATER ||
-         t === T.WATERFALL || t === T.CLIFF || t === T.PLATEAU ||
-         // Elemental region borders (solid)
-         t === T.GLACIER || t === T.SNOW_PINE || t === T.MOUNTAIN || t === T.CLOUDWALL ||
-         t === T.SKY_GROUND || t === T.CLOUD_EDGE ||
-         t === T.STORM_CLOUD || t === T.STORM_EDGE || t === T.LUMINOUS_CRYSTAL ||
-         t === T.LIGHT_PILLAR ||
-         t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL ||
-         t === T.DEAD_TREE || t === T.TOMBSTONE ||
-         t === T.BOG_POOL || t === T.MANGROVE || t === T.FALLEN_LOG ||
-         t === T.GREAT_TREE || t === T.COLOSSAL_TREE ||
-         // Elemental region open-ground landmarks (solid)
-         t === T.MOSS_BOULDER || t === T.DESERT_OBELISK || t === T.DRIFTWOOD ||
-         t === T.ICE_SPIRE || t === T.STANDING_STONE ||
-         t === T.CLOUD_SPIRE || t === T.STORM_SPIRE ||
-         isChestTile(t);
+  return SOLID_TILES.has(t) || isChestTile(t);
 }
 
 // Medium-depth water is solid to ordinary walkers, but not to everything:
