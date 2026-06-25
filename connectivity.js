@@ -15,31 +15,14 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
   const reachable = new Uint8Array(W * H);
   const stack = [];
 
-  // Can the player walk on this tile? Same logic as isSolid() inverted, with
-  // chests/shrines/torches treated as walkable since the player triggers them
-  // by stepping onto them.
+  // Can the player walk on this tile? The movement-blocking set is SOLID_TILES
+  // (config.js), the same source isSolid() uses. Chests aren't in SOLID_TILES, so
+  // they read as passable here — intentional: the player triggers them by stepping
+  // onto them, and we don't want them sealed. (Shrines, torches, doors, floors etc.
+  // are likewise not solid, so they're passable too.)
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= W || r >= H) return false;
-    const t = m[r][c];
-    return !(t === T.TREE || t === T.WATER || t === T.WALL || t === T.ROCK ||
-             t === T.CAVE_WALL ||
-             t === T.DEEP_WATER || t === T.MEDIUM_WATER ||
-             t === T.LAVA || t === T.PILLAR || t === T.STATUE ||
-             t === T.FOUNTAIN_WATER || t === T.FOUNTAIN_SPOUT ||
-             t === T.CACTUS || t === T.OASIS_WATER ||
-             t === T.WATERFALL || t === T.CLIFF || t === T.PLATEAU ||
-             // Elemental region borders
-             t === T.GLACIER || t === T.SNOW_PINE || t === T.MOUNTAIN || t === T.CLOUDWALL ||
-             t === T.SKY_GROUND || t === T.CLOUD_EDGE ||
-             t === T.STORM_CLOUD || t === T.LUMINOUS_CRYSTAL || t === T.LIGHT_PILLAR ||
-             t === T.BLIGHTED_WALL || t === T.POISON_WALL || t === T.MANA_CRYSTAL ||
-             t === T.DEAD_TREE || t === T.TOMBSTONE ||
-             t === T.BOG_POOL || t === T.MANGROVE || t === T.FALLEN_LOG ||
-             t === T.GREAT_TREE || t === T.COLOSSAL_TREE ||
-             // Elemental region open-ground landmarks (solid)
-             t === T.MOSS_BOULDER || t === T.DESERT_OBELISK || t === T.DRIFTWOOD ||
-             t === T.ICE_SPIRE || t === T.STANDING_STONE ||
-             t === T.CLOUD_SPIRE || t === T.STORM_SPIRE);
+    return !SOLID_TILES.has(m[r][c]);
   };
 
   // The flood may also swim through medium-depth water, so areas reachable only

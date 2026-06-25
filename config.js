@@ -240,6 +240,39 @@ const T = {
   STANDING_STONE:127, CLOUD_SPIRE:128, STORM_SPIRE:129
 };
 
+// ─── Solid tiles ──────────────────────────────────────────────────────────────
+// Single source of truth for "this tile blocks movement", used by isSolid()
+// (player + enemy movement) and — inverted — by the connectivity flood-fill's
+// passable() in connectivity.js. These were previously two hand-maintained lists
+// that drifted (e.g. STORM_EDGE was solid for movement but missing from the flood
+// list, so the flood leaked through storm-region borders). Add a blocking tile
+// here once and both stay in sync.
+//
+// Chests are deliberately NOT listed here: they block movement too, but isSolid()
+// adds them via isChestTile(), while the connectivity flood treats them as
+// walkable triggers (so they aren't sealed). Keeping them out of this set is what
+// preserves that distinction — see passable() in connectivity.js.
+const SOLID_TILES = new Set([
+  T.TREE, T.WATER, T.WALL, T.ROCK, T.CAVE_WALL,
+  T.DEEP_WATER, T.MEDIUM_WATER, T.WHIRLPOOL,
+  T.LAVA, T.PILLAR, T.STATUE,
+  T.FOUNTAIN_WATER, T.FOUNTAIN_SPOUT,
+  T.CACTUS, T.OASIS_WATER,
+  T.WATERFALL, T.CLIFF, T.PLATEAU,
+  // Elemental region borders
+  T.GLACIER, T.SNOW_PINE, T.MOUNTAIN, T.CLOUDWALL,
+  T.SKY_GROUND, T.CLOUD_EDGE,
+  T.STORM_CLOUD, T.STORM_EDGE, T.LUMINOUS_CRYSTAL, T.LIGHT_PILLAR,
+  T.BLIGHTED_WALL, T.POISON_WALL, T.MANA_CRYSTAL,
+  T.DEAD_TREE, T.TOMBSTONE,
+  T.BOG_POOL, T.MANGROVE, T.FALLEN_LOG,
+  T.GREAT_TREE, T.COLOSSAL_TREE,
+  // Elemental region open-ground landmarks
+  T.MOSS_BOULDER, T.DESERT_OBELISK, T.DRIFTWOOD,
+  T.ICE_SPIRE, T.STANDING_STONE,
+  T.CLOUD_SPIRE, T.STORM_SPIRE,
+].filter(v => v !== undefined));
+
 // Fallback colors used by the minimap renderer (richer art in render.js)
 const TILE_COLORS = {
   [T.GRASS]: '#3a7a3a', [T.TREE]: '#1a4a1a', [T.WATER]: '#2255aa',
