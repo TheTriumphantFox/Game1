@@ -33,27 +33,33 @@ function spawnParticle(wx, wy, color, n = 6, size = 3) {
   }
 }
 
-// Forest-enemy necrotic vulnerability: 50% chance per hit to take an extra
-// floor(level/5) d4 of necrotic damage. `level` is swordLevel for sword
-// swings and bowLevel for arrows. No-op when the enemy isn't flagged, when
-// the level threshold isn't met, or the roll fails.
-function rollNecroticVuln(e, level) {
-  if (!e.necroticVuln || typeof SWORD_ELEMENTS === 'undefined') return;
-  const dice = Math.floor((level || 0) / 5);
-  if (dice <= 0 || Math.random() >= 0.5) return;
-  let necDmg = 0;
-  for (let d = 0; d < dice; d++) necDmg += 1 + Math.floor(Math.random() * 4);
-  e.hp -= necDmg;
-  const necElem = SWORD_ELEMENTS.necrotic;
+// Opposite-element vulnerability: any enemy that deals an element is weak to
+// that element's opposite (see OPPOSITE in elements.js). 50% chance per hit to
+// take an extra (floor(level/5) + 1) d4 of the opposite element's damage —
+// always at least 1d4, so the vulnerability is in effect from level 1 and grows
+// by another die every 5 levels. `level` is swordLevel for sword swings and
+// bowLevel for arrows. No-op when the enemy has no element, has no defined
+// opposite, or the 50% roll fails.
+function rollOppositeVuln(e, level) {
+  if (!e.element || typeof OPPOSITE === 'undefined') return;
+  const oppId = OPPOSITE[e.element];
+  if (!oppId) return;
+  if (Math.random() >= 0.5) return;
+  const dice = Math.floor((level || 0) / 5) + 1;
+  let bonus = 0;
+  for (let d = 0; d < dice; d++) bonus += 1 + Math.floor(Math.random() * 4);
+  e.hp -= bonus;
+  const oppElem = (typeof elementInfo === 'function') ? elementInfo(oppId) : null;
+  if (!oppElem) return;
   damageNumbers.push({
     entity: e,
-    val: `${necElem.icon}${necDmg}`,
-    color: necElem.color,
+    val: `${oppElem.icon}${bonus}`,
+    color: oppElem.color,
     life: 1100,
     rise: -16
   });
   const esp = screenPX(e.x, e.y);
-  spawnParticle(esp.x, esp.y, necElem.color, 4, 2);
+  spawnParticle(esp.x, esp.y, oppElem.color, 4, 2);
 }
 
 // Resolve an incoming hit against the player's defenses and apply the HP loss.
@@ -87,6 +93,18 @@ function damagePlayer(rawDmg, hitElement) {
       life: 1100, rise: -6
     });
     return 0;
+  }
+
+  // Opposite-element armor is a liability. Wearing the armor whose element is the
+  // enemy's opposite (see OPPOSITE) leaves you exposed to its attacks: 50% chance
+  // the hit lands doubled. This mirrors how that same enemy is itself vulnerable
+  // to its opposite element (rollOppositeVuln) — the pairing, turned against you.
+  let doubled = false;
+  if (hitElement && typeof OPPOSITE !== 'undefined'
+      && player.activeArmorElement === OPPOSITE[hitElement]
+      && Math.random() < 0.5) {
+    rawDmg *= 2;
+    doubled = true;
   }
 
   const { dmg: afterElem, resisted } = (typeof applyElementalArmor === 'function')
@@ -177,6 +195,18 @@ function damagePlayer(rawDmg, hitElement) {
     spawnParticle(psp.x, psp.y, '#ff2222', 5, 3);
     damageNumbers.push({ entity: 'player', val: hpDmg, color: '#ff4444', life: 1000, rise: 0 });
   }
+  // Opposite-armor double-damage proc — a bright floating marker (in the enemy
+  // element's colour) so the reason the hit landed so hard is obvious.
+  if (doubled && finalDmg > 0) {
+    const oppElem = (typeof elementInfo === 'function') ? elementInfo(hitElement) : null;
+    spawnParticle(psp.x, psp.y, oppElem ? oppElem.color : '#ff2222', 8, 3);
+    damageNumbers.push({
+      entity: 'player',
+      val: `${oppElem ? oppElem.icon : ''}‼×2`,
+      color: oppElem ? oppElem.color : '#ff2222',
+      life: 1200, rise: -16
+    });
+  }
   return finalDmg;
 }
 
@@ -250,9 +280,9 @@ function doSwordSwing() {
       e.hp -= baseDmg;
       damageNumbers.push({ entity: e, val: baseDmg, color: '#ff4444', life: 1000, rise: 0 });
 
-      // Forest enemies are vulnerable to necrotic damage: 50% chance per hit
-      // to take an extra 1d4 necrotic per 5 sword levels (none below Lv5).
-      rollNecroticVuln(e, player.swordLevel);
+      // Elemental enemies are vulnerable to their opposite element: 50% chance
+      // per hit to take an extra 1d4 of it per 5 sword levels (none below Lv5).
+      rollOppositeVuln(e, player.swordLevel);
 
       // Elemental damage — ONLY the currently equipped elemental sword adds
       // its 1d4 hit. (Elemental swords are specific weapons; switching swords
@@ -496,9 +526,9 @@ function stepProjectiles(dt, map) {
           const esp = screenPX(e.x, e.y);
           damageNumbers.push({ entity: e, val: p.dmg, color: '#ff4444', life: 1000, rise: 0 });
           spawnParticle(esp.x, esp.y, p.color || '#ddaa44', 4, 2);
-          // Forest enemies: 50% chance per arrow hit to take an extra 1d4
-          // necrotic per 5 bow levels (none below Lv5).
-          rollNecroticVuln(e, player.bowLevel);
+          // Elemental enemies: 50% chance per arrow hit to take an extra 1d4
+          // of their opposite element per 5 bow levels (none below Lv5).
+          rollOppositeVuln(e, player.bowLevel);
           // Elemental arrow: extra 1d4 of its element
           if (p.element && typeof SWORD_ELEMENTS !== 'undefined') {
             const elem = SWORD_ELEMENTS[p.element];
