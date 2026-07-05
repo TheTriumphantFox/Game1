@@ -406,6 +406,89 @@ const TILE_COLORS = {
   [T.STORM_SPIRE]: '#48527a',
 };
 
+// ─── Monster trophies ─────────────────────────────────────────────────────────
+// Single source of truth for enemy-drop trophies. Each entry's inventory key is
+// the plural `id + 's'` (fang → player.fangs). One record here drives every
+// trophy table instead of the old 8-way scatter:
+//   • TROPHY_META   (projectiles.js) → { icon, label, color } for ground drops
+//   • TROPHY_SELL   (shop.js)        → General Store sell rows (value)
+//   • PASSIVE_DROPS (radial.js)      → drops-satchel / ledger rows
+//   • DROP_CAT_OF   (radial.js)      → 'monster' bucket (biological parts)
+//   • save defaults (player.js / save.js, via trophyDefaults())
+// Flags: `monster` = biological body-part (buckets under Monster Parts; mineral /
+// elemental / crafted trophies omit it and fall through to Materials). `granted`
+// = seeded at STARTING_ITEM_AMOUNT on a fresh player (fang/finger/bone/wing), else
+// starts at 0. Snowball is NOT here — it's a non-enemy drift drop, hand-listed in
+// each table. To add a monster trophy: add a row here + wire the enemy in
+// ENEMY_DROPS (player.js).
+const TROPHIES = [
+  { id: 'fang',              icon: '🦷', label: 'Fang',              color: '#f0eedd', value: 10, monster: true, granted: true },
+  { id: 'finger',           icon: '🫳', label: 'Finger',            color: '#d8a070', value: 10, monster: true, granted: true },
+  { id: 'bone',              icon: '🦴', label: 'Bone',              color: '#f4ead8', value: 12, monster: true, granted: true },
+  { id: 'wing',              icon: '🪶', label: 'Wing',              color: '#aaccff', value: 25, monster: true, granted: true },
+  { id: 'organ',             icon: '🫀', label: 'Organ',             color: '#aa3344', value: 15, monster: true },
+  { id: 'feather',           icon: '🪶', label: 'Feather',           color: '#c8b890', value: 20, monster: true },
+  { id: 'silk',              icon: '🕸️', label: 'Silk',              color: '#ddddee', value: 12, monster: true },
+  { id: 'talisman',          icon: '📿', label: 'Talisman',          color: '#aa66cc', value: 20 },
+  { id: 'ember',             icon: '🔥', label: 'Ember',             color: '#ff7733', value: 15 },
+  { id: 'venom',             icon: '☠️', label: 'Venom Sac',         color: '#88cc44', value: 18, monster: true },
+  { id: 'fin',               icon: '🐟', label: 'Fin',               color: '#5599cc', value: 15, monster: true },
+  { id: 'pearl',             icon: '🦪', label: 'Pearl',             color: '#f0e8dd', value: 30 },
+  { id: 'core',              icon: '💠', label: 'Elemental Core',    color: '#66ccff', value: 40 },
+  { id: 'shard',             icon: '🧊', label: 'Ice Shard',         color: '#aaddee', value: 22 },
+  { id: 'pelt',              icon: '🧥', label: 'Pelt',              color: '#aa8855', value: 25, monster: true },
+  { id: 'tusk',              icon: '🦣', label: 'Tusk',              color: '#e8dcc0', value: 35, monster: true },
+  { id: 'scale',             icon: '🐉', label: 'Dragon Scale',      color: '#44aa66', value: 35, monster: true },
+  { id: 'stone',             icon: '🪨', label: 'Stone Shard',       color: '#8a857a', value: 25 },
+  { id: 'spark',             icon: '⚡', label: 'Storm Spark',       color: '#ffee33', value: 35 },
+  { id: 'horn',              icon: '🦄', label: 'Horn',              color: '#ffeeff', value: 50, monster: true },
+  { id: 'mote',              icon: '✨', label: 'Light Mote',        color: '#ffee88', value: 45 },
+  { id: 'ectoplasm',         icon: '👻', label: 'Ectoplasm',         color: '#ccddee', value: 40, monster: true },
+  { id: 'eye',               icon: '👁️', label: 'Eye',               color: '#cc88dd', value: 50, monster: true },
+  { id: 'brain',             icon: '🧠', label: 'Brain',             color: '#ffaabb', value: 55, monster: true },
+  { id: 'dryad_bloom',       icon: '🌷', label: 'Dryad Bloom',       color: '#d98fb0', value: 12 },
+  { id: 'gnoll_fang',        icon: '🦷', label: 'Gnoll Fang',        color: '#d9c9a0', value: 14, monster: true },
+  { id: 'hound_fang',        icon: '🦷', label: 'Hellhound Fang',    color: '#cc5522', value: 16, monster: true },
+  { id: 'salamander_hide',   icon: '🦎', label: 'Salamander Hide',   color: '#ff5a2a', value: 16, monster: true },
+  { id: 'kuotoa_gill',       icon: '🐠', label: 'Kuo-toa Gill',      color: '#79b08a', value: 16, monster: true },
+  { id: 'shark_tooth',       icon: '🦈', label: 'Shark Tooth',       color: '#9bb6c8', value: 18, monster: true },
+  { id: 'hag_hair',          icon: '🧶', label: 'Sea Hag Hair',      color: '#5e7d63', value: 18, monster: true },
+  { id: 'frost_fang',        icon: '❄️', label: 'Frost Fang',        color: '#cce6ff', value: 22, monster: true },
+  { id: 'rime',              icon: '🧊', label: 'Rime Crystal',      color: '#bfe0ff', value: 26 },
+  { id: 'acid_gland',        icon: '🧪', label: 'Acid Gland',        color: '#aacc33', value: 24, monster: true },
+  { id: 'displacer_hide',    icon: '🐆', label: 'Displacer Hide',    color: '#4a3a6a', value: 26, monster: true },
+  { id: 'bulette_plate',     icon: '🛡️', label: 'Bulette Plate',     color: '#6a7a5a', value: 30, monster: true },
+  { id: 'earth_heart',       icon: '🟤', label: 'Earthen Heart',     color: '#8a6a4a', value: 38 },
+  { id: 'granite',           icon: '🗿', label: 'Granite Slab',      color: '#8a857a', value: 28 },
+  { id: 'harpy_plume',       icon: '🪶', label: 'Harpy Plume',       color: '#b59ad6', value: 24, monster: true },
+  { id: 'griffon_feather',   icon: '🦅', label: 'Griffon Feather',   color: '#c8a45a', value: 26, monster: true },
+  { id: 'manticore_spike',   icon: '🗡️', label: 'Manticore Spike',   color: '#aa4433', value: 28, monster: true },
+  { id: 'zephyr',            icon: '🌀', label: 'Zephyr Wisp',       color: '#cfe8ff', value: 38 },
+  { id: 'wyvern_scale',      icon: '🐲', label: 'Wyvern Scale',      color: '#6a8a4a', value: 32, monster: true },
+  { id: 'roc_plume',         icon: '🪶', label: 'Roc Plume',         color: '#b0855a', value: 30, monster: true },
+  { id: 'wyrmling_scale',    icon: '🐉', label: 'Wyrmling Scale',    color: '#4477cc', value: 30, monster: true },
+  { id: 'behir_scale',       icon: '🐍', label: 'Behir Scale',       color: '#4488cc', value: 32, monster: true },
+  { id: 'bluedragon_scale',  icon: '🐉', label: 'Blue Dragon Scale', color: '#3366cc', value: 36, monster: true },
+  { id: 'stormgiant_bolt',   icon: '🌩️', label: 'Tempest Bolt',      color: '#ffe066', value: 40 },
+  { id: 'pegasus_feather',   icon: '🪽', label: 'Pegasus Feather',   color: '#eaf2ff', value: 36, monster: true },
+  { id: 'couatl_scale',      icon: '🌈', label: 'Couatl Scale',      color: '#66ccaa', value: 36, monster: true },
+  { id: 'kirin_horn',        icon: '🦌', label: 'Ki-rin Horn',       color: '#ffe6aa', value: 40, monster: true },
+  { id: 'planetar_halo',     icon: '😇', label: 'Planetar Halo',     color: '#fff0b0', value: 48 },
+  { id: 'wraith_shroud',     icon: '🧣', label: 'Wraith Shroud',     color: '#556677', value: 42, monster: true },
+  { id: 'vampire_fang',      icon: '🧛', label: 'Vampire Fang',      color: '#aa2233', value: 40, monster: true },
+  { id: 'phylactery',        icon: '🔮', label: 'Phylactery',        color: '#66ddaa', value: 50 },
+  { id: 'crawler_venom',     icon: '🐛', label: 'Carrion Bile',      color: '#99bb44', value: 28, monster: true },
+  { id: 'troll_hide',        icon: '🟢', label: 'Troll Hide',        color: '#6a8a4a', value: 30, monster: true },
+  { id: 'otyugh_tentacle',   icon: '🦑', label: 'Otyugh Tentacle',   color: '#88aa55', value: 30, monster: true },
+  { id: 'treant_heartwood',  icon: '🪵', label: 'Heartwood',         color: '#8a6a3a', value: 30 },
+  { id: 'greendragon_scale', icon: '🐉', label: 'Green Dragon Scale',color: '#44aa55', value: 38, monster: true },
+  { id: 'worm_stinger',      icon: '🪱', label: 'Worm Stinger',      color: '#aa66aa', value: 36, monster: true },
+  { id: 'horror_plate',      icon: '🛡️', label: 'Animus Plate',      color: '#8899aa', value: 42 },
+  { id: 'gith_blade',        icon: '⚔️', label: 'Githyanki Blade',   color: '#b0c0d0', value: 48 },
+  { id: 'eyestalk',          icon: '👁️', label: 'Eyestalk',          color: '#cc66bb', value: 52, monster: true },
+  { id: 'rakshasa_claw',     icon: '🐾', label: 'Rakshasa Claw',     color: '#cc8844', value: 50, monster: true },
+];
+
 // ─── Ores ─────────────────────────────────────────────────────────────────────
 // Five raw ores, ordered common → rare. A 5% bonus find in any small chest (see
 // handlePickup in player.js); which ore drops is set entirely by the region the

@@ -9,6 +9,16 @@ const ITEM_CAP = 128;
 const RUPEE_CAP = 99999;
 const STARTING_ITEM_AMOUNT = 64;
 
+// Fresh-player trophy counters, derived from the TROPHIES registry (config.js):
+// `granted` trophies (fang/finger/bone/wing) seed at STARTING_ITEM_AMOUNT, the
+// rest at 0. Shared by the live `player`, DEFAULT_PLAYER, and the newGame reset,
+// so a new trophy needs no per-site edit in any of them.
+function trophyDefaults() {
+  const o = {};
+  for (const t of TROPHIES) o[t.id + 's'] = t.granted ? STARTING_ITEM_AMOUNT : 0;
+  return o;
+}
+
 // Cap-respecting increment for a scalar inventory key. Returns the amount
 // actually added (may be less than `n` when the cap clamps). Rupees use the
 // larger RUPEE_CAP; every other stackable shares ITEM_CAP.
@@ -61,27 +71,10 @@ let player = {
   medPotions: 0,
   herbals: STARTING_ITEM_AMOUNT,
   mushrooms: STARTING_ITEM_AMOUNT,
-  // Trophy / crafting collectibles dropped by specific enemies.
-  fangs: STARTING_ITEM_AMOUNT, fingers: STARTING_ITEM_AMOUNT,
-  bones: STARTING_ITEM_AMOUNT, wings: STARTING_ITEM_AMOUNT,
-  // Organs (from zombies) and feathers (from owlbears) are drop-only trophies,
-  // so they start empty rather than at the granted starting amount.
-  organs: 0, feathers: 0,
-  // Region trophies (see ENEMY_DROPS) — all drop-only, so they start empty.
-  silks: 0, talismans: 0, embers: 0, venoms: 0, fins: 0, pearls: 0,
-  cores: 0, shards: 0, pelts: 0, tusks: 0, scales: 0, stones: 0,
-  sparks: 0, horns: 0, motes: 0, ectoplasms: 0, eyes: 0, brains: 0,
-  // Per-enemy signature trophies (see ENEMY_DROPS / TROPHY_META) — all drop-only.
-  dryad_blooms: 0, gnoll_fangs: 0, hound_fangs: 0, salamander_hides: 0,
-  kuotoa_gills: 0, shark_tooths: 0, hag_hairs: 0, frost_fangs: 0, rimes: 0,
-  acid_glands: 0, displacer_hides: 0, bulette_plates: 0, earth_hearts: 0, granites: 0,
-  harpy_plumes: 0, griffon_feathers: 0, manticore_spikes: 0, zephyrs: 0,
-  wyvern_scales: 0, roc_plumes: 0, wyrmling_scales: 0, behir_scales: 0,
-  bluedragon_scales: 0, stormgiant_bolts: 0, pegasus_feathers: 0, couatl_scales: 0,
-  kirin_horns: 0, planetar_halos: 0, wraith_shrouds: 0, vampire_fangs: 0, phylacterys: 0,
-  crawler_venoms: 0, troll_hides: 0, otyugh_tentacles: 0, treant_heartwoods: 0,
-  greendragon_scales: 0, worm_stingers: 0, horror_plates: 0, gith_blades: 0,
-  eyestalks: 0, rakshasa_claws: 0,
+  // Trophy / crafting collectibles dropped by specific enemies — seeded from the
+  // TROPHIES registry (config.js). fang/finger/bone/wing are `granted` (start at
+  // STARTING_ITEM_AMOUNT); every other trophy is drop-only and starts at 0.
+  ...trophyDefaults(),
   // Bone meal — ground from desert bone piles cut down by the sword. Starts at 0
   // since it's earned in the field, not granted.
   bonemeal: 0,

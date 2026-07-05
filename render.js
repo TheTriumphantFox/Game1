@@ -16,14 +16,12 @@
 // the per-frame size guard drops every sprite so they repaint at the new size.
 
 let spriteCacheTS = 0;                 // the TILE_PX every cached sprite was painted at
-const tileSpriteCache  = new Map();    // tile type (number)  → { canvas, dx, dy } | false
-const enemySpriteCache = new Map();    // enemy type (string) → HTMLCanvasElement
+const tileSpriteCache = new Map();     // tile type (number) → { canvas, dx, dy } | false
 
 // Drop every cached sprite. Called when the tile pixel size changes so stale-size
 // art can't be blitted; the next draw of each type repaints it at the new size.
 function invalidateSpriteCaches() {
   tileSpriteCache.clear();
-  enemySpriteCache.clear();
 }
 
 // Run once per frame (top of render). When the tile size differs from what the
@@ -44,19 +42,6 @@ function makeSpriteCanvas(w, h) {
   return cv;
 }
 
-// Fetch the cached sprite for `key`, building it on first use. `paint` receives a
-// fresh offscreen 2D context plus the canvas size, and draws the sprite at origin
-// (0, 0). Subsequent calls return the stored canvas untouched.
-function getCachedSprite(cache, key, w, h, paint) {
-  let cv = cache.get(key);
-  if (!cv) {
-    cv = makeSpriteCanvas(w, h);
-    paint(cv.getContext('2d'), cv.width, cv.height);
-    cache.set(key, cv);
-  }
-  return cv;
-}
-
 // Tiles whose drawTile output is a pure function of (type, size) — identical
 // pixels regardless of column, row, neighbours, game state, or time. Only these
 // are safe to paint once and blit from cache; every other tile (animated
@@ -72,9 +57,8 @@ function getCachedSprite(cache, key, w, h, paint) {
 //
 // Fail-safe by construction: a tile missing here is simply never cached (still
 // correct, just unoptimised), so new tiles need no edit unless you want caching.
-// NOTE for step 3: several of these (TREE, CACTUS, STATUE, …) draw above/beside
-// their tile box, so the cache canvas must capture each sprite's full drawn
-// extent, not just s×s. Nothing reads this set yet.
+// Several of these (TREE, CACTUS, STATUE, …) draw above/beside their tile box, so
+// buildTileSprite captures each sprite's full drawn extent, not just s×s.
 const CACHEABLE_TILES = new Set([
   T.BED, T.BONES, T.BONE_PILE, T.BRIDGE, T.CACTUS, T.CATTAIL, T.CAVE_FLOOR,
   T.CHAIR, T.CORAL, T.CRYSTAL_CLUSTER, T.DESERT_OBELISK, T.DESERT_SUCCULENT,
