@@ -401,6 +401,20 @@ const ENEMY_DROPS = {
   githyanki:         [{ type: 'gith_blade',    chance: 0.35 }],
   beholder:          [{ type: 'eyestalk',      chance: 0.40 }],
   rakshasa:          [{ type: 'rakshasa_claw', chance: 0.35 }],
+  // ── Tier 5 · Volcanic ──
+  magmin:            [{ type: 'cinder_core',       chance: 0.35 }],
+  fire_snake:        [{ type: 'firesnake_fang',    chance: 0.40 }],
+  azer:              [{ type: 'azer_ingot',        chance: 0.35 }],
+  red_wyrmling:      [{ type: 'redwyrmling_scale', chance: 0.35 }],
+  fire_elemental:    [{ type: 'magma_core',        chance: 0.30 }],
+  young_red_dragon:  [{ type: 'reddragon_scale',   chance: 0.35 }],
+  // ── Tier 12 · Shadow ──
+  shade:             [{ type: 'umbral_shard',      chance: 0.35 }],
+  shadow_mastiff:    [{ type: 'mastiff_fang',      chance: 0.40 }],
+  bodak:             [{ type: 'bodak_eye',         chance: 0.35 }],
+  nightmare:         [{ type: 'nightmare_hoof',    chance: 0.35 }],
+  shadow_demon:      [{ type: 'demon_horn',        chance: 0.35 }],
+  nightwalker:       [{ type: 'void_heart',        chance: 0.40 }],
 };
 
 // The arrow element matching the current map. Region ids double as

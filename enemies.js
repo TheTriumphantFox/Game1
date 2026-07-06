@@ -102,21 +102,40 @@ const DND_ENEMIES = {
   githyanki:      { name: 'Githyanki Knight',    hp: 258, spd: 550,  dmg: 18, xp: 14000, color: '#cc8844', size: 1.05, cr: 8, element: 'mana' },
   beholder:       { name: 'Beholder',            hp: 280, spd: 700,  dmg: 20, xp: 16000, color: '#aa66aa', size: 1.3,  ranged: true, cr: 13, element: 'mana' },
   rakshasa:       { name: 'Rakshasa',            hp: 295, spd: 550,  dmg: 21, xp: 18000, color: '#aa4444', size: 1.1,  ranged: true, cr: 13, element: 'mana' },
+
+  // ── Tier 5 · Volcanic — magmin, azer, fire snakes & red dragons of the caldera. ──
+  magmin:          { name: 'Magmin',             hp: 72,  spd: 600,  dmg: 8,  xp: 1800,  color: '#cc4422', size: 0.7,  cr: 2, element: 'volcanic' },
+  fire_snake:      { name: 'Fire Snake',         hp: 80,  spd: 550,  dmg: 8,  xp: 1800,  color: '#dd5522', size: 0.8,  cr: 2, element: 'volcanic' },
+  azer:            { name: 'Azer',               hp: 92,  spd: 600,  dmg: 9,  xp: 1800,  color: '#e08030', size: 0.85, cr: 2, element: 'volcanic' },
+  red_wyrmling:    { name: 'Red Dragon Wyrmling',hp: 105, spd: 550,  dmg: 10, xp: 2900,  color: '#cc3322', size: 0.95, ranged: true, cr: 4, element: 'volcanic' },
+  fire_elemental:  { name: 'Fire Elemental',     hp: 115, spd: 700,  dmg: 10, xp: 2900,  color: '#ff5522', size: 1.25, cr: 5, element: 'volcanic' },
+  young_red_dragon:{ name: 'Young Red Dragon',   hp: 128, spd: 600,  dmg: 11, xp: 3900,  color: '#bb2211', size: 1.35, ranged: true, cr: 6, element: 'volcanic' },
+
+  // ── Tier 12 · Shadow — shades, bodaks, nightmares & nightwalkers of the void. ──
+  shade:           { name: 'Shade',              hp: 300, spd: 550,  dmg: 22, xp: 18000, color: '#3a2a5a', size: 0.9,  cr: 8,  element: 'shadow' },
+  shadow_mastiff:  { name: 'Shadow Mastiff',     hp: 320, spd: 500,  dmg: 23, xp: 18000, color: '#2a2038', size: 1.0,  cr: 9,  element: 'shadow' },
+  bodak:           { name: 'Bodak',              hp: 345, spd: 600,  dmg: 25, xp: 20000, color: '#4a3a6a', size: 1.0,  ranged: true, cr: 10, element: 'shadow' },
+  nightmare:       { name: 'Nightmare',          hp: 360, spd: 450,  dmg: 26, xp: 20000, color: '#5a3a7a', size: 1.15, cr: 10, element: 'shadow' },
+  shadow_demon:    { name: 'Shadow Demon',       hp: 380, spd: 550,  dmg: 28, xp: 24000, color: '#2a1a44', size: 1.05, ranged: true, cr: 12, element: 'shadow' },
+  nightwalker:     { name: 'Nightwalker',        hp: 400, spd: 600,  dmg: 30, xp: 30000, color: '#1a0f2e', size: 1.4,  ranged: true, cr: 16, element: 'shadow' },
+
   lich_boss:      { name: 'FOREST LICH',         hp: 350,  spd: 600, dmg: 14, xp:  2250, color: '#6600cc', size: 1.5, ranged: true, boss: true, cr: 'Boss', element: 'necrotic' },
   mummy_lord:     { name: 'MUMMY LORD',          hp: 420,  spd: 650, dmg: 16, xp:  5500, color: '#c89858', size: 1.5, ranged: true, boss: true, cr: 'Boss', element: 'fire' },
   kraken_boss:    { name: 'ABYSSAL KRAKEN',      hp: 500,  spd: 700, dmg: 18, xp:  9000, color: '#2a88cc', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'water', swims: true },
   frost_titan:    { name: 'FROST TITAN',         hp: 580,  spd: 750, dmg: 20, xp: 14500, color: '#9cdcff', size: 1.7,              boss: true, cr: 'Boss', element: 'ice' },
   gaia_colossus:  { name: 'GAIA COLOSSUS',       hp: 680,  spd: 800, dmg: 22, xp: 14500, color: '#7a6a45', size: 1.8,              boss: true, cr: 'Boss' },
+  magma_tyrant:   { name: 'MAGMA TYRANT',        hp: 700,  spd: 650, dmg: 22, xp: 20000, color: '#cc3311', size: 1.7, ranged: true, boss: true, cr: 'Boss', element: 'volcanic' },
   wind_djinn:     { name: 'STORMCROWN DJINN',    hp: 620,  spd: 500, dmg: 22, xp: 29500, color: '#c8d8f0', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'air' },
   storm_lord:     { name: 'VOLTHEART LORD',      hp: 700,  spd: 550, dmg: 24, xp: 36000, color: '#ffe055', size: 1.7, ranged: true, boss: true, cr: 'Boss' },
   seraph_judge:   { name: 'SERAPH OF JUDGEMENT', hp: 760,  spd: 600, dmg: 24, xp: 57500, color: '#fff2a0', size: 1.7, ranged: true, boss: true, cr: 'Boss', element: 'luminous' },
   death_knight:   { name: 'PALE KING',           hp: 860,  spd: 650, dmg: 28, xp: 65000, color: '#aa66dd', size: 1.8, ranged: true, boss: true, cr: 'Boss', element: 'necrotic' },
   hydra_queen:    { name: 'HYDRA QUEEN',         hp: 940,  spd: 700, dmg: 28, xp:100000, color: '#88cc44', size: 1.9, ranged: true, boss: true, cr: 'Boss', element: 'poison' },
   archmage_void:  { name: 'VOID ARCHMAGE',       hp:1100,  spd: 600, dmg: 32, xp: 90000, color: '#aa66ee', size: 1.9, ranged: true, boss: true, cr: 'Boss' },
+  eclipse_sovereign:{ name: 'ECLIPSE SOVEREIGN', hp:1250,  spd: 600, dmg: 34, xp:150000, color: '#1a0f2e', size: 2.0, ranged: true, boss: true, cr: 'Boss', element: 'shadow' },
 };
 
 // Difficulty curve — one pool per region, in progression order. Each region's
-// REGIONS.enemyTier indexes straight into this table (forest = 0 … mana = 10),
+// REGIONS.enemyTier indexes straight into this table (forest = 0 … shadow = 12),
 // so every region is its own distinct, progressively harder roster. Villages
 // reuse their region's pool as "Greater" (tier-1.5) variants plus the region
 // boss — both added by makeEnemyDefs.
@@ -126,12 +145,14 @@ const ENEMY_POOLS = [
   ['sahuagin', 'kuo_toa', 'hunter_shark', 'merrow', 'sea_hag', 'water_elemental'],    //  2 · Water
   ['ice_mephit', 'winter_wolf', 'yeti', 'mammoth', 'white_dragon', 'frost_giant'],    //  3 · Ice
   ['gargoyle', 'ankheg', 'displacer', 'bulette', 'earth_elemental', 'stone_giant'],   //  4 · Earth
-  ['harpy', 'griffon', 'manticore', 'air_elemental', 'wyvern', 'roc'],                //  5 · Air
-  ['will_o_wisp', 'blue_wyrmling', 'behir', 'young_blue_dragon', 'storm_giant'],      //  6 · Lightning
-  ['pegasus', 'couatl', 'unicorn', 'ki_rin', 'deva', 'planetar'],                     //  7 · Luminous
-  ['skeleton', 'zombie', 'ghost', 'wraith', 'vampire', 'lich'],                       //  8 · Necrotic
-  ['carrion_crawler', 'troll', 'otyugh', 'treant', 'green_dragon', 'purple_worm'],    //  9 · Poison
-  ['nothic', 'helmed_horror', 'mind_flayer', 'githyanki', 'beholder', 'rakshasa'],    // 10 · Mana / Arcane
+  ['magmin', 'fire_snake', 'azer', 'red_wyrmling', 'fire_elemental', 'young_red_dragon'], //  5 · Volcanic
+  ['harpy', 'griffon', 'manticore', 'air_elemental', 'wyvern', 'roc'],                //  6 · Air
+  ['will_o_wisp', 'blue_wyrmling', 'behir', 'young_blue_dragon', 'storm_giant'],      //  7 · Lightning
+  ['pegasus', 'couatl', 'unicorn', 'ki_rin', 'deva', 'planetar'],                     //  8 · Luminous
+  ['skeleton', 'zombie', 'ghost', 'wraith', 'vampire', 'lich'],                       //  9 · Necrotic
+  ['carrion_crawler', 'troll', 'otyugh', 'treant', 'green_dragon', 'purple_worm'],    // 10 · Poison
+  ['nothic', 'helmed_horror', 'mind_flayer', 'githyanki', 'beholder', 'rakshasa'],    // 11 · Mana / Arcane
+  ['shade', 'shadow_mastiff', 'bodak', 'nightmare', 'shadow_demon', 'nightwalker'],   // 12 · Shadow
 ];
 
 function getEnemyPool(depth) {

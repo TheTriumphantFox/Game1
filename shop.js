@@ -116,6 +116,10 @@ const TROPHY_SELL = [
   { key: 'manapetals',   icon: '🪻', label: 'Mana Petal',   value: 15 },  // mana
   { key: 'heartfronds',  icon: '🍃', label: 'Heart Frond',  value: 14 },  // mana
   { key: 'glowcaps',     icon: '🍄', label: 'Glow Cap',     value: 13 },  // mana
+  { key: 'emberblooms',  icon: '🏵️', label: 'Emberbloom',   value: 10 },  // volcanic
+  { key: 'sulfurmoss',   icon: '🍂', label: 'Sulfur Moss',   value: 10 },  // volcanic
+  { key: 'duskcaps',     icon: '🍄', label: 'Duskcap',       value: 16 },  // shadow
+  { key: 'voidpetals',   icon: '🌌', label: 'Void Petal',    value: 17 },  // shadow
   // Raw ores (see ORE_TYPES) — a rare 5% small-chest find, the type set by the
   // region. Unlike forage, ores are prized everywhere: every General Store buys
   // all five (see the ore section in renderStoreContents), not just the locals.
@@ -124,6 +128,7 @@ const TROPHY_SELL = [
   { key: 'glimmerspar', icon: '🔵', label: 'Glimmerspar', value: 60  },
   { key: 'wyrmgold',    icon: '🟡', label: 'Wyrmgold',    value: 95  },
   { key: 'eclipsium',   icon: '🟣', label: 'Eclipsium',   value: 150 },
+  { key: 'voidsteel',   icon: '⬛', label: 'Voidsteel',   value: 230 },
 ];
 
 // Potions sell one at a time (selling the whole stack at once would be too
@@ -148,12 +153,14 @@ const REGION_FORAGE = {
   water:     ['stones', 'seashells', 'corals'],
   ice:       ['winterberries', 'frostpetals', 'frostferns', 'snowballs'],
   earth:     ['sage', 'moss', 'crystals'],
+  volcanic:  ['emberblooms', 'sulfurmoss'],
   air:       ['skypetals', 'windseeds', 'thistledown'],
   lightning: ['voltpetals', 'sparkseeds', 'fulgurites'],
   luminous:  ['motes', 'sunseeds', 'prisms'],
   necrotic:  ['bonemeal', 'witherwood', 'graveblooms'],
   poison:    ['reedpith', 'herbals', 'mushrooms'],
   mana:      ['manapetals', 'heartfronds', 'glowcaps'],
+  shadow:    ['duskcaps', 'voidpetals'],
 };
 
 // Resolve the region the store sits in. Village/overworld maps both carry
@@ -756,12 +763,14 @@ const HERBALIST_RECIPES = {
   water:     { heal: ['seashells', 'corals'],        elixir: ['fins', 'shark_tooths', 'cores'] },
   ice:       { heal: ['winterberries', 'frostpetals'], elixir: ['shards', 'rimes', 'frost_fangs'] },
   earth:     { heal: ['sage', 'moss'],               elixir: ['granites', 'earth_hearts', 'bulette_plates'] },
+  volcanic:  { heal: ['emberblooms', 'sulfurmoss'],  elixir: ['magma_cores', 'reddragon_scales', 'firesnake_fangs'] },
   air:       { heal: ['skypetals', 'windseeds'],     elixir: ['zephyrs', 'griffon_feathers', 'roc_plumes'] },
   lightning: { heal: ['voltpetals', 'sparkseeds'],   elixir: ['sparks', 'stormgiant_bolts', 'bluedragon_scales'] },
   luminous:  { heal: ['sunseeds', 'prisms'],         elixir: ['motes', 'planetar_halos', 'kirin_horns'] },
   necrotic:  { heal: ['witherwood', 'graveblooms'],  elixir: ['ectoplasms', 'phylacterys', 'wraith_shrouds'] },
   poison:    { heal: ['herbals', 'mushrooms'],       elixir: ['crawler_venoms', 'greendragon_scales', 'worm_stingers'] },
   mana:      { heal: ['manapetals', 'heartfronds'],  elixir: ['brains', 'eyestalks', 'rakshasa_claws'] },
+  shadow:    { heal: ['duskcaps', 'voidpetals'],     elixir: ['void_hearts', 'demon_horns', 'bodak_eyes'] },
 };
 
 // Resolve a stackable inventory key's icon + display label from TROPHY_SELL.

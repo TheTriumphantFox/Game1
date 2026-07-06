@@ -68,6 +68,9 @@ const CACHEABLE_TILES = new Set([
   T.SNOW, T.SNOW_DRIFT, T.SNOW_PINE, T.SPARK_REED, T.STATUE, T.STONES,
   T.STORM_THISTLE, T.SWAMP_FERN, T.TREE, T.VERDANT_FERN, T.VOLT_BLOOM, T.WALL,
   T.WIND_REED, T.WINTER_BERRY_BUSH, T.WITHERED_SHRUB,
+  // Volcanic + shadow region foliage (static, tile-bounded — like the other cached
+  // growths). Their walls/floors/dapples/landmarks/animated tiles stay procedural.
+  T.EMBER_FLOWER, T.SULFUR_SHRUB, T.GLOOM_BLOOM, T.VOID_FROND,
 ].filter(v => v !== undefined));
 
 // Paint a pure tile once into a trimmed offscreen sprite. Renders into a scratch
@@ -3435,6 +3438,270 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.fillStyle = `rgba(220,228,255,${flick*0.5})`;               // glow at a node
       ctx.beginPath(); ctx.arc(x+s*0.56, y+s*0.50, s*0.06, 0, Math.PI*2); ctx.fill();
       break; }
+
+    // ─── Volcanic region ─────────────────────────────────────────────────────
+    case T.VOLCANIC_ROCK: {
+      // Border wall of the caldera — cooled black basalt, faceted lit-upper-left /
+      // shadowed-lower-right like the mountain rock, seamed by a jagged fault and,
+      // on some blocks, still-hot molten rock glowing in a crack. Hashed; static.
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#2b2320'; ctx.fillRect(x, y, s, s);            // base basalt
+      ctx.fillStyle = '#3c322c';                                       // lit facet (upper-left)
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + s*(0.56 + j(0,0.14)), y);
+      ctx.lineTo(x + s*(0.30 + j(2,0.12)), y + s*(0.52 + j(4,0.10)));
+      ctx.lineTo(x, y + s*(0.58 + j(6,0.10)));
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#15100d';                                       // shadowed recess (lower-right)
+      ctx.beginPath();
+      ctx.moveTo(x + s, y + s*(0.30 + j(0,0.12)));
+      ctx.lineTo(x + s, y + s);
+      ctx.lineTo(x + s*(0.40 + j(2,0.12)), y + s);
+      ctx.lineTo(x + s*(0.64 + j(4,0.08)), y + s*0.50);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#0d0907'; ctx.lineWidth = 1.5;                // jagged fault
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.44 + j(8,0.12)), y);
+      ctx.lineTo(x + s*(0.52 - j(2,0.10)), y + s*0.5);
+      ctx.lineTo(x + s*(0.40 + j(6,0.12)), y + s);
+      ctx.stroke();
+      if ((h % 3) === 0) {                                             // molten vein in a crack
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#ff5a1e'; ctx.lineWidth = Math.max(1, s*0.05);
+        ctx.beginPath();
+        ctx.moveTo(x + s*(0.20 + j(2,0.10)), y + s*0.70);
+        ctx.lineTo(x + s*(0.36 + j(4,0.08)), y + s*0.52);
+        ctx.stroke();
+        ctx.strokeStyle = '#ffd23a'; ctx.lineWidth = Math.max(1, s*0.02); ctx.stroke();
+        ctx.lineCap = 'butt';
+      }
+      break; }
+    case T.VOLCANIC_GROUND: {
+      // Walkable cooled-lava floor — dark charcoal basalt broken into cracked
+      // flagstones, dusted with pale ash and, on some tiles, a faint warm hairline
+      // where the rock hasn't fully cooled. Hashed per tile; static.
+      const h = (col * 137 + row * 89);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);            // ash-basalt base
+      ctx.fillStyle = '#3b2e29';                                       // darker cracked plate
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.10+j(0,0.1)), y + s*0.14);
+      ctx.lineTo(x + s*(0.56+j(2,0.1)), y + s*0.10);
+      ctx.lineTo(x + s*(0.48+j(4,0.1)), y + s*0.52);
+      ctx.lineTo(x + s*0.14, y + s*0.48);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#2a201d'; ctx.lineWidth = 1;                  // seams between plates
+      ctx.beginPath(); ctx.moveTo(x, y + s*(0.55+j(6,0.1))); ctx.lineTo(x+s, y + s*(0.50+j(2,0.1))); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + s*(0.6+j(4,0.1)), y); ctx.lineTo(x + s*(0.55+j(8,0.1)), y+s); ctx.stroke();
+      ctx.fillStyle = '#6a574d';                                       // ash fleck
+      ctx.fillRect(x + s*(0.24+j(0,0.4)), y + s*(0.6+j(2,0.2)), 2, 2);
+      if ((h & 3) === 0) {                                             // faint warm crack on ~1/4
+        ctx.strokeStyle = 'rgba(255,110,40,0.5)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x + s*0.3, y + s*0.72); ctx.lineTo(x + s*0.5, y + s*0.66); ctx.stroke();
+      }
+      break; }
+    case T.MAGMA_CRACK: {
+      // A glowing fissure where molten rock shows through the cooled floor — dappled
+      // across the caldera like the cloud regions' brighter puffs, but a pulsing seam
+      // of orange-and-yellow magma breathing heat. Animated.
+      const h = (col * 137 + row * 89);
+      const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);            // cooled-floor base
+      const pulse = 0.6 + 0.4 * Math.sin(Date.now()/500 + col*0.6 + row*0.5);
+      ctx.fillStyle = `rgba(255,90,20,${0.18*pulse})`;                 // soft heat glow
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.42, 0, Math.PI*2); ctx.fill();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(255,60,10,${0.7+0.3*pulse})`; ctx.lineWidth = Math.max(1.5, s*0.11);   // molten seam
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.14+j(0,0.1)), y + s*(0.30+j(2,0.15)));
+      ctx.lineTo(x + s*0.46, y + s*0.52);
+      ctx.lineTo(x + s*(0.84+j(4,0.1)), y + s*(0.70+j(6,0.15)));
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,210,60,${0.8*pulse})`; ctx.lineWidth = Math.max(1, s*0.04); ctx.stroke();   // hot core
+      ctx.lineCap = 'butt';
+      break; }
+    case T.EMBER_FLOWER: {
+      // A fire-lily rooted in the ash — the caldera's forage (cut for Emberbloom). A
+      // charred stem and a five-petal bloom in molten orange with a glowing
+      // yellow-white heart, ringed by a faint warm halo. Static.
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#3b2e29'; ctx.fillRect(x, y + s*0.86, s, s*0.14);   // ash at the foot
+      ctx.strokeStyle = '#5a3a20'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.9); ctx.lineTo(x+s*0.5, y+s*0.48); ctx.stroke();
+      ctx.lineCap='butt';
+      const bx = x+s*0.5, by = y+s*0.40;
+      ctx.fillStyle = 'rgba(255,120,40,0.35)';                             // warm halo
+      ctx.beginPath(); ctx.arc(bx, by, s*0.26, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#e8531f';                                            // outer petals
+      for (let i=0;i<5;i++){ const a=i*Math.PI*2/5 - Math.PI/2;
+        ctx.beginPath(); ctx.ellipse(bx+Math.cos(a)*s*0.14, by+Math.sin(a)*s*0.14, s*0.09, s*0.05, a, 0, Math.PI*2); ctx.fill(); }
+      ctx.fillStyle = '#ff9a3c';                                            // inner petals
+      for (let i=0;i<5;i++){ const a=i*Math.PI*2/5 - Math.PI/2;
+        ctx.beginPath(); ctx.ellipse(bx+Math.cos(a)*s*0.09, by+Math.sin(a)*s*0.09, s*0.05, s*0.03, a, 0, Math.PI*2); ctx.fill(); }
+      ctx.fillStyle = '#ffe08a'; ctx.beginPath(); ctx.arc(bx, by, s*0.055, 0, Math.PI*2); ctx.fill();   // heart
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(bx-s*0.015, by-s*0.015, s*0.02, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.SULFUR_SHRUB: {
+      // A low brimstone shrub crusted with sulfur-yellow nodules — the caldera's
+      // second forage (cut for Sulfur Moss). A dark twiggy mound with clustered
+      // yellow-green crystal buds. Hashed; static.
+      const h = (col*137 + row*71);
+      const j = (a,n)=>(((h>>a)&3)/3-0.5)*n;
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#33291f';                                          // twiggy mound
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.66, s*0.28, s*0.18, 0, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#4a3d28'; ctx.lineWidth = Math.max(1, s*0.035); ctx.lineCap='round';
+      for (let i=0;i<4;i++){ const a=(i/4)*Math.PI - Math.PI*0.1;
+        ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.72);
+        ctx.lineTo(x+s*(0.5+Math.cos(a)*0.32), y+s*(0.72-Math.sin(a)*0.34)); ctx.stroke(); }
+      ctx.lineCap='butt';
+      const bud=(px,py,r)=>{ ctx.fillStyle='#c9b23a'; ctx.beginPath(); ctx.arc(x+s*px,y+s*py,s*r,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='#eadd7a'; ctx.beginPath(); ctx.arc(x+s*(px-0.02),y+s*(py-0.02),s*r*0.5,0,Math.PI*2); ctx.fill(); };
+      bud(0.34+j(0,0.06),0.44,0.08); bud(0.6+j(2,0.06),0.40,0.09); bud(0.5+j(4,0.06),0.56,0.07);
+      break; }
+    case T.OBSIDIAN_SPIRE: {
+      // A jagged shard of black volcanic glass thrust up from the caldera floor — the
+      // volcanic region's open-ground landmark (its molten answer to the ice spire).
+      // A glossy near-black crystal with a lit facet, a smaller shard at its foot, a
+      // warm molten glow bleeding from its base, and a bright edge glint. Static.
+      const h=(col*137+row*71);
+      const j=(a,n)=>(((h>>a)&3)/3-0.5)*n;
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);            // caldera base
+      ctx.fillStyle = 'rgba(255,90,20,0.28)';                          // molten glow at foot
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.86, s*0.34, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      const apexX=x+s*(0.48+j(0,0.10)), apexY=y+s*0.06;
+      ctx.fillStyle = '#120d14';                                       // small side shard
+      ctx.beginPath(); ctx.moveTo(x+s*0.66, y+s*0.52); ctx.lineTo(x+s*0.78, y+s*0.88); ctx.lineTo(x+s*0.58, y+s*0.88); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0c0810';                                       // main spire — shadow facet
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.62, y+s*0.9); ctx.lineTo(x+s*0.34, y+s*0.9); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2a2230';                                       // main spire — lit facet
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.48, y+s*0.9); ctx.lineTo(x+s*0.34, y+s*0.9); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(255,150,90,0.8)'; ctx.lineWidth=Math.max(1,s*0.03);   // glossy warm edge
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.40, y+s*0.9); ctx.stroke();
+      ctx.fillStyle='rgba(255,220,190,0.9)'; ctx.beginPath(); ctx.arc(apexX-s*0.02, apexY+s*0.12, s*0.025, 0, Math.PI*2); ctx.fill();  // glint
+      break; }
+
+    // ─── Shadow region ───────────────────────────────────────────────────────
+    case T.SHADOW_WALL: {
+      // Border of the umbral waste — void-stone so dark it barely catches light,
+      // faceted like the crypt wall but drinking the glow, its seams and a cold
+      // violet edge-sheen the only things that read, flecked with faint starlight
+      // caught in the black. Hashed per tile; static.
+      const h=(col*131+row*83);
+      const j=(a,n)=>(((h>>a)&3)/3)*n;
+      ctx.fillStyle = '#100b18'; ctx.fillRect(x, y, s, s);            // void-stone base
+      ctx.fillStyle = '#1b1430';                                       // faintly lit facet (upper-left)
+      ctx.fillRect(x, y, s*(0.56+j(0,0.16)), s*(0.50+j(2,0.14)));
+      ctx.fillStyle = '#070510';                                       // shadowed recess (lower-right)
+      ctx.fillRect(x + s*(0.5-j(4,0.1)), y + s*(0.5+j(6,0.08)), s*0.5, s*0.5);
+      ctx.strokeStyle = '#05030a'; ctx.lineWidth = 1;                  // mortar seam
+      ctx.beginPath(); ctx.moveTo(x, y + s*(0.5+j(8,0.1))); ctx.lineTo(x+s, y + s*(0.46+j(0,0.1))); ctx.stroke();
+      ctx.strokeStyle = 'rgba(150,110,220,0.35)'; ctx.lineWidth = Math.max(1, s*0.02);   // cold violet edge sheen
+      ctx.beginPath(); ctx.moveTo(x + s*0.06, y + s*0.1); ctx.lineTo(x + s*0.06, y + s*0.9); ctx.stroke();
+      ctx.fillStyle = 'rgba(200,190,255,0.8)';                          // starlight flecks
+      ctx.fillRect(x + s*(0.3+j(2,0.5)), y + s*(0.25+j(4,0.4)), 1, 1);
+      if ((h%2)===0) ctx.fillRect(x + s*(0.6+j(6,0.3)), y + s*(0.6+j(8,0.3)), 1, 1);
+      break; }
+    case T.SHADOW_GROUND: {
+      // Walkable umbral floor — a deep violet-black waste, mottled with darker
+      // hollows and a faint lighter patch, with a stray cold-violet mote hanging in
+      // the gloom. Hashed per tile; static.
+      const h=(col*137+row*89);
+      const j=(a,n)=>(((h>>a)&3)/3)*n;
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);            // umbral base
+      ctx.fillStyle = '#1b1526';                                       // darker hollow
+      ctx.beginPath(); ctx.ellipse(x+s*(0.4+j(0,0.3)), y+s*(0.5+j(2,0.2)), s*0.22, s*0.15, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2e2640';                                       // faint lighter patch
+      ctx.beginPath(); ctx.ellipse(x+s*(0.7-j(4,0.2)), y+s*(0.3+j(6,0.2)), s*0.14, s*0.09, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(150,120,210,0.5)';                          // cold mote
+      ctx.fillRect(x+s*(0.55+j(0,0.3)), y+s*(0.62+j(4,0.2)), 2, 2);
+      break; }
+    case T.SHADOW_DAPPLE: {
+      // A pool of deeper gloom gathered on the umbral floor — a soft dark hollow
+      // rimmed by a faint cold-violet edge, the shadow twin of the cloud regions'
+      // brighter puffs. Static.
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);            // floor base
+      ctx.fillStyle = '#15101f';
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.42, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#0d0a15';
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.26, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(140,110,200,0.25)'; ctx.lineWidth = Math.max(1, s*0.02);
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.4, 0, Math.PI*2); ctx.stroke();
+      break; }
+    case T.SHADOW_RIFT: {
+      // A void chasm torn in the waste — near-black depths breathing a faint cold
+      // violet light from far below, its jagged rim catching the last of it. The
+      // shadow region's accent, crossed by plank bridges. Animated glow.
+      ctx.fillStyle = '#080510'; ctx.fillRect(x, y, s, s);            // the void
+      const pulse = 0.5 + 0.5*Math.sin(Date.now()/700 + col*0.5 + row*0.4);
+      ctx.fillStyle = `rgba(110,80,180,${0.10+0.14*pulse})`;          // light from below
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.5, s*0.3, s*0.4, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = `rgba(160,120,230,${0.14*pulse})`;
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.5, s*0.14, s*0.22, 0, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#1b1430'; ctx.lineWidth = Math.max(1, s*0.06); ctx.lineJoin = 'round';   // jagged rim
+      ctx.beginPath();
+      ctx.moveTo(x, y+s*0.2); ctx.lineTo(x+s*0.3, y+s*0.36); ctx.lineTo(x+s*0.1, y+s*0.6); ctx.lineTo(x+s*0.4, y+s*0.9);
+      ctx.stroke();
+      break; }
+    case T.GLOOM_BLOOM: {
+      // A cluster of pale duskcap mushrooms pushing up through the gloom — the
+      // shadow waste's forage (cut for Duskcaps). Slender pale stems under
+      // grey-violet caps, each with a faint underglow. Hashed; static.
+      const h=(col*137+row*71);
+      const j=(a,n)=>(((h>>a)&3)/3-0.5)*n;
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);
+      const cap=(px,py,r)=>{
+        ctx.strokeStyle='#cfc6df'; ctx.lineWidth=Math.max(1,s*0.05); ctx.lineCap='round';   // stem
+        ctx.beginPath(); ctx.moveTo(x+s*px, y+s*(py+0.28)); ctx.lineTo(x+s*px, y+s*py); ctx.stroke();
+        ctx.lineCap='butt';
+        ctx.fillStyle='rgba(150,120,210,0.4)'; ctx.beginPath(); ctx.arc(x+s*px, y+s*py, s*r*1.4, 0, Math.PI*2); ctx.fill();   // underglow
+        ctx.fillStyle='#6a5f80'; ctx.beginPath(); ctx.ellipse(x+s*px, y+s*py, s*r, s*r*0.7, 0, Math.PI, 0); ctx.fill();       // cap
+        ctx.fillStyle='#9a86c4'; ctx.beginPath(); ctx.ellipse(x+s*(px-0.02), y+s*(py-0.01), s*r*0.6, s*r*0.4, 0, Math.PI, 0); ctx.fill();
+      };
+      cap(0.40+j(0,0.06), 0.52, 0.14); cap(0.62+j(2,0.06), 0.44, 0.17); cap(0.52+j(4,0.06), 0.62, 0.11);
+      break; }
+    case T.VOID_FROND: {
+      // A black void-fern unfurling from the umbral floor — the shadow waste's second
+      // forage (cut for Void Petals). A dark central spine and paired fronds tipped
+      // with cold violet light. Hashed lean; static.
+      const h=(col*131+row*71);
+      const lean=(((h>>0)&3)/3-0.5)*0.2;
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);
+      const tipX = x+s*(0.5+lean), tipY = y+s*0.14, baseX = x+s*0.5, baseY = y+s*0.92;
+      ctx.strokeStyle = '#0d0a15'; ctx.lineWidth = Math.max(1.5, s*0.06); ctx.lineCap='round';   // spine
+      ctx.beginPath(); ctx.moveTo(baseX, baseY); ctx.quadraticCurveTo(x+s*(0.5+lean*2), y+s*0.5, tipX, tipY); ctx.stroke();
+      ctx.strokeStyle = '#1e1730'; ctx.lineWidth = Math.max(1, s*0.03);                            // fronds
+      for (let i=1;i<=4;i++){ const t=i/5; const fx=baseX+(tipX-baseX)*t, fy=baseY+(tipY-baseY)*t; const l=s*0.2*(1-t*0.5);
+        ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx-l, fy-l*0.4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx+l, fy-l*0.4); ctx.stroke(); }
+      ctx.lineCap='butt';
+      ctx.fillStyle = 'rgba(160,120,230,0.9)'; ctx.beginPath(); ctx.arc(tipX, tipY, s*0.03, 0, Math.PI*2); ctx.fill();   // violet tip
+      break; }
+    case T.SHADOW_MONOLITH: {
+      // A featureless black monolith standing in the waste — the shadow region's
+      // open-ground landmark (its void answer to the earth standing stone). A tall
+      // slab so dark it reads only as an absence, edged by a thin cold-violet outline
+      // and a faint light-drinking halo, over a cast shadow. Hashed lean; static.
+      const h=(col*131+row*71);
+      const lean=(((h>>0)&3)/3-0.5)*0.08;
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);            // umbral base
+      ctx.fillStyle = 'rgba(90,60,150,0.18)';                          // light-drinking halo
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.44, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#150f22';                                       // cast shadow
+      ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.88, s*0.28, s*0.07, 0, 0, Math.PI*2); ctx.fill();
+      ctx.save();
+      ctx.translate(x+s*0.5, y+s*0.86); ctx.rotate(lean); ctx.translate(-(x+s*0.5), -(y+s*0.86));
+      ctx.fillStyle = '#05030a';                                       // the slab — near-total black
+      ctx.beginPath();
+      ctx.moveTo(x+s*0.38, y+s*0.88); ctx.lineTo(x+s*0.40, y+s*0.16);
+      ctx.lineTo(x+s*0.5, y+s*0.10); ctx.lineTo(x+s*0.60, y+s*0.16);
+      ctx.lineTo(x+s*0.62, y+s*0.88); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(150,110,220,0.5)'; ctx.lineWidth = Math.max(1, s*0.02);   // cold violet outline
+      ctx.stroke();
+      ctx.restore();
+      break; }
   }
 }
 
@@ -6082,6 +6349,328 @@ function drawEnemy(e, ts) {
       ctx.beginPath(); ctx.arc(px + s*0.82, py + s*0.56, s*0.08, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#f0e0ff';
       ctx.beginPath(); ctx.arc(px + s*0.80, py + s*0.54, s*0.03, 0, Math.PI*2); ctx.fill();
+      break;
+    }
+    // ─── Volcanic region ───────────────────────────────────────────────
+    case 'magmin': {
+      // A small molten imp — a lump of cracked black rock lit from within by lava,
+      // trailing heat, with two burning eyes. Fiery aura pulse.
+      const ga = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.5);
+      ga.addColorStop(0, `rgba(255,120,30,${0.32+flap*0.22})`); ga.addColorStop(1, 'rgba(255,60,10,0)');
+      ctx.fillStyle = ga; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = '#2a1206';
+      ctx.beginPath(); ctx.arc(cx, py + s*0.58, s*0.26, 0, Math.PI*2); ctx.fill();       // body
+      ctx.fillRect(px + s*0.24, py + s*0.72, s*0.16, s*0.20); ctx.fillRect(px + s*0.60, py + s*0.72, s*0.16, s*0.20);   // legs
+      ctx.strokeStyle = `rgba(255,140,40,${0.6+flap*0.4})`; ctx.lineWidth = Math.max(1.5, s*0.05); ctx.lineCap='round';   // lava cracks
+      ctx.beginPath();
+      ctx.moveTo(cx - s*0.14, py + s*0.48); ctx.lineTo(cx - s*0.02, py + s*0.60); ctx.lineTo(cx - s*0.12, py + s*0.72);
+      ctx.moveTo(cx + s*0.12, py + s*0.50); ctx.lineTo(cx + s*0.02, py + s*0.62);
+      ctx.stroke(); ctx.lineCap='butt';
+      ctx.fillStyle = '#2a1206';
+      ctx.beginPath(); ctx.arc(cx, py + s*0.32, s*0.17, 0, Math.PI*2); ctx.fill();        // head
+      ctx.fillStyle = `rgba(255,210,80,${0.75+flap*0.25})`;
+      ctx.fillRect(cx - s*0.09, py + s*0.30, s*0.06, s*0.05); ctx.fillRect(cx + s*0.03, py + s*0.30, s*0.06, s*0.05);   // eyes
+      ctx.fillStyle = '#ff6a1e'; ctx.fillRect(cx - s*0.05, py + s*0.40, s*0.10, s*0.03);  // mouth
+      break;
+    }
+    case 'fire_snake': {
+      // A serpent of living fire — a coiling ember body brightening toward a flat
+      // viper head with a glowing forked tongue. Heat shimmer.
+      const ga = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.5);
+      ga.addColorStop(0, `rgba(255,110,30,${0.28+flap*0.2})`); ga.addColorStop(1, 'rgba(255,60,10,0)');
+      ctx.fillStyle = ga; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.strokeStyle = '#b8300f'; ctx.lineWidth = Math.max(3, s*0.14); ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.14, py + s*0.86);
+      ctx.quadraticCurveTo(px + s*0.86, py + s*0.80, px + s*0.44, py + s*0.56);
+      ctx.quadraticCurveTo(px + s*0.14, py + s*0.40, px + s*0.62, py + s*0.28);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,150,50,${0.7+flap*0.3})`; ctx.lineWidth = Math.max(1.5, s*0.06); ctx.stroke();
+      ctx.lineCap='butt';
+      ctx.fillStyle = '#d23a12';
+      ctx.beginPath(); ctx.ellipse(px + s*0.66, py + s*0.26, s*0.15, s*0.10, -0.3, 0, Math.PI*2); ctx.fill();   // head
+      ctx.fillStyle = '#ffdf6a'; ctx.fillRect(px + s*0.70, py + s*0.22, s*0.05, s*0.04);
+      ctx.fillStyle = '#000'; ctx.fillRect(px + s*0.72, py + s*0.23, s*0.02, s*0.02);
+      ctx.strokeStyle = `rgba(255,200,60,${0.7+flap*0.3})`; ctx.lineWidth = Math.max(1, s*0.025);   // tongue
+      ctx.beginPath(); ctx.moveTo(px + s*0.80, py + s*0.28); ctx.lineTo(px + s*0.92, py + s*0.26); ctx.stroke();
+      break;
+    }
+    case 'azer': {
+      // A fire dwarf smith — brass-skinned, a beard and crest of live flame, a heavy
+      // hammer in hand. Squat armored humanoid.
+      ctx.fillStyle = '#7a4a1c'; ctx.fillRect(px + s*0.30, py + s*0.70, s*0.14, s*0.22); ctx.fillRect(px + s*0.52, py + s*0.70, s*0.14, s*0.22);   // legs
+      ctx.fillStyle = '#5a3414'; ctx.fillRect(px + s*0.28, py + s*0.54, s*0.40, s*0.22);   // apron
+      ctx.fillStyle = '#c78a34'; ctx.fillRect(px + s*0.30, py + s*0.38, s*0.36, s*0.24);   // brass torso
+      ctx.fillStyle = '#e2ab54'; ctx.fillRect(px + s*0.30, py + s*0.38, s*0.18, s*0.24);
+      ctx.fillStyle = '#c78a34';
+      ctx.beginPath(); ctx.arc(cx - s*0.02, py + s*0.28, s*0.15, 0, Math.PI*2); ctx.fill();   // head
+      ctx.fillStyle = `rgba(255,140,30,${0.7+flap*0.3})`;                                    // flame beard + crest
+      [0.34,0.44,0.54].forEach((fx,i)=>{ const fl=Math.sin(Date.now()/110+i+phase)*s*0.03;
+        ctx.beginPath(); ctx.moveTo(px + s*fx, py + s*0.36); ctx.lineTo(px + s*(fx+0.03), py + s*0.50 + fl); ctx.lineTo(px + s*(fx+0.06), py + s*0.36); ctx.closePath(); ctx.fill(); });
+      ctx.beginPath(); ctx.moveTo(cx - s*0.10, py + s*0.16); ctx.lineTo(cx - s*0.02, py + s*0.0); ctx.lineTo(cx + s*0.06, py + s*0.16); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffe070'; ctx.fillRect(cx - s*0.08, py + s*0.26, s*0.05, s*0.04); ctx.fillRect(cx + s*0.02, py + s*0.26, s*0.05, s*0.04);   // eyes
+      ctx.strokeStyle = '#5a3414'; ctx.lineWidth = Math.max(2, s*0.05); ctx.beginPath(); ctx.moveTo(px + s*0.78, py + s*0.24); ctx.lineTo(px + s*0.78, py + s*0.80); ctx.stroke();   // hammer haft
+      ctx.fillStyle = '#8a8078'; ctx.fillRect(px + s*0.68, py + s*0.16, s*0.20, s*0.14);   // hammer head
+      break;
+    }
+    case 'red_wyrmling': {
+      // A red dragon wyrmling — scarlet scales, ribbed wings, a horned head with a
+      // spark of fire breath. Small, quick, airborne.
+      const dwf = Math.sin(Date.now()/120 + phase) * 0.2 + 1;
+      ctx.fillStyle = '#a02010';
+      ctx.beginPath(); ctx.moveTo(px + s*0.06, py + s*0.40/dwf); ctx.lineTo(px + s*0.46, py + s*0.36); ctx.lineTo(px + s*0.28, py + s*0.60); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px + s*0.94, py + s*0.40/dwf); ctx.lineTo(px + s*0.54, py + s*0.36); ctx.lineTo(px + s*0.72, py + s*0.60); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#c8341c';
+      ctx.beginPath(); ctx.ellipse(cx, py + s*0.54, s*0.20, s*0.26, 0, 0, Math.PI*2); ctx.fill();   // body
+      ctx.fillStyle = '#e0492a';
+      ctx.beginPath(); ctx.arc(cx, py + s*0.28, s*0.16, 0, Math.PI*2); ctx.fill();       // head
+      ctx.fillStyle = '#5a1408';                                                          // horns
+      ctx.beginPath(); ctx.moveTo(px + s*0.42, py + s*0.16); ctx.lineTo(px + s*0.32, py + s*0.04); ctx.lineTo(px + s*0.48, py + s*0.14); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px + s*0.58, py + s*0.16); ctx.lineTo(px + s*0.68, py + s*0.04); ctx.lineTo(px + s*0.52, py + s*0.14); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(255,170,50,${0.5+flap*0.4})`; ctx.beginPath(); ctx.arc(cx, py + s*0.42, s*0.06, 0, Math.PI*2); ctx.fill();   // breath spark
+      ctx.fillStyle = '#ffd23a'; ctx.fillRect(px + s*0.46, py + s*0.26, s*0.06, s*0.04);
+      ctx.fillStyle = '#000'; ctx.fillRect(px + s*0.48, py + s*0.27, s*0.02, s*0.03);
+      ctx.strokeStyle = '#c8341c'; ctx.lineWidth = Math.max(2, s*0.06);
+      ctx.beginPath(); ctx.moveTo(cx, py + s*0.78); ctx.lineTo(cx + Math.sin(Date.now()/180+phase)*s*0.18, py + s); ctx.stroke();   // tail
+      break;
+    }
+    case 'fire_elemental': {
+      // A body of living flame — layered tongues of fire rising from the ground,
+      // brightening to a white-hot core with two dark eyes. Fully animated.
+      const t = Date.now();
+      const flame = (fx, w, hgt, colr, spd) => {
+        ctx.fillStyle = colr;
+        ctx.beginPath();
+        ctx.moveTo(px + s*(fx - w), py + s*0.92);
+        for (let i=0;i<=6;i++){ const p=i/6; const wob=Math.sin(t/spd + p*6 + phase + fx*4)*s*0.05*(1-p);
+          ctx.lineTo(px + s*fx + wob - Math.sin(p*Math.PI)*s*w*0.2, py + s*(0.92 - hgt*p)); }
+        for (let i=6;i>=0;i--){ const p=i/6; const wob=Math.sin(t/spd + p*6 + phase + fx*4)*s*0.05*(1-p);
+          ctx.lineTo(px + s*fx + wob + Math.sin(p*Math.PI)*s*w*0.2 + s*w*(1-p)*0.4, py + s*(0.92 - hgt*p)); }
+        ctx.closePath(); ctx.fill();
+      };
+      flame(0.5, 0.34, 0.92, '#b8300f', 220);
+      flame(0.46, 0.24, 0.80, '#ff6a1e', 170);
+      flame(0.52, 0.16, 0.66, '#ffb038', 130);
+      flame(0.49, 0.08, 0.50, '#ffe79a', 100);
+      ctx.fillStyle = '#2a0a04';                                                          // eyes
+      ctx.beginPath(); ctx.arc(cx - s*0.07, py + s*0.44, s*0.045, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + s*0.07, py + s*0.44, s*0.045, 0, Math.PI*2); ctx.fill();
+      break;
+    }
+    case 'young_red_dragon': {
+      // A young red dragon — a heavy scarlet wyrm with great ribbed wings, a horned
+      // crest, and a hot glow building in its throat. Ranged breath attacker.
+      const dwf = Math.sin(Date.now()/130 + phase) * 0.18 + 1;
+      ctx.fillStyle = '#8a1808';
+      ctx.beginPath(); ctx.moveTo(px + s*0.02, py + s*0.34/dwf); ctx.lineTo(px + s*0.44, py + s*0.30); ctx.lineTo(px + s*0.22, py + s*0.64); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px + s*0.98, py + s*0.34/dwf); ctx.lineTo(px + s*0.56, py + s*0.30); ctx.lineTo(px + s*0.78, py + s*0.64); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#a82212';
+      ctx.beginPath(); ctx.moveTo(px + s*0.08, py + s*0.38/dwf); ctx.lineTo(px + s*0.42, py + s*0.34); ctx.lineTo(px + s*0.26, py + s*0.56); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px + s*0.92, py + s*0.38/dwf); ctx.lineTo(px + s*0.58, py + s*0.34); ctx.lineTo(px + s*0.74, py + s*0.56); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#bb2a16';
+      ctx.beginPath(); ctx.ellipse(cx, py + s*0.56, s*0.22, s*0.30, 0, 0, Math.PI*2); ctx.fill();   // body
+      ctx.fillStyle = '#d8562a'; ctx.beginPath(); ctx.ellipse(cx, py + s*0.62, s*0.10, s*0.18, 0, 0, Math.PI*2); ctx.fill();   // belly
+      ctx.fillStyle = '#cc3418';
+      ctx.beginPath(); ctx.arc(cx, py + s*0.26, s*0.17, 0, Math.PI*2); ctx.fill();       // head
+      ctx.fillStyle = '#5a1408';                                                          // horn crest
+      [0.38,0.5,0.62].forEach(fx=>{ ctx.beginPath(); ctx.moveTo(px + s*fx, py + s*0.14); ctx.lineTo(px + s*(fx+0.02), py + s*0.0); ctx.lineTo(px + s*(fx+0.08), py + s*0.14); ctx.closePath(); ctx.fill(); });
+      ctx.fillStyle = `rgba(255,180,50,${0.5+flap*0.45})`; ctx.beginPath(); ctx.arc(cx, py + s*0.40, s*0.08, 0, Math.PI*2); ctx.fill();   // throat glow
+      ctx.fillStyle = '#ffd23a'; ctx.fillRect(px + s*0.46, py + s*0.24, s*0.07, s*0.05);
+      ctx.fillStyle = '#000'; ctx.fillRect(px + s*0.49, py + s*0.25, s*0.025, s*0.035);
+      ctx.strokeStyle = '#bb2a16'; ctx.lineWidth = Math.max(2, s*0.07);
+      ctx.beginPath(); ctx.moveTo(cx, py + s*0.82); ctx.lineTo(cx + Math.sin(Date.now()/170+phase)*s*0.22, py + s); ctx.stroke();   // tail
+      break;
+    }
+
+    // ─── Shadow region ─────────────────────────────────────────────────
+    case 'shade': {
+      // A drifting shadow — a smoky black humanoid with a wavering hem and two cold
+      // violet eyes, wrapped in a dark aura. Insubstantial.
+      const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.55);
+      aura.addColorStop(0, `rgba(120,80,190,${0.4+flap*0.22})`); aura.addColorStop(1, 'rgba(70,40,120,0)');
+      ctx.fillStyle = aura; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = '#160f22';
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.24, py + s*0.26); ctx.lineTo(px + s*0.76, py + s*0.26);
+      for (let i=6;i>=0;i--){ const fx=px + s*0.24 + s*0.52*(i/6); const fy=py + s*0.94 + Math.sin(Date.now()/220+phase+i*0.7)*s*0.06; ctx.lineTo(fx, fy); }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#221636';                                                          // wispy arms
+      ctx.beginPath(); ctx.moveTo(px + s*0.24, py + s*0.34); ctx.lineTo(px + s*0.10, py + s*0.56); ctx.lineTo(px + s*0.30, py + s*0.50); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px + s*0.76, py + s*0.34); ctx.lineTo(px + s*0.90, py + s*0.56); ctx.lineTo(px + s*0.70, py + s*0.50); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0c0814';
+      ctx.beginPath(); ctx.arc(cx, py + s*0.24, s*0.16, 0, Math.PI*2); ctx.fill();        // head void
+      ctx.fillStyle = `rgba(170,120,240,${0.75+flap*0.25})`;
+      ctx.fillRect(px + s*0.40, py + s*0.22, s*0.07, s*0.05); ctx.fillRect(px + s*0.53, py + s*0.22, s*0.07, s*0.05);   // eyes
+      break;
+    }
+    case 'shadow_mastiff': {
+      // A hound of living shadow — a low black dog wreathed in gloom, a spectral
+      // violet eye, a maw of pale fangs, and a smoky tail. Shadowy aura.
+      const aura = ctx.createRadialGradient(cx, py + s*0.55, 0, cx, py + s*0.55, s*0.5);
+      aura.addColorStop(0, `rgba(110,70,180,${0.3+flap*0.2})`); aura.addColorStop(1, 'rgba(60,30,110,0)');
+      ctx.fillStyle = aura; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = '#120c1c'; ctx.fillRect(px + s*0.14, py + s*0.46, s*0.62, s*0.34);
+      ctx.fillStyle = '#221636'; ctx.fillRect(px + s*0.14, py + s*0.46, s*0.62, s*0.14);
+      ctx.fillStyle = '#120c1c';
+      ctx.beginPath(); ctx.arc(px + s*0.74, py + s*0.46, s*0.18, 0, Math.PI*2); ctx.fill();   // head
+      ctx.fillStyle = '#221636'; ctx.fillRect(px + s*0.84, py + s*0.46, s*0.12, s*0.08);      // snout
+      ctx.fillStyle = '#120c1c';                                                              // ear
+      ctx.beginPath(); ctx.moveTo(px + s*0.64, py + s*0.30); ctx.lineTo(px + s*0.68, py + s*0.42); ctx.lineTo(px + s*0.76, py + s*0.32); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(180,130,245,${0.75+flap*0.25})`; ctx.fillRect(px + s*0.78, py + s*0.42, s*0.05, s*0.04);   // eye
+      ctx.fillStyle = '#e8e0f2'; ctx.fillRect(px + s*0.86, py + s*0.52, s*0.08, s*0.02);      // fangs
+      ctx.fillStyle = '#120c1c';                                                              // legs
+      [0.20,0.40,0.58].forEach(fx => ctx.fillRect(px + s*fx, py + s*0.78, s*0.08, s*0.14));
+      ctx.strokeStyle = '#221636'; ctx.lineWidth = Math.max(2, s*0.06);
+      ctx.beginPath(); ctx.moveTo(px + s*0.14, py + s*0.50); ctx.lineTo(px - s*0.02, py + s*0.36 + Math.sin(Date.now()/200+phase)*s*0.04); ctx.stroke();   // tail
+      break;
+    }
+    case 'bodak': {
+      // A bodak — a gaunt grey-violet corpse hollowed by the void, its killing gaze
+      // a single burning eye. Emaciated undead humanoid.
+      ctx.fillStyle = '#3a3348';
+      ctx.beginPath(); ctx.moveTo(px + s*0.34, py + s*0.40); ctx.lineTo(px + s*0.66, py + s*0.40); ctx.lineTo(px + s*0.60, py + s*0.90); ctx.lineTo(px + s*0.40, py + s*0.90); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#4a4258'; ctx.fillRect(px + s*0.40, py + s*0.40, s*0.10, s*0.50);
+      ctx.strokeStyle = '#221c30'; ctx.lineWidth = 1;                                     // ribs
+      for (let i=0;i<3;i++){ ctx.beginPath(); ctx.moveTo(px + s*0.40, py + s*(0.48+i*0.08)); ctx.lineTo(px + s*0.60, py + s*(0.48+i*0.08)); ctx.stroke(); }
+      ctx.strokeStyle = '#3a3348'; ctx.lineWidth = Math.max(2, s*0.05); ctx.lineCap='round';   // arms
+      ctx.beginPath(); ctx.moveTo(px + s*0.34, py + s*0.44); ctx.lineTo(px + s*0.20, py + s*0.70);
+      ctx.moveTo(px + s*0.66, py + s*0.44); ctx.lineTo(px + s*0.80, py + s*0.70); ctx.stroke(); ctx.lineCap='butt';
+      ctx.fillStyle = '#4a4258';
+      ctx.beginPath(); ctx.arc(cx, py + s*0.26, s*0.16, 0, Math.PI*2); ctx.fill();        // skull
+      ctx.fillStyle = '#221c30'; ctx.fillRect(px + s*0.42, py + s*0.30, s*0.16, s*0.06);  // jaw shadow
+      ctx.fillStyle = `rgba(180,120,255,${0.8+flap*0.2})`;
+      ctx.beginPath(); ctx.arc(cx, py + s*0.24, s*0.055, 0, Math.PI*2); ctx.fill();       // gaze
+      ctx.fillStyle = '#f0e6ff'; ctx.beginPath(); ctx.arc(cx, py + s*0.24, s*0.02, 0, Math.PI*2); ctx.fill();
+      break;
+    }
+    case 'nightmare': {
+      // A nightmare — a coal-black steed with a mane and hooves of violet flame,
+      // eyes like embers. Fiery-maned horse.
+      ctx.fillStyle = '#0e0a18';                                                          // legs
+      [0.22,0.38,0.56,0.70].forEach((fx,idx) => { const ll=(idx%2? s*0.22:s*0.18); ctx.fillRect(px + s*fx, py + s*0.70, s*0.08, ll); });
+      ctx.fillStyle = `rgba(150,90,240,${0.6+flap*0.4})`;                                  // hoof flames
+      [0.22,0.38,0.56,0.70].forEach(fx => ctx.fillRect(px + s*fx, py + s*0.90, s*0.08, s*0.06));
+      ctx.fillStyle = '#161020'; ctx.beginPath(); ctx.ellipse(cx, py + s*0.56, s*0.30, s*0.18, 0, 0, Math.PI*2); ctx.fill();   // body
+      ctx.fillStyle = '#221636'; ctx.beginPath(); ctx.ellipse(cx - s*0.04, py + s*0.50, s*0.20, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#161020';                                                          // neck + head (right)
+      ctx.beginPath(); ctx.moveTo(px + s*0.66, py + s*0.52); ctx.lineTo(px + s*0.80, py + s*0.24); ctx.lineTo(px + s*0.92, py + s*0.28); ctx.lineTo(px + s*0.82, py + s*0.52); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0e0a18'; ctx.fillRect(px + s*0.86, py + s*0.24, s*0.10, s*0.10);  // muzzle
+      ctx.fillStyle = `rgba(150,90,240,${0.6+flap*0.4})`;                                  // mane flames
+      [0.60,0.68,0.76].forEach((fx,i)=>{ const fl=Math.sin(Date.now()/110+i+phase)*s*0.04; ctx.beginPath(); ctx.moveTo(px + s*fx, py + s*0.44); ctx.lineTo(px + s*(fx+0.03), py + s*0.22 - fl); ctx.lineTo(px + s*(fx+0.07), py + s*0.44); ctx.closePath(); ctx.fill(); });
+      ctx.fillStyle = `rgba(200,140,255,${0.8+flap*0.2})`; ctx.fillRect(px + s*0.84, py + s*0.30, s*0.05, s*0.04);   // ember eye
+      break;
+    }
+    case 'shadow_demon': {
+      // A shadow demon — a winged blot of darkness with hooked claws and a fanged
+      // violet grin, its bat-wings beating. Ranged terror.
+      const wf = Math.sin(Date.now()/100 + phase) * 0.22 + 1;
+      ctx.fillStyle = '#160f24';                                                          // wings
+      ctx.beginPath(); ctx.moveTo(cx - s*0.06, py + s*0.42); ctx.lineTo(px + s*0.0, py + s*0.20/wf); ctx.lineTo(px + s*0.06, py + s*0.40); ctx.lineTo(px + s*0.02, py + s*0.56); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx + s*0.06, py + s*0.42); ctx.lineTo(px + s*1.0, py + s*0.20/wf); ctx.lineTo(px + s*0.94, py + s*0.40); ctx.lineTo(px + s*0.98, py + s*0.56); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0e0a18';                                                          // smoky body
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.34, py + s*0.34); ctx.lineTo(px + s*0.66, py + s*0.34);
+      for (let i=5;i>=0;i--){ const fx=px + s*0.34 + s*0.32*(i/5); const fy=py + s*0.92 + Math.sin(Date.now()/200+phase+i)*s*0.05; ctx.lineTo(fx, fy); }
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#2a1e40'; ctx.lineWidth = Math.max(1.5, s*0.03); ctx.lineCap='round';   // claws
+      ctx.beginPath(); ctx.moveTo(px + s*0.34, py + s*0.52); ctx.lineTo(px + s*0.24, py + s*0.66); ctx.moveTo(px + s*0.66, py + s*0.52); ctx.lineTo(px + s*0.76, py + s*0.66); ctx.stroke(); ctx.lineCap='butt';
+      ctx.fillStyle = '#0e0a18';                                                          // horns
+      ctx.beginPath(); ctx.moveTo(px + s*0.40, py + s*0.20); ctx.lineTo(px + s*0.32, py + s*0.06); ctx.lineTo(px + s*0.48, py + s*0.18); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px + s*0.60, py + s*0.20); ctx.lineTo(px + s*0.68, py + s*0.06); ctx.lineTo(px + s*0.52, py + s*0.18); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(180,120,255,${0.8+flap*0.2})`;                                 // eyes
+      ctx.fillRect(px + s*0.40, py + s*0.26, s*0.06, s*0.04); ctx.fillRect(px + s*0.54, py + s*0.26, s*0.06, s*0.04);
+      ctx.strokeStyle = `rgba(190,140,255,${0.6+flap*0.3})`; ctx.lineWidth = Math.max(1, s*0.025);   // grin
+      ctx.beginPath(); ctx.arc(cx, py + s*0.34, s*0.08, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+      break;
+    }
+    case 'nightwalker': {
+      // A nightwalker — a towering, impossibly gaunt figure of absolute darkness that
+      // radiates the void: long-limbed, a featureless head, two pinprick violet eyes,
+      // wisps of unlight rising off it. The waste's apex horror.
+      const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.6);
+      aura.addColorStop(0, `rgba(90,50,160,${0.4+flap*0.2})`); aura.addColorStop(1, 'rgba(40,20,80,0)');
+      ctx.fillStyle = aura; ctx.fillRect(sx - ts*0.15, sy - ts*0.15, ts*1.3, ts*1.3);
+      ctx.fillStyle = '#080510';                                                          // long torso
+      ctx.beginPath(); ctx.moveTo(px + s*0.38, py + s*0.28); ctx.lineTo(px + s*0.62, py + s*0.28); ctx.lineTo(px + s*0.58, py + s*0.88); ctx.lineTo(px + s*0.42, py + s*0.88); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#080510'; ctx.lineWidth = Math.max(2.5, s*0.06); ctx.lineCap='round';   // long arms
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.38, py + s*0.34); ctx.lineTo(px + s*0.20, py + s*0.60); ctx.lineTo(px + s*0.16, py + s*0.90);
+      ctx.moveTo(px + s*0.62, py + s*0.34); ctx.lineTo(px + s*0.80, py + s*0.60); ctx.lineTo(px + s*0.84, py + s*0.90);
+      ctx.stroke(); ctx.lineCap='butt';
+      ctx.fillStyle = '#080510'; ctx.fillRect(px + s*0.42, py + s*0.86, s*0.07, s*0.14); ctx.fillRect(px + s*0.51, py + s*0.86, s*0.07, s*0.14);   // legs
+      ctx.fillStyle = '#05030a';
+      ctx.beginPath(); ctx.ellipse(cx, py + s*0.20, s*0.13, s*0.17, 0, 0, Math.PI*2); ctx.fill();   // head
+      ctx.fillStyle = `rgba(190,140,255,${0.85+flap*0.15})`;                              // pinprick eyes
+      ctx.beginPath(); ctx.arc(cx - s*0.05, py + s*0.18, s*0.025, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + s*0.05, py + s*0.18, s*0.025, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = `rgba(120,80,200,${0.3+flap*0.3})`; ctx.lineWidth = Math.max(1, s*0.02);   // void wisps
+      for (let i=0;i<3;i++){ const wx=0.3+i*0.2; ctx.beginPath(); ctx.moveTo(px + s*wx, py + s*0.6); ctx.lineTo(px + s*(wx+0.04*Math.sin(Date.now()/300+i)), py + s*0.3); ctx.stroke(); }
+      break;
+    }
+
+    case 'magma_tyrant': {
+      // A colossal molten titan — a hulking body of fissured black obsidian coursing
+      // with lava, a crown of jagged basalt, and a white-hot maw. Boss: an orange
+      // heat aura; cracks and eyes pulse.
+      if (e.boss) {
+        const auraR = s*0.62 + Math.sin(Date.now()/220)*s*0.04;
+        const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, auraR);
+        aura.addColorStop(0, 'rgba(255,110,30,0.42)'); aura.addColorStop(1, 'rgba(255,60,10,0)');
+        ctx.fillStyle = aura; ctx.fillRect(cx-auraR, cy-auraR, auraR*2, auraR*2);
+      }
+      ctx.fillStyle = '#241410'; ctx.fillRect(px + s*0.30, py + s*0.68, s*0.16, s*0.24); ctx.fillRect(px + s*0.54, py + s*0.68, s*0.16, s*0.24);   // legs
+      ctx.fillStyle = '#2a1a14';                                                          // torso
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.22, py + s*0.72); ctx.lineTo(px + s*0.28, py + s*0.30); ctx.lineTo(px + s*0.50, py + s*0.20);
+      ctx.lineTo(px + s*0.72, py + s*0.30); ctx.lineTo(px + s*0.78, py + s*0.72); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#3a241a'; ctx.beginPath(); ctx.moveTo(px + s*0.28, py + s*0.30); ctx.lineTo(px + s*0.50, py + s*0.20); ctx.lineTo(px + s*0.48, py + s*0.60); ctx.lineTo(px + s*0.30, py + s*0.62); ctx.closePath(); ctx.fill();
+      const glow = 0.6 + flap*0.4;                                                        // molten cracks
+      ctx.strokeStyle = `rgba(255,120,30,${glow})`; ctx.lineWidth = Math.max(2, s*0.05); ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.36, py + s*0.28); ctx.lineTo(px + s*0.44, py + s*0.48); ctx.lineTo(px + s*0.36, py + s*0.70);
+      ctx.moveTo(px + s*0.62, py + s*0.30); ctx.lineTo(px + s*0.56, py + s*0.52); ctx.lineTo(px + s*0.64, py + s*0.70);
+      ctx.moveTo(px + s*0.30, py + s*0.70); ctx.lineTo(px + s*0.70, py + s*0.70);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,225,120,${glow})`; ctx.lineWidth = Math.max(1, s*0.02); ctx.stroke(); ctx.lineCap='butt';
+      ctx.fillStyle = '#241410'; ctx.beginPath(); ctx.arc(cx, py + s*0.22, s*0.15, 0, Math.PI*2); ctx.fill();   // head
+      ctx.fillStyle = '#1a0e0a';                                                          // basalt crown
+      [0.36,0.5,0.64].forEach(fx=>{ ctx.beginPath(); ctx.moveTo(px + s*fx, py + s*0.12); ctx.lineTo(px + s*(fx+0.02), py - s*0.02); ctx.lineTo(px + s*(fx+0.08), py + s*0.12); ctx.closePath(); ctx.fill(); });
+      ctx.fillStyle = `rgba(255,235,150,${0.85+flap*0.15})`;                              // white-hot eyes
+      ctx.fillRect(cx - s*0.09, py + s*0.20, s*0.06, s*0.05); ctx.fillRect(cx + s*0.03, py + s*0.20, s*0.06, s*0.05);
+      ctx.fillStyle = `rgba(255,120,30,${glow})`; ctx.fillRect(cx - s*0.06, py + s*0.30, s*0.12, s*0.03);   // maw
+      break;
+    }
+    case 'eclipse_sovereign': {
+      // The Eclipse Sovereign — the final horror. A regal void-figure crowned before
+      // a black sun ringed with a shifting corona, its robe woven of unlight, its
+      // gaze two cold violet stars. Boss: a violet void aura + eclipse disc behind.
+      if (e.boss) {
+        const auraR = s*0.66 + Math.sin(Date.now()/220)*s*0.05;
+        const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, auraR);
+        aura.addColorStop(0, 'rgba(150,90,230,0.42)'); aura.addColorStop(1, 'rgba(80,40,140,0)');
+        ctx.fillStyle = aura; ctx.fillRect(cx-auraR, cy-auraR, auraR*2, auraR*2);
+      }
+      ctx.fillStyle = '#050310';                                                          // black sun
+      ctx.beginPath(); ctx.arc(cx, py + s*0.34, s*0.30, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = `rgba(180,130,255,${0.45+flap*0.4})`; ctx.lineWidth = Math.max(1.5, s*0.02);   // corona
+      for (let i=0;i<12;i++){ const a=i*Math.PI/6 + Date.now()/1600; const r1=s*0.31, r2=s*0.31+s*0.06*(0.6+0.4*Math.sin(Date.now()/300+i));
+        ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*r1, py+s*0.34+Math.sin(a)*r1); ctx.lineTo(cx+Math.cos(a)*r2, py+s*0.34+Math.sin(a)*r2); ctx.stroke(); }
+      ctx.fillStyle = '#120b22';                                                          // robe
+      ctx.beginPath(); ctx.moveTo(px + s*0.30, py + s*0.40); ctx.lineTo(px + s*0.70, py + s*0.40); ctx.lineTo(px + s*0.80, py + s*0.94); ctx.lineTo(px + s*0.20, py + s*0.94); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#1e1236'; ctx.beginPath(); ctx.moveTo(px + s*0.30, py + s*0.40); ctx.lineTo(px + s*0.50, py + s*0.40); ctx.lineTo(px + s*0.50, py + s*0.94); ctx.lineTo(px + s*0.20, py + s*0.94); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = `rgba(160,110,240,${0.5+flap*0.3})`; ctx.lineWidth = Math.max(1, s*0.02);   // trim
+      ctx.beginPath(); ctx.moveTo(px + s*0.50, py + s*0.42); ctx.lineTo(px + s*0.50, py + s*0.92); ctx.stroke();
+      ctx.fillStyle = '#080512';                                                          // hood/head void
+      ctx.beginPath(); ctx.moveTo(px + s*0.34, py + s*0.40); ctx.lineTo(cx, py + s*0.12); ctx.lineTo(px + s*0.66, py + s*0.40); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2a1a44';                                                          // jagged crown
+      [0.36,0.44,0.5,0.56,0.64].forEach((fx,i)=>{ const th=(i===2?0.14:0.08); ctx.beginPath(); ctx.moveTo(px + s*fx, py + s*0.18); ctx.lineTo(px + s*(fx+0.02), py + s*(0.18-th)); ctx.lineTo(px + s*(fx+0.05), py + s*0.18); ctx.closePath(); ctx.fill(); });
+      ctx.fillStyle = `rgba(190,140,255,${0.7+flap*0.3})`; ctx.fillRect(px + s*0.47, py + s*0.06, s*0.06, s*0.04);   // crown jewel
+      ctx.fillStyle = `rgba(200,150,255,${0.85+flap*0.15})`;                              // star eyes
+      ctx.beginPath(); ctx.arc(px + s*0.44, py + s*0.30, s*0.035, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + s*0.56, py + s*0.30, s*0.035, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(px + s*0.44, py + s*0.30, s*0.012, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + s*0.56, py + s*0.30, s*0.012, 0, Math.PI*2); ctx.fill();
       break;
     }
     default: {
