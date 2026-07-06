@@ -6,16 +6,17 @@
 
 // `element` (optional) tags the element this enemy's attacks deal. When the
 // player wears matching elemental armor, that damage is halved (see
-// applyElementalArmor in elements.js). Untagged enemies deal pure physical
-// damage that no elemental armor reduces.
+// applyElementalArmor in elements.js). It also makes the enemy vulnerable to its
+// opposite element — hits have a chance to deal bonus opposite-element damage
+// (see OPPOSITE / rollOppositeVuln). Untagged enemies deal pure physical damage
+// that no elemental armor reduces and carry no vulnerability.
 const DND_ENEMIES = {
   // Regular enemies are grouped into one tier per region (see ENEMY_POOLS and
   // REGIONS.enemyTier). Each region's roster is drawn from D&D 5e Monster Manual
   // creatures chosen to match that region's element, and the bands climb in
   // power from forest (tier 0) up to the arcane mana region (tier 10).
 
-  // ── Tier 0 · Forest — fey, beasts & plants. Gentlest region; forest spawns
-  //    are also flagged necroticVuln (see makeEnemyDefs). ──
+  // ── Tier 0 · Forest — fey, beasts & plants. Gentlest region. ──
   goblin:         { name: 'Goblin',              hp: 7,   spd: 600,  dmg: 1,  xp: 50,    color: '#558844', size: 0.6,  cr: '1/4' },
   wolf:           { name: 'Wolf',                hp: 11,  spd: 450,  dmg: 2,  xp: 100,   color: '#886644', size: 0.7,  cr: '1/4' },
   pixie:          { name: 'Pixie Swarm',         hp: 9,   spd: 400,  dmg: 1,  xp: 50,    color: '#88aaff', size: 0.5,  ranged: true, cr: '1/4', element: 'luminous' },
@@ -106,7 +107,7 @@ const DND_ENEMIES = {
   kraken_boss:    { name: 'ABYSSAL KRAKEN',      hp: 500,  spd: 700, dmg: 18, xp:  9000, color: '#2a88cc', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'water', swims: true },
   frost_titan:    { name: 'FROST TITAN',         hp: 580,  spd: 750, dmg: 20, xp: 14500, color: '#9cdcff', size: 1.7,              boss: true, cr: 'Boss', element: 'ice' },
   gaia_colossus:  { name: 'GAIA COLOSSUS',       hp: 680,  spd: 800, dmg: 22, xp: 14500, color: '#7a6a45', size: 1.8,              boss: true, cr: 'Boss' },
-  wind_djinn:     { name: 'STORMCROWN DJINN',    hp: 620,  spd: 500, dmg: 22, xp: 29500, color: '#c8d8f0', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'wind' },
+  wind_djinn:     { name: 'STORMCROWN DJINN',    hp: 620,  spd: 500, dmg: 22, xp: 29500, color: '#c8d8f0', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'air' },
   storm_lord:     { name: 'VOLTHEART LORD',      hp: 700,  spd: 550, dmg: 24, xp: 36000, color: '#ffe055', size: 1.7, ranged: true, boss: true, cr: 'Boss' },
   seraph_judge:   { name: 'SERAPH OF JUDGEMENT', hp: 760,  spd: 600, dmg: 24, xp: 57500, color: '#fff2a0', size: 1.7, ranged: true, boss: true, cr: 'Boss', element: 'luminous' },
   death_knight:   { name: 'PALE KING',           hp: 860,  spd: 650, dmg: 28, xp: 65000, color: '#aa66dd', size: 1.8, ranged: true, boss: true, cr: 'Boss', element: 'necrotic' },
@@ -173,9 +174,6 @@ function makeEnemyDefs(depth, mapType, map) {
   const tierIdx = region ? region.enemyTier : 1;
   const pool = ENEMY_POOLS[Math.min(tierIdx, ENEMY_POOLS.length - 1)];
   const tier15 = isVillage;
-  // Forest overworld enemies stay vulnerable to necrotic damage. Other regions
-  // (fire, water, ice, …) don't carry that flag.
-  const necroticVuln = mapType === 'forest';
   // Overworld maps spawn a flat 20 enemies regardless of depth. Villages keep
   // an arena-balanced size (depth-based + boss).
   const baseCount = 4 + Math.floor(depth / 2);
@@ -193,7 +191,6 @@ function makeEnemyDefs(depth, mapType, map) {
       if (!map || !isSolid(map, x, y)) {
         const def = { type, x, y };
         if (tier15) def.tier15 = true;
-        if (necroticVuln) def.necroticVuln = true;
         defs.push(def);
         placed = true;
         break;
@@ -336,7 +333,6 @@ function spawnEnemiesForMap(mid) {
         swims: base.swims || false,
         boss: base.boss || false,
         tier15: !!def.tier15,
-        necroticVuln: !!def.necroticVuln,
         element: base.element || null,
         timer: Math.random() * base.spd,
         dead: false,

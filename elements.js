@@ -20,6 +20,36 @@ const SWORD_ELEMENTS = {
   mana:      { id: 'mana',      label: 'Mana',      icon: '🔮', color: '#cc44ff' }
 };
 
+// ─── Reaction-only elements ────────────────────────────────────────────────────
+// Lava and Shadow are NOT wieldable — they never appear as a sword, armor, arrow,
+// region, or shop item, and are deliberately kept out of SWORD_ELEMENTS (whose
+// keys applyStartingInventory treats as the full set of player-owned elements).
+// They exist solely to flavour the opposite-element vulnerability bonus: an Ice
+// enemy takes bonus Lava damage, a Lightning enemy takes bonus Shadow damage.
+const REACTION_ELEMENTS = {
+  lava:   { id: 'lava',   label: 'Lava',   icon: '🌋', color: '#ff3311' },
+  shadow: { id: 'shadow', label: 'Shadow', icon: '🌑', color: '#8b5cf6' }
+};
+
+// Display info (icon/label/color) for any element id, wieldable or reaction-only.
+function elementInfo(id) {
+  return SWORD_ELEMENTS[id] || REACTION_ELEMENTS[id] || null;
+}
+
+// ─── Opposite-element pairings ─────────────────────────────────────────────────
+// Every enemy that deals an element is vulnerable to that element's opposite:
+// hitting it has a chance to add bonus damage of OPPOSITE[element]. The Lava and
+// Shadow reaction-elements only ever appear on the right-hand side here (no enemy
+// deals them), which is why they need no reverse entry.
+const OPPOSITE = {
+  fire:      'water',    water: 'fire',
+  ice:       'lava',     // Lava is reaction-only — no enemy deals Ice's opposite
+  lightning: 'shadow',   // Shadow is reaction-only — likewise
+  earth:     'air',      air:   'earth',
+  luminous:  'necrotic', necrotic: 'luminous',
+  poison:    'mana',     mana:  'poison'
+};
+
 // ─── Earth's custom stone symbol ───────────────────────────────────────────────
 // Emoji glyphs render in their own fixed colours, so the grey 🪨 rock can't be
 // tinted to the dark brown we want. Earth's symbol is therefore a hand-drawn SVG
