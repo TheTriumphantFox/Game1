@@ -65,42 +65,54 @@ const REGIONS = [
       'Old Roads','Tumulus Field','Caveborn Path','Sediment Flats','Mossy Crag',
       'Sunken Plateau','Iron Gulch','Echo Canyon','Magmaroot Hollow','Petrified Grove'
     ], villageName:'Stoneheart Burrow',         enemyTier:4, boss:'gaia_colossus'  },
+  { id:'volcanic',  element:'volcanic',  border:T.VOLCANIC_ROCK,   ground:T.VOLCANIC_GROUND, decoration:T.MAGMA_CRACK, accent:T.LAVA, names:[
+      'Cinderpath','Magma Hollow','Ashfall Reach','Emberflow Crossing','Caldera Rim',
+      'Basalt Maze','Obsidian Field','Pyroclast Pass','Smoldering Flats','Molten Vein',
+      'Brimstone Basin','Scoria Ridge','Sulfur Hollow','Lavafall Crossing','Charburn Reach',
+      'Fumarole Field','Igneous Steps','Cindercone Trail','Firespring Bowl','Vulcan Throat'
+    ], villageName:'Cinderhearth Bastion',      enemyTier:5, boss:'magma_tyrant'   },
   { id:'air',       element:'wind',      skyRegion:true, cloudEdge:T.CLOUD_EDGE, border:T.SKY_GROUND,      ground:T.CLOUD,          decoration:T.CLOUDBANK, accent:T.WATER,      names:[
       'Skywharf','Cumulus Crossing','Zephyr Vault','Updraft Reach','Drifting Bastion',
       'Thunderhead Pass','Mist-veiled Path','Featherfall Hollow','Cirrus Ribbon','Stratos Spine',
       'Galewall','Wisp Field','Halcyon Reach','Stormthrone Approach','Falcon Roost',
       'Cloudbreak','Sky-stair','High Tundra','Whispering Currents','Aetherwake'
-    ], villageName:'Stormcrown Aerie',          enemyTier:5, boss:'wind_djinn'     },
+    ], villageName:'Stormcrown Aerie',          enemyTier:6, boss:'wind_djinn'     },
   { id:'lightning', element:null,        skyRegion:true, cloudEdge:T.STORM_EDGE, border:T.STORM_CLOUD,     ground:T.STORM_GROUND,   decoration:T.STORM_BANK, accent:T.WATER,      names:[
       'Sparkfen','Voltaic Plain','Thunderfork Pass','Stormglass Reach','Static Maze',
       'Galvanic Hollow','Arcwire Crossing','Lichtning Field','Tesla Spires','Surge Basin',
       'Brimwire','Ferrum Edge','Crackleway','Boltcaster Ridge','Shockmarsh',
       'Magnet Crag','Glasspowder Plain','Filament Gardens','Plasma Bowl','Coronet'
-    ], villageName:'Voltheart Bastion',         enemyTier:6, boss:'storm_lord'     },
+    ], villageName:'Voltheart Bastion',         enemyTier:7, boss:'storm_lord'     },
   { id:'luminous',  element:'luminous',  border:T.LUMINOUS_CRYSTAL, ground:T.LUMINOUS_FLOOR, decoration:T.LUMINOUS_GLOW, accent:T.WATER, names:[
       'Sunhalo Reach','Dawnlit Field','Prism Garden','Goldenmoss Hollow','Halo Pass',
       'Bright Causeway','Aureate Steps','Lambent Glade','Daystar Crossing','Lustrous Vault',
       'Beacon Plain','Argent Maze','Lumenrise','Suncast Ridge','Mirrorbright Atrium',
       'Effulgent Brook','Coronal Field','Glimmerwash','Radiant Apse','Shining Sanctum'
-    ], villageName:'Solarspire Sanctum',        enemyTier:7, boss:'seraph_judge'   },
+    ], villageName:'Solarspire Sanctum',        enemyTier:8, boss:'seraph_judge'   },
   { id:'necrotic',  element:'necrotic',  border:T.BLIGHTED_WALL,   ground:T.BLIGHT,         decoration:T.BONE_PILE, accent:T.LAVA,        names:[
       'Witherfen','Boneyard Crossing','Pall Glade','Hollow Reach','Decay Plain',
       'Shroudwood','Mourner\'s Pass','Cinderash Field','Gravesong Maze','Black Marrow',
       'Pall-veiled Ruins','Tomb-iron Reach','Carrion Flats','Sepulchre Trail','Funeral Causeway',
       'Witch-light Hollow','Coffinroot','Wraithmire','Reliquary Ribs','Last Rites Plain'
-    ], villageName:'Ossuary of the Pale King',  enemyTier:8, boss:'death_knight'   },
+    ], villageName:'Ossuary of the Pale King',  enemyTier:9, boss:'death_knight'   },
   { id:'poison',    element:'poison',    border:T.POISON_WALL,     ground:T.SLUDGE,         decoration:T.MUSHROOM, accent:T.BOG_POOL,    names:[
       'Venomvale','Toxic Bog','Spore Pass','Mireheart','Slime Reach',
       'Acidlake Crossing','Foulweed Hollow','Plague Trail','Hexbog Maze','Murkfen',
       'Rotwood Edge','Stagnant Causeway','Bilegrove','Cankerstump','Pestilent Field',
       'Snake-fang Hollow','Greenfog Reach','Necrosis Plain','Bubble Marsh','Witherwart'
-    ], villageName:'Mire-warden Citadel',       enemyTier:9, boss:'hydra_queen'    },
+    ], villageName:'Mire-warden Citadel',       enemyTier:10, boss:'hydra_queen'    },
   { id:'mana',      element:null,        edgeWater:true, border:T.MANA_CRYSTAL,    ground:T.MANA_FLOOR,     decoration:T.FLOWER, accent:T.DEEP_WATER, names:[
       'Arcanum Reach','Spellwell Plain','Sigil Garden','Channeled Pass','Aether Field',
       'Glyphvein Maze','Lifeweave Hollow','Runestone Crossing','Conduit Spire','Resonant Bowl',
       'Astral Causeway','Mage-glass Plateau','Echo Lattice','Filigree Field','Mantra Plain',
       'Distortion Reach','Astral Wash','Crystal Choir','Theurgy Trail','Heartmoon'
-    ], villageName:'Heartstone Conclave',       enemyTier:10, boss:'archmage_void'  },
+    ], villageName:'Heartstone Conclave',       enemyTier:11, boss:'archmage_void'  },
+  { id:'shadow',    element:'shadow',    border:T.SHADOW_WALL,     ground:T.SHADOW_GROUND,  decoration:T.SHADOW_DAPPLE, accent:T.SHADOW_RIFT, names:[
+      'Duskfen','Umbral Plain','Gloomfork Pass','Nightglass Reach','Shade Maze',
+      'Eclipse Hollow','Voidwire Crossing','Penumbra Field','Starless Basin','Blackmire',
+      'Duskveil Ruins','Nihil Reach','Umbral Flats','Sable Causeway','Moonless Field',
+      'Wraithdark Hollow','Gloamroot','Nyxmire','Eventide Ribs','Last Light Plain'
+    ], villageName:'Umbral Sanctum',            enemyTier:12, boss:'eclipse_sovereign' },
 ];
 
 // Quick lookup helper.
@@ -1519,6 +1531,13 @@ function buildRegionMap(seed, depth, openSides, region) {
   // seeded onto the remaining plain STORM_GROUND, not the STORM_BANK puffs.
   scatterLightningFoliage(m, region.id);
 
+  // Volcanic / Shadow regions: scatter their cuttable growth across the open floor
+  // (the volcanic/shadow twin of the sky-region foliage passes). Their MAGMA_CRACK
+  // / SHADOW_DAPPLE decoration is already dappled by the generic Phase-6 scatter,
+  // and their solid landmark (obsidian spire / monolith) by addRegionLandmarks.
+  scatterVolcanicFoliage(m, region.id);
+  scatterShadowFoliage(m, region.id);
+
   // Luminous region: pool brighter LUMINOUS_GLOW across the warm-white floor, then
   // strew the sanctum's radiant growth onto the remaining plain floor, and finally
   // raise solid LIGHT_PILLAR shafts of light as landmarks. Order mirrors the sky
@@ -1676,6 +1695,28 @@ function scatterLightningFoliage(m, regionId) {
   scatterOn(m, T.FULGURITE, 40, T.STORM_GROUND);
 }
 
+// Volcanic region: scatter the caldera's fire-touched growth across the open
+// cooled-lava floor — ember-lilies (cut for Emberbloom) and brimstone shrubs (cut
+// for Sulfur Moss). Seeds onto plain VOLCANIC_GROUND only (off the glowing magma
+// cracks / paths), all passable 1-HP foliage that revert to VOLCANIC_GROUND when
+// cut, so connectivity is unaffected. No-op for every other region.
+function scatterVolcanicFoliage(m, regionId) {
+  if (regionId !== 'volcanic') return;
+  scatterOn(m, T.EMBER_FLOWER, 60, T.VOLCANIC_GROUND);
+  scatterOn(m, T.SULFUR_SHRUB, 55, T.VOLCANIC_GROUND);
+}
+
+// Shadow region: scatter the umbral waste's pale growth across the open floor —
+// duskcap clusters (cut for Duskcaps) and black void-ferns (cut for Void Petals).
+// Seeds onto plain SHADOW_GROUND only (off the gloom-dapple pools / paths), all
+// passable 1-HP foliage that revert to SHADOW_GROUND when cut, so connectivity is
+// unaffected. No-op for every other region.
+function scatterShadowFoliage(m, regionId) {
+  if (regionId !== 'shadow') return;
+  scatterOn(m, T.GLOOM_BLOOM, 60, T.SHADOW_GROUND);
+  scatterOn(m, T.VOID_FROND,  55, T.SHADOW_GROUND);
+}
+
 // Luminous region: dapple a share of the walkable LUMINOUS_FLOOR with brighter
 // LUMINOUS_GLOW pools — places where the warm healing light pools more thickly —
 // so the floor reads as a living wash of radiance rather than one flat sheet.
@@ -1809,6 +1850,8 @@ const REGION_LANDMARKS = {
   earth:     { tile: T.STANDING_STONE, open: [T.SCREE, T.MUD, T.MOUNTAIN_SAGE, T.MOSS_CLUMP, T.CRYSTAL_CLUSTER] },
   air:       { tile: T.CLOUD_SPIRE,    open: [T.CLOUD, T.CLOUDBANK, T.SKY_BLOOM, T.WIND_REED, T.STORM_THISTLE] },
   lightning: { tile: T.STORM_SPIRE,    open: [T.STORM_GROUND, T.STORM_BANK, T.VOLT_BLOOM, T.SPARK_REED, T.FULGURITE] },
+  volcanic:  { tile: T.OBSIDIAN_SPIRE, open: [T.VOLCANIC_GROUND, T.MAGMA_CRACK, T.EMBER_FLOWER, T.SULFUR_SHRUB] },
+  shadow:    { tile: T.SHADOW_MONOLITH, open: [T.SHADOW_GROUND, T.SHADOW_DAPPLE, T.GLOOM_BLOOM, T.VOID_FROND] },
 };
 
 // Early/elemental regions: stand a scattering of the region's signature landmark out

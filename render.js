@@ -68,6 +68,9 @@ const CACHEABLE_TILES = new Set([
   T.SNOW, T.SNOW_DRIFT, T.SNOW_PINE, T.SPARK_REED, T.STATUE, T.STONES,
   T.STORM_THISTLE, T.SWAMP_FERN, T.TREE, T.VERDANT_FERN, T.VOLT_BLOOM, T.WALL,
   T.WIND_REED, T.WINTER_BERRY_BUSH, T.WITHERED_SHRUB,
+  // Volcanic + shadow region foliage (static, tile-bounded — like the other cached
+  // growths). Their walls/floors/dapples/landmarks/animated tiles stay procedural.
+  T.EMBER_FLOWER, T.SULFUR_SHRUB, T.GLOOM_BLOOM, T.VOID_FROND,
 ].filter(v => v !== undefined));
 
 // Paint a pure tile once into a trimmed offscreen sprite. Renders into a scratch
@@ -3434,6 +3437,270 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.lineCap = 'butt';
       ctx.fillStyle = `rgba(220,228,255,${flick*0.5})`;               // glow at a node
       ctx.beginPath(); ctx.arc(x+s*0.56, y+s*0.50, s*0.06, 0, Math.PI*2); ctx.fill();
+      break; }
+
+    // ─── Volcanic region ─────────────────────────────────────────────────────
+    case T.VOLCANIC_ROCK: {
+      // Border wall of the caldera — cooled black basalt, faceted lit-upper-left /
+      // shadowed-lower-right like the mountain rock, seamed by a jagged fault and,
+      // on some blocks, still-hot molten rock glowing in a crack. Hashed; static.
+      const h = (col * 131 + row * 83);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#2b2320'; ctx.fillRect(x, y, s, s);            // base basalt
+      ctx.fillStyle = '#3c322c';                                       // lit facet (upper-left)
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + s*(0.56 + j(0,0.14)), y);
+      ctx.lineTo(x + s*(0.30 + j(2,0.12)), y + s*(0.52 + j(4,0.10)));
+      ctx.lineTo(x, y + s*(0.58 + j(6,0.10)));
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#15100d';                                       // shadowed recess (lower-right)
+      ctx.beginPath();
+      ctx.moveTo(x + s, y + s*(0.30 + j(0,0.12)));
+      ctx.lineTo(x + s, y + s);
+      ctx.lineTo(x + s*(0.40 + j(2,0.12)), y + s);
+      ctx.lineTo(x + s*(0.64 + j(4,0.08)), y + s*0.50);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#0d0907'; ctx.lineWidth = 1.5;                // jagged fault
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.44 + j(8,0.12)), y);
+      ctx.lineTo(x + s*(0.52 - j(2,0.10)), y + s*0.5);
+      ctx.lineTo(x + s*(0.40 + j(6,0.12)), y + s);
+      ctx.stroke();
+      if ((h % 3) === 0) {                                             // molten vein in a crack
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#ff5a1e'; ctx.lineWidth = Math.max(1, s*0.05);
+        ctx.beginPath();
+        ctx.moveTo(x + s*(0.20 + j(2,0.10)), y + s*0.70);
+        ctx.lineTo(x + s*(0.36 + j(4,0.08)), y + s*0.52);
+        ctx.stroke();
+        ctx.strokeStyle = '#ffd23a'; ctx.lineWidth = Math.max(1, s*0.02); ctx.stroke();
+        ctx.lineCap = 'butt';
+      }
+      break; }
+    case T.VOLCANIC_GROUND: {
+      // Walkable cooled-lava floor — dark charcoal basalt broken into cracked
+      // flagstones, dusted with pale ash and, on some tiles, a faint warm hairline
+      // where the rock hasn't fully cooled. Hashed per tile; static.
+      const h = (col * 137 + row * 89);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);            // ash-basalt base
+      ctx.fillStyle = '#3b2e29';                                       // darker cracked plate
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.10+j(0,0.1)), y + s*0.14);
+      ctx.lineTo(x + s*(0.56+j(2,0.1)), y + s*0.10);
+      ctx.lineTo(x + s*(0.48+j(4,0.1)), y + s*0.52);
+      ctx.lineTo(x + s*0.14, y + s*0.48);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#2a201d'; ctx.lineWidth = 1;                  // seams between plates
+      ctx.beginPath(); ctx.moveTo(x, y + s*(0.55+j(6,0.1))); ctx.lineTo(x+s, y + s*(0.50+j(2,0.1))); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + s*(0.6+j(4,0.1)), y); ctx.lineTo(x + s*(0.55+j(8,0.1)), y+s); ctx.stroke();
+      ctx.fillStyle = '#6a574d';                                       // ash fleck
+      ctx.fillRect(x + s*(0.24+j(0,0.4)), y + s*(0.6+j(2,0.2)), 2, 2);
+      if ((h & 3) === 0) {                                             // faint warm crack on ~1/4
+        ctx.strokeStyle = 'rgba(255,110,40,0.5)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x + s*0.3, y + s*0.72); ctx.lineTo(x + s*0.5, y + s*0.66); ctx.stroke();
+      }
+      break; }
+    case T.MAGMA_CRACK: {
+      // A glowing fissure where molten rock shows through the cooled floor — dappled
+      // across the caldera like the cloud regions' brighter puffs, but a pulsing seam
+      // of orange-and-yellow magma breathing heat. Animated.
+      const h = (col * 137 + row * 89);
+      const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);            // cooled-floor base
+      const pulse = 0.6 + 0.4 * Math.sin(Date.now()/500 + col*0.6 + row*0.5);
+      ctx.fillStyle = `rgba(255,90,20,${0.18*pulse})`;                 // soft heat glow
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.42, 0, Math.PI*2); ctx.fill();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(255,60,10,${0.7+0.3*pulse})`; ctx.lineWidth = Math.max(1.5, s*0.11);   // molten seam
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.14+j(0,0.1)), y + s*(0.30+j(2,0.15)));
+      ctx.lineTo(x + s*0.46, y + s*0.52);
+      ctx.lineTo(x + s*(0.84+j(4,0.1)), y + s*(0.70+j(6,0.15)));
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,210,60,${0.8*pulse})`; ctx.lineWidth = Math.max(1, s*0.04); ctx.stroke();   // hot core
+      ctx.lineCap = 'butt';
+      break; }
+    case T.EMBER_FLOWER: {
+      // A fire-lily rooted in the ash — the caldera's forage (cut for Emberbloom). A
+      // charred stem and a five-petal bloom in molten orange with a glowing
+      // yellow-white heart, ringed by a faint warm halo. Static.
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#3b2e29'; ctx.fillRect(x, y + s*0.86, s, s*0.14);   // ash at the foot
+      ctx.strokeStyle = '#5a3a20'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.9); ctx.lineTo(x+s*0.5, y+s*0.48); ctx.stroke();
+      ctx.lineCap='butt';
+      const bx = x+s*0.5, by = y+s*0.40;
+      ctx.fillStyle = 'rgba(255,120,40,0.35)';                             // warm halo
+      ctx.beginPath(); ctx.arc(bx, by, s*0.26, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#e8531f';                                            // outer petals
+      for (let i=0;i<5;i++){ const a=i*Math.PI*2/5 - Math.PI/2;
+        ctx.beginPath(); ctx.ellipse(bx+Math.cos(a)*s*0.14, by+Math.sin(a)*s*0.14, s*0.09, s*0.05, a, 0, Math.PI*2); ctx.fill(); }
+      ctx.fillStyle = '#ff9a3c';                                            // inner petals
+      for (let i=0;i<5;i++){ const a=i*Math.PI*2/5 - Math.PI/2;
+        ctx.beginPath(); ctx.ellipse(bx+Math.cos(a)*s*0.09, by+Math.sin(a)*s*0.09, s*0.05, s*0.03, a, 0, Math.PI*2); ctx.fill(); }
+      ctx.fillStyle = '#ffe08a'; ctx.beginPath(); ctx.arc(bx, by, s*0.055, 0, Math.PI*2); ctx.fill();   // heart
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(bx-s*0.015, by-s*0.015, s*0.02, 0, Math.PI*2); ctx.fill();
+      break; }
+    case T.SULFUR_SHRUB: {
+      // A low brimstone shrub crusted with sulfur-yellow nodules — the caldera's
+      // second forage (cut for Sulfur Moss). A dark twiggy mound with clustered
+      // yellow-green crystal buds. Hashed; static.
+      const h = (col*137 + row*71);
+      const j = (a,n)=>(((h>>a)&3)/3-0.5)*n;
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#33291f';                                          // twiggy mound
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.66, s*0.28, s*0.18, 0, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#4a3d28'; ctx.lineWidth = Math.max(1, s*0.035); ctx.lineCap='round';
+      for (let i=0;i<4;i++){ const a=(i/4)*Math.PI - Math.PI*0.1;
+        ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.72);
+        ctx.lineTo(x+s*(0.5+Math.cos(a)*0.32), y+s*(0.72-Math.sin(a)*0.34)); ctx.stroke(); }
+      ctx.lineCap='butt';
+      const bud=(px,py,r)=>{ ctx.fillStyle='#c9b23a'; ctx.beginPath(); ctx.arc(x+s*px,y+s*py,s*r,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='#eadd7a'; ctx.beginPath(); ctx.arc(x+s*(px-0.02),y+s*(py-0.02),s*r*0.5,0,Math.PI*2); ctx.fill(); };
+      bud(0.34+j(0,0.06),0.44,0.08); bud(0.6+j(2,0.06),0.40,0.09); bud(0.5+j(4,0.06),0.56,0.07);
+      break; }
+    case T.OBSIDIAN_SPIRE: {
+      // A jagged shard of black volcanic glass thrust up from the caldera floor — the
+      // volcanic region's open-ground landmark (its molten answer to the ice spire).
+      // A glossy near-black crystal with a lit facet, a smaller shard at its foot, a
+      // warm molten glow bleeding from its base, and a bright edge glint. Static.
+      const h=(col*137+row*71);
+      const j=(a,n)=>(((h>>a)&3)/3-0.5)*n;
+      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);            // caldera base
+      ctx.fillStyle = 'rgba(255,90,20,0.28)';                          // molten glow at foot
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.86, s*0.34, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      const apexX=x+s*(0.48+j(0,0.10)), apexY=y+s*0.06;
+      ctx.fillStyle = '#120d14';                                       // small side shard
+      ctx.beginPath(); ctx.moveTo(x+s*0.66, y+s*0.52); ctx.lineTo(x+s*0.78, y+s*0.88); ctx.lineTo(x+s*0.58, y+s*0.88); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0c0810';                                       // main spire — shadow facet
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.62, y+s*0.9); ctx.lineTo(x+s*0.34, y+s*0.9); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2a2230';                                       // main spire — lit facet
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.48, y+s*0.9); ctx.lineTo(x+s*0.34, y+s*0.9); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(255,150,90,0.8)'; ctx.lineWidth=Math.max(1,s*0.03);   // glossy warm edge
+      ctx.beginPath(); ctx.moveTo(apexX, apexY); ctx.lineTo(x+s*0.40, y+s*0.9); ctx.stroke();
+      ctx.fillStyle='rgba(255,220,190,0.9)'; ctx.beginPath(); ctx.arc(apexX-s*0.02, apexY+s*0.12, s*0.025, 0, Math.PI*2); ctx.fill();  // glint
+      break; }
+
+    // ─── Shadow region ───────────────────────────────────────────────────────
+    case T.SHADOW_WALL: {
+      // Border of the umbral waste — void-stone so dark it barely catches light,
+      // faceted like the crypt wall but drinking the glow, its seams and a cold
+      // violet edge-sheen the only things that read, flecked with faint starlight
+      // caught in the black. Hashed per tile; static.
+      const h=(col*131+row*83);
+      const j=(a,n)=>(((h>>a)&3)/3)*n;
+      ctx.fillStyle = '#100b18'; ctx.fillRect(x, y, s, s);            // void-stone base
+      ctx.fillStyle = '#1b1430';                                       // faintly lit facet (upper-left)
+      ctx.fillRect(x, y, s*(0.56+j(0,0.16)), s*(0.50+j(2,0.14)));
+      ctx.fillStyle = '#070510';                                       // shadowed recess (lower-right)
+      ctx.fillRect(x + s*(0.5-j(4,0.1)), y + s*(0.5+j(6,0.08)), s*0.5, s*0.5);
+      ctx.strokeStyle = '#05030a'; ctx.lineWidth = 1;                  // mortar seam
+      ctx.beginPath(); ctx.moveTo(x, y + s*(0.5+j(8,0.1))); ctx.lineTo(x+s, y + s*(0.46+j(0,0.1))); ctx.stroke();
+      ctx.strokeStyle = 'rgba(150,110,220,0.35)'; ctx.lineWidth = Math.max(1, s*0.02);   // cold violet edge sheen
+      ctx.beginPath(); ctx.moveTo(x + s*0.06, y + s*0.1); ctx.lineTo(x + s*0.06, y + s*0.9); ctx.stroke();
+      ctx.fillStyle = 'rgba(200,190,255,0.8)';                          // starlight flecks
+      ctx.fillRect(x + s*(0.3+j(2,0.5)), y + s*(0.25+j(4,0.4)), 1, 1);
+      if ((h%2)===0) ctx.fillRect(x + s*(0.6+j(6,0.3)), y + s*(0.6+j(8,0.3)), 1, 1);
+      break; }
+    case T.SHADOW_GROUND: {
+      // Walkable umbral floor — a deep violet-black waste, mottled with darker
+      // hollows and a faint lighter patch, with a stray cold-violet mote hanging in
+      // the gloom. Hashed per tile; static.
+      const h=(col*137+row*89);
+      const j=(a,n)=>(((h>>a)&3)/3)*n;
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);            // umbral base
+      ctx.fillStyle = '#1b1526';                                       // darker hollow
+      ctx.beginPath(); ctx.ellipse(x+s*(0.4+j(0,0.3)), y+s*(0.5+j(2,0.2)), s*0.22, s*0.15, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2e2640';                                       // faint lighter patch
+      ctx.beginPath(); ctx.ellipse(x+s*(0.7-j(4,0.2)), y+s*(0.3+j(6,0.2)), s*0.14, s*0.09, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(150,120,210,0.5)';                          // cold mote
+      ctx.fillRect(x+s*(0.55+j(0,0.3)), y+s*(0.62+j(4,0.2)), 2, 2);
+      break; }
+    case T.SHADOW_DAPPLE: {
+      // A pool of deeper gloom gathered on the umbral floor — a soft dark hollow
+      // rimmed by a faint cold-violet edge, the shadow twin of the cloud regions'
+      // brighter puffs. Static.
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);            // floor base
+      ctx.fillStyle = '#15101f';
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.42, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#0d0a15';
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.26, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(140,110,200,0.25)'; ctx.lineWidth = Math.max(1, s*0.02);
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.4, 0, Math.PI*2); ctx.stroke();
+      break; }
+    case T.SHADOW_RIFT: {
+      // A void chasm torn in the waste — near-black depths breathing a faint cold
+      // violet light from far below, its jagged rim catching the last of it. The
+      // shadow region's accent, crossed by plank bridges. Animated glow.
+      ctx.fillStyle = '#080510'; ctx.fillRect(x, y, s, s);            // the void
+      const pulse = 0.5 + 0.5*Math.sin(Date.now()/700 + col*0.5 + row*0.4);
+      ctx.fillStyle = `rgba(110,80,180,${0.10+0.14*pulse})`;          // light from below
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.5, s*0.3, s*0.4, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = `rgba(160,120,230,${0.14*pulse})`;
+      ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.5, s*0.14, s*0.22, 0, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#1b1430'; ctx.lineWidth = Math.max(1, s*0.06); ctx.lineJoin = 'round';   // jagged rim
+      ctx.beginPath();
+      ctx.moveTo(x, y+s*0.2); ctx.lineTo(x+s*0.3, y+s*0.36); ctx.lineTo(x+s*0.1, y+s*0.6); ctx.lineTo(x+s*0.4, y+s*0.9);
+      ctx.stroke();
+      break; }
+    case T.GLOOM_BLOOM: {
+      // A cluster of pale duskcap mushrooms pushing up through the gloom — the
+      // shadow waste's forage (cut for Duskcaps). Slender pale stems under
+      // grey-violet caps, each with a faint underglow. Hashed; static.
+      const h=(col*137+row*71);
+      const j=(a,n)=>(((h>>a)&3)/3-0.5)*n;
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);
+      const cap=(px,py,r)=>{
+        ctx.strokeStyle='#cfc6df'; ctx.lineWidth=Math.max(1,s*0.05); ctx.lineCap='round';   // stem
+        ctx.beginPath(); ctx.moveTo(x+s*px, y+s*(py+0.28)); ctx.lineTo(x+s*px, y+s*py); ctx.stroke();
+        ctx.lineCap='butt';
+        ctx.fillStyle='rgba(150,120,210,0.4)'; ctx.beginPath(); ctx.arc(x+s*px, y+s*py, s*r*1.4, 0, Math.PI*2); ctx.fill();   // underglow
+        ctx.fillStyle='#6a5f80'; ctx.beginPath(); ctx.ellipse(x+s*px, y+s*py, s*r, s*r*0.7, 0, Math.PI, 0); ctx.fill();       // cap
+        ctx.fillStyle='#9a86c4'; ctx.beginPath(); ctx.ellipse(x+s*(px-0.02), y+s*(py-0.01), s*r*0.6, s*r*0.4, 0, Math.PI, 0); ctx.fill();
+      };
+      cap(0.40+j(0,0.06), 0.52, 0.14); cap(0.62+j(2,0.06), 0.44, 0.17); cap(0.52+j(4,0.06), 0.62, 0.11);
+      break; }
+    case T.VOID_FROND: {
+      // A black void-fern unfurling from the umbral floor — the shadow waste's second
+      // forage (cut for Void Petals). A dark central spine and paired fronds tipped
+      // with cold violet light. Hashed lean; static.
+      const h=(col*131+row*71);
+      const lean=(((h>>0)&3)/3-0.5)*0.2;
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);
+      const tipX = x+s*(0.5+lean), tipY = y+s*0.14, baseX = x+s*0.5, baseY = y+s*0.92;
+      ctx.strokeStyle = '#0d0a15'; ctx.lineWidth = Math.max(1.5, s*0.06); ctx.lineCap='round';   // spine
+      ctx.beginPath(); ctx.moveTo(baseX, baseY); ctx.quadraticCurveTo(x+s*(0.5+lean*2), y+s*0.5, tipX, tipY); ctx.stroke();
+      ctx.strokeStyle = '#1e1730'; ctx.lineWidth = Math.max(1, s*0.03);                            // fronds
+      for (let i=1;i<=4;i++){ const t=i/5; const fx=baseX+(tipX-baseX)*t, fy=baseY+(tipY-baseY)*t; const l=s*0.2*(1-t*0.5);
+        ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx-l, fy-l*0.4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx+l, fy-l*0.4); ctx.stroke(); }
+      ctx.lineCap='butt';
+      ctx.fillStyle = 'rgba(160,120,230,0.9)'; ctx.beginPath(); ctx.arc(tipX, tipY, s*0.03, 0, Math.PI*2); ctx.fill();   // violet tip
+      break; }
+    case T.SHADOW_MONOLITH: {
+      // A featureless black monolith standing in the waste — the shadow region's
+      // open-ground landmark (its void answer to the earth standing stone). A tall
+      // slab so dark it reads only as an absence, edged by a thin cold-violet outline
+      // and a faint light-drinking halo, over a cast shadow. Hashed lean; static.
+      const h=(col*131+row*71);
+      const lean=(((h>>0)&3)/3-0.5)*0.08;
+      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);            // umbral base
+      ctx.fillStyle = 'rgba(90,60,150,0.18)';                          // light-drinking halo
+      ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.44, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#150f22';                                       // cast shadow
+      ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.88, s*0.28, s*0.07, 0, 0, Math.PI*2); ctx.fill();
+      ctx.save();
+      ctx.translate(x+s*0.5, y+s*0.86); ctx.rotate(lean); ctx.translate(-(x+s*0.5), -(y+s*0.86));
+      ctx.fillStyle = '#05030a';                                       // the slab — near-total black
+      ctx.beginPath();
+      ctx.moveTo(x+s*0.38, y+s*0.88); ctx.lineTo(x+s*0.40, y+s*0.16);
+      ctx.lineTo(x+s*0.5, y+s*0.10); ctx.lineTo(x+s*0.60, y+s*0.16);
+      ctx.lineTo(x+s*0.62, y+s*0.88); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(150,110,220,0.5)'; ctx.lineWidth = Math.max(1, s*0.02);   // cold violet outline
+      ctx.stroke();
+      ctx.restore();
       break; }
   }
 }

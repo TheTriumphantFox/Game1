@@ -237,7 +237,31 @@ const T = {
   //   STORM_SPIRE    — lightning: the dark twin — a thunderhead column veined with
   //                               crackling lightning.
   MOSS_BOULDER:123, DESERT_OBELISK:124, DRIFTWOOD:125, ICE_SPIRE:126,
-  STANDING_STONE:127, CLOUD_SPIRE:128, STORM_SPIRE:129
+  STANDING_STONE:127, CLOUD_SPIRE:128, STORM_SPIRE:129,
+
+  // ─── Volcanic region (id 'volcanic') ─────────────────────────────────────────
+  // A scorched caldera of cooled basalt and open lava. VOLCANIC_ROCK is the solid
+  // obsidian border wall; VOLCANIC_GROUND the walkable cooled-lava/ash floor;
+  // MAGMA_CRACK a glowing fissure dappled across the floor (passable, the volcanic
+  // twin of the cloud regions' CLOUDBANK). Accent is the existing solid T.LAVA
+  // (open magma pools, bridged). EMBER_FLOWER (a fire-lily, sheds Emberbloom) and
+  // SULFUR_SHRUB (a brimstone bush, sheds Sulfur Moss) are passable, 1-HP,
+  // sword-cuttable foliage that revert to VOLCANIC_GROUND when cut. OBSIDIAN_SPIRE
+  // is the region's solid open-ground landmark (a jagged shard of black glass).
+  VOLCANIC_ROCK:130, VOLCANIC_GROUND:131, MAGMA_CRACK:132,
+  EMBER_FLOWER:133, SULFUR_SHRUB:134, OBSIDIAN_SPIRE:135,
+
+  // ─── Shadow region (id 'shadow') ─────────────────────────────────────────────
+  // The final region — a lightless umbral waste. SHADOW_WALL is the solid
+  // void-stone border; SHADOW_GROUND the walkable umbral floor; SHADOW_DAPPLE a
+  // pooled deeper-gloom tile dappled across it (passable). SHADOW_RIFT is a void
+  // chasm accent (solid, bridged — the shadow twin of the fire/necrotic LAVA).
+  // GLOOM_BLOOM (a pale duskcap cluster, sheds Duskcaps) and VOID_FROND (a black
+  // fern, sheds Void Petals) are passable, 1-HP, sword-cuttable foliage that revert
+  // to SHADOW_GROUND when cut. SHADOW_MONOLITH is the region's solid open-ground
+  // landmark (a featureless black obelisk that drinks the light).
+  SHADOW_WALL:136, SHADOW_GROUND:137, SHADOW_DAPPLE:138, SHADOW_RIFT:139,
+  GLOOM_BLOOM:140, VOID_FROND:141, SHADOW_MONOLITH:142
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -271,6 +295,12 @@ const SOLID_TILES = new Set([
   T.MOSS_BOULDER, T.DESERT_OBELISK, T.DRIFTWOOD,
   T.ICE_SPIRE, T.STANDING_STONE,
   T.CLOUD_SPIRE, T.STORM_SPIRE,
+  // Volcanic region: obsidian border wall, void-rift accent unused here (LAVA is
+  // already listed), plus the obsidian-shard landmark.
+  T.VOLCANIC_ROCK, T.OBSIDIAN_SPIRE,
+  // Shadow region: void-stone border, the SHADOW_RIFT chasm accent, and the
+  // black-obelisk landmark.
+  T.SHADOW_WALL, T.SHADOW_RIFT, T.SHADOW_MONOLITH,
 ].filter(v => v !== undefined));
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -404,6 +434,21 @@ const TILE_COLORS = {
   [T.DRIFTWOOD]: '#cfc4b0',       [T.ICE_SPIRE]: '#7fc0e4',
   [T.STANDING_STONE]: '#5f584e',  [T.CLOUD_SPIRE]: '#f4f8ff',
   [T.STORM_SPIRE]: '#48527a',
+  // Volcanic region — a dark basalt border, a cooled charcoal-ash floor, and
+  // glowing MAGMA_CRACK fissures dappled across it (bright molten orange). The
+  // EMBER_FLOWER fire-lily and SULFUR_SHRUB brimstone bush read warm against the
+  // dark floor; OBSIDIAN_SPIRE is a near-black glass shard.
+  [T.VOLCANIC_ROCK]: '#2b2320',   [T.VOLCANIC_GROUND]: '#4a3b34',
+  [T.MAGMA_CRACK]: '#ff5522',     [T.EMBER_FLOWER]: '#ff9944',
+  [T.SULFUR_SHRUB]: '#c9b23a',    [T.OBSIDIAN_SPIRE]: '#171014',
+  // Shadow region — a lightless umbral waste. A void-stone border near-black,
+  // an umbral floor a shade lighter, SHADOW_DAPPLE deeper-gloom pools, and the
+  // SHADOW_RIFT void chasm the darkest of all. The GLOOM_BLOOM duskcaps read pale,
+  // VOID_FROND a cold violet; SHADOW_MONOLITH a flat black obelisk.
+  [T.SHADOW_WALL]: '#100b18',     [T.SHADOW_GROUND]: '#241d33',
+  [T.SHADOW_DAPPLE]: '#1a1526',   [T.SHADOW_RIFT]: '#080510',
+  [T.GLOOM_BLOOM]: '#9a86c4',     [T.VOID_FROND]: '#6f4fb0',
+  [T.SHADOW_MONOLITH]: '#0b0712',
 };
 
 // ─── Monster trophies ─────────────────────────────────────────────────────────
@@ -487,30 +532,48 @@ const TROPHIES = [
   { id: 'gith_blade',        icon: '⚔️', label: 'Githyanki Blade',   color: '#b0c0d0', value: 48 },
   { id: 'eyestalk',          icon: '👁️', label: 'Eyestalk',          color: '#cc66bb', value: 52, monster: true },
   { id: 'rakshasa_claw',     icon: '🐾', label: 'Rakshasa Claw',     color: '#cc8844', value: 50, monster: true },
+  // ── Volcanic region ──
+  { id: 'cinder_core',       icon: '🔥', label: 'Cinder Core',       color: '#ff7733', value: 26 },
+  { id: 'firesnake_fang',    icon: '🦷', label: 'Fire Snake Fang',   color: '#dd5522', value: 26, monster: true },
+  { id: 'azer_ingot',        icon: '🔩', label: 'Azer Ingot',        color: '#e0a050', value: 28 },
+  { id: 'redwyrmling_scale', icon: '🐉', label: 'Red Wyrmling Scale',color: '#cc3322', value: 30, monster: true },
+  { id: 'magma_core',        icon: '💠', label: 'Magma Core',        color: '#ff5522', value: 34 },
+  { id: 'reddragon_scale',   icon: '🐲', label: 'Red Dragon Scale',  color: '#bb2211', value: 38, monster: true },
+  // ── Shadow region ──
+  { id: 'umbral_shard',      icon: '🌑', label: 'Umbral Shard',      color: '#3a2a5a', value: 48 },
+  { id: 'mastiff_fang',      icon: '🦷', label: 'Shadow Mastiff Fang',color: '#2a2038', value: 50, monster: true },
+  { id: 'bodak_eye',         icon: '👁️', label: 'Bodak Eye',         color: '#4a3a6a', value: 52, monster: true },
+  { id: 'nightmare_hoof',    icon: '🐴', label: 'Nightmare Hoof',    color: '#5a3a7a', value: 54, monster: true },
+  { id: 'demon_horn',        icon: '😈', label: 'Shadow Demon Horn', color: '#2a1a44', value: 56, monster: true },
+  { id: 'void_heart',        icon: '🖤', label: 'Void Heart',        color: '#1a0f2e', value: 60, monster: true },
 ];
 
 // ─── Ores ─────────────────────────────────────────────────────────────────────
-// Five raw ores, ordered common → rare. A 5% bonus find in any small chest (see
+// Six raw ores, ordered common → rare. A 5% bonus find in any small chest (see
 // handlePickup in player.js); which ore drops is set entirely by the region the
-// chest sits in, so regions 1-3 always yield the most common Grimsilver and
-// regions 10-11 the priceless Eclipsium. Each ore is a stackable inventory item
-// (key), shows in the Drops satchel (PASSIVE_DROPS), and any General Store buys
-// the lot (TROPHY_SELL + the ore sell section in shop.js). The inventory key is
-// the id itself (already plural-ish), and `value` is the per-unit sell price.
+// chest sits in, so the earliest regions always yield the most common Grimsilver
+// and the final Shadow region the priceless Voidsteel. Each ore is a stackable
+// inventory item (key), shows in the Drops satchel (PASSIVE_DROPS), and any
+// General Store buys the lot (TROPHY_SELL + the ore sell section in shop.js). The
+// inventory key is the id itself (already plural-ish), and `value` is the per-unit
+// sell price. Blacksmith flat ore-armor = (tier+1)×2, so Voidsteel forges +12.
 const ORE_TYPES = [
   { id: 'grimsilver', icon: '🔘', label: 'Grimsilver', color: '#b9bcc6', value: 20  },
   { id: 'emberbrass', icon: '🟠', label: 'Emberbrass', color: '#d98a3a', value: 35  },
   { id: 'glimmerspar', icon: '🔵', label: 'Glimmerspar', color: '#4f8ff0', value: 60  },
   { id: 'wyrmgold',   icon: '🟡', label: 'Wyrmgold',   color: '#e8c14a', value: 95  },
   { id: 'eclipsium',  icon: '🟣', label: 'Eclipsium',  color: '#9a5cff', value: 150 },
+  { id: 'voidsteel',  icon: '⬛', label: 'Voidsteel',  color: '#3a2e52', value: 230 },
 ];
 
-// Map a 0-based region index (forest=0 … mana=10) to its ore tier. The 11 regions
-// band into the 5 ores: 1-3 → Grimsilver, 4-5 → Emberbrass, 6-7 → Glimmerspar,
-// 8-9 → Wyrmgold, 10-11 → Eclipsium (region numbers shown 1-indexed).
+// Map a 0-based region index (forest=0 … shadow=12) to its ore tier. The 13 regions
+// band into the 6 ores: the first three (forest/fire/water) keep the common
+// Grimsilver, then two regions per ore up the chain:
+//   0-2 → Grimsilver, 3-4 → Emberbrass, 5-6 → Glimmerspar, 7-8 → Wyrmgold,
+//   9-10 → Eclipsium, 11-12 → Voidsteel (volcanic=5 → Glimmerspar, shadow=12 → Voidsteel).
 function oreForRegionIdx(idx) {
   const i = (typeof idx === 'number' && idx >= 0) ? idx : 0;
-  const tier = i <= 2 ? 0 : i <= 4 ? 1 : i <= 6 ? 2 : i <= 8 ? 3 : 4;
+  const tier = i <= 2 ? 0 : i <= 4 ? 1 : i <= 6 ? 2 : i <= 8 ? 3 : i <= 10 ? 4 : 5;
   return ORE_TYPES[tier];
 }
 

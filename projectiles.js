@@ -354,6 +354,10 @@ function doSwordSwing() {
     else if (tile === T.GIANT_BLOOM)      { dropType = 'manapetal';  dropChance = 0.55; }
     else if (tile === T.VERDANT_FERN)     { dropType = 'heartfrond'; dropChance = 0.55; }
     else if (tile === T.GIANT_MUSHROOM)   { dropType = 'glowcap';    dropChance = 0.55; }
+    else if (tile === T.EMBER_FLOWER)     { dropType = 'emberbloom'; dropChance = 0.50; }
+    else if (tile === T.SULFUR_SHRUB)     { dropType = 'sulfurmoss'; dropChance = 0.50; }
+    else if (tile === T.GLOOM_BLOOM)      { dropType = 'duskcap';    dropChance = 0.55; }
+    else if (tile === T.VOID_FROND)       { dropType = 'voidpetal';  dropChance = 0.55; }
     else continue;
     map[tr][tc] = ground;
     if (dropType && Math.random() < dropChance) {
@@ -750,6 +754,30 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#c8b86a', 10, 3);
         spawnParticle(sp.x, sp.y, '#e8dca6', 6, 2);
         showMsg(`🌾 +${d.val} Reed Pith (now ${player.reedpith})`, 1500);
+      } else if (d.type === 'emberbloom') {
+        addItem('emberblooms', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#ff9944', 10, 3);
+        spawnParticle(sp.x, sp.y, '#ffc890', 6, 2);
+        showMsg(`🏵️ +${d.val} Emberbloom (now ${player.emberblooms})`, 1500);
+      } else if (d.type === 'sulfurmoss') {
+        addItem('sulfurmoss', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#c9b23a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#e8dc7a', 6, 2);
+        showMsg(`🍂 +${d.val} Sulfur Moss (now ${player.sulfurmoss})`, 1500);
+      } else if (d.type === 'duskcap') {
+        addItem('duskcaps', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#9a86c4', 10, 3);
+        spawnParticle(sp.x, sp.y, '#c4b8e0', 6, 2);
+        showMsg(`🍄 +${d.val} Duskcap (now ${player.duskcaps})`, 1500);
+      } else if (d.type === 'voidpetal') {
+        addItem('voidpetals', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#6f4fb0', 10, 3);
+        spawnParticle(sp.x, sp.y, '#a488e0', 6, 2);
+        showMsg(`🌌 +${d.val} Void Petal (now ${player.voidpetals})`, 1500);
       } else if (TROPHY_META[d.type]) {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
         // type (fangs, fingers, bones, wings, organs, feathers, scales, …).

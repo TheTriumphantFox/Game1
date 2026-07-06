@@ -76,12 +76,17 @@ const PASSIVE_DROPS = [
   { type: 'sunseeds',      icon: '🌟', label: 'Sun Seed',     key: 'sunseeds'      },
   { type: 'prisms',        icon: '🔆', label: 'Prism Shard',  key: 'prisms'        },
   { type: 'reedpith',      icon: '🌾', label: 'Reed Pith',    key: 'reedpith'      },
+  { type: 'emberblooms',   icon: '🏵️', label: 'Emberbloom',   key: 'emberblooms'   },
+  { type: 'sulfurmoss',    icon: '🍂', label: 'Sulfur Moss',   key: 'sulfurmoss'    },
+  { type: 'duskcaps',      icon: '🍄', label: 'Duskcap',       key: 'duskcaps'      },
+  { type: 'voidpetals',    icon: '🌌', label: 'Void Petal',    key: 'voidpetals'    },
   // Raw ores — rare 5% small-chest find, type set by region (see ORE_TYPES).
   { type: 'grimsilver',    icon: '🔘', label: 'Grimsilver',   key: 'grimsilver'    },
   { type: 'emberbrass',    icon: '🟠', label: 'Emberbrass',   key: 'emberbrass'    },
   { type: 'glimmerspar',   icon: '🔵', label: 'Glimmerspar',  key: 'glimmerspar'   },
   { type: 'wyrmgold',      icon: '🟡', label: 'Wyrmgold',     key: 'wyrmgold'      },
   { type: 'eclipsium',     icon: '🟣', label: 'Eclipsium',    key: 'eclipsium'     },
+  { type: 'voidsteel',     icon: '⬛', label: 'Voidsteel',    key: 'voidsteel'     },
 ];
 
 // Ledger grouping. The drops ledger (ledger.js) renders ~45 pickups under these
@@ -102,12 +107,13 @@ const DROP_CAT_OF = {
   voltpetals: 'herbal', sparkseeds: 'herbal', manapetals: 'herbal', heartfronds: 'herbal',
   glowcaps: 'herbal', witherwood: 'herbal', graveblooms: 'herbal',
   fiddleheads: 'herbal', aloe: 'herbal', frostferns: 'herbal', sunseeds: 'herbal', reedpith: 'herbal',
+  emberblooms: 'herbal', sulfurmoss: 'herbal', duskcaps: 'herbal', voidpetals: 'herbal',
   // Monster-parts bucket — biological trophies (TROPHIES registry entries flagged
   // `monster`). Mineral / elemental / crafted trophies omit the flag and fall
   // through to 'material' like the embers / shards / cores above.
   ...Object.fromEntries(TROPHIES.filter(t => t.monster).map(t => [t.id + 's', 'monster'])),
   // Raw ores (see ORE_TYPES) get their own satchel bucket.
-  grimsilver: 'ore', emberbrass: 'ore', glimmerspar: 'ore', wyrmgold: 'ore', eclipsium: 'ore',
+  grimsilver: 'ore', emberbrass: 'ore', glimmerspar: 'ore', wyrmgold: 'ore', eclipsium: 'ore', voidsteel: 'ore',
 };
 function dropCatOf(type) { return DROP_CAT_OF[type] || 'material'; }
 
