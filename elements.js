@@ -3,9 +3,10 @@
 // to every successful sword swing. Multiple elements stack — a sword with
 // Fire + Ice will deal base + 1d4 fire + 1d4 ice per hit.
 //
-// Elements are bought from the General Store (see shop.js / STORE_ITEMS) and
-// stored on `player.swordElements` as a list of element ids. Each element has
-// its own colour so the damage numbers visually distinguish their source.
+// Each elemental sword is forged at its home region's Blacksmith (see
+// forgeRegionalSword in shop.js) and stored on `player.swordElements` as a list of
+// element ids. Each element has its own colour so the damage numbers visually
+// distinguish their source.
 
 const SWORD_ELEMENTS = {
   fire:      { id: 'fire',      label: 'Fire',      icon: '🔥', color: '#ff6622' },
@@ -104,35 +105,55 @@ function grantSwordElement(elemId) {
   return false;
 }
 
+// ─── Elemental sword upgrades ─────────────────────────────────────────────────
+// Each owned elemental sword can be upgraded sequentially through the six ore
+// tiers at the Blacksmith (see shop.js), exactly like elemental armor. An upgrade
+// level (0–6, stored on player.swordUpgrades[id]) adds a flat +2 damage per level
+// to that sword's elemental hit — Lv0 +0 … Lv6 +12 on top of the base 1d4 roll
+// (see the swing in projectiles.js).
+
+// Upgrade level (0–6) of an owned elemental sword; 0 if unowned / freshly dropped.
+function swordUpgradeLevel(elemId) {
+  return (player && player.swordUpgrades && player.swordUpgrades[elemId]) || 0;
+}
+
+// Flat bonus damage an elemental sword adds at its upgrade level = level × 2,
+// matching the ore tier its last upgrade used (Grimsilver +2 … Voidsteel +12).
+function elementalSwordBonus(elemId) {
+  return swordUpgradeLevel(elemId) * 2;
+}
+
 // ─── Elemental armor ─────────────────────────────────────────────────────────
 // One armor per element, forged at its home region's Blacksmith and then upgraded
-// sequentially through the five ore tiers (see shop.js). An armor's upgrade level
-// (0–5, stored on player.armorUpgrades[id]) drives two stats while it is worn:
-//   • Physical defense = level × 2, matching the ore-armor bonus (+2/+4/+6/+8/+10).
+// sequentially through the six ore tiers (see shop.js). An armor's upgrade level
+// (0–6, stored on player.armorUpgrades[id]) drives two stats while it is worn:
+//   • Physical defense = level × 2, matching the ore-armor bonus (+2/+4/+6/+8/+10/+12).
 //     While worn this REPLACES the hero's plain flat armor (see damagePlayer).
-//   • An elemental block % that steps up on the 1st / 3rd / 5th upgrades:
-//       level 0 → 50%, levels 1–2 → 60%, levels 3–4 → 70%, level 5 → 80% blocked.
+//   • An elemental block % that steps up on the 1st / 3rd / 5th / 6th upgrades:
+//       level 0 → 40%, levels 1–2 → 50%, levels 3–4 → 60%, level 5 → 70%,
+//       level 6 → 80% blocked.
 // Only the active armor (player.activeArmorElement) applies; non-matching damage
 // is unaffected.
 
-// Upgrade level (0–5) of an owned elemental armor; 0 if unowned / freshly forged.
+// Upgrade level (0–6) of an owned elemental armor; 0 if unowned / freshly forged.
 function armorUpgradeLevel(elemId) {
   return (player && player.armorUpgrades && player.armorUpgrades[elemId]) || 0;
 }
 
 // Physical-armor value an elemental armor grants while worn = level × 2, matching
-// the ore tier its last upgrade used (Grimsilver +2 … Eclipsium +10).
+// the ore tier its last upgrade used (Grimsilver +2 … Voidsteel +12).
 function elementalArmorPhys(elemId) {
   return armorUpgradeLevel(elemId) * 2;
 }
 
 // % of matching-element damage blocked at a given upgrade level. Steps up on the
-// 1st / 3rd / 5th upgrade.
+// 1st / 3rd / 5th / 6th upgrade.
 function elementalBlockPctForLevel(lv) {
-  if (lv >= 5) return 80;
-  if (lv >= 3) return 70;
-  if (lv >= 1) return 60;
-  return 50;
+  if (lv >= 6) return 80;
+  if (lv >= 5) return 70;
+  if (lv >= 3) return 60;
+  if (lv >= 1) return 50;
+  return 40;
 }
 
 // Block % of an owned armor (for UI), and the inverse "fraction that gets through"
@@ -141,7 +162,7 @@ function elementalArmorBlockPct(elemId) {
   return elementalBlockPctForLevel(armorUpgradeLevel(elemId));
 }
 function elementalArmorThrough(elemId) {
-  return (100 - elementalArmorBlockPct(elemId)) / 100;   // 50/60/70/80% → 0.5/0.4/0.3/0.2
+  return (100 - elementalArmorBlockPct(elemId)) / 100;   // 40/50/60/70/80% → 0.6/0.5/0.4/0.3/0.2
 }
 
 function grantArmorElement(elemId) {

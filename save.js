@@ -94,6 +94,7 @@ const DEFAULT_PLAYER = {
   // and on newGame, once SWORD_ELEMENTS has loaded.
   swordElements: [],
   activeSwordElement: null,
+  swordUpgrades: {},
   arrows: {},
   activeArrowElement: null,
   armorElements: [],
@@ -113,6 +114,7 @@ function applyLoadData(data) {
   player.elixirs = { ...((data.player && data.player.elixirs) || {}) };
   player.collectorQuests = { ...((data.player && data.player.collectorQuests) || {}) };
   player.armorUpgrades = { ...((data.player && data.player.armorUpgrades) || {}) };
+  player.swordUpgrades = { ...((data.player && data.player.swordUpgrades) || {}) };
   // renderX/Y aren't meaningful values to load — they should match x/y after
   // an instant snap (clampCam(true) below will do the rest).
   player.renderX = player.x;
@@ -379,7 +381,7 @@ function newGame() {
     grimsilver: 0, emberbrass: 0, glimmerspar: 0, wyrmgold: 0, eclipsium: 0,
     regionPotions: {}, elixirs: {}, collectorQuests: {},
     immunityElement: null, immunityTimer: 0,
-    swordElements: [], activeSwordElement: null,
+    swordElements: [], activeSwordElement: null, swordUpgrades: {},
     arrows: {}, activeArrowElement: null,
     armorElements: [], armorUpgrades: {}, activeArmorElement: null,
     defeatedBoss: false

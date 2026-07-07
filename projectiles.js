@@ -290,7 +290,10 @@ function doSwordSwing() {
       if (player.activeSwordElement && typeof SWORD_ELEMENTS !== 'undefined') {
         const elem = SWORD_ELEMENTS[player.activeSwordElement];
         if (elem) {
-          const elemDmg = 1 + Math.floor(Math.random() * 4);
+          // Base 1d4 + a flat +2 per upgrade level (0–10, see swordUpgradeLevel).
+          const bonus = (typeof elementalSwordBonus === 'function')
+            ? elementalSwordBonus(player.activeSwordElement) : 0;
+          const elemDmg = 1 + Math.floor(Math.random() * 4) + bonus;
           e.hp -= elemDmg;
           damageNumbers.push({
             entity: e,

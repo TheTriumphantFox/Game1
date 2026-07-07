@@ -42,10 +42,12 @@ function addArrow(elemId, n) {
 function applyStartingInventory(p) {
   if (typeof SWORD_ELEMENTS === 'undefined') return;
   const ids = Object.keys(SWORD_ELEMENTS);
-  p.swordElements = ids.slice();   // grant every elemental sword
+  p.swordElements = ids.slice();   // grant every elemental sword…
+  p.swordUpgrades = {};
+  for (const id of ids) p.swordUpgrades[id] = 6;   // …fully upgraded (god start)
   p.armorElements = ids.slice();   // grant every elemental armor…
   p.armorUpgrades = {};
-  for (const id of ids) p.armorUpgrades[id] = 5;   // …fully upgraded (god start)
+  for (const id of ids) p.armorUpgrades[id] = 6;   // …fully upgraded (god start)
   p.arrows = { plain: STARTING_ITEM_AMOUNT };
   for (const id of ids) p.arrows[id] = STARTING_ITEM_AMOUNT;
 }
@@ -104,6 +106,9 @@ let player = {
   // Which elemental sword is currently equipped, or null for the base sword.
   // Affects doSwordSwing — only the active elemental adds its 1d4 roll.
   activeSwordElement: null,
+  // Each elemental sword's upgrade level (0–6) lives in swordUpgrades, keyed by
+  // element id; it adds +2 damage per level to that sword's hit (elements.js).
+  swordUpgrades: {},
   // Quantities of each elemental arrow the player owns, keyed by element id.
   // Bought / sold in the General Store. Firing an elemental arrow consumes
   // one and adds +1d4 of that element to the hit.
@@ -111,7 +116,7 @@ let player = {
   // Which elemental arrow is currently nocked, or null for plain arrows.
   activeArrowElement: null,
   // Owned elemental armors and the one currently worn (or null for none).
-  // Each armor's upgrade level (0–5) lives in armorUpgrades, keyed by element id;
+  // Each armor's upgrade level (0–6) lives in armorUpgrades, keyed by element id;
   // it drives the worn armor's physical defense and elemental block % (elements.js).
   armorElements: [],
   armorUpgrades: {},
@@ -324,97 +329,101 @@ function respawn() {
 // Every pool enemy (see ENEMY_POOLS in enemies.js) drops a thematically
 // matching item: trophies (TROPHY_META ids), 'herbal', or 'potion'. All of
 // them are sellable at the General Store.
+// Each enemy also drops a second, rarer "prized" trophy (the low-chance entry,
+// 5–10%) themed to that specific monster — see the Rare enemy drops block in the
+// TROPHIES registry (config.js). It's always listed AFTER the primary drop so
+// enemyTrophyType() (blacksmith parts) still resolves the primary one.
 const ENEMY_DROPS = {
   // ── Tier 0 · Forest ──
-  goblin:            [{ type: 'finger',    chance: 0.20 }],
-  wolf:              [{ type: 'fang',      chance: 0.50 }],
-  pixie:             [{ type: 'wing',      chance: 0.05 }],
-  dryad:             [{ type: 'dryad_bloom', chance: 0.50 }, { type: 'potion', chance: 0.10 }],
-  giant_spider:      [{ type: 'silk',      chance: 0.35 }],
-  owlbear:           [{ type: 'feather',   chance: 0.20 }],
+  goblin:            [{ type: 'finger',    chance: 0.20 }, { type: 'goblin_ear',   chance: 0.10 }],
+  wolf:              [{ type: 'fang',      chance: 0.50 }, { type: 'wolf_claw',    chance: 0.10 }],
+  pixie:             [{ type: 'wing',      chance: 0.05 }, { type: 'pixie_dust',   chance: 0.10 }],
+  dryad:             [{ type: 'dryad_bloom', chance: 0.50 }, { type: 'potion', chance: 0.10 }, { type: 'dryad_sap', chance: 0.10 }],
+  giant_spider:      [{ type: 'silk',      chance: 0.35 }, { type: 'spinneret',    chance: 0.10 }],
+  owlbear:           [{ type: 'feather',   chance: 0.20 }, { type: 'owlbear_claw', chance: 0.10 }],
   // ── Tier 1 · Fire / Desert ──
-  cultist:           [{ type: 'talisman',  chance: 0.25 }, { type: 'potion', chance: 0.10 }],
-  magma_mephit:      [{ type: 'ember',     chance: 0.35 }],
-  gnoll:             [{ type: 'gnoll_fang',      chance: 0.35 }],
-  hell_hound:        [{ type: 'hound_fang',      chance: 0.35 }],
-  giant_scorpion:    [{ type: 'venom',           chance: 0.35 }],
-  salamander:        [{ type: 'salamander_hide', chance: 0.40 }],
+  cultist:           [{ type: 'talisman',  chance: 0.25 }, { type: 'potion', chance: 0.10 }, { type: 'cult_tome', chance: 0.10 }],
+  magma_mephit:      [{ type: 'ember',     chance: 0.35 }, { type: 'mephit_ash',       chance: 0.10 }],
+  gnoll:             [{ type: 'gnoll_fang',      chance: 0.35 }, { type: 'gnoll_ear',        chance: 0.10 }],
+  hell_hound:        [{ type: 'hound_fang',      chance: 0.35 }, { type: 'hound_heart',      chance: 0.10 }],
+  giant_scorpion:    [{ type: 'venom',           chance: 0.35 }, { type: 'scorpion_stinger', chance: 0.10 }],
+  salamander:        [{ type: 'salamander_hide', chance: 0.40 }, { type: 'salamander_tail',  chance: 0.10 }],
   // ── Tier 2 · Water ──
-  sahuagin:          [{ type: 'fin',       chance: 0.35 }],
-  kuo_toa:           [{ type: 'kuotoa_gill', chance: 0.35 }],
-  hunter_shark:      [{ type: 'shark_tooth', chance: 0.50 }],
-  merrow:            [{ type: 'pearl',       chance: 0.30 }],
-  sea_hag:           [{ type: 'hag_hair',    chance: 0.30 }],
-  water_elemental:   [{ type: 'core',      chance: 0.30 }],
+  sahuagin:          [{ type: 'fin',       chance: 0.35 }, { type: 'sahuagin_trident', chance: 0.09 }],
+  kuo_toa:           [{ type: 'kuotoa_gill', chance: 0.35 }, { type: 'kuotoa_eye',      chance: 0.09 }],
+  hunter_shark:      [{ type: 'shark_tooth', chance: 0.50 }, { type: 'shark_fin',       chance: 0.09 }],
+  merrow:            [{ type: 'pearl',       chance: 0.30 }, { type: 'merrow_scale',    chance: 0.09 }],
+  sea_hag:           [{ type: 'hag_hair',    chance: 0.30 }, { type: 'hag_eye',         chance: 0.09 }],
+  water_elemental:   [{ type: 'core',      chance: 0.30 }, { type: 'tidal_pearl',     chance: 0.09 }],
   // ── Tier 3 · Ice ──
-  ice_mephit:        [{ type: 'shard',     chance: 0.35 }],
-  winter_wolf:       [{ type: 'frost_fang', chance: 0.40 }],
-  yeti:              [{ type: 'pelt',       chance: 0.35 }],
-  mammoth:           [{ type: 'tusk',       chance: 0.40 }],
-  white_dragon:      [{ type: 'scale',      chance: 0.35 }],
-  frost_giant:       [{ type: 'rime',       chance: 0.40 }],
+  ice_mephit:        [{ type: 'shard',     chance: 0.35 }, { type: 'mephit_frost',     chance: 0.08 }],
+  winter_wolf:       [{ type: 'frost_fang', chance: 0.40 }, { type: 'winterwolf_pelt',  chance: 0.08 }],
+  yeti:              [{ type: 'pelt',       chance: 0.35 }, { type: 'yeti_claw',        chance: 0.08 }],
+  mammoth:           [{ type: 'tusk',       chance: 0.40 }, { type: 'mammoth_hide',     chance: 0.08 }],
+  white_dragon:      [{ type: 'scale',      chance: 0.35 }, { type: 'whitedragon_horn', chance: 0.08 }],
+  frost_giant:       [{ type: 'rime',       chance: 0.40 }, { type: 'frostgiant_rune',  chance: 0.08 }],
   // ── Tier 4 · Earth ──
-  gargoyle:          [{ type: 'stone',          chance: 0.35 }],
-  ankheg:            [{ type: 'acid_gland',     chance: 0.35 }],
-  displacer:         [{ type: 'displacer_hide', chance: 0.35 }],
-  bulette:           [{ type: 'bulette_plate',  chance: 0.35 }],
-  earth_elemental:   [{ type: 'earth_heart',    chance: 0.30 }],
-  stone_giant:       [{ type: 'granite',        chance: 0.40 }],
+  gargoyle:          [{ type: 'stone',          chance: 0.35 }, { type: 'gargoyle_horn',      chance: 0.08 }],
+  ankheg:            [{ type: 'acid_gland',     chance: 0.35 }, { type: 'ankheg_shell',       chance: 0.08 }],
+  displacer:         [{ type: 'displacer_hide', chance: 0.35 }, { type: 'displacer_tentacle', chance: 0.08 }],
+  bulette:           [{ type: 'bulette_plate',  chance: 0.35 }, { type: 'bulette_fin',        chance: 0.08 }],
+  earth_elemental:   [{ type: 'earth_heart',    chance: 0.30 }, { type: 'terra_crystal',      chance: 0.08 }],
+  stone_giant:       [{ type: 'granite',        chance: 0.40 }, { type: 'stonegiant_heart',   chance: 0.08 }],
   // ── Tier 5 · Air ──
-  harpy:             [{ type: 'harpy_plume',     chance: 0.40 }],
-  griffon:           [{ type: 'griffon_feather', chance: 0.40 }],
-  manticore:         [{ type: 'manticore_spike', chance: 0.30 }],
-  air_elemental:     [{ type: 'zephyr',          chance: 0.30 }],
-  wyvern:            [{ type: 'wyvern_scale',     chance: 0.35 }],
-  roc:               [{ type: 'roc_plume',       chance: 0.50 }],
+  harpy:             [{ type: 'harpy_plume',     chance: 0.40 }, { type: 'harpy_talon',     chance: 0.08 }],
+  griffon:           [{ type: 'griffon_feather', chance: 0.40 }, { type: 'griffon_claw',    chance: 0.08 }],
+  manticore:         [{ type: 'manticore_spike', chance: 0.30 }, { type: 'manticore_tail',  chance: 0.08 }],
+  air_elemental:     [{ type: 'zephyr',          chance: 0.30 }, { type: 'aeolian_crystal', chance: 0.08 }],
+  wyvern:            [{ type: 'wyvern_scale',     chance: 0.35 }, { type: 'wyvern_sting',    chance: 0.08 }],
+  roc:               [{ type: 'roc_plume',       chance: 0.50 }, { type: 'roc_talon',       chance: 0.08 }],
   // ── Tier 6 · Lightning ──
-  will_o_wisp:       [{ type: 'spark',            chance: 0.35 }],
-  blue_wyrmling:     [{ type: 'wyrmling_scale',   chance: 0.35 }],
-  behir:             [{ type: 'behir_scale',      chance: 0.35 }],
-  young_blue_dragon: [{ type: 'bluedragon_scale', chance: 0.40 }],
-  storm_giant:       [{ type: 'stormgiant_bolt',  chance: 0.40 }],
+  will_o_wisp:       [{ type: 'spark',            chance: 0.35 }, { type: 'wisp_essence',    chance: 0.07 }],
+  blue_wyrmling:     [{ type: 'wyrmling_scale',   chance: 0.35 }, { type: 'wyrmling_horn',   chance: 0.07 }],
+  behir:             [{ type: 'behir_scale',      chance: 0.35 }, { type: 'behir_fang',      chance: 0.07 }],
+  young_blue_dragon: [{ type: 'bluedragon_scale', chance: 0.40 }, { type: 'bluedragon_claw', chance: 0.07 }],
+  storm_giant:       [{ type: 'stormgiant_bolt',  chance: 0.40 }, { type: 'storm_rune',      chance: 0.07 }],
   // ── Tier 7 · Luminous ──
-  pegasus:           [{ type: 'pegasus_feather', chance: 0.40 }],
-  couatl:            [{ type: 'couatl_scale',    chance: 0.35 }],
-  unicorn:           [{ type: 'horn',            chance: 0.30 }],
-  ki_rin:            [{ type: 'kirin_horn',      chance: 0.30 }],
-  deva:              [{ type: 'mote',            chance: 0.35 }],
-  planetar:          [{ type: 'planetar_halo',   chance: 0.40 }],
+  pegasus:           [{ type: 'pegasus_feather', chance: 0.40 }, { type: 'pegasus_hoof',   chance: 0.07 }],
+  couatl:            [{ type: 'couatl_scale',    chance: 0.35 }, { type: 'couatl_feather', chance: 0.07 }],
+  unicorn:           [{ type: 'horn',            chance: 0.30 }, { type: 'unicorn_mane',   chance: 0.07 }],
+  ki_rin:            [{ type: 'kirin_horn',      chance: 0.30 }, { type: 'kirin_scale',    chance: 0.07 }],
+  deva:              [{ type: 'mote',            chance: 0.35 }, { type: 'deva_feather',   chance: 0.07 }],
+  planetar:          [{ type: 'planetar_halo',   chance: 0.40 }, { type: 'planetar_blade', chance: 0.07 }],
   // ── Tier 8 · Necrotic ──
-  skeleton:          [{ type: 'bone',      chance: 0.20 }],
-  zombie:            [{ type: 'organ',     chance: 0.20 }],
-  ghost:             [{ type: 'ectoplasm', chance: 0.35 }],
-  wraith:            [{ type: 'wraith_shroud', chance: 0.35 }],
-  vampire:           [{ type: 'vampire_fang',  chance: 0.35 }],
-  lich:              [{ type: 'phylactery',    chance: 0.35 }],
+  skeleton:          [{ type: 'bone',      chance: 0.20 }, { type: 'skull',          chance: 0.07 }],
+  zombie:            [{ type: 'organ',     chance: 0.20 }, { type: 'rot_gland',      chance: 0.07 }],
+  ghost:             [{ type: 'ectoplasm', chance: 0.35 }, { type: 'spectral_chain', chance: 0.07 }],
+  wraith:            [{ type: 'wraith_shroud', chance: 0.35 }, { type: 'wraith_essence', chance: 0.07 }],
+  vampire:           [{ type: 'vampire_fang',  chance: 0.35 }, { type: 'vampire_cloak',  chance: 0.07 }],
+  lich:              [{ type: 'phylactery',    chance: 0.35 }, { type: 'lich_crown',     chance: 0.07 }],
   // ── Tier 9 · Poison ──
-  carrion_crawler:   [{ type: 'crawler_venom',     chance: 0.35 }],
-  troll:             [{ type: 'troll_hide',        chance: 0.40 }],
-  otyugh:            [{ type: 'otyugh_tentacle',   chance: 0.35 }],
-  treant:            [{ type: 'treant_heartwood',  chance: 0.50 }],
-  green_dragon:      [{ type: 'greendragon_scale', chance: 0.35 }],
-  purple_worm:       [{ type: 'worm_stinger',      chance: 0.40 }],
+  carrion_crawler:   [{ type: 'crawler_venom',     chance: 0.35 }, { type: 'crawler_mandible', chance: 0.07 }],
+  troll:             [{ type: 'troll_hide',        chance: 0.40 }, { type: 'troll_claw',       chance: 0.07 }],
+  otyugh:            [{ type: 'otyugh_tentacle',   chance: 0.35 }, { type: 'otyugh_maw',       chance: 0.07 }],
+  treant:            [{ type: 'treant_heartwood',  chance: 0.50 }, { type: 'treant_bark',      chance: 0.07 }],
+  green_dragon:      [{ type: 'greendragon_scale', chance: 0.35 }, { type: 'greendragon_fang', chance: 0.07 }],
+  purple_worm:       [{ type: 'worm_stinger',      chance: 0.40 }, { type: 'worm_hide',        chance: 0.07 }],
   // ── Tier 10 · Mana / Arcane ──
-  nothic:            [{ type: 'eye',           chance: 0.35 }],
-  helmed_horror:     [{ type: 'horror_plate',  chance: 0.35 }],
-  mind_flayer:       [{ type: 'brain',         chance: 0.35 }],
-  githyanki:         [{ type: 'gith_blade',    chance: 0.35 }],
-  beholder:          [{ type: 'eyestalk',      chance: 0.40 }],
-  rakshasa:          [{ type: 'rakshasa_claw', chance: 0.35 }],
+  nothic:            [{ type: 'eye',           chance: 0.35 }, { type: 'nothic_eye',      chance: 0.06 }],
+  helmed_horror:     [{ type: 'horror_plate',  chance: 0.35 }, { type: 'horror_visor',    chance: 0.06 }],
+  mind_flayer:       [{ type: 'brain',         chance: 0.35 }, { type: 'flayer_tentacle', chance: 0.06 }],
+  githyanki:         [{ type: 'gith_blade',    chance: 0.35 }, { type: 'gith_crystal',    chance: 0.06 }],
+  beholder:          [{ type: 'eyestalk',      chance: 0.40 }, { type: 'beholder_eye',    chance: 0.06 }],
+  rakshasa:          [{ type: 'rakshasa_claw', chance: 0.35 }, { type: 'rakshasa_pelt',   chance: 0.06 }],
   // ── Tier 5 · Volcanic ──
-  magmin:            [{ type: 'cinder_core',       chance: 0.35 }],
-  fire_snake:        [{ type: 'firesnake_fang',    chance: 0.40 }],
-  azer:              [{ type: 'azer_ingot',        chance: 0.35 }],
-  red_wyrmling:      [{ type: 'redwyrmling_scale', chance: 0.35 }],
-  fire_elemental:    [{ type: 'magma_core',        chance: 0.30 }],
-  young_red_dragon:  [{ type: 'reddragon_scale',   chance: 0.35 }],
+  magmin:            [{ type: 'cinder_core',       chance: 0.35 }, { type: 'magmin_slag',       chance: 0.08 }],
+  fire_snake:        [{ type: 'firesnake_fang',    chance: 0.40 }, { type: 'firesnake_scale',   chance: 0.08 }],
+  azer:              [{ type: 'azer_ingot',        chance: 0.35 }, { type: 'azer_hammer',       chance: 0.08 }],
+  red_wyrmling:      [{ type: 'redwyrmling_scale', chance: 0.35 }, { type: 'redwyrmling_horn',  chance: 0.08 }],
+  fire_elemental:    [{ type: 'magma_core',        chance: 0.30 }, { type: 'flame_heart',       chance: 0.08 }],
+  young_red_dragon:  [{ type: 'reddragon_scale',   chance: 0.35 }, { type: 'reddragon_claw',    chance: 0.08 }],
   // ── Tier 12 · Shadow ──
-  shade:             [{ type: 'umbral_shard',      chance: 0.35 }],
-  shadow_mastiff:    [{ type: 'mastiff_fang',      chance: 0.40 }],
-  bodak:             [{ type: 'bodak_eye',         chance: 0.35 }],
-  nightmare:         [{ type: 'nightmare_hoof',    chance: 0.35 }],
-  shadow_demon:      [{ type: 'demon_horn',        chance: 0.35 }],
-  nightwalker:       [{ type: 'void_heart',        chance: 0.40 }],
+  shade:             [{ type: 'umbral_shard',      chance: 0.35 }, { type: 'shade_essence',     chance: 0.05 }],
+  shadow_mastiff:    [{ type: 'mastiff_fang',      chance: 0.40 }, { type: 'mastiff_pelt',      chance: 0.05 }],
+  bodak:             [{ type: 'bodak_eye',         chance: 0.35 }, { type: 'bodak_skull',       chance: 0.05 }],
+  nightmare:         [{ type: 'nightmare_hoof',    chance: 0.35 }, { type: 'nightmare_mane',    chance: 0.05 }],
+  shadow_demon:      [{ type: 'demon_horn',        chance: 0.35 }, { type: 'demon_claw',        chance: 0.05 }],
+  nightwalker:       [{ type: 'void_heart',        chance: 0.40 }, { type: 'nightwalker_shard', chance: 0.05 }],
 };
 
 // The arrow element matching the current map. Region ids double as
