@@ -676,6 +676,7 @@ function handlePickup(bnx, bny, map) {
       }
     }
     showMsg(reward + oreNote, 3000);
+    if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
     const sp = screenPX(bnx, bny);
     spawnParticle(sp.x, sp.y, '#ffcc00', 12, 4);
   }
