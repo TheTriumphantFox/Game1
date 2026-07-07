@@ -71,7 +71,7 @@ const REGIONS = [
       'Brimstone Basin','Scoria Ridge','Sulfur Hollow','Lavafall Crossing','Charburn Reach',
       'Fumarole Field','Igneous Steps','Cindercone Trail','Firespring Bowl','Vulcan Throat'
     ], villageName:'Cinderhearth Bastion',      enemyTier:5, boss:'magma_tyrant'   },
-  { id:'air',       element:'wind',      skyRegion:true, cloudEdge:T.CLOUD_EDGE, border:T.SKY_GROUND,      ground:T.CLOUD,          decoration:T.CLOUDBANK, accent:T.WATER,      names:[
+  { id:'air',       element:'air',       skyRegion:true, cloudEdge:T.CLOUD_EDGE, border:T.SKY_GROUND,      ground:T.CLOUD,          decoration:T.CLOUDBANK, accent:T.WATER,      names:[
       'Skywharf','Cumulus Crossing','Zephyr Vault','Updraft Reach','Drifting Bastion',
       'Thunderhead Pass','Mist-veiled Path','Featherfall Hollow','Cirrus Ribbon','Stratos Spine',
       'Galewall','Wisp Field','Halcyon Reach','Stormthrone Approach','Falcon Roost',

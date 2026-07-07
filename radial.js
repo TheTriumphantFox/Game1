@@ -138,8 +138,15 @@ const RADIAL_RINGS = [
           icon: elem.icon,
           iconImg: elem.iconImg, iconPrefix: '',
           label: elem.label + ' Sword',
-          val: () => 'Lv' + (player.swordLevel || 1),
-          dmg: () => `${lv}-${lv + 2}+${elem.icon}1-4`,
+          // Show the base sword level plus this sword's elemental upgrade (⚔+N).
+          val: () => {
+            const b = (typeof elementalSwordBonus === 'function') ? elementalSwordBonus(id) : 0;
+            return `Lv${player.swordLevel || 1} ⚔+${b}`;
+          },
+          dmg: () => {
+            const b = (typeof elementalSwordBonus === 'function') ? elementalSwordBonus(id) : 0;
+            return `${lv}-${lv + 2}+${elem.icon}${1 + b}-${4 + b}`;
+          },
           action: () => { player.weapon = 'sword'; player.activeSwordElement = id; },
           isActive: () => player.weapon === 'sword' && player.activeSwordElement === id
         });

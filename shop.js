@@ -62,8 +62,9 @@ const STORE_ITEMS = [
   { id: 'temphp', label: '💚 Temp HP +1',  cost: 150,
     desc: '+1 temporary HP (green heart) — soaks damage before your HP',
     apply: () => { player.tempHp = (player.tempHp || 0) + 1; } },
-  // Elemental swords are no longer for sale — they only drop from the Forest
-  // Lich. See the sell list rendered separately.
+  // Elemental swords aren't sold or dropped — each is forged at its home region's
+  // Blacksmith (see forgeRegionalSword). The store only buys them back; see the
+  // sell list rendered separately.
 ];
 
 // Sell value the store offers per elemental sword (flat per element).
@@ -418,6 +419,7 @@ function sellElementalSword(id) {
   if (!elem) return;
   owned.splice(idx, 1);
   player.swordElements = owned;
+  if (player.swordUpgrades) delete player.swordUpgrades[id];   // drop its upgrade level — a re-won sword starts at Lv 0
   // If the player was wielding this sword, fall back to the base sword
   if (player.activeSwordElement === id) player.activeSwordElement = null;
   addItem('rupees', ELEMENTAL_SELL_VALUE);
@@ -491,6 +493,40 @@ function enemyTrophyType(type) {
   return null;
 }
 
+// An enemy's rarer "prized" trophy — the LAST non-potion/arrow drop, which is the
+// low-chance (5–10%) second trophy (see ENEMY_DROPS / the Rare enemy drops block in
+// config.js). Returns null when the enemy drops only its primary trophy. Used by the
+// SWORD forge (regionSwordPartTypes), which demands these rare parts at half quantity.
+function enemyRareTrophyType(type) {
+  const drops = (typeof ENEMY_DROPS !== 'undefined' && ENEMY_DROPS[type]) || [];
+  let rare = null;
+  for (const d of drops) {
+    if (d.type === 'potion' || d.type === 'arrows') continue;
+    if (rare === null) { rare = d.type; continue; }   // skip the primary, keep scanning
+    rare = d.type;                                     // last trophy wins → the prized one
+  }
+  // Only the primary was found (no distinct prized drop) → no rare trophy.
+  return rare === enemyTrophyType(type) ? null : rare;
+}
+
+// Is this trophy type any enemy's rare/prized drop? Rare parts are demanded at half
+// quantity by the sword forge (see swordPartQty).
+function isRareTrophy(trophyType) {
+  if (typeof ENEMY_DROPS === 'undefined') return false;
+  for (const type in ENEMY_DROPS) {
+    if (enemyRareTrophyType(type) === trophyType) return true;
+  }
+  return false;
+}
+
+// How many of a given trophy the sword forge demands: the standard part quantity,
+// HALVED (rounded up) when it's a rare/prized drop.
+function swordPartQty(trophyType) {
+  return isRareTrophy(trophyType)
+    ? Math.ceil(BLACKSMITH_ARMOR_PART_QTY / 2)
+    : BLACKSMITH_ARMOR_PART_QTY;
+}
+
 // The trophy drop types the Blacksmith demands for this region's elemental armor:
 // the spoils of up to BLACKSMITH_ARMOR_PART_COUNT enemies whose attacks match the
 // region's element, topped up from the rest of the region's pool when fewer than
@@ -520,6 +556,45 @@ function regionArmorCost(regionIdx, regionId) {
   return {
     rupees: BLACKSMITH_ARMOR_RUPEE_PER_REGION * N,
     parts:  regionArmorPartTypes(regionIdx, regionId),
+  };
+}
+
+// The trophy drop types the Blacksmith demands to forge this region's elemental
+// SWORD. Like the armor (regionArmorPartTypes), a blade is tempered with the spoils
+// of its OWN region — the same element as the sword being forged — favouring the
+// enemies whose attacks match that element and topping up from the rest of the pool.
+// But where armor takes each foe's common signature trophy, the sword demands their
+// rarer PRIZED trophy (enemyRareTrophyType). Because those are rare, the forge asks
+// for only half as many of each (see swordPartQty). Empty for the elementless forest,
+// which forges no elemental sword.
+function regionSwordPartTypes(regionId) {
+  if (typeof SWORD_ELEMENTS === 'undefined' || !SWORD_ELEMENTS[regionId]) return [];
+  const regionIdx = (typeof REGIONS !== 'undefined') ? REGIONS.findIndex(r => r.id === regionId) : -1;
+  if (regionIdx < 0) return [];
+  const pool = (typeof ENEMY_POOLS !== 'undefined' && ENEMY_POOLS[regionIdx]) || [];
+  const matched = [], rest = [];
+  for (const type of pool) {
+    const trophy = enemyRareTrophyType(type);
+    if (!trophy) continue;
+    const def = (typeof DND_ENEMIES !== 'undefined') ? DND_ENEMIES[type] : null;
+    (def && def.element === regionId ? matched : rest).push(trophy);
+  }
+  const out = [];
+  for (const t of matched.concat(rest)) {
+    if (!out.includes(t)) out.push(t);
+    if (out.length >= BLACKSMITH_ARMOR_PART_COUNT) break;
+  }
+  return out;
+}
+
+// Rupee + part cost to forge this region's elemental sword — same rupees as armor
+// (100×N) but a different, rarer set of parts (this region's foes' prized trophies),
+// each demanded at half quantity (see swordPartQty).
+function regionSwordCost(regionId) {
+  const N = (typeof regionNumberOf === 'function') ? regionNumberOf(regionId) : 1;
+  return {
+    rupees: BLACKSMITH_ARMOR_RUPEE_PER_REGION * N,
+    parts:  regionSwordPartTypes(regionId),
   };
 }
 
@@ -627,14 +702,119 @@ function renderBlacksmithContents() {
       </div>`;
   }
 
+  // Elemental swords: forge THIS region's element (level 0) — like armor, tempered
+  // with this same region's foes, but from their rarer prized trophies at half
+  // quantity (regionSwordPartTypes / swordPartQty) — then upgrade ANY owned sword
+  // whose next ore tier matches this village's ore.
+  const ownedSwords = player.swordElements || [];
+  let swordsRows = '';
+  const canForgeSword = homeElem && !ownedSwords.includes(regionId);
+  if (canForgeSword || ownedSwords.length > 0) {
+    swordsRows = `
+      <div style="margin-top:14px;border-top:1px solid #4a3a2a;padding-top:10px;font-size:12px;color:#ffcf8c">
+        Elemental Swords${oa ? ` · upgrades here forge with ${oa.ore.icon} ${oa.ore.label}` : ''}
+      </div>`;
+
+    // Forge row — only the home region forges its own element, and only until owned.
+    if (canForgeSword) {
+      const { rupees: rupeeCost, parts } = regionSwordCost(regionId);
+      const haveRupees = player.rupees >= rupeeCost;
+      const haveParts  = parts.length > 0 && parts.every(t => (player[t + 's'] || 0) >= swordPartQty(t));
+      const partChips = parts.map(t => {
+        const meta = (typeof TROPHY_META !== 'undefined' && TROPHY_META[t]) ? TROPHY_META[t] : { icon: '•', label: t };
+        const need = swordPartQty(t);
+        const have = player[t + 's'] || 0;
+        const ok   = have >= need;
+        return `<span style="color:${ok ? '#88cc88' : '#cc8888'}">${meta.icon} ${Math.min(have, need)}/${need}</span>`;
+      }).join(' · ');
+      swordsRows += `
+        <div class="shop-row">
+          <div class="shop-item">
+            <div class="shop-item-name">⚔${elemIconHTML(homeElem)} ${homeElem.label} Sword <span style="color:#999">(new · Lv 0)</span></div>
+            <div class="shop-item-meta">Forge: 💰 ${rupeeCost} + rare ${homeElem.label} foes' prized parts (½ qty): ${partChips}</div>
+          </div>
+          <button class="ssbtn" ${(!haveRupees || !haveParts) ? 'disabled' : ''} onclick="forgeRegionalSword()">🔨 Forge</button>
+        </div>`;
+    }
+
+    for (const id of ownedSwords) swordsRows += blacksmithSwordRow(id, oa);
+  }
+
   document.getElementById('smith-modal').innerHTML = `
     <h2>🔨 Blacksmith's Forge</h2>
-    <div class="shop-greeting">Need armor, hero? I forge the finest in the land.</div>
+    <div class="shop-greeting">Blade or armor, hero? I forge the finest in the land.</div>
     <div class="shop-rupees">You have: 💰 <b>${player.rupees}</b> · 🛡 Armor +${player.armor || 0}</div>
     ${pieceRows}
     ${armorsRows}
+    ${swordsRows}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
   `;
+}
+
+// One Blacksmith row for an owned elemental sword: its level / flat bonus damage,
+// plus an Upgrade button when this village's ore is the sword's next sequential
+// tier (else a disabled hint pointing at the ore it needs). Swords are sold back at
+// the General Store, so there's no sell button here. `oa` is this smith's
+// ore/tier/cost (smithOreArmor()), or null.
+function blacksmithSwordRow(id, oa) {
+  const elem = SWORD_ELEMENTS[id];
+  if (!elem) return '';
+  const lv    = swordUpgradeLevel(id);
+  const bonus = lv * 2;
+  const wieldTag = player.activeSwordElement === id ? ' <span style="color:#88ccff">✓ wielded</span>' : '';
+
+  let btn, meta;
+  if (lv >= 5) {
+    btn  = `<button class="ssbtn" disabled>★ MAX</button>`;
+    meta = `+${bonus} ${elem.label} dmg · fully forged`;
+  } else if (oa && oa.tier === lv) {
+    // This village's ore is exactly the sword's next sequential tier.
+    const haveOre = player[oa.ore.id] || 0;
+    const broke   = haveOre < oa.oreCost || player.rupees < oa.rupeeCost;
+    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalSword('${id}')">${oa.ore.icon}${oa.oreCost} + 💰${oa.rupeeCost}</button>`;
+    meta = `+${bonus} ${elem.label} dmg · upgrade → +${bonus + 2} dmg · have ${oa.ore.icon} ${haveOre}`;
+  } else {
+    // Next upgrade belongs to a different ore tier — point the hero at it.
+    const need = (typeof ORE_TYPES !== 'undefined') ? ORE_TYPES[lv] : null;
+    const needLbl = need ? `${need.icon} ${need.label}` : 'higher ore';
+    btn  = `<button class="ssbtn" disabled>needs ${needLbl}</button>`;
+    meta = `+${bonus} ${elem.label} dmg · next upgrade needs ${needLbl}`;
+  }
+
+  return `
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">⚔${elemIconHTML(elem)} ${elem.label} Sword · Lv ${lv}/5${wieldTag}</div>
+        <div class="shop-item-meta">${meta}</div>
+      </div>
+      ${btn}
+    </div>`;
+}
+
+// Upgrade an owned elemental sword by one ore tier. Sequential like armor: this
+// village's ore (oa.tier) must be exactly the sword's next tier (== its current
+// level), so each sword climbs Grimsilver→Eclipsium across the matching villages.
+// Costs the same ore + rupees as forging that tier's plain armor; adds +2 flat
+// elemental damage (elementalSwordBonus).
+function upgradeRegionalSword(id) {
+  if (!SWORD_ELEMENTS[id]) return;
+  player.swordElements = player.swordElements || [];
+  if (!player.swordElements.includes(id)) return;
+  const oa = smithOreArmor();
+  if (!oa) return;
+  player.swordUpgrades = player.swordUpgrades || {};
+  const lv = player.swordUpgrades[id] || 0;
+  if (lv >= 5) return;
+  if (oa.tier !== lv) return;                          // must be upgraded in sequence at the right ore village
+  if ((player[oa.ore.id] || 0) < oa.oreCost) return;
+  if (player.rupees < oa.rupeeCost) return;
+  player[oa.ore.id] -= oa.oreCost;
+  player.rupees     -= oa.rupeeCost;
+  player.swordUpgrades[id] = lv + 1;
+  const elem = SWORD_ELEMENTS[id];
+  showMsg(`🔨 Upgraded ⚔${elem.icon} ${elem.label} Sword → Lv ${lv + 1}: +${(lv + 1) * 2} ${elem.label} damage`, 3800);
+  renderBlacksmithContents();
+  updateHUD();
 }
 
 // One Blacksmith row for an owned elemental armor: its level / physical defense /
@@ -714,6 +894,31 @@ function forgeRegionalArmor() {
   player.armorUpgrades = player.armorUpgrades || {};
   player.armorUpgrades[regionId] = 0;   // forged at level 0 — upgrade it through the ore tiers
   showMsg(`🔨 Forged 🛡${elem.icon} ${elem.label} Armor (Lv 0) — equip via the V menu, then upgrade with ore`, 4000);
+  renderBlacksmithContents();
+  updateHUD();
+}
+
+// Forge this region's elemental sword: charge 100×N rupees AND swordPartQty of each
+// demanded same-region prized part (regionSwordPartTypes) — half quantity because
+// they're rare — then grant the sword at level 0. Mirrors forgeRegionalArmor.
+function forgeRegionalSword() {
+  const { region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const elem = SWORD_ELEMENTS[regionId];
+  if (!elem) return;
+  player.swordElements = player.swordElements || [];
+  if (player.swordElements.includes(regionId)) return;
+  const { rupees: rupeeCost, parts } = regionSwordCost(regionId);
+  if (parts.length === 0) return;
+  // Re-verify against live inventory (guards a stale enabled button).
+  if (player.rupees < rupeeCost) return;
+  if (!parts.every(t => (player[t + 's'] || 0) >= swordPartQty(t))) return;
+  player.rupees -= rupeeCost;
+  for (const t of parts) player[t + 's'] -= swordPartQty(t);
+  player.swordElements.push(regionId);
+  player.swordUpgrades = player.swordUpgrades || {};
+  player.swordUpgrades[regionId] = 0;   // forged at level 0 — upgrade it through the ore tiers
+  showMsg(`🔨 Forged ⚔${elem.icon} ${elem.label} Sword (Lv 0) — equip via the V menu, then upgrade with ore`, 4000);
   renderBlacksmithContents();
   updateHUD();
 }

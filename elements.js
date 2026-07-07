@@ -3,9 +3,10 @@
 // to every successful sword swing. Multiple elements stack — a sword with
 // Fire + Ice will deal base + 1d4 fire + 1d4 ice per hit.
 //
-// Elements are bought from the General Store (see shop.js / STORE_ITEMS) and
-// stored on `player.swordElements` as a list of element ids. Each element has
-// its own colour so the damage numbers visually distinguish their source.
+// Each elemental sword is forged at its home region's Blacksmith (see
+// forgeRegionalSword in shop.js) and stored on `player.swordElements` as a list of
+// element ids. Each element has its own colour so the damage numbers visually
+// distinguish their source.
 
 const SWORD_ELEMENTS = {
   fire:      { id: 'fire',      label: 'Fire',      icon: '🔥', color: '#ff6622' },
@@ -102,6 +103,24 @@ function grantSwordElement(elemId) {
     return true;
   }
   return false;
+}
+
+// ─── Elemental sword upgrades ─────────────────────────────────────────────────
+// Each owned elemental sword can be upgraded sequentially through the five ore
+// tiers at the Blacksmith (see shop.js), exactly like elemental armor. An upgrade
+// level (0–5, stored on player.swordUpgrades[id]) adds a flat +2 damage per level
+// to that sword's elemental hit — Lv0 +0 … Lv5 +10 on top of the base 1d4 roll
+// (see the swing in projectiles.js).
+
+// Upgrade level (0–5) of an owned elemental sword; 0 if unowned / freshly dropped.
+function swordUpgradeLevel(elemId) {
+  return (player && player.swordUpgrades && player.swordUpgrades[elemId]) || 0;
+}
+
+// Flat bonus damage an elemental sword adds at its upgrade level = level × 2,
+// matching the ore tier its last upgrade used (Grimsilver +2 … Eclipsium +10).
+function elementalSwordBonus(elemId) {
+  return swordUpgradeLevel(elemId) * 2;
 }
 
 // ─── Elemental armor ─────────────────────────────────────────────────────────

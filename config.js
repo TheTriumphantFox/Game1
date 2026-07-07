@@ -546,6 +546,101 @@ const TROPHIES = [
   { id: 'nightmare_hoof',    icon: '🐴', label: 'Nightmare Hoof',    color: '#5a3a7a', value: 54, monster: true },
   { id: 'demon_horn',        icon: '😈', label: 'Shadow Demon Horn', color: '#2a1a44', value: 56, monster: true },
   { id: 'void_heart',        icon: '🖤', label: 'Void Heart',        color: '#1a0f2e', value: 60, monster: true },
+  // ── Rare enemy drops ──────────────────────────────────────────────────────
+  // A second, prized trophy each monster drops only 5–10% of the time (see the
+  // rare `chance` entries in ENEMY_DROPS, player.js). Same registry plumbing as
+  // every other trophy — the General Store buys it, it shows in the Drops
+  // satchel / ledger, and (for `monster` parts) buckets under Monster Parts.
+  // Forest
+  { id: 'goblin_ear',        icon: '👂', label: 'Goblin Ear',        color: '#caa079', value: 20, monster: true },
+  { id: 'wolf_claw',         icon: '🐾', label: 'Wolf Claw',         color: '#b0a090', value: 22, monster: true },
+  { id: 'pixie_dust',        icon: '🫧', label: 'Pixie Dust',        color: '#ffd6f5', value: 45 },
+  { id: 'dryad_sap',         icon: '🍯', label: 'Dryad Sap',         color: '#d9a94a', value: 30 },
+  { id: 'spinneret',         icon: '🕷️', label: 'Spinneret Gland',   color: '#6a5a7a', value: 26, monster: true },
+  { id: 'owlbear_claw',      icon: '🐾', label: 'Owlbear Claw',      color: '#8a6a4a', value: 32, monster: true },
+  // Fire / Desert
+  { id: 'cult_tome',         icon: '📕', label: 'Cult Tome',         color: '#8a2a3a', value: 40 },
+  { id: 'mephit_ash',        icon: '🌋', label: 'Mephit Ash',        color: '#c4552a', value: 30 },
+  { id: 'gnoll_ear',         icon: '👂', label: 'Gnoll Ear',         color: '#c9a060', value: 28, monster: true },
+  { id: 'hound_heart',       icon: '🫀', label: 'Hellhound Heart',   color: '#cc3322', value: 32, monster: true },
+  { id: 'scorpion_stinger',  icon: '🦂', label: 'Scorpion Stinger',  color: '#b0803a', value: 30, monster: true },
+  { id: 'salamander_tail',   icon: '🦎', label: 'Salamander Tail',   color: '#ff6a3a', value: 32, monster: true },
+  // Water
+  { id: 'sahuagin_trident',  icon: '🔱', label: 'Sahuagin Trident',  color: '#5aa0c0', value: 32 },
+  { id: 'kuotoa_eye',        icon: '👁️', label: 'Kuo-toa Eye',       color: '#79b0a0', value: 30, monster: true },
+  { id: 'shark_fin',         icon: '🦈', label: 'Shark Fin',         color: '#8ba6b8', value: 34, monster: true },
+  { id: 'merrow_scale',      icon: '🐚', label: 'Merrow Scale',      color: '#4a90a0', value: 36, monster: true },
+  { id: 'hag_eye',           icon: '👁️', label: 'Sea Hag Eye',       color: '#5e7d63', value: 36, monster: true },
+  { id: 'tidal_pearl',       icon: '🌊', label: 'Tidal Pearl',       color: '#4aa0d0', value: 45 },
+  // Ice
+  { id: 'mephit_frost',      icon: '❄️', label: 'Mephit Frost',      color: '#bfe0ff', value: 32 },
+  { id: 'winterwolf_pelt',   icon: '🧥', label: 'Winter Wolf Pelt',  color: '#dbeeff', value: 34, monster: true },
+  { id: 'yeti_claw',         icon: '🐾', label: 'Yeti Claw',         color: '#e8f4ff', value: 34, monster: true },
+  { id: 'mammoth_hide',      icon: '🧥', label: 'Mammoth Hide',      color: '#c8a878', value: 40, monster: true },
+  { id: 'whitedragon_horn',  icon: '🐲', label: 'White Dragon Horn', color: '#cce6ff', value: 44, monster: true },
+  { id: 'frostgiant_rune',   icon: '🔹', label: 'Frost Rune',        color: '#bfe0ff', value: 46 },
+  // Earth
+  { id: 'gargoyle_horn',     icon: '😈', label: 'Gargoyle Horn',     color: '#8a857a', value: 34, monster: true },
+  { id: 'ankheg_shell',      icon: '🐚', label: 'Ankheg Shell',      color: '#9aac53', value: 34, monster: true },
+  { id: 'displacer_tentacle',icon: '🐙', label: 'Displacer Tentacle',color: '#4a3a6a', value: 36, monster: true },
+  { id: 'bulette_fin',       icon: '🦈', label: 'Bulette Fin',       color: '#6a7a5a', value: 38, monster: true },
+  { id: 'terra_crystal',     icon: '🔶', label: 'Terra Crystal',     color: '#b08a4a', value: 48 },
+  { id: 'stonegiant_heart',  icon: '🪨', label: 'Stone Giant Heart', color: '#8a857a', value: 44, monster: true },
+  // Air
+  { id: 'harpy_talon',       icon: '🦅', label: 'Harpy Talon',       color: '#b59ad6', value: 34, monster: true },
+  { id: 'griffon_claw',      icon: '🐾', label: 'Griffon Claw',      color: '#c8a45a', value: 36, monster: true },
+  { id: 'manticore_tail',    icon: '🦂', label: 'Manticore Tail',    color: '#aa4433', value: 38, monster: true },
+  { id: 'aeolian_crystal',   icon: '🔹', label: 'Aeolian Crystal',   color: '#cfe8ff', value: 48 },
+  { id: 'wyvern_sting',      icon: '🦂', label: 'Wyvern Stinger',    color: '#6a8a4a', value: 40, monster: true },
+  { id: 'roc_talon',         icon: '🦅', label: 'Roc Talon',         color: '#b0855a', value: 40, monster: true },
+  // Lightning
+  { id: 'wisp_essence',      icon: '✨', label: 'Wisp Essence',      color: '#ffee33', value: 42 },
+  { id: 'wyrmling_horn',     icon: '🐉', label: 'Wyrmling Horn',     color: '#4477cc', value: 40, monster: true },
+  { id: 'behir_fang',        icon: '🦷', label: 'Behir Fang',        color: '#4488cc', value: 40, monster: true },
+  { id: 'bluedragon_claw',   icon: '🐾', label: 'Blue Dragon Claw',  color: '#3366cc', value: 46, monster: true },
+  { id: 'storm_rune',        icon: '🌩️', label: 'Storm Rune',        color: '#ffe066', value: 50 },
+  // Luminous
+  { id: 'pegasus_hoof',      icon: '🐴', label: 'Pegasus Hoof',      color: '#eaf2ff', value: 44, monster: true },
+  { id: 'couatl_feather',    icon: '🪶', label: 'Couatl Feather',    color: '#66ccaa', value: 44, monster: true },
+  { id: 'unicorn_mane',      icon: '🦄', label: 'Unicorn Mane',      color: '#ffeeff', value: 55, monster: true },
+  { id: 'kirin_scale',       icon: '🦌', label: 'Ki-rin Scale',      color: '#ffe6aa', value: 48, monster: true },
+  { id: 'deva_feather',      icon: '🪽', label: 'Deva Feather',      color: '#fff0b0', value: 46, monster: true },
+  { id: 'planetar_blade',    icon: '⚔️', label: 'Planetar Blade',    color: '#fff0b0', value: 54 },
+  // Necrotic
+  { id: 'skull',             icon: '💀', label: 'Skull',             color: '#f4ead8', value: 24, monster: true },
+  { id: 'rot_gland',         icon: '🧟', label: 'Rot Gland',         color: '#8a9a5a', value: 24, monster: true },
+  { id: 'spectral_chain',    icon: '⛓️', label: 'Spectral Chain',    color: '#ccddee', value: 42 },
+  { id: 'wraith_essence',    icon: '🌫️', label: 'Wraith Essence',    color: '#556677', value: 46 },
+  { id: 'vampire_cloak',     icon: '🧛', label: 'Vampire Cloak',     color: '#aa2233', value: 48 },
+  { id: 'lich_crown',        icon: '👑', label: 'Lich Crown',        color: '#66ddaa', value: 55 },
+  // Poison
+  { id: 'crawler_mandible',  icon: '🐛', label: 'Crawler Mandible',  color: '#99bb44', value: 34, monster: true },
+  { id: 'troll_claw',        icon: '🐾', label: 'Troll Claw',        color: '#6a8a4a', value: 36, monster: true },
+  { id: 'otyugh_maw',        icon: '🦑', label: 'Otyugh Maw',        color: '#88aa55', value: 36, monster: true },
+  { id: 'treant_bark',       icon: '🪵', label: 'Treant Bark',       color: '#8a6a3a', value: 36 },
+  { id: 'greendragon_fang',  icon: '🦷', label: 'Green Dragon Fang', color: '#44aa55', value: 46, monster: true },
+  { id: 'worm_hide',         icon: '🪱', label: 'Worm Hide',         color: '#aa66aa', value: 44, monster: true },
+  // Mana / Arcane
+  { id: 'nothic_eye',        icon: '👁️', label: 'Nothic Eye',        color: '#cc88dd', value: 44, monster: true },
+  { id: 'horror_visor',      icon: '🪖', label: 'Animus Visor',      color: '#8899aa', value: 48 },
+  { id: 'flayer_tentacle',   icon: '🦑', label: 'Flayer Tentacle',   color: '#cc88bb', value: 52, monster: true },
+  { id: 'gith_crystal',      icon: '🔮', label: 'Githyanki Crystal', color: '#b0c0d0', value: 54 },
+  { id: 'beholder_eye',      icon: '👁️', label: 'Beholder Eye',      color: '#cc66bb', value: 56, monster: true },
+  { id: 'rakshasa_pelt',     icon: '🐅', label: 'Rakshasa Pelt',     color: '#cc8844', value: 54, monster: true },
+  // Volcanic
+  { id: 'magmin_slag',       icon: '🌋', label: 'Magmin Slag',       color: '#ff6a2a', value: 32 },
+  { id: 'firesnake_scale',   icon: '🐍', label: 'Fire Snake Scale',  color: '#dd5522', value: 34, monster: true },
+  { id: 'azer_hammer',       icon: '🔨', label: 'Azer Hammer',       color: '#e0a050', value: 36 },
+  { id: 'redwyrmling_horn',  icon: '🐉', label: 'Red Wyrmling Horn', color: '#cc3322', value: 38, monster: true },
+  { id: 'flame_heart',       icon: '🔥', label: 'Flame Heart',       color: '#ff5522', value: 46 },
+  { id: 'reddragon_claw',    icon: '🐾', label: 'Red Dragon Claw',   color: '#bb2211', value: 48, monster: true },
+  // Shadow
+  { id: 'shade_essence',     icon: '🌑', label: 'Shade Essence',     color: '#3a2a5a', value: 52 },
+  { id: 'mastiff_pelt',      icon: '🐕', label: 'Shadow Mastiff Pelt',color: '#2a2038', value: 56, monster: true },
+  { id: 'bodak_skull',       icon: '💀', label: 'Bodak Skull',       color: '#4a3a6a', value: 58, monster: true },
+  { id: 'nightmare_mane',    icon: '🐴', label: 'Nightmare Mane',    color: '#5a3a7a', value: 60, monster: true },
+  { id: 'demon_claw',        icon: '🐾', label: 'Shadow Demon Claw', color: '#2a1a44', value: 62, monster: true },
+  { id: 'nightwalker_shard', icon: '🖤', label: 'Nightwalker Shard', color: '#1a0f2e', value: 66 },
 ];
 
 // ─── Ores ─────────────────────────────────────────────────────────────────────
