@@ -44,10 +44,10 @@ function applyStartingInventory(p) {
   const ids = Object.keys(SWORD_ELEMENTS);
   p.swordElements = ids.slice();   // grant every elemental sword…
   p.swordUpgrades = {};
-  for (const id of ids) p.swordUpgrades[id] = 5;   // …fully upgraded (god start)
+  for (const id of ids) p.swordUpgrades[id] = 6;   // …fully upgraded (god start)
   p.armorElements = ids.slice();   // grant every elemental armor…
   p.armorUpgrades = {};
-  for (const id of ids) p.armorUpgrades[id] = 5;   // …fully upgraded (god start)
+  for (const id of ids) p.armorUpgrades[id] = 6;   // …fully upgraded (god start)
   p.arrows = { plain: STARTING_ITEM_AMOUNT };
   for (const id of ids) p.arrows[id] = STARTING_ITEM_AMOUNT;
 }
@@ -106,7 +106,7 @@ let player = {
   // Which elemental sword is currently equipped, or null for the base sword.
   // Affects doSwordSwing — only the active elemental adds its 1d4 roll.
   activeSwordElement: null,
-  // Each elemental sword's upgrade level (0–5) lives in swordUpgrades, keyed by
+  // Each elemental sword's upgrade level (0–6) lives in swordUpgrades, keyed by
   // element id; it adds +2 damage per level to that sword's hit (elements.js).
   swordUpgrades: {},
   // Quantities of each elemental arrow the player owns, keyed by element id.
@@ -116,7 +116,7 @@ let player = {
   // Which elemental arrow is currently nocked, or null for plain arrows.
   activeArrowElement: null,
   // Owned elemental armors and the one currently worn (or null for none).
-  // Each armor's upgrade level (0–5) lives in armorUpgrades, keyed by element id;
+  // Each armor's upgrade level (0–6) lives in armorUpgrades, keyed by element id;
   // it drives the worn armor's physical defense and elemental block % (elements.js).
   armorElements: [],
   armorUpgrades: {},

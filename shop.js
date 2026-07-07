@@ -600,7 +600,7 @@ function regionSwordCost(regionId) {
 
 // Flat physical armor is forged from the smith's regional ore (see oreForRegionIdx
 // / ORE_TYPES). The bonus scales with the ore's class — Grimsilver +2, Emberbrass
-// +4, Glimmerspar +6, Wyrmgold +8, Eclipsium +10, i.e. (tier+1)×2 where tier is
+// +4, Glimmerspar +6, Wyrmgold +8, Eclipsium +10, Voidsteel +12, i.e. (tier+1)×2 where tier is
 // the ore's index in ORE_TYPES. A forge consumes ORE_ARMOR_ORE_COST of that ore
 // plus a tier-scaled rupee fee and SETS player.armor to the new piece's value,
 // replacing any lesser armor (it does not stack). So it's a tiered progression
@@ -764,7 +764,7 @@ function blacksmithSwordRow(id, oa) {
   const wieldTag = player.activeSwordElement === id ? ' <span style="color:#88ccff">✓ wielded</span>' : '';
 
   let btn, meta;
-  if (lv >= 5) {
+  if (lv >= 6) {
     btn  = `<button class="ssbtn" disabled>★ MAX</button>`;
     meta = `+${bonus} ${elem.label} dmg · fully forged`;
   } else if (oa && oa.tier === lv) {
@@ -784,7 +784,7 @@ function blacksmithSwordRow(id, oa) {
   return `
     <div class="shop-row">
       <div class="shop-item">
-        <div class="shop-item-name">⚔${elemIconHTML(elem)} ${elem.label} Sword · Lv ${lv}/5${wieldTag}</div>
+        <div class="shop-item-name">⚔${elemIconHTML(elem)} ${elem.label} Sword · Lv ${lv}/6${wieldTag}</div>
         <div class="shop-item-meta">${meta}</div>
       </div>
       ${btn}
@@ -804,7 +804,7 @@ function upgradeRegionalSword(id) {
   if (!oa) return;
   player.swordUpgrades = player.swordUpgrades || {};
   const lv = player.swordUpgrades[id] || 0;
-  if (lv >= 5) return;
+  if (lv >= 6) return;
   if (oa.tier !== lv) return;                          // must be upgraded in sequence at the right ore village
   if ((player[oa.ore.id] || 0) < oa.oreCost) return;
   if (player.rupees < oa.rupeeCost) return;
@@ -831,7 +831,7 @@ function blacksmithArmorRow(id, oa) {
   const swims    = id === 'water' ? ' · swims medium water' : '';
 
   let btn, meta;
-  if (lv >= 5) {
+  if (lv >= 6) {
     btn  = `<button class="ssbtn" disabled>★ MAX</button>`;
     meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · fully forged${swims}`;
   } else if (oa && oa.tier === lv) {
@@ -853,7 +853,7 @@ function blacksmithArmorRow(id, oa) {
   return `
     <div class="shop-row">
       <div class="shop-item">
-        <div class="shop-item-name">🛡${elemIconHTML(elem)} ${elem.label} Armor · Lv ${lv}/5${wornTag}</div>
+        <div class="shop-item-name">🛡${elemIconHTML(elem)} ${elem.label} Armor · Lv ${lv}/6${wornTag}</div>
         <div class="shop-item-meta">${meta}</div>
       </div>
       ${btn}
@@ -927,7 +927,7 @@ function forgeRegionalSword() {
 // (oa.tier) must be exactly the armor's next tier (== its current level), so each
 // armor must climb Grimsilver→Eclipsium across the matching villages. Costs the same
 // ore + rupees as forging that tier's plain armor; bumps physical defense (level×2)
-// and, on the 1st/3rd/5th upgrade, its elemental block % (elementalBlockPctForLevel).
+// and, on the 1st/3rd/5th/6th upgrade, its elemental block % (elementalBlockPctForLevel).
 function upgradeRegionalArmor(id) {
   if (!SWORD_ELEMENTS[id]) return;
   player.armorElements = player.armorElements || [];
@@ -936,7 +936,7 @@ function upgradeRegionalArmor(id) {
   if (!oa) return;
   player.armorUpgrades = player.armorUpgrades || {};
   const lv = player.armorUpgrades[id] || 0;
-  if (lv >= 5) return;
+  if (lv >= 6) return;
   if (oa.tier !== lv) return;                          // must be upgraded in sequence at the right ore village
   if ((player[oa.ore.id] || 0) < oa.oreCost) return;
   if (player.rupees < oa.rupeeCost) return;
