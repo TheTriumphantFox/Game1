@@ -376,9 +376,10 @@ function doSwordSwing() {
 // ─── Enemy AI step ────────────────────────────────────────────────────────────
 // Per-enemy movement timer; ranged enemies keep distance, melee enemies pursue.
 function stepEnemies(dt, map) {
-  enemies.filter(e => !e.dead).forEach(e => {
+  for (const e of enemies) {
+    if (e.dead) continue;
     e.timer -= dt;
-    if (e.timer > 0) return;
+    if (e.timer > 0) continue;
     e.timer = e.spd;
 
     const dx = player.x - e.x, dy = player.y - e.y;
@@ -426,19 +427,20 @@ function stepEnemies(dt, map) {
       player.invincible = 900;
       if (player.hp <= 0) respawn();
     }
-  });
+  }
 }
 
 // ─── Enemy ranged fire ────────────────────────────────────────────────────────
 function stepEnemyRanged(dt) {
-  enemies.filter(e => !e.dead && e.ranged).forEach(e => {
+  for (const e of enemies) {
+    if (e.dead || !e.ranged) continue;
     e.shootTimer -= dt;
-    if (e.shootTimer > 0) return;
+    if (e.shootTimer > 0) continue;
     e.shootTimer = 1800 + Math.random() * 1200;
 
     const dx = player.x - e.x, dy = player.y - e.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist >= 18) return;  // out of range
+    if (dist >= 18) continue;  // out of range
 
     projectiles.push({
       tx: e.x + 0.5, ty: e.y + 0.5,
@@ -446,7 +448,7 @@ function stepEnemyRanged(dt) {
       dmg: e.dmg, type: 'enemy', life: 130, color: e.color,
       element: e.element || null
     });
-  });
+  }
 }
 
 // ─── Projectile physics + collision ───────────────────────────────────────────
@@ -463,14 +465,15 @@ function stepProjectiles(dt, map) {
       spawnParticle(bsp.x, bsp.y, '#ff8800', 20, 6);
       const BLAST = 2;
       // Enemies
-      enemies.filter(e => !e.dead).forEach(e => {
+      for (const e of enemies) {
+        if (e.dead) continue;
         const dx = e.x - p.tx, dy = e.y - p.ty;
         if (Math.abs(dx) <= BLAST && Math.abs(dy) <= BLAST) {
           e.hp -= p.dmg;
           damageNumbers.push({ entity: e, val: p.dmg, color: '#ff4444', life: 1000, rise: 0 });
           if (e.hp <= 0) killEnemy(e);
         }
-      });
+      }
       // The player — bombs are risky! Same radius, respects i-frames.
       const pdx = player.x - p.tx, pdy = player.y - p.ty;
       if (Math.abs(pdx) <= BLAST && Math.abs(pdy) <= BLAST && player.invincible <= 0) {
@@ -526,7 +529,8 @@ function stepProjectiles(dt, map) {
     if (isSolid(map, pc, pr) && !isMediumWater(map, pc, pr)) { p.life = -999; return; }
 
     if (p.type === 'arrow') {
-      enemies.filter(e => !e.dead).forEach(e => {
+      for (const e of enemies) {
+        if (e.dead) continue;
         const dx = e.x - p.tx, dy = e.y - p.ty;
         if (Math.abs(dx) < 0.9 && Math.abs(dy) < 0.9) {
           e.hp -= p.dmg;
@@ -554,7 +558,7 @@ function stepProjectiles(dt, map) {
           if (e.hp <= 0) killEnemy(e);
           p.life = -999;
         }
-      });
+      }
     } else if (p.type === 'enemy') {
       const dx = player.x - p.tx, dy = player.y - p.ty;
       if (Math.abs(dx) < 0.8 && Math.abs(dy) < 0.8 && player.invincible <= 0) {
