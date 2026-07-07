@@ -5,6 +5,8 @@ html, body {
   height: 100%;
   overflow: hidden;
   background: #0a0f0a;
+  /* Stop the browser hijacking drags with scroll / pull-to-refresh / zoom. */
+  overscroll-behavior: none;
 }
 
 body {
@@ -83,6 +85,12 @@ canvas {
   cursor: crosshair;
   background: #050a05;
   width: 100%;
+  /* The canvas owns all touches (joystick / radial menu) — never let the page
+     scroll, zoom, or select text under a drag. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Bottom bars: weapon selector, controls hint, save buttons */
@@ -140,4 +148,29 @@ canvas {
 }
 #save-row button:hover {
   background: #254a25;
+}
+
+/* ── Touch tuning ───────────────────────────────────────────────────────────
+   The weapon-bar slots and save-row buttons stay their current visual size, but
+   on touch devices we grow only their *hit area* with an invisible overlay so
+   thumbs land reliably. Also suppress the tap highlight / text selection. */
+.weapon-slot { cursor: pointer; }
+@media (pointer: coarse) {
+  .weapon-slot,
+  #save-row button {
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;   /* no 300ms double-tap delay */
+  }
+  /* Invisible padding on the touch layer — enlarges the target, not the look. */
+  .weapon-slot::after,
+  #save-row button::after {
+    content: '';
+    position: absolute;
+    top: -10px; bottom: -10px; left: -6px; right: -6px;
+  }
+  /* Reclaim vertical space: the keyboard-only controls hint is useless on touch. */
+  #ctrl-bar { display: none; }
 }

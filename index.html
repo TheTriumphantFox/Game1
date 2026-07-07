@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Hyrule Quest — Forest</title>
 <link rel="stylesheet" href="game.css">
 <link rel="stylesheet" href="modal.css">
@@ -70,6 +70,7 @@
     <span class="weapon-slot weapon-active" id="ws-sword">⚔️ Sword [Z]</span>
     <span class="weapon-slot" id="ws-bow">🏹 Bow [X]</span>
     <span class="weapon-slot" id="ws-bomb">💣 Bomb [C]</span>
+    <span class="weapon-slot" id="ws-menu">🎒 Menu [V]</span>
     <span class="weapon-slot" id="ws-armor" style="display:none"></span>
     <span class="weapon-slot" id="ws-immunity" style="display:none"></span>
     <span class="weapon-slot" id="ws-interact" style="display:none"></span>
@@ -82,6 +83,7 @@
     <button onclick="openSaveModal()">💾 Save</button>
     <button onclick="openLoadModal()">📂 Load</button>
     <button onclick="newGame()">🆕 New</button>
+    <button onclick="toggleFullscreen()">⛶ Full</button>
     <span id="save-status" style="font-size:11px;color:#466"></span>
   </div>
 </div>

@@ -495,6 +495,37 @@ function radialOnClick(e) {
 canvas.addEventListener('mousemove', radialOnMouseMove);
 canvas.addEventListener('click',     radialOnClick);
 
+// Touch resolution for the radial menu. The canvas movement handler (main.js)
+// preventDefaults touchstart, which suppresses the synthetic click, so touch is
+// routed here directly. Tap a slot to select+use it; tap the ▲/▼ zone above/below
+// the centre to change rings; tap well outside the ring to close.
+function radialTouchAt(clientX, clientY) {
+  if (!radialMenuOpen) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left, y = clientY - rect.top;
+  radialMouse.x = x; radialMouse.y = y;
+  const slot = radialHoveredSlot();
+  if (slot) {
+    radialItemIndex = slot.index;         // sync keyboard selection to the tap
+    radialSpinToSelected(false);          // spin the tapped item up to the caret
+    rememberSelection(radialCurrentName(), slot.item);
+    if (slot.item.action) { slot.item.action(); updateHUD(); }
+    return;
+  }
+  const pcx = (player.renderX - camC + 0.5) * TILE_PX;
+  const pcy = (player.renderY - camR + 0.5) * TILE_PX;
+  // Centre chevron zones (match the ▲/▼ drawn at pcy∓~33) → prev / next ring.
+  if (Math.abs(x - pcx) < 44) {
+    if (y > pcy - 60 && y < pcy - 12) { radialNavRing(-1); return; }
+    if (y > pcy + 12 && y < pcy + 60) { radialNavRing( 1); return; }
+  }
+  // Tap outside the ring closes; taps near the centre are ignored so you don't
+  // dismiss the menu by fumbling between the chevrons.
+  if (Math.hypot(x - pcx, y - pcy) > radialCurrentRing().radius + 50) {
+    closeRadialMenu();
+  }
+}
+
 // ─── Inline-image chip text ─────────────────────────────────────────────────
 // Stat chips (the val / dmg badges under each slot) embed an element's symbol,
 // e.g. "⚔1-3+🪨1-4" or "Lv3 +6 −70%". For Earth that symbol is a custom image, so
@@ -706,7 +737,7 @@ function drawRadialMenu() {
   ctx.font = '11px monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.textAlign = 'center';
-  ctx.fillText('▲▼ ring   ◀▶ item   Enter use   V/Esc close', PW / 2, PH - 24);
+  ctx.fillText('▲▼/tap ring   ◀▶ item   tap/Enter use   outside/V closes', PW / 2, PH - 24);
 
   ctx.restore();
 }

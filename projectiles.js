@@ -153,6 +153,7 @@ function damagePlayer(rawDmg, hitElement) {
   }
   const hpDmg = finalDmg - tempAbsorbed;
   player.hp -= hpDmg;
+  if (hpDmg > 0 && typeof buzz === 'function') buzz([0, 35, 25, 35]);
 
   const psp = screenPX(player.x, player.y);
   if (finalDmg === 0) {
@@ -243,6 +244,7 @@ function firePlayerArrow() {
     }
     player.arrows.plain--;
   }
+  if (typeof buzz === 'function') buzz(12);
   const elemColor = (element && typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[element]?.color : null;
   projectiles.push({
     tx: player.x + 0.5, ty: player.y + 0.5,
@@ -255,6 +257,7 @@ function firePlayerArrow() {
 }
 
 function placePlayerBomb() {
+  if (typeof buzz === 'function') buzz(20);
   const bx = player.x + player.swordDir.x * 3;
   const by = player.y + player.swordDir.y * 3;
   projectiles.push({
@@ -267,6 +270,7 @@ function placePlayerBomb() {
 
 // ─── Sword swing (instant, AoE in front of player) ────────────────────────────
 function doSwordSwing() {
+  if (typeof buzz === 'function') buzz(15);
   player.swordTimer = 180;
   player.weapon = 'sword';
   const tx = player.x + player.swordDir.x;

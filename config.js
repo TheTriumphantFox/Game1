@@ -607,3 +607,17 @@ function resizeCanvas() {
   if (typeof clampCam === 'function') clampCam();
 }
 window.addEventListener('resize', resizeCanvas);
+// Rotating a phone / the mobile URL-bar collapsing fires orientationchange (and
+// visualViewport resize) but not always a plain resize — re-fit on those too.
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas);
+
+// ─── Haptics ────────────────────────────────────────────────────────────────
+// Best-effort vibration feedback for touch play. A silent no-op where the API
+// is missing (notably iOS Safari) or when muted via hapticsEnabled. `pattern`
+// is a duration in ms or a [vibrate, pause, …] array (navigator.vibrate).
+let hapticsEnabled = true;
+function buzz(pattern) {
+  if (!hapticsEnabled) return;
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) { /* ignore */ }
+}
