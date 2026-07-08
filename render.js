@@ -7824,6 +7824,34 @@ function render() {
 
   if (showMinimap) drawMinimap();
 
+  // Floating touch joystick — over the world, under the radial menu (which pauses
+  // movement, so the stick is never active while the menu is up anyway).
+  drawTouchJoystick();
+
   // Radial inventory menu — drawn last so it's always on top
   if (typeof drawRadialMenu === 'function') drawRadialMenu();
+}
+
+// The floating virtual stick: a base ring where the finger first landed and a
+// knob that tracks the current drag (clamped to the leash radius). Only visible
+// while a touch is being held. State lives in main.js (touchJoystick).
+function drawTouchJoystick() {
+  if (typeof touchJoystick === 'undefined' || !touchJoystick.active) return;
+  const R = 46, cx = touchJoystick.cx, cy = touchJoystick.cy;
+  ctx.save();
+  // Base ring
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(20, 40, 20, 0.28)';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(170, 255, 120, 0.5)';
+  ctx.stroke();
+  // Knob — offset toward the finger, capped at the ring edge
+  let dx = touchJoystick.x - cx, dy = touchJoystick.y - cy;
+  const d = Math.hypot(dx, dy);
+  if (d > R) { dx = dx / d * R; dy = dy / d * R; }
+  ctx.beginPath(); ctx.arc(cx + dx, cy + dy, 20, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(170, 255, 120, 0.85)';
+  ctx.fill();
+  ctx.restore();
 }
