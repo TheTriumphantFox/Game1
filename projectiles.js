@@ -373,6 +373,19 @@ function doSwordSwing() {
 // ─── Enemy AI step ────────────────────────────────────────────────────────────
 // Per-enemy movement timer; ranged enemies keep distance, melee enemies pursue.
 function stepEnemies(dt, map) {
+  // Per-tick occupancy index of live enemies so the "is the target tile taken?"
+  // check below is O(1) instead of re-scanning every enemy (was O(n²) per
+  // frame). A count Map (not a Set) so overlapping spawns don't free a tile
+  // that's still held; kept in sync as enemies move so later movers still see
+  // earlier moves — preserving the original enemies.some() semantics exactly.
+  const tkey = (x, y) => y * MCOLS + x;
+  const occ = new Map();
+  for (const o of enemies) {
+    if (o.dead) continue;
+    const k = tkey(o.x, o.y);
+    occ.set(k, (occ.get(k) || 0) + 1);
+  }
+
   for (const e of enemies) {
     if (e.dead) continue;
     e.timer -= dt;
@@ -410,11 +423,17 @@ function stepEnemies(dt, map) {
     const nx = e.x + emx, ny = e.y + emy;
     // Don't walk into other enemies, the player, or solid terrain. Aquatic
     // enemies (swims) also treat the medium-water shelf as open ground.
-    const otherEnemy = enemies.some(o => !o.dead && o !== e && o.x === nx && o.y === ny);
+    const nkey = tkey(nx, ny);
+    // Exclude e's own count when the "move" is a no-op back onto its own tile.
+    const selfHere = (nx === e.x && ny === e.y) ? 1 : 0;
+    const otherEnemy = ((occ.get(nkey) || 0) - selfHere) > 0;
     const onPlayer = (nx === player.x && ny === player.y);
     const blocked = isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny));
     if (!blocked && !otherEnemy && !onPlayer) {
+      const okey = tkey(e.x, e.y);
+      occ.set(okey, (occ.get(okey) || 0) - 1);
       e.x = nx; e.y = ny;
+      occ.set(nkey, (occ.get(nkey) || 0) + 1);
     }
 
     // Melee contact damage (re-check distance after move)

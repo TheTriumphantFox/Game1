@@ -1406,6 +1406,27 @@ function drawDriftClouds(dark, alphaMul) {
   ctx.restore();
 }
 
+// Whirlpool and colossal-tree tiles are placed only at map generation and are
+// never mutated during play, so their positions are found once per map and
+// cached on the map object (as a flat [c0,r0, c1,r1, …] array) instead of
+// rescanning the whole viewport for them every frame. The cache rebuilds for
+// free whenever a fresh map object appears (generation or load, which rebuilds
+// worldMaps from scratch).
+function mapFeatureTiles(mapObj, tileType, cacheKey) {
+  let list = mapObj[cacheKey];
+  if (list) return list;
+  list = [];
+  const g = mapObj.map;
+  for (let r = 0; r < MROWS; r++) {
+    const row = g[r];
+    for (let c = 0; c < MCOLS; c++) {
+      if (row[c] === tileType) { list.push(c, r); }
+    }
+  }
+  mapObj[cacheKey] = list;
+  return list;
+}
+
 function render() {
   ensureSpriteCacheSize();   // drop cached sprites if the tile size changed
   ctx.clearRect(0, 0, PW, PH);
@@ -1440,11 +1461,10 @@ function render() {
 
   // Whirlpool suction overlays — after the tile pass so the churn spills over
   // the surrounding 3×3 of water instead of being overdrawn by neighbors.
-  for (let mr = startR; mr <= endR; mr++) {
-    for (let mc = startC; mc <= endC; mc++) {
-      if (mr < 0 || mr >= MROWS || mc < 0 || mc >= MCOLS) continue;
-      if (map[mr][mc] === T.WHIRLPOOL) drawWhirlpoolSuction(mc, mr, ts);
-    }
+  const whirlpools = mapFeatureTiles(mapObj, T.WHIRLPOOL, '_whirlpools');
+  for (let i = 0; i < whirlpools.length; i += 2) {
+    const mc = whirlpools[i], mr = whirlpools[i + 1];
+    if (mc >= startC && mc <= endC && mr >= startR && mr <= endR) drawWhirlpoolSuction(mc, mr, ts);
   }
 
   drawFog();
@@ -1468,11 +1488,11 @@ function render() {
   // off-screen still pokes its canopy into view. Only drawn once the anchor tile is
   // unfogged (its ~3-tile canopy reveals together with the base, so fog clipping the
   // canopy is unnecessary — the player can't see a tree without standing near it).
-  for (let mr = startR - 1; mr <= endR + 4; mr++) {
-    for (let mc = startC - 3; mc <= endC + 3; mc++) {
-      if (mr < 0 || mr >= MROWS || mc < 0 || mc >= MCOLS) continue;
-      if (map[mr][mc] === T.COLOSSAL_TREE && !isFoggy(mapObj, mc, mr)) drawColossalTree(mc, mr, ts);
-    }
+  const colossalTrees = mapFeatureTiles(mapObj, T.COLOSSAL_TREE, '_colossalTrees');
+  for (let i = 0; i < colossalTrees.length; i += 2) {
+    const mc = colossalTrees[i], mr = colossalTrees[i + 1];
+    if (mc >= startC - 3 && mc <= endC + 3 && mr >= startR - 1 && mr <= endR + 4 &&
+        !isFoggy(mapObj, mc, mr)) drawColossalTree(mc, mr, ts);
   }
 
   // Lightning-region storm flash — over the world, under the HUD/minimap.
