@@ -7750,9 +7750,10 @@ function render() {
   drawFog();
   drops.forEach(d => { if (!isFoggy(mapObj, d.x, d.y)) drawDrop(d, ts); });
   projectiles.forEach(p => drawProjectile(p));
-  enemies.filter(e => !e.dead).forEach(e => {
+  for (const e of enemies) {
+    if (e.dead) continue;
     if (!isFoggy(mapObj, e.x, e.y)) drawEnemy(e, ts);
-  });
+  }
   if (typeof villagers !== 'undefined') {
     villagers.forEach(v => {
       if (!isFoggy(mapObj, v.x, v.y)) drawVillager(v, ts);
@@ -7788,6 +7789,8 @@ function render() {
 
   // Damage numbers
   ctx.save();
+  // One font string per frame instead of one per number.
+  const dmgFont = `bold ${Math.round(ts * 0.35)}px monospace`;
   damageNumbers.forEach(d => {
     const ent = d.entity === 'player' ? player : d.entity;
     if (!ent) return;
@@ -7799,7 +7802,7 @@ function render() {
     const y = sp.y - ts * 0.65 - d.rise;   // above the HP bar / head, then floats up
     ctx.globalAlpha = Math.max(0, d.life / 1000);
     ctx.fillStyle = d.color;
-    ctx.font = `bold ${Math.round(ts * 0.35)}px monospace`;
+    ctx.font = dmgFont;
     ctx.textAlign = 'center';
     ctx.fillText(d.val, sp.x, y);
   });
