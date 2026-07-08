@@ -37,10 +37,9 @@ function addArrow(elemId, n) {
   return player.arrows[elemId] - before;
 }
 
-// Fill in starting inventory that depends on SWORD_ELEMENTS (which loads after
-// player.js). Called from boot and newGame once every script has loaded.
+// Fill in starting inventory that depends on SWORD_ELEMENTS. Called from boot
+// and newGame.
 function applyStartingInventory(p) {
-  if (typeof SWORD_ELEMENTS === 'undefined') return;
   const ids = Object.keys(SWORD_ELEMENTS);
   p.swordElements = ids.slice();   // grant every elemental sword…
   p.swordUpgrades = {};
@@ -223,7 +222,7 @@ function useElixir(elemId) {
   player.elixirs[elemId]--;
   player.immunityElement = elemId;
   player.immunityTimer = ELIXIR_IMMUNITY_MS;
-  const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[elemId] : null;
+  const elem = SWORD_ELEMENTS[elemId];
   const sp = screenPX(player.x, player.y);
   spawnParticle(sp.x, sp.y, elem ? elem.color : '#ffffff', 14, 3);
   showMsg(`${elem ? elem.icon : '⚗️'} Immune to ${elem ? elem.label : elemId} for ${ELIXIR_IMMUNITY_MS / 1000}s!`, 2500);
@@ -433,7 +432,7 @@ function mapArrowElementId() {
   const cm = (typeof currentMap === 'function') ? currentMap() : null;
   const region = (typeof REGIONS !== 'undefined' && cm && typeof cm.regionIdx === 'number')
     ? REGIONS[cm.regionIdx] : null;
-  return (region && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[region.id])
+  return (region && SWORD_ELEMENTS[region.id])
     ? region.id : null;
 }
 

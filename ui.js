@@ -77,7 +77,7 @@ function updateHUD() {
   // the active weapon. Mirrors the bow slot logic below.
   if (el.sword) {
     const se = player.activeSwordElement;
-    const elem = (se && typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[se] : null;
+    const elem = se ? SWORD_ELEMENTS[se] : null;
     const active = player.weapon === 'sword';
     const sig = (elem ? se : '') + '|' + active;
     if (last.sword !== sig) {
@@ -92,7 +92,7 @@ function updateHUD() {
   if (el.bow) {
     const ae = player.activeArrowElement;
     const stock = ae && player.arrows ? (player.arrows[ae] || 0) : 0;
-    const elem = (ae && stock > 0 && typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[ae] : null;
+    const elem = (ae && stock > 0) ? SWORD_ELEMENTS[ae] : null;
     const active = player.weapon === 'bow';
     const sig = (elem ? ae + ':' + stock : '') + '|' + active;
     if (last.bow !== sig) {
@@ -120,9 +120,9 @@ function updateHUD() {
   // actually worn. Hidden completely otherwise (no flat-armor placeholder).
   if (el.armor) {
     const ae = player.activeArmorElement;
-    const elem = (ae && typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[ae] : null;
-    const phys = elem && (typeof elementalArmorPhys === 'function') ? elementalArmorPhys(ae) : 0;
-    const pct  = elem && (typeof elementalArmorBlockPct === 'function') ? elementalArmorBlockPct(ae) : 50;
+    const elem = ae ? SWORD_ELEMENTS[ae] : null;
+    const phys = elem && elementalArmorPhys(ae);
+    const pct  = elem && elementalArmorBlockPct(ae);
     const sig = elem ? ae + '+' + phys + '-' + pct : '';
     if (last.armor !== sig) {
       last.armor = sig;
@@ -140,7 +140,7 @@ function updateHUD() {
   if (el.immunity) {
     const ie = player.immunityElement;
     const on = ie && (player.immunityTimer || 0) > 0 &&
-               typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[ie];
+               SWORD_ELEMENTS[ie];
     const secs = on ? Math.ceil((player.immunityTimer || 0) / 1000) : 0;
     const sig = on ? ie + ':' + secs : '';
     if (last.immunity !== sig) {
