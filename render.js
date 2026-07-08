@@ -3866,6 +3866,13 @@ function drawPlayer(ts) {
   // Sway the body horizontally during a climb (shadow already placed above).
   if (climbSway) ctx.translate(climbSway, 0);
 
+  // ── Worn elemental armor aura (behind the body) ───────────────────────
+  // The active elemental armor cloaks the hero in its element's signature FX —
+  // a luminous glow, a shroud of shadow-mist, licking flames, and so on.
+  if (player.activeArmorElement) {
+    drawElementFX(sx + s / 2, sy + s * 0.5 + bob, s * 0.62, player.activeArmorElement, 0.6, 0);
+  }
+
   // ── Boots ─────────────────────────────────────────────
   ctx.fillStyle = '#3a240e';
   if (isSide) {
@@ -4040,11 +4047,18 @@ function drawPlayer(ts) {
     const baseX = cx + Math.cos(a) * hilt, baseY = cy + Math.sin(a) * hilt;
     const tipX  = cx + Math.cos(a) * len,  tipY  = cy + Math.sin(a) * len;
 
+    // An equipped elemental sword tints the whole swing in its element's colour
+    // and glows: the motion trail, blade gradient, and tip sparkle all pick it up.
+    const swElem = (player.activeSwordElement && typeof elementInfo === 'function')
+      ? elementInfo(player.activeSwordElement) : null;
+    const trailCol = swElem ? swElem.color : '#ffffff';
+    if (swElem) { ctx.shadowColor = swElem.color; ctx.shadowBlur = s * 0.35; }
+
     // Motion trail
     for (let i = 3; i >= 1; i--) {
       const tA = a - swingArc * 0.06 * i;
       ctx.globalAlpha = 0.10 * i;
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = trailCol;
       ctx.lineWidth = 5;
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -4054,10 +4068,11 @@ function drawPlayer(ts) {
     }
     ctx.globalAlpha = 1;
 
-    // Blade with gradient
+    // Blade with gradient — element-tinted at the hilt fading to a white edge
+    // when an elemental sword is equipped, otherwise plain steel.
     const grad = ctx.createLinearGradient(baseX, baseY, tipX, tipY);
-    grad.addColorStop(0, '#bdbdbd');
-    grad.addColorStop(0.6, '#f0f0f0');
+    grad.addColorStop(0, swElem ? swElem.color : '#bdbdbd');
+    grad.addColorStop(0.6, swElem ? swElem.color : '#f0f0f0');
     grad.addColorStop(1, '#ffffff');
     ctx.strokeStyle = grad;
     ctx.lineWidth = 4;
@@ -4066,6 +4081,12 @@ function drawPlayer(ts) {
     ctx.moveTo(baseX, baseY);
     ctx.lineTo(tipX, tipY);
     ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Elemental signature FX bursting from the blade tip.
+    if (player.activeSwordElement) {
+      drawElementFX(tipX, tipY, s * 0.55, player.activeSwordElement, 0.85 + 0.15 * phase, 0);
+    }
 
     // Crossguard
     const cA = a + Math.PI / 2;
@@ -4144,6 +4165,13 @@ function drawEnemy(e, ts) {
   ctx.beginPath();
   ctx.ellipse(sx + ts / 2, sy + ts * 0.93, ts * 0.30 * e.size, ts * 0.07 * e.size, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // ── Elemental aura (behind the sprite) ───────────────────────────────
+  // Enemies whose attacks carry an element wear that element's signature FX,
+  // so the threat reads at a glance and matches its projectiles/contact hits.
+  if (e.element) {
+    drawElementFX(cx, cy, ts * 0.6 * e.size, e.element, 0.55, (e.id || 0) * 0.37);
+  }
 
   // ── Per-type sprite (uses px/py which include the bob offset) ────────
   switch (e.type) {
@@ -6940,6 +6968,318 @@ function drawDrop(d, ts) {
   ctx.restore();
 }
 
+// ─── Elemental visual FX ───────────────────────────────────────────────────────
+// Render an element's animated signature (see ELEMENT_FX / elements.js) centred
+// at (cx, cy) within radius r. Drives the look of glowing sword swings, trailing
+// arrows, worn-armor auras, and elemental enemies + their attacks from one place.
+//   intensity : 0..1 opacity multiplier (subtle auras use ~0.5, procs use ~1)
+//   seed      : per-source phase offset so a crowd doesn't pulse in unison
+const _ELEM_RGB_CACHE = {};
+function elemRGB(hex) {
+  if (_ELEM_RGB_CACHE[hex]) return _ELEM_RGB_CACHE[hex];
+  const n = parseInt((hex || '#ffffff').slice(1), 16);
+  return (_ELEM_RGB_CACHE[hex] = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`);
+}
+
+function drawElementFX(cx, cy, r, elemId, intensity = 1, seed = 0) {
+  const fx = (typeof elementFX === 'function') ? elementFX(elemId) : null;
+  if (!fx || r <= 0) return;
+  const c1 = elemRGB(fx.c1), c2 = elemRGB(fx.c2);
+  const now = Date.now() / 1000 + seed;
+  const I = Math.max(0, Math.min(1, intensity));
+  ctx.save();
+
+  switch (fx.style) {
+    case 'glow': {
+      // Soft radiant halo that breathes, plus a few orbiting twinkles.
+      const pulse = 0.72 + 0.28 * Math.sin(now * 3.1);
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0,   `rgba(${c2},${(0.55 * I * pulse).toFixed(3)})`);
+      g.addColorStop(0.5, `rgba(${c1},${(0.34 * I * pulse).toFixed(3)})`);
+      g.addColorStop(1,   `rgba(${c1},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(${c2},${(0.9 * I).toFixed(3)})`;
+      for (let i = 0; i < 4; i++) {
+        const a = now * 1.7 + i * (Math.PI / 2);
+        const tr = r * (0.35 + 0.4 * (0.5 + 0.5 * Math.sin(now * 2.3 + i)));
+        const tx = cx + Math.cos(a) * tr, ty = cy + Math.sin(a) * tr;
+        const tw = r * 0.06 * (0.6 + 0.4 * Math.sin(now * 5 + i));
+        ctx.beginPath(); ctx.arc(tx, ty, Math.max(0.6, tw), 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    case 'mist': {
+      // Roiling shroud — a coloured haze so the darkness reads, deep-shade blobs
+      // for body, and bright embers rising through it. The coloured layer (c1)
+      // keeps shadow/necrotic visible where the near-black shade alone would not.
+      const gg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.1);
+      gg.addColorStop(0,   `rgba(${c1},${(0.5 * I).toFixed(3)})`);
+      gg.addColorStop(0.55,`rgba(${c1},${(0.24 * I).toFixed(3)})`);
+      gg.addColorStop(1,   `rgba(${c1},0)`);
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 1.1, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 6; i++) {
+        const ph = now * 1.05 + i * 1.047;
+        const ox = Math.cos(ph) * r * 0.5;
+        const oy = Math.sin(ph * 1.3) * r * 0.34 - r * 0.12;
+        const br = r * (0.46 + 0.16 * Math.sin(now * 1.9 + i));
+        const g = ctx.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, br);
+        g.addColorStop(0,   `rgba(${c2},${(0.52 * I).toFixed(3)})`);
+        g.addColorStop(0.55,`rgba(${c1},${(0.30 * I).toFixed(3)})`);
+        g.addColorStop(1,   `rgba(${c1},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx + ox, cy + oy, br, 0, Math.PI * 2); ctx.fill();
+      }
+      // Bright embers rising through the smoke give the dark aura a live edge.
+      for (let i = 0; i < 4; i++) {
+        const prog = ((now * 0.55 + i * 0.31) % 1);
+        const mx = cx + Math.sin(now * 1.6 + i * 2) * r * 0.42;
+        const my = cy + r * 0.4 - prog * r * 1.05;
+        const mr = r * 0.06 * (1 - prog * 0.4);
+        ctx.fillStyle = `rgba(${c1},${((1 - prog) * 0.9 * I).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(mx, my, Math.max(0.7, mr), 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    case 'flame': {
+      // Flickering tongues licking upward from the base.
+      const baseY = cy + r * 0.35;
+      for (let i = 0; i < 5; i++) {
+        const fxo = (i - 2) * r * 0.28;
+        const flick = 0.6 + 0.4 * Math.sin(now * 11 + i * 1.9);
+        const h = r * (0.85 + 0.5 * flick);
+        const w = r * 0.22 * (0.7 + 0.3 * flick);
+        const bx = cx + fxo + Math.sin(now * 7 + i) * r * 0.05;
+        const g = ctx.createLinearGradient(bx, baseY, bx, baseY - h);
+        g.addColorStop(0,   `rgba(${c1},${(0.75 * I).toFixed(3)})`);
+        g.addColorStop(0.6, `rgba(${c2},${(0.6 * I).toFixed(3)})`);
+        g.addColorStop(1,   `rgba(${c2},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(bx - w, baseY);
+        ctx.quadraticCurveTo(bx - w * 0.5, baseY - h * 0.6, bx, baseY - h);
+        ctx.quadraticCurveTo(bx + w * 0.5, baseY - h * 0.6, bx + w, baseY);
+        ctx.closePath(); ctx.fill();
+      }
+      break;
+    }
+    case 'erupt': {
+      // A volcano mid-eruption: a molten crater that pulses with blasts, an
+      // ash/ember plume, and lava bombs hurled skyward that arc and fall back.
+      const baseY = cy + r * 0.42;
+      const craterY = baseY - r * 0.14;
+      const rnd = (k) => { const v = Math.sin(k * 127.1 + seed * 311.7 + 0.5) * 43758.5; return v - Math.floor(v); };
+      const blast = 0.68 + 0.32 * Math.sin(now * 6.0);
+
+      // Molten glow at the crater, throbbing like repeated detonations.
+      const g = ctx.createRadialGradient(cx, baseY, 0, cx, baseY, r * 0.98);
+      g.addColorStop(0,    `rgba(${c2},${(0.78 * I * blast).toFixed(3)})`);
+      g.addColorStop(0.35, `rgba(${c1},${(0.5 * I).toFixed(3)})`);
+      g.addColorStop(1,    `rgba(${c1},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, baseY, r * 0.98, 0, Math.PI * 2); ctx.fill();
+
+      // Dark ash/ember plume billowing up out of the crater.
+      const plume = ctx.createLinearGradient(cx, craterY, cx, cy - r * 1.05);
+      plume.addColorStop(0,   `rgba(${c1},${(0.42 * I).toFixed(3)})`);
+      plume.addColorStop(0.5, `rgba(90,60,60,${(0.28 * I).toFixed(3)})`);
+      plume.addColorStop(1,   `rgba(70,64,68,0)`);
+      ctx.fillStyle = plume;
+      ctx.beginPath();
+      ctx.moveTo(cx - r * 0.16, craterY);
+      ctx.quadraticCurveTo(cx - r * 0.52, cy - r * 0.6, cx - r * 0.3, cy - r * 1.05);
+      ctx.lineTo(cx + r * 0.3, cy - r * 1.05);
+      ctx.quadraticCurveTo(cx + r * 0.52, cy - r * 0.6, cx + r * 0.16, craterY);
+      ctx.closePath(); ctx.fill();
+
+      // Dark volcano mound with a glowing crater mouth.
+      ctx.fillStyle = `rgba(38,20,14,${(0.6 * I).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.moveTo(cx - r * 0.62, baseY + r * 0.3);
+      ctx.lineTo(cx - r * 0.22, craterY);
+      ctx.lineTo(cx + r * 0.22, craterY);
+      ctx.lineTo(cx + r * 0.62, baseY + r * 0.3);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(${c2},${(0.9 * I * blast).toFixed(3)})`;
+      ctx.beginPath(); ctx.ellipse(cx, craterY, r * 0.24, r * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+
+      // Lava bombs blasted skyward, arcing under gravity and fading as they fall.
+      const G = r * 2.7;
+      for (let i = 0; i < 9; i++) {
+        const prog = ((now * (0.7 + rnd(i) * 0.5) + rnd(i + 40)) % 1);
+        const ang = -Math.PI / 2 + (rnd(i + 7) - 0.5) * 1.7;      // spread around straight-up
+        const sp = r * (1.3 + rnd(i + 13) * 0.8);
+        const vx = Math.cos(ang) * sp, vy = Math.sin(ang) * sp;
+        const bx = cx + vx * prog;
+        const by = craterY + vy * prog + 0.5 * G * prog * prog;
+        if (by > baseY + r * 0.32) continue;                      // already landed
+        const bs = r * (0.12 + rnd(i + 21) * 0.06) * (1 - prog * 0.25);
+        const a = (prog < 0.85 ? 1 : (1 - prog) / 0.15) * I;
+        // motion-blur trail pointing back along velocity
+        const cvy = vy + G * prog;
+        ctx.strokeStyle = `rgba(${c1},${(0.5 * a).toFixed(3)})`;
+        ctx.lineWidth = Math.max(1, bs * 0.7);
+        ctx.beginPath();
+        ctx.moveTo(bx - vx * 0.07, by - cvy * 0.07);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        // glowing molten bomb: hot halo under a bright core
+        ctx.fillStyle = `rgba(${c1},${(0.55 * a).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(bx, by, Math.max(1.2, bs * 1.7), 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(${c2},${(0.95 * a).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(bx, by, Math.max(0.8, bs), 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    case 'drip': {
+      // Acidic sheen + droplets that swell at the base and fall, fading out.
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, `rgba(${c1},${(0.32 * I).toFixed(3)})`);
+      g.addColorStop(1, `rgba(${c1},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 4; i++) {
+        const prog = ((now * 1.1 + i * 0.61) % 1);
+        const dx = cx + (i - 1.5) * r * 0.42;
+        const dy = cy + r * 0.15 + prog * r * 0.95;
+        const dr = r * 0.14 * (1 - prog * 0.5);
+        const a = (prog < 0.85 ? 0.85 : (1 - prog) / 0.15 * 0.85) * I;
+        ctx.fillStyle = `rgba(${c2},${a.toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(dx, dy, Math.max(0.6, dr), 0, Math.PI * 2); ctx.fill();
+        // teardrop tail
+        ctx.beginPath();
+        ctx.moveTo(dx - dr * 0.7, dy);
+        ctx.lineTo(dx, dy - dr * 1.6);
+        ctx.lineTo(dx + dr * 0.7, dy);
+        ctx.closePath(); ctx.fill();
+      }
+      break;
+    }
+    case 'bubble': {
+      // Wet blue sheen with rising bubbles.
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, `rgba(${c1},${(0.34 * I).toFixed(3)})`);
+      g.addColorStop(1, `rgba(${c1},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = Math.max(0.8, r * 0.05);
+      for (let i = 0; i < 5; i++) {
+        const prog = ((now * 0.7 + i * 0.37) % 1);
+        const bx = cx + Math.sin(now * 1.5 + i * 2) * r * 0.35;
+        const by = cy + r * 0.45 - prog * r * 1.1;
+        const br = r * (0.08 + 0.09 * (i % 3) / 2);
+        ctx.strokeStyle = `rgba(${c2},${((1 - prog) * 0.8 * I).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.stroke();
+      }
+      break;
+    }
+    case 'frost': {
+      // Pale cold glow with radiating crystalline spikes.
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, `rgba(${c2},${(0.4 * I).toFixed(3)})`);
+      g.addColorStop(1, `rgba(${c1},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      const spin = now * 0.4;
+      for (let i = 0; i < 6; i++) {
+        const a = spin + i * (Math.PI / 3);
+        const len = r * (0.55 + 0.12 * Math.sin(now * 2 + i));
+        const bx = cx + Math.cos(a) * r * 0.2, by = cy + Math.sin(a) * r * 0.2;
+        const tx = cx + Math.cos(a) * len, ty = cy + Math.sin(a) * len;
+        const pa = a + Math.PI / 2, pw = r * 0.1;
+        ctx.fillStyle = `rgba(${c2},${(0.5 * I).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(bx + Math.cos(pa) * pw, by + Math.sin(pa) * pw);
+        ctx.lineTo(tx, ty);
+        ctx.lineTo(bx - Math.cos(pa) * pw, by - Math.sin(pa) * pw);
+        ctx.closePath(); ctx.fill();
+      }
+      break;
+    }
+    case 'spark': {
+      // Jittering electric arcs, re-randomised in quantised time steps.
+      const step = Math.floor(now * 14);
+      const rnd = (k) => {
+        const v = Math.sin((step * 12.9898 + k * 78.233 + seed) * 43758.5453);
+        return v - Math.floor(v);
+      };
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, `rgba(${c2},${(0.3 * I).toFixed(3)})`);
+      g.addColorStop(1, `rgba(${c1},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(${c2},${(0.9 * I).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1, r * 0.06);
+      ctx.lineCap = 'round';
+      for (let b = 0; b < 3; b++) {
+        const a0 = rnd(b) * Math.PI * 2;
+        let x = cx, y = cy;
+        ctx.beginPath(); ctx.moveTo(x, y);
+        for (let j = 1; j <= 4; j++) {
+          const a = a0 + (rnd(b * 7 + j) - 0.5) * 1.6;
+          const seg = r * 0.32;
+          x += Math.cos(a) * seg; y += Math.sin(a) * seg;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'dust': {
+      // A churning cloud of grit with orbiting pebbles and bright flecks kicked
+      // up around the source. Pale specks give the earthy brown strong contrast.
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.1);
+      g.addColorStop(0,   `rgba(${c2},${(0.5 * I).toFixed(3)})`);
+      g.addColorStop(0.6, `rgba(${c1},${(0.34 * I).toFixed(3)})`);
+      g.addColorStop(1,   `rgba(${c1},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 1.1, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 9; i++) {
+        const a = now * 1.7 + i * (Math.PI * 2 / 9);
+        const orb = r * (0.44 + 0.3 * Math.sin(now * 1.3 + i * 2));
+        const px2 = cx + Math.cos(a) * orb, py2 = cy + Math.sin(a) * orb * 0.7 + r * 0.12;
+        const ps = r * (0.16 + 0.09 * (i % 3) / 2);
+        // Every third fleck is a bright near-white mote so the grit pops.
+        const bright = (i % 3 === 0);
+        const col = bright ? '255,246,220' : (i % 2 ? c2 : c1);
+        ctx.fillStyle = `rgba(${col},${((bright ? 1 : 0.95) * I).toFixed(3)})`;
+        ctx.fillRect(px2 - ps / 2, py2 - ps / 2, ps, ps);
+      }
+      break;
+    }
+    case 'wind': {
+      // Bold swirling gusts sweeping around the source. Each gust is a dark
+      // underlay + bright core so the pale air arcs read on any terrain, with
+      // streaking motes riding the leading edge.
+      ctx.lineCap = 'round';
+      // Bound the spin into [0,2π): `now` is Date.now()-based (~1e9), and canvas
+      // arc() renders degenerately when handed start/end angles that large.
+      const spin = (now * 2.6) % (Math.PI * 2);
+      for (let i = 0; i < 4; i++) {
+        const a0 = spin + i * (Math.PI / 2);
+        const rr = r * (0.44 + 0.18 * i / 4);
+        const sweep = Math.PI * 1.2;
+        // dark underlay for contrast against light terrain
+        ctx.strokeStyle = `rgba(58,72,86,${(0.72 * I).toFixed(3)})`;
+        ctx.lineWidth = Math.max(2.5, r * 0.2);
+        ctx.beginPath(); ctx.arc(cx, cy, rr, a0, a0 + sweep); ctx.stroke();
+        // bright core
+        ctx.strokeStyle = `rgba(${i % 2 ? c1 : c2},${Math.min(1, 1.15 * I).toFixed(3)})`;
+        ctx.lineWidth = Math.max(1.2, r * 0.1);
+        ctx.beginPath(); ctx.arc(cx, cy, rr, a0, a0 + sweep); ctx.stroke();
+        // arrowhead mote flung off the leading edge
+        const ae = a0 + sweep;
+        const mx = cx + Math.cos(ae) * rr, my = cy + Math.sin(ae) * rr;
+        ctx.fillStyle = `rgba(${c2},${Math.min(1, 1.1 * I).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(mx, my, Math.max(1, r * 0.09), 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+  }
+  ctx.restore();
+}
+
 function drawProjectile(p) {
   const sx = (p.tx - camC) * TILE_PX, sy = (p.ty - camR) * TILE_PX;
   ctx.save();
@@ -6954,10 +7294,9 @@ function drawProjectile(p) {
     ctx.stroke();
     ctx.fillStyle = '#8855aa';
     ctx.beginPath(); ctx.arc(sx + nx*len, sy + ny*len, 3, 0, Math.PI*2); ctx.fill();
-    // Elemental arrows get a trailing spark
+    // Elemental arrows trail their element's signature FX from the arrowhead.
     if (p.element) {
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(sx - nx*len*1.3, sy - ny*len*1.3, 2, 0, Math.PI*2); ctx.fill();
+      drawElementFX(sx + nx*len, sy + ny*len, TILE_PX * 0.42, p.element, 0.9, p.tx);
     }
   } else if (p.type === 'bomb') {
     const br = TILE_PX * 0.22;
@@ -6968,7 +7307,11 @@ function drawProjectile(p) {
       ctx.beginPath(); ctx.arc(sx, sy - br, br*0.5, 0, Math.PI*2); ctx.fill();
     }
   } else {
-    // Enemy projectile (magic ball)
+    // Enemy projectile (magic ball). Elemental attacks carry their element's
+    // signature FX so an incoming spell reads the same as the foe that threw it.
+    if (p.element) {
+      drawElementFX(sx, sy, TILE_PX * 0.45, p.element, 0.95, p.tx + p.ty);
+    }
     ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(sx,sy,5,0,Math.PI*2); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,200,0.6)'; ctx.beginPath(); ctx.arc(sx,sy,3,0,Math.PI*2); ctx.fill();
   }

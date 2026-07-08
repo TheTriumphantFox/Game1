@@ -28,6 +28,44 @@ function elementInfo(id) {
   return SWORD_ELEMENTS[id] || null;
 }
 
+// ─── Elemental visual signatures ───────────────────────────────────────────────
+// One source of truth for how each element *looks* in the world. Every place an
+// element manifests — a glowing sword swing, a trailing arrow, a worn armor's
+// aura, an elemental enemy and its attacks — renders from this table so a given
+// element reads the same everywhere (see drawElementFX in render.js).
+//
+//   style : the animated motif drawn around the source
+//     glow  → soft radiant halo + twinkles   (luminous, mana)
+//     mist  → dark drifting smoke wisps       (shadow, necrotic)
+//     flame → flickering upward tongues       (fire)
+//     erupt → crater blasting lava bombs       (volcanic)
+//     drip  → clinging, falling droplets      (poison/"acid")
+//     bubble→ rising bubbles + wet sheen      (water)
+//     frost → radiating crystalline spikes    (ice)
+//     spark → jittering electric arcs         (lightning)
+//     dust  → orbiting pebbles & grit         (earth)
+//     wind  → curved swirling gusts           (air)
+//   c1 : core colour   c2 : bright/accent (or deep shade for mist)
+const ELEMENT_FX = {
+  fire:      { style: 'flame',  c1: '#ff5511', c2: '#ffdd44' },
+  volcanic:  { style: 'erupt',  c1: '#ff3311', c2: '#ffb733' },
+  water:     { style: 'bubble', c1: '#3a88ff', c2: '#bfe6ff' },
+  ice:       { style: 'frost',  c1: '#88ddff', c2: '#eaffff' },
+  lightning: { style: 'spark',  c1: '#ffee33', c2: '#ffffcc' },
+  earth:     { style: 'dust',   c1: '#7a5228', c2: '#b98a4a' },
+  air:       { style: 'wind',   c1: '#cfd6dd', c2: '#ffffff' },
+  luminous:  { style: 'glow',   c1: '#ffee66', c2: '#fffdd6' },
+  necrotic:  { style: 'mist',   c1: '#aa66dd', c2: '#3a1f52' },
+  poison:    { style: 'drip',   c1: '#88cc44', c2: '#c6ff5a' },
+  mana:      { style: 'glow',   c1: '#cc44ff', c2: '#f0c2ff' },
+  shadow:    { style: 'mist',   c1: '#6a3aa8', c2: '#0e0820' }
+};
+
+// Visual signature for an element id (or null if none / unknown).
+function elementFX(id) {
+  return ELEMENT_FX[id] || null;
+}
+
 // ─── Opposite-element pairings ─────────────────────────────────────────────────
 // Every enemy that deals an element is vulnerable to that element's opposite:
 // hitting it has a chance to add bonus damage of OPPOSITE[element] (see
