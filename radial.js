@@ -131,7 +131,7 @@ const RADIAL_RINGS = [
           isActive: () => player.weapon === 'sword' && !player.activeSwordElement }
       ];
       for (const id of (player.swordElements || [])) {
-        const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[id] : null;
+        const elem = SWORD_ELEMENTS[id];
         if (!elem) continue;
         items.push({
           type: 'sword_' + id,
@@ -140,11 +140,11 @@ const RADIAL_RINGS = [
           label: elem.label + ' Sword',
           // Show the base sword level plus this sword's elemental upgrade (⚔+N).
           val: () => {
-            const b = (typeof elementalSwordBonus === 'function') ? elementalSwordBonus(id) : 0;
+            const b = elementalSwordBonus(id);
             return `Lv${player.swordLevel || 1} ⚔+${b}`;
           },
           dmg: () => {
-            const b = (typeof elementalSwordBonus === 'function') ? elementalSwordBonus(id) : 0;
+            const b = elementalSwordBonus(id);
             return `${lv}-${lv + 2}+${elem.icon}${1 + b}-${4 + b}`;
           },
           action: () => { player.weapon = 'sword'; player.activeSwordElement = id; },
@@ -172,7 +172,7 @@ const RADIAL_RINGS = [
         if (id === 'plain') continue;
         const count = arrows[id] || 0;
         if (count <= 0) continue;
-        const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[id] : null;
+        const elem = SWORD_ELEMENTS[id];
         if (!elem) continue;
         items.push({
           type: 'bow_' + id,
@@ -213,7 +213,7 @@ const RADIAL_RINGS = [
       const rp = player.regionPotions || {};
       for (const rid of Object.keys(rp)) {
         if ((rp[rid] || 0) <= 0) continue;
-        const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[rid] : null;
+        const elem = SWORD_ELEMENTS[rid];
         const nm = rid.charAt(0).toUpperCase() + rid.slice(1);
         const N = (typeof regionNumberOf === 'function') ? regionNumberOf(rid) : 1;
         items.push({ type: 'rpotion_' + rid, icon: '🧪' + (elem ? elem.icon : ''),
@@ -226,7 +226,7 @@ const RADIAL_RINGS = [
       const ex = player.elixirs || {};
       for (const eid of Object.keys(ex)) {
         if ((ex[eid] || 0) <= 0) continue;
-        const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[eid] : null;
+        const elem = SWORD_ELEMENTS[eid];
         items.push({ type: 'elixir_' + eid, icon: '⚗️' + (elem ? elem.icon : ''),
           label: `${elem ? elem.label : eid} Elixir`,
           val: () => 'x' + (player.elixirs[eid] || 0),
@@ -254,7 +254,7 @@ const RADIAL_RINGS = [
           isActive: () => !player.activeArmorElement });
       }
       for (const id of (player.armorElements || [])) {
-        const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[id] : null;
+        const elem = SWORD_ELEMENTS[id];
         if (!elem) continue;
         items.push({
           type: 'armor_' + id,
@@ -263,9 +263,9 @@ const RADIAL_RINGS = [
           label: elem.label + ' Armor',
           // Show the worn armor's upgrade level / physical defense / block %.
           val: () => {
-            const lv  = (typeof armorUpgradeLevel === 'function') ? armorUpgradeLevel(id) : 0;
-            const ph  = (typeof elementalArmorPhys === 'function') ? elementalArmorPhys(id) : 0;
-            const pct = (typeof elementalArmorBlockPct === 'function') ? elementalArmorBlockPct(id) : 50;
+            const lv  = armorUpgradeLevel(id);
+            const ph  = elementalArmorPhys(id);
+            const pct = elementalArmorBlockPct(id);
             return `Lv${lv} +${ph} −${pct}%`;
           },
           action: () => { player.activeArmorElement = id; },

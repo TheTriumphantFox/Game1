@@ -41,7 +41,7 @@ function spawnParticle(wx, wy, color, n = 6, size = 3) {
 // bowLevel for arrows. No-op when the enemy has no element, has no defined
 // opposite, or the 50% roll fails.
 function rollOppositeVuln(e, level) {
-  if (!e.element || typeof OPPOSITE === 'undefined') return;
+  if (!e.element) return;
   const oppId = OPPOSITE[e.element];
   if (!oppId) return;
   if (Math.random() >= 0.5) return;
@@ -49,7 +49,7 @@ function rollOppositeVuln(e, level) {
   let bonus = 0;
   for (let d = 0; d < dice; d++) bonus += 1 + Math.floor(Math.random() * 4);
   e.hp -= bonus;
-  const oppElem = (typeof elementInfo === 'function') ? elementInfo(oppId) : null;
+  const oppElem = elementInfo(oppId);
   if (!oppElem) return;
   damageNumbers.push({
     entity: e,
@@ -84,7 +84,7 @@ function damagePlayer(rawDmg, hitElement) {
   // hits fall through to the normal armor/HP path below.
   if (hitElement && player.immunityElement === hitElement && (player.immunityTimer || 0) > 0) {
     const psp = screenPX(player.x, player.y);
-    const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[hitElement] : null;
+    const elem = SWORD_ELEMENTS[hitElement];
     spawnParticle(psp.x, psp.y, elem ? elem.color : '#ffffff', 8, 3);
     damageNumbers.push({
       entity: 'player',
@@ -100,16 +100,14 @@ function damagePlayer(rawDmg, hitElement) {
   // the hit lands doubled. This mirrors how that same enemy is itself vulnerable
   // to its opposite element (rollOppositeVuln) — the pairing, turned against you.
   let doubled = false;
-  if (hitElement && typeof OPPOSITE !== 'undefined'
+  if (hitElement
       && player.activeArmorElement === OPPOSITE[hitElement]
       && Math.random() < 0.5) {
     rawDmg *= 2;
     doubled = true;
   }
 
-  const { dmg: afterElem, resisted } = (typeof applyElementalArmor === 'function')
-    ? applyElementalArmor(rawDmg, hitElement)
-    : { dmg: rawDmg, resisted: null };
+  const { dmg: afterElem, resisted } = applyElementalArmor(rawDmg, hitElement);
 
   // Flat armor roll. Only activates at +2 Armor and only when there's enough
   // damage left to actually shave — skipping the roll when afterElem === 1
@@ -122,7 +120,7 @@ function damagePlayer(rawDmg, hitElement) {
   // applies when no elemental armor is equipped.
   let armorBlock = 0;
   let armorLv = player.armor || 0;
-  if (player.activeArmorElement && typeof elementalArmorPhys === 'function') {
+  if (player.activeArmorElement) {
     armorLv = elementalArmorPhys(player.activeArmorElement);
   }
   if (armorLv >= 2 && afterElem > 1) {
@@ -172,7 +170,7 @@ function damagePlayer(rawDmg, hitElement) {
     spawnParticle(psp.x, psp.y, '#3fc24a', 8, 3);
     spawnParticle(psp.x, psp.y, '#aaffaa', 5, 2);
     damageNumbers.push({ entity: 'player', val: `💚${tempAbsorbed}`, color: '#5fe070', life: 1100, rise: 0 });
-  } else if (resisted && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[resisted]) {
+  } else if (resisted && SWORD_ELEMENTS[resisted]) {
     // Elemental resist already happened; tag with the element icon. If flat
     // armor *also* shaved damage, the 🛡 in front doubles as that indicator.
     const elem = SWORD_ELEMENTS[resisted];
@@ -199,7 +197,7 @@ function damagePlayer(rawDmg, hitElement) {
   // Opposite-armor double-damage proc — a bright floating marker (in the enemy
   // element's colour) so the reason the hit landed so hard is obvious.
   if (doubled && finalDmg > 0) {
-    const oppElem = (typeof elementInfo === 'function') ? elementInfo(hitElement) : null;
+    const oppElem = elementInfo(hitElement);
     spawnParticle(psp.x, psp.y, oppElem ? oppElem.color : '#ff2222', 8, 3);
     damageNumbers.push({
       entity: 'player',
@@ -245,7 +243,7 @@ function firePlayerArrow() {
     player.arrows.plain--;
   }
   if (typeof buzz === 'function') buzz(12);
-  const elemColor = (element && typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[element]?.color : null;
+  const elemColor = element ? SWORD_ELEMENTS[element]?.color : null;
   projectiles.push({
     tx: player.x + 0.5, ty: player.y + 0.5,
     vx: player.swordDir.x * 0.35, vy: player.swordDir.y * 0.35,
@@ -291,12 +289,11 @@ function doSwordSwing() {
       // Elemental damage — ONLY the currently equipped elemental sword adds
       // its 1d4 hit. (Elemental swords are specific weapons; switching swords
       // changes which element applies, instead of stacking all owned elements.)
-      if (player.activeSwordElement && typeof SWORD_ELEMENTS !== 'undefined') {
+      if (player.activeSwordElement) {
         const elem = SWORD_ELEMENTS[player.activeSwordElement];
         if (elem) {
           // Base 1d4 + a flat +2 per upgrade level (0–10, see swordUpgradeLevel).
-          const bonus = (typeof elementalSwordBonus === 'function')
-            ? elementalSwordBonus(player.activeSwordElement) : 0;
+          const bonus = elementalSwordBonus(player.activeSwordElement);
           const elemDmg = 1 + Math.floor(Math.random() * 4) + bonus;
           e.hp -= elemDmg;
           damageNumbers.push({
@@ -545,7 +542,7 @@ function stepProjectiles(dt, map) {
           // of their opposite element per 5 bow levels (none below Lv5).
           rollOppositeVuln(e, player.bowLevel);
           // Elemental arrow: extra 1d4 of its element
-          if (p.element && typeof SWORD_ELEMENTS !== 'undefined') {
+          if (p.element) {
             const elem = SWORD_ELEMENTS[p.element];
             if (elem) {
               const elemDmg = 1 + Math.floor(Math.random() * 4);
@@ -809,7 +806,7 @@ function stepDrops(dt) {
         // Elemental arrows: d.element is the SWORD_ELEMENTS id.
         const el = d.element || 'plain';
         addArrow(el, d.val);
-        const elem = (el !== 'plain' && typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[el])
+        const elem = (el !== 'plain' && SWORD_ELEMENTS[el])
           || { label: '', icon: '🏹', color: '#ddaa44' };
         const sp = screenPX(d.x, d.y);
         spawnParticle(sp.x, sp.y, elem.color, 10, 3);

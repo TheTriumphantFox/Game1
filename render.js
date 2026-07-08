@@ -4049,7 +4049,7 @@ function drawPlayer(ts) {
 
     // An equipped elemental sword tints the whole swing in its element's colour
     // and glows: the motion trail, blade gradient, and tip sparkle all pick it up.
-    const swElem = (player.activeSwordElement && typeof elementInfo === 'function')
+    const swElem = (player.activeSwordElement)
       ? elementInfo(player.activeSwordElement) : null;
     const trailCol = swElem ? swElem.color : '#ffffff';
     if (swElem) { ctx.shadowColor = swElem.color; ctx.shadowBlur = s * 0.35; }
@@ -6768,7 +6768,7 @@ function drawDrop(d, ts) {
 
   // Soft glow tinted to the drop type
   const trophy = (typeof TROPHY_META !== 'undefined') ? TROPHY_META[d.type] : null;
-  const arrowElem = (d.type === 'arrows' && typeof SWORD_ELEMENTS !== 'undefined' && d.element)
+  const arrowElem = (d.type === 'arrows' && d.element)
     ? SWORD_ELEMENTS[d.element] : null;
   const hexToRGB = (h) => {
     const n = parseInt((h || '#ffffff').slice(1), 16);
@@ -6982,7 +6982,7 @@ function elemRGB(hex) {
 }
 
 function drawElementFX(cx, cy, r, elemId, intensity = 1, seed = 0) {
-  const fx = (typeof elementFX === 'function') ? elementFX(elemId) : null;
+  const fx = elementFX(elemId);
   if (!fx || r <= 0) return;
   const c1 = elemRGB(fx.c1), c2 = elemRGB(fx.c2);
   const now = Date.now() / 1000 + seed;

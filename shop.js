@@ -252,7 +252,7 @@ function renderStoreContents() {
   // element (plain in the elementless forest). A region with element 'fire'
   // sells fire arrows; forest sells plain. Both buy + sell controls for that
   // single type.
-  const arrowId = (typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[regionId])
+  const arrowId = (SWORD_ELEMENTS[regionId])
     ? regionId : 'plain';
   const arrowPlain = arrowId === 'plain';
   const arrowElem = arrowPlain
@@ -533,7 +533,7 @@ function swordPartQty(trophyType) {
 // that many are element-tagged (e.g. Earth has only 3). Empty for the elementless
 // forest, which therefore forges no elemental armor.
 function regionArmorPartTypes(regionIdx, regionId) {
-  if (typeof SWORD_ELEMENTS === 'undefined' || !SWORD_ELEMENTS[regionId]) return [];
+  if (!SWORD_ELEMENTS[regionId]) return [];
   const pool = (typeof ENEMY_POOLS !== 'undefined' && ENEMY_POOLS[regionIdx]) || [];
   const matched = [], rest = [];
   for (const type of pool) {
@@ -568,7 +568,7 @@ function regionArmorCost(regionIdx, regionId) {
 // for only half as many of each (see swordPartQty). Empty for the elementless forest,
 // which forges no elemental sword.
 function regionSwordPartTypes(regionId) {
-  if (typeof SWORD_ELEMENTS === 'undefined' || !SWORD_ELEMENTS[regionId]) return [];
+  if (!SWORD_ELEMENTS[regionId]) return [];
   const regionIdx = (typeof REGIONS !== 'undefined') ? REGIONS.findIndex(r => r.id === regionId) : -1;
   if (regionIdx < 0) return [];
   const pool = (typeof ENEMY_POOLS !== 'undefined' && ENEMY_POOLS[regionIdx]) || [];
@@ -1003,7 +1003,7 @@ function renderHerbalistContents() {
   // Forest (and any region without a bespoke recipe) keeps the classic brew.
   if (!recipe) { renderForestHerbalist(); return; }
 
-  const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[regionId] : null;
+  const elem = SWORD_ELEMENTS[regionId];
   const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
   const elemName = elem ? elem.label : name;
   const secs = ((typeof ELIXIR_IMMUNITY_MS !== 'undefined') ? ELIXIR_IMMUNITY_MS : 30000) / 1000;
@@ -1138,7 +1138,7 @@ function brewElixir(regionId, N) {
   player.rupees -= 5 * N;
   player.elixirs = player.elixirs || {};
   player.elixirs[regionId] = Math.min(ITEM_CAP, (player.elixirs[regionId] || 0) + 1);
-  const elem = (typeof SWORD_ELEMENTS !== 'undefined') ? SWORD_ELEMENTS[regionId] : null;
+  const elem = SWORD_ELEMENTS[regionId];
   showMsg(`⚗️ The Herbalist brews you a ${elem ? elem.label : regionId} Elixir!`, 3000);
   renderHerbalistContents();
   updateHUD();

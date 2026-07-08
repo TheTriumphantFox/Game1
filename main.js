@@ -24,7 +24,7 @@ function update(dt) {
     player.immunityTimer -= dt;
     if (player.immunityTimer <= 0) {
       player.immunityTimer = 0;
-      const elem = (typeof SWORD_ELEMENTS !== 'undefined' && player.immunityElement)
+      const elem = (player.immunityElement)
         ? SWORD_ELEMENTS[player.immunityElement] : null;
       showMsg(`${elem ? elem.icon : '⚗️'} Elemental immunity faded.`, 1500);
       player.immunityElement = null;
