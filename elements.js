@@ -118,31 +118,6 @@ function elemIconHTML(elem, px) {
   return elem ? elem.icon : '';
 }
 
-// Roll one 1d4 per equipped element. Returns a list of { element, dmg } so the
-// caller can both subtract HP and spawn one damage number per element.
-function rollSwordElementalDamage() {
-  const out = [];
-  const equipped = (player && player.swordElements) || [];
-  for (const elemId of equipped) {
-    const elem = SWORD_ELEMENTS[elemId];
-    if (!elem) continue;
-    out.push({ element: elem, dmg: 1 + Math.floor(Math.random() * 4) });   // 1d4
-  }
-  return out;
-}
-
-// Grant an elemental trait to the player's sword. Idempotent — re-granting
-// the same element is a no-op.
-function grantSwordElement(elemId) {
-  if (!SWORD_ELEMENTS[elemId]) return false;
-  player.swordElements = player.swordElements || [];
-  if (!player.swordElements.includes(elemId)) {
-    player.swordElements.push(elemId);
-    return true;
-  }
-  return false;
-}
-
 // ─── Elemental sword upgrades ─────────────────────────────────────────────────
 // Each owned elemental sword can be upgraded sequentially through the six ore
 // tiers at the Blacksmith (see shop.js), exactly like elemental armor. An upgrade
@@ -201,16 +176,6 @@ function elementalArmorBlockPct(elemId) {
 }
 function elementalArmorThrough(elemId) {
   return (100 - elementalArmorBlockPct(elemId)) / 100;   // 40/50/60/70/80% → 0.6/0.5/0.4/0.3/0.2
-}
-
-function grantArmorElement(elemId) {
-  if (!SWORD_ELEMENTS[elemId]) return false;
-  player.armorElements = player.armorElements || [];
-  if (!player.armorElements.includes(elemId)) {
-    player.armorElements.push(elemId);
-    return true;
-  }
-  return false;
 }
 
 // Apply the active elemental armor's resistance to an incoming hit. Returns

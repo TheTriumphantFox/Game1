@@ -155,11 +155,6 @@ const ENEMY_POOLS = [
   ['shade', 'shadow_mastiff', 'bodak', 'nightmare', 'shadow_demon', 'nightwalker'],   // 12 · Shadow
 ];
 
-function getEnemyPool(depth) {
-  const tier = Math.min(Math.floor(depth / 4), ENEMY_POOLS.length - 1);
-  return ENEMY_POOLS[tier];
-}
-
 // Build the list of enemy spawn points for a new map.
 // `mapType === 'village'` guarantees the boss spawn.
 // `map` is the tile array; enemies will only spawn on non-solid tiles. After

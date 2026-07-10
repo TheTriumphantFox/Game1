@@ -235,13 +235,6 @@ function floodWaterVillage(m) {
 }
 
 // ─── Desert village map ─────────────────────────────────────────────────────
-// Thin wrapper: the same fixed village layout rendered with a desert palette
-// (cactus border, sand ground, flowering-cactus decorations). Used as the boss
-// arena at the end of the desert region.
-function buildDesertVillageMap() {
-  return buildVillageMap('fire');
-}
-
 // ─── Village map ──────────────────────────────────────────────────────────────
 // Fixed layout used as the boss arena at the end of a region. 18 houses around
 // a central fountain plaza. `biome` selects the palette: 'forest' (trees +
