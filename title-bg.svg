@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 900" preserveAspectRatio="xMidYMid slice">
+  <!-- Title-screen backdrop: a 13-slice panorama, one band per game region, in
+       progression order (forest → fire → water → ice → earth → volcanic → air →
+       lightning → luminous → necrotic → poison → mana → shadow). Colors are drawn
+       from each region's TILE_COLORS in config.js. Horizon sits at y=520. -->
+  <defs>
+    <radialGradient id="lumHalo" cx="50%" cy="42%" r="60%">
+      <stop offset="0%" stop-color="#fff6cf"/>
+      <stop offset="55%" stop-color="#ffe9a6"/>
+      <stop offset="100%" stop-color="#e8c774"/>
+    </radialGradient>
+    <linearGradient id="riftGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a1f5a"/>
+      <stop offset="100%" stop-color="#080510"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 1 · FOREST -->
+  <g transform="translate(0,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#7ea9cf"/>
+    <rect x="0" y="520" width="101" height="380" fill="#2f5f2f"/>
+    <polygon points="24,520 40,430 56,520" fill="#1a4a1a"/>
+    <polygon points="52,520 70,455 88,520" fill="#163f16"/>
+    <polygon points="4,520 16,470 28,520" fill="#204e20"/>
+  </g>
+
+  <!-- 2 · FIRE (desert) -->
+  <g transform="translate(100,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#e6a24c"/>
+    <circle cx="66" cy="150" r="42" fill="#ffd27a"/>
+    <rect x="0" y="520" width="101" height="380" fill="#d4b070"/>
+    <path d="M0,560 Q50,520 101,565 L101,900 L0,900 Z" fill="#c89858"/>
+    <polygon points="20,520 26,470 32,520" fill="#3a7a3a"/>
+  </g>
+
+  <!-- 3 · WATER -->
+  <g transform="translate(200,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#79bce4"/>
+    <rect x="0" y="520" width="101" height="380" fill="#2255aa"/>
+    <rect x="0" y="520" width="101" height="26" fill="#d4b070"/>
+    <path d="M0,600 Q25,585 50,600 T101,600" stroke="#4a86c8" stroke-width="6" fill="none"/>
+    <path d="M0,660 Q25,645 50,660 T101,660" stroke="#356fb8" stroke-width="6" fill="none"/>
+    <path d="M0,730 Q25,715 50,730 T101,730" stroke="#1f4a94" stroke-width="6" fill="none"/>
+  </g>
+
+  <!-- 4 · ICE -->
+  <g transform="translate(300,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#bcd8ec"/>
+    <rect x="0" y="520" width="101" height="380" fill="#dbe8f2"/>
+    <polygon points="10,520 40,410 70,520" fill="#5a9ac8"/>
+    <polygon points="48,520 78,445 101,520" fill="#a8d8ee"/>
+    <polygon points="18,520 40,455 62,520" fill="#e4ecf2"/>
+  </g>
+
+  <!-- 5 · EARTH -->
+  <g transform="translate(400,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#b7a98f"/>
+    <rect x="0" y="520" width="101" height="380" fill="#8a8174"/>
+    <polygon points="-4,520 34,400 72,520" fill="#4a4035"/>
+    <polygon points="46,520 86,430 101,520" fill="#5a4f42"/>
+    <rect x="30" y="560" width="10" height="26" fill="#5a3a18"/>
+  </g>
+
+  <!-- 6 · VOLCANIC -->
+  <g transform="translate(500,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#5a2f2a"/>
+    <rect x="0" y="520" width="101" height="380" fill="#2b2320"/>
+    <polygon points="18,520 50,405 82,520" fill="#3a2b26"/>
+    <polygon points="42,455 50,405 58,455" fill="#ff5522"/>
+    <path d="M42,455 Q50,500 44,560 M58,455 Q52,510 60,570" stroke="#ff5522" stroke-width="5" fill="none"/>
+    <circle cx="50" cy="410" r="7" fill="#ff9944"/>
+  </g>
+
+  <!-- 7 · AIR -->
+  <g transform="translate(600,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#cfe6ff"/>
+    <rect x="0" y="520" width="101" height="380" fill="#eaf1fb"/>
+    <ellipse cx="34" cy="300" rx="34" ry="18" fill="#ffffff"/>
+    <ellipse cx="72" cy="360" rx="30" ry="16" fill="#dde6f2"/>
+    <ellipse cx="52" cy="600" rx="40" ry="20" fill="#dde6f2"/>
+  </g>
+
+  <!-- 8 · LIGHTNING -->
+  <g transform="translate(700,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#2a3048"/>
+    <rect x="0" y="520" width="101" height="380" fill="#313749"/>
+    <ellipse cx="50" cy="300" rx="42" ry="22" fill="#1b1f2c"/>
+    <polygon points="52,315 38,520 50,500 40,640 66,430 54,450 66,315" fill="#ffee66"/>
+  </g>
+
+  <!-- 9 · LUMINOUS -->
+  <g transform="translate(800,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#f6e6b0"/>
+    <rect x="0" y="520" width="101" height="380" fill="#f5edd8"/>
+    <g stroke="#fff4c0" stroke-width="4" opacity="0.8">
+      <line x1="50" y1="200" x2="50" y2="90"/>
+      <line x1="50" y1="200" x2="0" y2="150"/>
+      <line x1="50" y1="200" x2="101" y2="150"/>
+      <line x1="50" y1="200" x2="8" y2="250"/>
+      <line x1="50" y1="200" x2="92" y2="250"/>
+    </g>
+    <circle cx="50" cy="200" r="40" fill="url(#lumHalo)"/>
+  </g>
+
+  <!-- 10 · NECROTIC -->
+  <g transform="translate(900,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#3a3040"/>
+    <rect x="0" y="520" width="101" height="380" fill="#3a2a3a"/>
+    <path d="M34,520 L34,470 Q34,452 50,452 Q66,452 66,470 L66,520 Z" fill="#1a0a1a"/>
+    <rect x="46" y="472" width="8" height="26" fill="#d8d0b0"/>
+    <rect x="40" y="480" width="20" height="6" fill="#d8d0b0"/>
+    <ellipse cx="20" cy="560" rx="10" ry="4" fill="#c8c0a0"/>
+    <ellipse cx="84" cy="580" rx="9" ry="4" fill="#c8c0a0"/>
+  </g>
+
+  <!-- 11 · POISON -->
+  <g transform="translate(1000,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#4a5a2a"/>
+    <rect x="0" y="520" width="101" height="380" fill="#566b2c"/>
+    <ellipse cx="30" cy="600" rx="26" ry="12" fill="#1f3018"/>
+    <ellipse cx="78" cy="680" rx="24" ry="11" fill="#1f3018"/>
+    <circle cx="26" cy="588" r="5" fill="#8fc24a"/>
+    <circle cx="40" cy="596" r="3" fill="#8fc24a"/>
+    <circle cx="74" cy="668" r="4" fill="#8fc24a"/>
+  </g>
+
+  <!-- 12 · MANA (arcane) -->
+  <g transform="translate(1100,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#3a2a5a"/>
+    <rect x="0" y="520" width="101" height="380" fill="#2a1f4a"/>
+    <polygon points="50,430 62,500 50,560 38,500" fill="#a56cff"/>
+    <polygon points="24,500 32,548 24,584 16,548" fill="#c9a8ff"/>
+    <polygon points="78,486 86,540 78,580 70,540" fill="#c9a8ff"/>
+  </g>
+
+  <!-- 13 · SHADOW -->
+  <g transform="translate(1200,0)">
+    <rect x="0" y="0" width="101" height="521" fill="#140f22"/>
+    <rect x="0" y="520" width="101" height="380" fill="url(#riftGlow)"/>
+    <polygon points="38,520 50,400 62,520" fill="#100b18"/>
+    <polygon points="46,470 50,400 54,470" fill="#5a3a8a" opacity="0.7"/>
+    <ellipse cx="50" cy="640" rx="30" ry="10" fill="#080510"/>
+  </g>
+</svg>

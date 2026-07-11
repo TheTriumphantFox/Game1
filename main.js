@@ -2,7 +2,32 @@
 // Wires the per-frame update/render and the keyboard/touch input. Everything
 // game-state-related lives in the other modules; this file just orchestrates.
 
+// ─── Title screen gate ────────────────────────────────────────────────────────
+// The loop starts running at boot (so the world renders behind the title), but
+// the world is frozen until the player picks New Game or Load Game. The render
+// keeps drawing underneath the opaque #title-overlay.
+let gameStarted = false;
+
+function showTitleScreen() {
+  gameStarted = false;
+  document.getElementById('title-overlay').classList.add('open');
+}
+// Reveal the world and unfreeze the loop. Idempotent — safe to call from the
+// New Game button or after a save loads.
+function startGame() {
+  gameStarted = true;
+  document.getElementById('title-overlay').classList.remove('open');
+}
+// New Game from the title: boot already built a fresh world, so just drop the
+// title and greet the player.
+function titleNewGame() {
+  startGame();
+  showMapMsg('🛏️ You awaken in your cabin. Step outside to begin your adventure.');
+}
+
 function update(dt) {
+  // Frozen on the title screen — no world stepping until a game is chosen.
+  if (!gameStarted) return;
   // Pause the entire world while the radial inventory menu is open. Render is
   // still called every frame so the menu animates, and the HUD still refreshes
   // (so the menu's purchases / item use visually update), but every dt-based
@@ -337,6 +362,6 @@ requestAnimationFrame(() => {
   spawnVillagersForMap(0);
   clampCam(true);
   updateHUD();
-  showMapMsg('🛏️ You awaken in your cabin. Step outside to begin your adventure.');
+  showTitleScreen();   // freeze on the title until New Game / Load Game is picked
   requestAnimationFrame(loop);
 });

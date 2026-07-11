@@ -320,6 +320,8 @@ function doLoad(slotIdx) {
   const meta = getSaveIndex()[slotIdx];
   try {
     applyLoadData(JSON.parse(raw));
+    // Dismiss the title screen if this load was launched from it (no-op mid-game).
+    if (typeof startGame === 'function') startGame();
     document.getElementById('save-status').textContent =
       `✅ Loaded "${meta?.saveName || 'Save ' + (slotIdx+1)}"`;
     showMsg(`📂 Loaded: ${currentMap().name}`, 2500);

@@ -3,11 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Hyrule Quest — Forest</title>
+<title>The RPG Game — Forest</title>
 <link rel="stylesheet" href="game.css">
 <link rel="stylesheet" href="modal.css">
 </head>
 <body>
+
+<!-- Title screen — the first thing shown. Gates New Game / Load Game; the world
+     loop is frozen (see gameStarted in main.js) until one is chosen. -->
+<div id="title-overlay">
+  <div id="title-box">
+    <div id="title-crest">⚔️</div>
+    <h1 id="title-heading">The RPG Game</h1>
+    <p id="title-tagline">A top-down adventure RPG</p>
+    <button class="title-btn" onclick="titleNewGame()">🆕 New Game</button>
+    <button class="title-btn" onclick="openLoadModal()">📂 Load Game</button>
+    <p id="title-hint">WASD / Arrows: move · Z: sword · V: menu</p>
+  </div>
+</div>
 
 <!-- Inn modal -->
 <div id="inn-modal-overlay" class="shop-overlay">

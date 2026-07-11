@@ -1,4 +1,4 @@
-# Hyrule Quest
+# The RPG Game
 
 A top-down Zelda-style adventure RPG that runs in the browser. Procedurally generated forest maps, D&D 5e enemies, fog of war, persistent map memory, and named save slots.
 
@@ -31,7 +31,7 @@ npx serve
 ## Project Structure
 
 ```
-hyrule-quest/
+the-rpg-game/
 ├── index.html             # Entry point — loads styles + scripts
 ├── README.md
 ├── styles/
