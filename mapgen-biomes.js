@@ -40,6 +40,51 @@ function addEarthCaveEntrances(m, regionId) {
   }
 }
 
+// ─── Sky regions: wind gusts ─────────────────────────────────────────────────
+// Set 1d6 vertical WIND_GUST updrafts out on the open cloud floor of an
+// air/lightning map — the cloud regions' answer to the earth region's cave
+// mouths. Each updraft is an 8-tile-tall column of rising wind, but ONLY its base
+// (bottom) tile lifts the hero UP into a hidden sky cave chain (see
+// createSkyCaveMap / tryCaveTransition); the 7 tiles rising above it are inert,
+// passable shaft that just reads as the plume of wind (the base is detected as the
+// gust tile with no gust directly below it — both here and in tryCaveTransition).
+// The whole shaft is stamped only over the region's open floor (ground or its
+// brighter puff decoration), so the passable column never punches through the
+// cloud-edge rim, and the base is reachable from its sides and below. Run AFTER
+// ensureConnectivity and ringCloudEdges (WIND_GUST is passable, seated on
+// already-reachable floor). Gusts are spread out (min Manhattan gap between bases)
+// so they don't cluster. No-op for every non-sky region.
+const WIND_GUST_HEIGHT = 8;   // tiles tall; base + 7-tile rising shaft
+function addSkyWindGusts(m, region) {
+  if (!region.skyRegion) return;
+  const H = WIND_GUST_HEIGHT;
+  const isFloor = (t) => t === region.ground || t === region.decoration;
+  const cands = [];
+  for (let r = 6 + H; r < MROWS - 6; r++)
+    for (let c = 6; c < MCOLS - 6; c++) {
+      // Base reachable from its sides and below.
+      if (!isFloor(m[r][c - 1]) || !isFloor(m[r][c + 1]) || !isFloor(m[r + 1][c])) continue;
+      // The whole vertical shaft (base + 7 rising tiles) must be open floor.
+      let ok = true;
+      for (let k = 0; k < H && ok; k++) if (!isFloor(m[r - k][c])) ok = false;
+      if (ok) cands.push([r, c]);
+    }
+  if (!cands.length) return;
+  for (let i = cands.length - 1; i > 0; i--) {        // Fisher–Yates shuffle
+    const k = Math.floor(Math.random() * (i + 1));
+    const tmp = cands[i]; cands[i] = cands[k]; cands[k] = tmp;
+  }
+  const want = rnd(1, 6);
+  const MIN_GAP = 14;
+  const placed = [];
+  for (const [r, c] of cands) {
+    if (placed.length >= want) break;
+    if (placed.some(([pr, pc]) => Math.abs(pr - r) + Math.abs(pc - c) < MIN_GAP)) continue;
+    for (let k = 0; k < H; k++) m[r - k][c] = T.WIND_GUST;   // base at r, shaft rising above
+    placed.push([r, c]);
+  }
+}
+
 // ─── Forest map ───────────────────────────────────────────────────────────────
 // Starts as wall-to-wall trees, then carves open regions, paths, water features,
 // and finally scatters decorations and treasure.
@@ -934,6 +979,12 @@ function buildRegionMap(seed, depth, openSides, region) {
   // whole 8-neighbourhood is open ground, so it never walls a path. No-op for the
   // late regions, which keep their own bespoke landmark passes above.
   addRegionLandmarks(m, region.id, depth);
+
+  // Sky regions (air, lightning): set 1d6 vertical wind-gust updrafts out on the
+  // open cloud floor — the entrances to this region's hidden sky caves. After the
+  // seal, ringCloudEdges, and the landmarks so each gust lands on clear interior
+  // floor (WIND_GUST is passable, so it can't be walled by the earlier seal).
+  addSkyWindGusts(m, region);
 
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);

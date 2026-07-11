@@ -886,6 +886,93 @@ function tryCaveTransition() {
     return true;
   }
 
+  // Step onto the BASE of a vertical wind gust out on an air/lightning cloud floor
+  // → the updraft whisks the hero UP into a hidden sky cave chain (length rolled
+  // 1d6 on first entry). The gust is an 8-tile-tall column, but only its bottom
+  // tile activates: the base is the gust tile with no gust directly below it, so
+  // walking up through the rising shaft above it does nothing. The cloud regions
+  // can't hold buried caves, so this is their universal cave system — built from
+  // the region's own tiles and enemies. caveLinks keys the chain to the base tile
+  // so re-entering the same gust returns to the same sky cave. See createSkyCaveMap.
+  const onGustBase = t === T.WIND_GUST &&
+    !(player.y + 1 < MROWS && map[player.y + 1][player.x] === T.WIND_GUST);
+  if (onGustBase && cm.type !== 'sky_cave') {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    const sourceId = currentMapId, sourceX = player.x, sourceY = player.y;
+    cm.caveLinks = cm.caveLinks || {};
+    const key = `${sourceX},${sourceY}`;
+    let caveId = cm.caveLinks[key];
+    if (caveId == null) {
+      const regionIdx = (typeof cm.regionIdx === 'number' && REGIONS[cm.regionIdx])
+        ? cm.regionIdx : Math.max(0, REGIONS.findIndex(r => r.id === cm.biome));
+      caveId = createSkyCaveMap(sourceId, sourceX, sourceY, regionIdx, 1, rnd(1, 6));
+      cm.caveLinks[key] = caveId;
+    }
+    currentMapId = caveId;
+    { const land = worldMaps[caveId].entryLand; player.x = land.x; player.y = land.y; }
+    spawnEnemiesForMap(caveId);
+    spawnVillagersForMap(caveId);
+    transitionCooldown = 400;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 16);
+    showMapMsg('🌬️ A gust of wind lifts you into the clouds!');
+    return true;
+  }
+
+  // Step onto an ascent gust inside a sky cave → ride the updraft one level higher
+  // (building the next level on first visit). Each ascent links back to itself for
+  // the return drop. Mirrors CAVE_DESCENT for the rock caves.
+  if (t === T.SKY_ASCENT && cm.type === 'sky_cave') {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    const sourceId = currentMapId, sourceX = player.x, sourceY = player.y;
+    cm.caveLinks = cm.caveLinks || {};
+    const key = `${sourceX},${sourceY}`;
+    let nextId = cm.caveLinks[key];
+    if (nextId == null) {
+      nextId = createSkyCaveMap(sourceId, sourceX, sourceY,
+                                cm.regionIdx, cm.chainDepth + 1, cm.chainLen);
+      cm.caveLinks[key] = nextId;
+    }
+    currentMapId = nextId;
+    { const land = worldMaps[nextId].entryLand; player.x = land.x; player.y = land.y; }
+    spawnEnemiesForMap(nextId);
+    spawnVillagersForMap(nextId);
+    transitionCooldown = 400;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 16);
+    showMapMsg('🌬️ An updraft carries you higher into the storm…');
+    return true;
+  }
+
+  // Step onto the downdraft exit inside a sky cave → the wind sets the hero back
+  // down: to the level below (climbing back down the chain) or out onto the
+  // overworld gust that lifted them. Mirrors CAVE_EXIT for the rock caves.
+  if (t === T.SKY_EXIT && cm.type === 'sky_cave') {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    currentMapId = cm.returnMapId;
+    const dest = worldMaps[currentMapId];
+    if (dest.type === 'sky_cave' && dest.deeperLand) {
+      // Dropping back down a level: land beside the ascent gust we rode up through.
+      player.x = dest.deeperLand.x; player.y = dest.deeperLand.y;
+    } else {
+      // Surfacing onto the overworld: land back on the passable gust tile itself.
+      player.x = cm.returnX; player.y = cm.returnY;
+    }
+    spawnEnemiesForMap(currentMapId);
+    spawnVillagersForMap(currentMapId);
+    transitionCooldown = 600;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 12);
+    showMapMsg('🌬️ The wind sets you gently back down.');
+    return true;
+  }
+
   // Step onto a descent inside a cave chain → go one level deeper (building the
   // next level on first visit). Each descent links back to itself for the climb.
   if (t === T.CAVE_DESCENT && cm.type === 'cave_chain') {
