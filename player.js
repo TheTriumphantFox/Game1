@@ -667,38 +667,85 @@ function tryTransition() {
   // HUD's roomName span. Notable map events use showMapMsg instead.)
 }
 
+// Add `n` of a region's Health Potion into the satchel (cap-respecting). Forest —
+// which has no bespoke brew (see HERBALIST_RECIPES) — yields classic generic Health
+// Potions instead. Returns { got, label, generic }: the count that actually fit,
+// its singular display label, and whether it was the generic brew.
+function addRegionPotions(regionId, n) {
+  const hasBrew = typeof HERBALIST_RECIPES !== 'undefined' && HERBALIST_RECIPES[regionId];
+  if (!hasBrew) {
+    return { got: addItem('potions', n), label: 'Health Potion', generic: true };
+  }
+  player.regionPotions = player.regionPotions || {};
+  const before = player.regionPotions[regionId] || 0;
+  player.regionPotions[regionId] = Math.min(ITEM_CAP, before + n);
+  const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
+  return { got: player.regionPotions[regionId] - before, label: `${name} Potion`, generic: false };
+}
+
+// Grant `n` of a region's Health Potion and return a standalone message describing
+// what landed.
+function grantRegionPotions(regionId, n) {
+  const { got, label, generic } = addRegionPotions(regionId, n);
+  return `🧪 ${got} ${label}${got === 1 ? '' : 's'}!${generic ? ' — press P to drink' : ''}`;
+}
+
+// Grant `n` of a region's element-resistance Elixir into the satchel (cap-respecting)
+// and return the describing message. Caller guarantees the region has an element.
+function grantRegionElixirs(regionId, n) {
+  player.elixirs = player.elixirs || {};
+  const before = player.elixirs[regionId] || 0;
+  player.elixirs[regionId] = Math.min(ITEM_CAP, before + n);
+  const got = player.elixirs[regionId] - before;
+  const elem = SWORD_ELEMENTS[regionId];
+  const label = elem ? elem.label : regionId;
+  const icon = elem ? elem.icon : '⚗️';
+  return `${icon} ${got} ${label} Elixir${got === 1 ? '' : 's'}!`;
+}
+
 // ─── Chest / shrine pickup ────────────────────────────────────────────────────
 // Called when player steps onto a CHEST or SHRINE tile.
 function handlePickup(bnx, bny, map) {
   if (map[bny][bnx] === T.CHEST && !currentMap().openedChests.has(`${bnx},${bny}`)) {
     currentMap().openedChests.add(`${bnx},${bny}`);
+    // Small-chest loot is tuned to the region the chest sits in (see
+    // regionIdForMap): its Health Potions and element-resistance Elixirs are the
+    // local brew, and the bonus ore is the local tier.
+    const cm = currentMap();
+    const regionId = regionIdForMap(cm);
+    const d4 = () => 1 + Math.floor(Math.random() * 4);
     const roll = Math.random();
     let reward;
-    if (roll < 0.3) {
+    if (roll < 0.30) {
+      // 30% — rubies (unchanged).
       addItem('rubies', 10 + Math.floor(Math.random() * 25));
       reward = '💎 Found Rubies!';
-    } else if (roll < 0.55) {
+    } else if (roll < 0.60) {
+      // 30% — full hearts.
       player.hp = player.maxHp;
       reward = '❤️ Full Hearts Restored!';
-    } else if (roll < 0.75) {
-      player.bowLevel++;
-      reward = `🏹 Bow Lv${player.bowLevel}!`;
-    } else if (roll < 0.9) {
-      gainXP(300);
-      reward = '📜 Ancient Scroll! +300 XP';
+    } else if (roll < 0.90) {
+      // 30% — 1d4 of the region's Health Potion.
+      reward = grantRegionPotions(regionId, d4());
     } else {
-      addItem('potions', 1);
-      reward = `🧪 Health Potion! (now carrying ${player.potions}) — press P to drink`;
+      // 10% — 1d4 of the region's element-resistance Elixir. Regions without an
+      // element (forest) have no elixir, so that slice heals to full instead.
+      if (typeof SWORD_ELEMENTS !== 'undefined' && SWORD_ELEMENTS[regionId]) {
+        reward = grantRegionElixirs(regionId, d4());
+      } else {
+        player.hp = player.maxHp;
+        reward = '❤️ Full Hearts Restored!';
+      }
     }
-    // 5% bonus: a chunk of raw ore tucked in the chest. Which ore is set by the
-    // region (see oreForMap / ORE_TYPES) — common Grimsilver in regions 1-3 up to
-    // priceless Eclipsium in regions 10-11. Added on top of the normal reward.
+    // Independent 5% bonus: 1d4 chunks of raw ore tucked in the chest. Which ore is
+    // set by the region (see oreForMap / ORE_TYPES) — common Grimsilver in the early
+    // regions up to priceless Voidsteel in Shadow. Added on top of the normal reward.
     let oreNote = '';
     if (Math.random() < 0.05) {
-      const ore = oreForMap(currentMap());
+      const ore = oreForMap(cm);
       if (ore) {
-        addItem(ore.id, 1);
-        oreNote = ` ✦ ${ore.icon} ${ore.label} ore!`;
+        const got = addItem(ore.id, d4());
+        if (got > 0) oreNote = ` ✦ ${got} ${ore.icon} ${ore.label} ore!`;
       }
     }
     showMsg(reward + oreNote, 3000);
@@ -716,9 +763,11 @@ function handlePickup(bnx, bny, map) {
   // Shop doors are now just walkable entrances — the actual interaction lives
   // on the innkeeper / shopkeeper inside the building (press SPACE next to
   // them). Stepping on the door is a no-op.
-  // The Hero's Cache — one-time +2 Sword / +2 Armor pickup at the back of a
-  // cave. The chest spans 2 horizontal tiles (LARGE_CHEST anchor + LARGE_CHEST_R
-  // extension); stepping on either half resolves to the anchor (the left tile).
+  // The Hero's Cache — one-time regional haul at the back of a cave. The chest
+  // spans 2 horizontal tiles (LARGE_CHEST anchor + LARGE_CHEST_R extension);
+  // stepping on either half resolves to the anchor (the left tile). Loot is 100%
+  // guaranteed and scaled to the region: 2d6 of its raw ore, 1d4 of its Health
+  // Potion, and 100 × region level rubies.
   {
     const tHere = map[bny][bnx];
     if (tHere === T.LARGE_CHEST || tHere === T.LARGE_CHEST_R) {
@@ -726,10 +775,18 @@ function handlePickup(bnx, bny, map) {
       const ay = bny;
       if (!currentMap().openedChests.has(`big_${ax},${ay}`)) {
         currentMap().openedChests.add(`big_${ax},${ay}`);
-        player.swordLevel += 2;
-        player.armor      = (player.armor || 0) + 2;
-        player.hp = player.maxHp;
-        showMsg('⚔️🛡️ The Hero\'s Cache! +2 Sword and +2 Armor — fully healed!', 5000);
+        const cm = currentMap();
+        const regionId = regionIdForMap(cm);
+        const d6 = () => 1 + Math.floor(Math.random() * 6);
+        // 2d6 chunks of the region's raw ore.
+        const ore = oreForMap(cm);
+        const oreGot = ore ? addItem(ore.id, d6() + d6()) : 0;
+        // 1d4 of the region's Health Potion.
+        const pot = addRegionPotions(regionId, 1 + Math.floor(Math.random() * 4));
+        // 100 × region level rubies (forest = 1 … shadow = 13).
+        const rubyGot = addItem('rubies', 100 * regionNumberOf(regionId));
+        const oreClause = ore ? `${oreGot} ${ore.icon} ${ore.label} ore, ` : '';
+        showMsg(`💰 The Hero's Cache! ${oreClause}${pot.got} 🧪 ${pot.label}${pot.got === 1 ? '' : 's'}, and ${rubyGot} 💎!`, 5000);
         const sp = screenPX(bnx, bny);
         spawnParticle(sp.x, sp.y, '#ffdd00', 24, 6);
         spawnParticle(sp.x, sp.y, '#ffffff', 16, 4);
@@ -747,15 +804,19 @@ function handlePickup(bnx, bny, map) {
       const ay = (tHere === T.BOSS_CHEST_BL || tHere === T.BOSS_CHEST_BR) ? bny - 1 : bny;
       if (!currentMap().openedChests.has(`boss_${ax},${ay}`)) {
         currentMap().openedChests.add(`boss_${ax},${ay}`);
-        player.swordLevel += 3;
-        player.armor      = (player.armor || 0) + 3;
-        player.maxHp      = (player.maxHp || 6) + 4;
-        player.hp         = player.maxHp;
-        player.bowLevel   = (player.bowLevel || 1) + 2;
-        addItem('rubies', 250);
-        addItem('potions', 3);
-        gainXP(1000);
-        showMsg('👑 The King\'s Hoard! +3 Sword, +3 Armor, +4 Max HP, +2 Bow, 250 💎, 3 🧪, 1000 XP!', 7000);
+        const cm = currentMap();
+        const regionId = regionIdForMap(cm);
+        const lvl = regionNumberOf(regionId);
+        // +4 Max HP (the four new hearts come filled), 250 × region level 💎, 2d4 of
+        // the region's Health Potion, and 1000 × region level XP — all guaranteed,
+        // nothing else.
+        player.maxHp = (player.maxHp || 6) + 4;
+        player.hp    = Math.min(player.maxHp, (player.hp || 0) + 4);
+        const rubyGot = addItem('rubies', 250 * lvl);
+        const potN = (1 + Math.floor(Math.random() * 4)) + (1 + Math.floor(Math.random() * 4));
+        const pot = addRegionPotions(regionId, potN);
+        gainXP(1000 * lvl);
+        showMsg(`👑 The King's Hoard! +4 Max HP, ${rubyGot} 💎, ${pot.got} 🧪 ${pot.label}${pot.got === 1 ? '' : 's'}, ${1000 * lvl} XP!`, 7000);
         const sp = screenPX(ax, ay);
         spawnParticle(sp.x, sp.y, '#ff66ff', 40, 8);
         spawnParticle(sp.x, sp.y, '#ffdd33', 32, 6);

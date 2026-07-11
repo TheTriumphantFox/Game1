@@ -658,8 +658,8 @@ const TROPHIES = [
 ];
 
 // ─── Ores ─────────────────────────────────────────────────────────────────────
-// Six raw ores, ordered common → rare. A 5% bonus find in any small chest (see
-// handlePickup in player.js); which ore drops is set entirely by the region the
+// Six raw ores, ordered common → rare. A 5% bonus find (1d4 chunks) in any small
+// chest (see handlePickup in player.js); which ore drops is set entirely by the region the
 // chest sits in, so the earliest regions always yield the most common Grimsilver
 // and the final Shadow region the priceless Voidsteel. Each ore is a stackable
 // inventory item (key), shows in the Drops satchel (PASSIVE_DROPS), and any
@@ -691,11 +691,27 @@ function oreForRegionIdx(idx) {
 // region index); legacy caves fall back to `depth`. Defaults to region 0.
 function oreForMap(map) {
   if (!map) return ORE_TYPES[0];
-  const idx = typeof map.regionIdx === 'number' ? map.regionIdx
-            : typeof map.sourceTier === 'number' ? map.sourceTier
-            : typeof map.depth === 'number'      ? map.depth
-            : 0;
-  return oreForRegionIdx(idx);
+  return oreForRegionIdx(regionIdxForMap(map));
+}
+
+// The 0-based region index a map belongs to — shared by oreForMap and the
+// small-chest reward logic. Overworld/village maps carry `regionIdx`; cave chains
+// carry `sourceTier`; legacy caves fall back to `depth`. Defaults to region 0.
+function regionIdxForMap(map) {
+  if (!map) return 0;
+  return typeof map.regionIdx === 'number' ? map.regionIdx
+       : typeof map.sourceTier === 'number' ? map.sourceTier
+       : typeof map.depth === 'number'      ? map.depth
+       : 0;
+}
+
+// The region id string ('forest' … 'shadow') a map belongs to. Used by small-chest
+// rewards to pick region-specific Health Potions and element-resistance Elixirs.
+function regionIdForMap(map) {
+  const idx = regionIdxForMap(map);
+  if (typeof REGIONS === 'undefined') return 'forest';
+  const i = Math.max(0, Math.min(idx, REGIONS.length - 1));
+  return REGIONS[i] ? REGIONS[i].id : 'forest';
 }
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.
