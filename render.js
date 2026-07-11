@@ -157,7 +157,9 @@ function drawPlayer(ts) {
   // Subtle walking bob — only oscillates when a movement key is held
   const moving = !!(keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown']||
                     keys['a']||keys['A']||keys['d']||keys['D']||keys['w']||keys['W']||keys['s']||keys['S']);
-  const walkBob = moving ? Math.round(Math.sin(Date.now() / 110) * 1) : 0;
+  // Unrounded: snapping the bob to whole pixels jerked the sprite ±1px at each
+  // sine crossing, which read as frame jitter on top of the tile glide.
+  const walkBob = moving ? Math.sin(Date.now() / 110) : 0;
 
   // ── Climb / jump animation ──────────────────────────────────────────────────
   // Climbing: an effortful scramble (faster vertical bob + slight side sway)
