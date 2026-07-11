@@ -261,7 +261,18 @@ const T = {
   // to SHADOW_GROUND when cut. SHADOW_MONOLITH is the region's solid open-ground
   // landmark (a featureless black obelisk that drinks the light).
   SHADOW_WALL:136, SHADOW_GROUND:137, SHADOW_DAPPLE:138, SHADOW_RIFT:139,
-  GLOOM_BLOOM:140, VOID_FROND:141, SHADOW_MONOLITH:142
+  GLOOM_BLOOM:140, VOID_FROND:141, SHADOW_MONOLITH:142,
+
+  // ─── Sky caves (air / lightning) ─────────────────────────────────────────────
+  // The cloud regions float above the world, so they can't hold buried caves.
+  // Instead a vertical WIND_GUST — an updraft column set out on the open cloud
+  // floor of an air/lightning overworld map — whisks the hero UP into a hidden
+  // "sky cave": a maze built from that region's OWN tiles (cloud floor, cloud-edge
+  // walls) and stocked with its own enemies (see buildSkyCaveLevelMap / sky_cave
+  // maps). SKY_ASCENT is the stronger updraft inside a sky cave that lifts the
+  // hero one level higher (the CAVE_DESCENT twin); SKY_EXIT is the downdraft that
+  // drops them back out (the CAVE_EXIT twin). All three are passable.
+  WIND_GUST:143, SKY_ASCENT:144, SKY_EXIT:145
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -389,6 +400,9 @@ const TILE_COLORS = {
   // Waterfall doorway reads as falling water on the minimap; the cave descent
   // is a dark hole.
   [T.WATERFALL_DOOR]: '#3f7fd0', [T.CAVE_DESCENT]: '#0a0a0a',
+  // Sky-cave gusts — pale swirling wind on the minimap (updraft entrance and the
+  // stronger ascent), and a brighter breezy return for the downdraft exit.
+  [T.WIND_GUST]: '#bcd6ee', [T.SKY_ASCENT]: '#a8ccec', [T.SKY_EXIT]: '#d8ecff',
   // Cave rock wall — dark craggy stone, lighter than the near-black cave floor
   // so the labyrinth's tunnels read clearly on the minimap.
   [T.CAVE_WALL]: '#463d35',

@@ -276,6 +276,47 @@ function createCaveChainMap(returnMapId, returnX, returnY, sourceTier, chainDept
   return newId;
 }
 
+// ─── Sky caves (air / lightning) ───────────────────────────────────────────────
+// The cloud regions float above the world, so they hold no buried caves. Instead
+// a WIND_GUST updraft out on the overworld cloud floor lifts the hero UP into a
+// hidden sky cave — the same chained-labyrinth structure as a waterfall cave, but
+// built from the region's OWN cloud tiles (see buildSkyCaveLevelMap) and stocked
+// with the region's OWN enemy roster. Like caves, sky caves live off the (gx, gy)
+// grid — reachable only through their gust, then climbing SKY_ASCENT gusts higher.
+// Each level's SKY_EXIT returns to (returnMapId, returnX, returnY): the overworld
+// gust for level 1, the previous level's ascent gust thereafter. `chainDepth` /
+// `chainLen` track position in the 1d6-long chain; the final level holds the large
+// chest instead of a way higher.
+const SKY_CAVE_NAMES = { air: 'Cloud Hollow', lightning: 'Storm Hollow' };
+function createSkyCaveMap(returnMapId, returnX, returnY, regionIdx, chainDepth, chainLen) {
+  const newId = worldMaps.length;
+  const region = REGIONS[regionIdx];
+  const isFinal = chainDepth >= chainLen;
+  const built = buildSkyCaveLevelMap(isFinal, region);
+  const label = SKY_CAVE_NAMES[region.id] || 'Sky Hollow';
+  const obj = {
+    id: newId, gx: 0, gy: 0,
+    name: isFinal ? `${label} — The High Reach` : `${label} (${chainDepth}/${chainLen})`,
+    type: 'sky_cave', biome: region.id, regionIdx,
+    depth: region.enemyTier, sourceTier: region.enemyTier,
+    chainDepth, chainLen,
+    map: built.map,
+    // Inner landing tiles beside this level's two gusts (see createCaveChainMap):
+    // `entryLand` is beside the SKY_EXIT (where the updraft sets you down arriving),
+    // `deeperLand` beside the SKY_ASCENT (where you land dropping back from higher).
+    entryLand: built.entryLand,
+    deeperLand: built.deeperLand,
+    // Region's own roster — the sky cave is "made of the region's enemies".
+    enemyDefs: makeEnemyDefs(20, region.id, built.map),
+    openedChests: new Set(),
+    visited: true,
+    returnMapId, returnX, returnY
+    // Fog is created lazily — a full-sized sky cave is explored, not pre-revealed.
+  };
+  worldMaps.push(obj);
+  return newId;
+}
+
 // Build the sunken arena reached by diving into a WHIRLPOOL: a 50×50 sheet of
 // open medium water set in impassable deep water, with the return vortex east
 // of center. The player surfaces at the exact center of the pool.

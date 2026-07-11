@@ -1071,7 +1071,8 @@ let minimapCanvases = {};   // keyed by mapId
 // a whirlpool, a hidden waterfall door — aren't edges and get no arrow.
 function edgeTransitions(mapObj) {
   const m = mapObj.map;
-  const isTrans = (t) => t === T.CAVE_EXIT || t === T.CAVE_DESCENT;
+  const isTrans = (t) => t === T.CAVE_EXIT || t === T.CAVE_DESCENT ||
+                         t === T.SKY_EXIT  || t === T.SKY_ASCENT;
   const gap = (c, r) => !isSolid(m, c, r);                 // overworld border gap
   const nearMid = (rows, cols) => {                        // cave transition at edge mid
     for (const r of rows) for (const c of cols) if (isTrans(m[r][c])) return true;

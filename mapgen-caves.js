@@ -22,7 +22,7 @@ function caveEdgeSpot(edge) {
 // 6 wide. The cell pitch leaves a ≥2-tile rock wall between unlinked parallel
 // corridors, so they never merge by accident. The maze is a single fully-
 // connected spanning tree — every carved tile can reach every other.
-function carveCaveMaze(m, margin) {
+function carveCaveMaze(m, margin, floor = T.CAVE_FLOOR) {
   const MINW = 3, MAXW = 6, WALLT = 2, PITCH = MAXW + WALLT;   // 8
   const r0 = margin, c0 = margin;
   const rows = Math.floor((MROWS - margin - r0 - MAXW) / PITCH) + 1;
@@ -33,15 +33,15 @@ function carveCaveMaze(m, margin) {
   // Carve a cell's s×s room, anchored at the cell's top-left.
   const room = (cr, cc) => {
     const s = sizes[cr * cols + cc], R = cellR(cr), C = cellC(cc);
-    setRect(m, R, C, R + s - 1, C + s - 1, T.CAVE_FLOOR);
+    setRect(m, R, C, R + s - 1, C + s - 1, floor);
   };
   // Carve a corridor joining linked cells A and B — width = min of their rooms,
   // aligned to the shared top (horizontal link) or left (vertical link) edge.
   const link = (ar, ac, br, bc) => {
     const sA = sizes[ar * cols + ac], sB = sizes[br * cols + bc], lw = Math.min(sA, sB);
     const RA = cellR(ar), CA = cellC(ac), RB = cellR(br), CB = cellC(bc);
-    if (ar === br) setRect(m, RA, Math.min(CA, CB), RA + lw - 1, Math.max(CA + sA, CB + sB) - 1, T.CAVE_FLOOR);
-    else           setRect(m, Math.min(RA, RB), CA, Math.max(RA + sA, RB + sB) - 1, CA + lw - 1, T.CAVE_FLOOR);
+    if (ar === br) setRect(m, RA, Math.min(CA, CB), RA + lw - 1, Math.max(CA + sA, CB + sB) - 1, floor);
+    else           setRect(m, Math.min(RA, RB), CA, Math.max(RA + sA, RB + sB) - 1, CA + lw - 1, floor);
   };
   const visited = new Uint8Array(rows * cols);
   const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
@@ -68,12 +68,12 @@ function carveCaveMaze(m, margin) {
 // Open a few large chambers across the labyrinth — combat arenas and breathers
 // from the tight tunnels. Each is carved straight onto the floor so it overlaps
 // the surrounding corridors and stays part of the connected network.
-function carveCaveChambers(m, margin, count) {
+function carveCaveChambers(m, margin, count, floor = T.CAVE_FLOOR) {
   for (let i = 0; i < count; i++) {
     const w = rnd(8, 14), h = rnd(8, 14);
     const r = rnd(margin + 2, MROWS - margin - 3 - h);
     const c = rnd(margin + 2, MCOLS - margin - 3 - w);
-    setRect(m, r, c, r + h, c + w, T.CAVE_FLOOR);
+    setRect(m, r, c, r + h, c + w, floor);
   }
 }
 
@@ -124,13 +124,13 @@ function carveCavePools(m, margin, count) {
 // the border transition tile straight inward (toward centre), far enough to punch
 // through the rock rim and overlap the first rings of maze tunnels — which
 // guarantees the transition joins the labyrinth. (dr, dc) is the inward step.
-function carveCaveStub(m, tr, tc, dr, dc) {
+function carveCaveStub(m, tr, tc, dr, dc, floor = T.CAVE_FLOOR) {
   let r = tr, c = tc;
   for (let i = 0; i < 12; i++) {
     for (let w = -1; w <= 1; w++) {
       const rr = r + (dc !== 0 ? w : 0);
       const cc = c + (dr !== 0 ? w : 0);
-      if (rr > 0 && rr < MROWS - 1 && cc > 0 && cc < MCOLS - 1) m[rr][cc] = T.CAVE_FLOOR;
+      if (rr > 0 && rr < MROWS - 1 && cc > 0 && cc < MCOLS - 1) m[rr][cc] = floor;
     }
     r += dr; c += dc;
   }
@@ -144,40 +144,52 @@ function carveCaveStub(m, tr, tc, dr, dc) {
 // it. The floor check also keeps chests off transitions, the large chest,
 // torches, and water; and since a placed chest is no longer CAVE_FLOOR, two
 // chests never stack or sit flush against each other.
-function placeCaveChests(m, count, r0, c0, r1, c1) {
+function placeCaveChests(m, count, r0, c0, r1, c1, floor = T.CAVE_FLOOR) {
   for (let i = 0; i < count; i++) {
     for (let t = 0; t < 200; t++) {
       const r = rnd(r0, r1), c = rnd(c0, c1);
-      if (m[r][c] !== T.CAVE_FLOOR) continue;
-      if (m[r - 1][c] !== T.CAVE_FLOOR || m[r + 1][c] !== T.CAVE_FLOOR ||
-          m[r][c - 1] !== T.CAVE_FLOOR || m[r][c + 1] !== T.CAVE_FLOOR) continue;
+      if (m[r][c] !== floor) continue;
+      if (m[r - 1][c] !== floor || m[r + 1][c] !== floor ||
+          m[r][c - 1] !== floor || m[r][c + 1] !== floor) continue;
       m[r][c] = T.CHEST;
       break;
     }
   }
 }
 
-function buildCaveLevelMap(isFinal) {
-  const m = makeTile(MROWS, MCOLS, T.CAVE_WALL);
+// Default (rock-cave) theme for buildCaveLevelMap: solid craggy walls carved into
+// near-black tunnels, torch ambience, and the water-pool pass. `exit` returns to
+// the source map / previous level; `descent` leads one level deeper.
+const ROCK_CAVE_THEME = {
+  wall: T.CAVE_WALL, floor: T.CAVE_FLOOR,
+  exit: T.CAVE_EXIT, descent: T.CAVE_DESCENT,
+  decoration: T.TORCH, pools: true, torches: true,
+};
+
+function buildCaveLevelMap(isFinal, theme = ROCK_CAVE_THEME) {
+  const WALL = theme.wall, FLOOR = theme.floor;
+  const m = makeTile(MROWS, MCOLS, WALL);
   const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
-  const margin = 4;                                  // solid rock rim
+  const margin = 4;                                  // solid rim
 
   // Carve the labyrinth of wide (3–6) winding tunnels across the whole interior.
-  carveCaveMaze(m, margin);
+  carveCaveMaze(m, margin, FLOOR);
 
   // A handful of larger chambers open up the tunnels here and there.
-  carveCaveChambers(m, margin, rnd(2, 4));
+  carveCaveChambers(m, margin, rnd(2, 4), FLOOR);
 
-  // Occasional pools of water — 1d4-1 per map (0–3).
-  carveCavePools(m, margin, rnd(1, 4) - 1);
+  // Occasional pools of water — 1d4-1 per map (0–3). Skipped for themes without
+  // standing water (a sky cave of cloud holds none).
+  if (theme.pools) carveCavePools(m, margin, rnd(1, 4) - 1);
 
-  // Scatter a little torchlight through the tunnels (passable, just ambience).
-  scatterOn(m, T.TORCH, 14, T.CAVE_FLOOR);
+  // Scatter a little ambience across the floor — torchlight in a rock cave, or a
+  // dapple of the region's brighter cloud-puff in a sky cave (both passable).
+  if (theme.decoration != null) scatterOn(m, theme.decoration, 14, FLOOR);
 
   // A small open chamber at the heart of the maze — the prize room on the final
   // level, a breather junction otherwise. It overlaps several maze cells, so it
   // always merges into the connected tunnel network.
-  setRect(m, cy - 2, cx - 2, cy + 2, cx + 2, T.CAVE_FLOOR);
+  setRect(m, cy - 2, cx - 2, cy + 2, cx + 2, FLOOR);
 
   // Two distinct edges: one entrance, one for going deeper (Fisher–Yates pick 2).
   const edges = ['top', 'bottom', 'left', 'right'];
@@ -185,29 +197,44 @@ function buildCaveLevelMap(isFinal) {
   const STEP = { top: [1, 0], bottom: [-1, 0], left: [0, 1], right: [0, -1] };
 
   const e = caveEdgeSpot(edges[0]);
-  carveCaveStub(m, e.tr, e.tc, STEP[edges[0]][0], STEP[edges[0]][1]);
-  m[e.tr][e.tc] = T.CAVE_EXIT;
-  m[e.lr][e.lc] = T.CAVE_FLOOR;
+  carveCaveStub(m, e.tr, e.tc, STEP[edges[0]][0], STEP[edges[0]][1], FLOOR);
+  m[e.tr][e.tc] = theme.exit;
+  m[e.lr][e.lc] = FLOOR;
 
   let deeperLand = null;
   if (!isFinal) {
     const d = caveEdgeSpot(edges[1]);
-    carveCaveStub(m, d.tr, d.tc, STEP[edges[1]][0], STEP[edges[1]][1]);
-    m[d.tr][d.tc] = T.CAVE_DESCENT;
-    m[d.lr][d.lc] = T.CAVE_FLOOR;
+    carveCaveStub(m, d.tr, d.tc, STEP[edges[1]][0], STEP[edges[1]][1], FLOOR);
+    m[d.tr][d.tc] = theme.descent;
+    m[d.lr][d.lc] = FLOOR;
     deeperLand = { x: d.lc, y: d.lr };
   } else {
     m[cy][cx]     = T.LARGE_CHEST;          // the reward at the heart of the deepest cave
     m[cy][cx + 1] = T.LARGE_CHEST_R;
-    // Torches flanking the prize chamber.
-    m[cy - 2][cx - 2] = T.TORCH; m[cy - 2][cx + 2] = T.TORCH;
-    m[cy + 2][cx - 2] = T.TORCH; m[cy + 2][cx + 2] = T.TORCH;
+    if (theme.torches) {                    // torches flanking the prize chamber (rock caves only)
+      m[cy - 2][cx - 2] = T.TORCH; m[cy - 2][cx + 2] = T.TORCH;
+      m[cy + 2][cx - 2] = T.TORCH; m[cy + 2][cx + 2] = T.TORCH;
+    }
   }
 
   // Sprinkle 1d4 small chests through the labyrinth. Placed last so the floor
   // check excludes the transitions and (on the final level) the large chest.
-  placeCaveChests(m, rnd(1, 4), margin + 1, margin + 1, MROWS - margin - 2, MCOLS - margin - 2);
+  placeCaveChests(m, rnd(1, 4), margin + 1, margin + 1, MROWS - margin - 2, MCOLS - margin - 2, FLOOR);
 
   return { map: m, entryLand: { x: e.lc, y: e.lr }, deeperLand };
+}
+
+// Build one level of a sky cave for a cloud region (air / lightning). Same maze,
+// chambers, and chest layout as a rock cave, but carved from the region's own
+// tiles: an impassable cloud-edge lip (region.cloudEdge) tunneled into a rolling
+// floor of the region's ground cloud (region.ground), dappled with its brighter
+// puff (region.decoration). The transitions are wind gusts — SKY_EXIT drops the
+// hero back out / down a level, SKY_ASCENT lifts them one level higher.
+function buildSkyCaveLevelMap(isFinal, region) {
+  return buildCaveLevelMap(isFinal, {
+    wall: region.cloudEdge, floor: region.ground,
+    exit: T.SKY_EXIT, descent: T.SKY_ASCENT,
+    decoration: region.decoration, pools: false, torches: false,
+  });
 }
 

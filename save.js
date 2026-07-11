@@ -156,6 +156,7 @@ function applyLoadData(data) {
       : lite.type === 'village' ? buildVillageMap(region.id)
       : lite.type === 'cave'    ? buildCaveMap()
       : lite.type === 'cave_chain' ? buildCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1)).map
+      : lite.type === 'sky_cave' ? buildSkyCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1), region).map
       : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
       : lite.type === 'house'   ? buildStarterHouseMap()
       : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth)
@@ -164,9 +165,13 @@ function applyLoadData(data) {
       :                            buildRegionMap(lite.id, lite.depth, undefined, region);
 
     // Villages share type 'village' but each region's boss differs, so build a
-    // `<region>_village` discriminator for makeEnemyDefs.
+    // `<region>_village` discriminator for makeEnemyDefs. Sky caves are stocked
+    // from their region's own roster, so they resolve to the plain region id (the
+    // 'sky_cave' type isn't a spawn key makeEnemyDefs understands).
     const enemyType = (lite.type === 'village')
-      ? `${region.id}_village` : lite.type;
+      ? `${region.id}_village`
+      : (lite.type === 'sky_cave') ? region.id
+      : lite.type;
     const obj = {
       id: lite.id, gx: lite.gx || 0, gy: lite.gy || 0,
       name: lite.name, type: lite.type, biome: region.id, regionIdx, depth: lite.depth,

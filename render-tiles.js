@@ -2714,6 +2714,122 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
         ctx.stroke();
       }
       break; }
+    case T.WIND_GUST:
+    case T.SKY_ASCENT: {
+      // A vertical updraft — swirling pale wind with streaks and motes rising up
+      // the tile. The overworld entrance (WIND_GUST) is an 8-tile-tall column on
+      // the cloud floor whose BASE lifts you; SKY_ASCENT is the brighter, stronger
+      // single-tile draft inside a sky cave. The pulsing upward chevrons — the
+      // "step here to rise" cue — are drawn only on the base tile (SKY_ASCENT is
+      // always its own base; a WIND_GUST is the base when there's no gust directly
+      // below it), so the shaft above the base reads as continuous rising wind.
+      // The central glow is a side-to-centre band (not a per-tile vertical
+      // gradient), so stacked shaft tiles blend into one unbroken plume. Animated.
+      //
+      // Tone matches the region the updraft belongs to (WIND_GUST only appears in
+      // air/lightning overworlds, SKY_ASCENT only in their sky caves): the AIR
+      // draft is pale white cloud-wind, while the LIGHTNING draft is a dark,
+      // electric-blue gust that reads against the storm clouds — volt-blue accents
+      // echoing the region's VOLT_BLOOM foliage, plus an intermittent crackle.
+      const strong = (t === T.SKY_ASCENT);
+      let isBase = true;
+      if (t === T.WIND_GUST) {
+        const M = mapData();
+        isBase = !(row + 1 < MROWS && M[row + 1] && M[row + 1][col] === T.WIND_GUST);
+      }
+      const cmObj = currentMap();
+      const storm = !!(cmObj && cmObj.biome === 'lightning');
+      const P = storm
+        ? { fill: strong ? '#34426e' : '#2b3856',
+            glow: strong ? 'rgba(140,205,255,0.55)' : 'rgba(126,200,255,0.38)',
+            mote: strong ? 'rgba(200,230,255,0.95)' : 'rgba(150,205,255,0.9)',
+            chev: '150,205,255' }
+        : { fill: strong ? '#8fb8e6' : '#cfe0f4',
+            glow: strong ? 'rgba(230,244,255,0.75)' : 'rgba(255,255,255,0.55)',
+            mote: strong ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.80)',
+            chev: '255,255,255' };
+      ctx.fillStyle = P.fill; ctx.fillRect(x, y, s, s);
+      const tt = Date.now();
+      // Central shaft glow — bright up the middle, fading to the tile's sides, so
+      // the column is continuous top-to-bottom however many tiles tall it is.
+      const wg = ctx.createLinearGradient(x, y, x + s, y);
+      wg.addColorStop(0,   'rgba(255,255,255,0)');
+      wg.addColorStop(0.5, P.glow);
+      wg.addColorStop(1,   'rgba(255,255,255,0)');
+      ctx.fillStyle = wg; ctx.fillRect(x, y, s, s);
+      // Rising motes — wrap top to bottom so the draft never stops streaming.
+      ctx.fillStyle = P.mote;
+      const speed = strong ? 620 : 900;
+      for (let i = 0; i < 4; i++) {
+        const lane = x + s * (0.22 + i * 0.19);
+        const yy = s - (((tt / speed * s) + i * 11 + col * 7 + row * 5) % s);
+        ctx.fillRect(lane, y + yy,     1.6, s * 0.30);
+        ctx.fillRect(lane, y + yy + s, 1.6, s * 0.30);
+      }
+      // Lightning region: a brief jagged spark flickering up the shaft, gated by a
+      // per-tile time cycle (offset by tile hash) so it reads as intermittent
+      // static crackling up the column rather than a steady bolt.
+      if (storm) {
+        const cyc = (tt / 90 + col * 13 + row * 7) % 12;
+        if (cyc < 2) {
+          ctx.strokeStyle = 'rgba(214,236,255,0.9)';
+          ctx.lineWidth = Math.max(1, s*0.045);
+          ctx.beginPath();
+          ctx.moveTo(x + s*0.50, y);
+          ctx.lineTo(x + s*0.40, y + s*0.34);
+          ctx.lineTo(x + s*0.58, y + s*0.62);
+          ctx.lineTo(x + s*0.46, y + s);
+          ctx.stroke();
+        }
+      }
+      // Upward chevrons (2), pulsing — the "go up" cue, base tile only.
+      if (strong || isBase) {
+        const wpulse = (Math.sin(tt/300) * 0.5 + 0.5) * 0.5 + 0.4;
+        ctx.strokeStyle = `rgba(${P.chev},${wpulse})`;
+        ctx.lineWidth = Math.max(1, s*0.05);
+        for (let i = 0; i < 2; i++) {
+          const yy = y + s*(0.56 - i*0.18);
+          ctx.beginPath();
+          ctx.moveTo(x+s*0.34, yy);
+          ctx.lineTo(x+s*0.50, yy - s*0.12);
+          ctx.lineTo(x+s*0.66, yy);
+          ctx.stroke();
+        }
+      }
+      break; }
+    case T.SKY_EXIT: {
+      // The downdraft home — a breezy bright column with motes falling and
+      // downward chevrons, distinct from the ascent's rising updraft.
+      ctx.fillStyle = '#dff0ff'; ctx.fillRect(x, y, s, s);
+      const et = Date.now();
+      const epulse = Math.sin(et/240) * 3;
+      const eg = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.44 + epulse);
+      eg.addColorStop(0, '#ffffff');
+      eg.addColorStop(0.55, '#bfe0ff');
+      eg.addColorStop(1, 'rgba(150,190,230,0.15)');
+      ctx.fillStyle = eg;
+      ctx.beginPath(); ctx.arc(x+s/2, y+s/2, s*0.40 + epulse, 0, Math.PI*2); ctx.fill();
+      // Falling motes.
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      for (let i = 0; i < 4; i++) {
+        const lane = x + s * (0.22 + i * 0.19);
+        const yy = ((et / 700 * s) + i * 9 + col * 5 + row * 11) % s;
+        ctx.fillRect(lane, y + yy,     1.6, s * 0.26);
+        ctx.fillRect(lane, y + yy - s, 1.6, s * 0.26);
+      }
+      // Downward chevrons — the "sets you down" cue.
+      const eglow = (Math.sin(et/300) * 0.5 + 0.5) * 0.5 + 0.4;
+      ctx.strokeStyle = `rgba(120,170,210,${eglow})`;
+      ctx.lineWidth = Math.max(1, s*0.05);
+      for (let i = 0; i < 2; i++) {
+        const yy = y + s*(0.40 + i*0.16);
+        ctx.beginPath();
+        ctx.moveTo(x+s*0.34, yy);
+        ctx.lineTo(x+s*0.50, yy + s*0.12);
+        ctx.lineTo(x+s*0.66, yy);
+        ctx.stroke();
+      }
+      break; }
     case T.CLIFF: {
       // Rocky cliff face — same craggy faceting as the cave walls and the same
       // edge-aware 3D relief as the desert mesa, in grey forest stone. A band
