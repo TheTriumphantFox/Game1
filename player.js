@@ -231,7 +231,11 @@ function useElixir(elemId) {
 
 // Tick/cooldown state
 let moveTimer = 0;
-const MOVE_MS = 110;             // ms between movement steps (grid-based)
+const MOVE_MS = 153;             // ms between movement steps (grid-based) —
+                                 // 110 / (0.9 × 0.8), i.e. 72% of the original
+                                 // walk speed (90% cut, then a further 20% cut)
+let lastStepMs = MOVE_MS;        // interval of the most recent step (terrain-scaled);
+                                 // sets the pace of the render glide in tickCamera
 const ICE_SLIDE_MS = 320;        // released walk input stays live this long on ICE
                                  // (~MOVE_MS×3 → the hero glides a couple of tiles
                                  // before stopping; bumped from 50 for slicker ice)
@@ -258,7 +262,6 @@ let lastWalkInput = { mx: 0, my: 0, t: -1 };
 // snapping each tile-step.
 let camC = 0, camR = 0;
 let camTargetC = 0, camTargetR = 0;
-const CAM_TAU_MS = 80;   // exponential smoothing time constant
 
 // Recompute the camera target from the player's current position.
 // Pass snap=true to also pin the actual camera to the new target (for boot,
@@ -276,19 +279,28 @@ function clampCam(snap = false) {
   }
 }
 
-// Per-frame lerp for both camera AND the player's render position. Using the
-// same time constant means the player stays visually centered while the world
-// scrolls — no more tile-stepping jump on the sprite.
+// Per-frame glide for the camera AND the player's render position. The render
+// position chases the grid position at a *constant* pace — one tile per step
+// interval — rather than an exponential lerp, which sprinted right after each
+// grid step and stalled before the next (the visible walking pulse/jitter).
+// Continuous walking therefore scrolls at one uniform speed. The camera is
+// then pinned to the smoothed render position each frame (clamped at the map
+// edges), so the hero stays rock-steady on screen while the world glides by.
 function tickCamera(dt) {
-  const k = 1 - Math.exp(-(dt || 16) / CAM_TAU_MS);
-  camC += (camTargetC - camC) * k;
-  camR += (camTargetR - camR) * k;
-  player.renderX += (player.x - player.renderX) * k;
-  player.renderY += (player.y - player.renderY) * k;
-  if (Math.abs(camC - camTargetC) < 0.0015) camC = camTargetC;
-  if (Math.abs(camR - camTargetR) < 0.0015) camR = camTargetR;
-  if (Math.abs(player.renderX - player.x) < 0.0015) player.renderX = player.x;
-  if (Math.abs(player.renderY - player.y) < 0.0015) player.renderY = player.y;
+  const maxDelta = (dt || 16) / lastStepMs;   // tiles this frame at walking pace
+  const approach = (cur, target) =>
+    Math.abs(target - cur) <= maxDelta ? target
+                                       : cur + Math.sign(target - cur) * maxDelta;
+  player.renderX = approach(player.renderX, player.x);
+  player.renderY = approach(player.renderY, player.y);
+  const halfVC = PW / TILE_PX / 2;
+  const halfVR = PH / TILE_PX / 2;
+  const maxC = Math.max(0, MCOLS - PW / TILE_PX);
+  const maxR = Math.max(0, MROWS - PH / TILE_PX);
+  camTargetC = Math.max(0, Math.min(maxC, player.renderX - halfVC + 0.5));
+  camTargetR = Math.max(0, Math.min(maxR, player.renderY - halfVR + 0.5));
+  camC = camTargetC;
+  camR = camTargetR;
 }
 
 // ─── Level / XP ───────────────────────────────────────────────────────────────
@@ -1086,7 +1098,11 @@ function stepPlayerMovement() {
                : MOVE_MS;
   if (moveTimer < stepMs) return;
 
-  moveTimer = 0;
+  // Carry the sub-frame remainder past the gate (capped so an idle-accumulated
+  // timer can't burst extra steps): steps land every stepMs on average instead
+  // of rounding up to whole frames, which made the cadence uneven.
+  moveTimer = Math.min(moveTimer - stepMs, 25);
+  lastStepMs = stepMs;   // the render glide covers this step at the same pace
   if (!keys['Shift']) {
     if (mx) player.swordDir = { x: mx, y: 0 };
     if (my) player.swordDir = { x: 0, y: my };  // vertical wins when both pressed
