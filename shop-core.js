@@ -24,13 +24,13 @@ function renderInnContents() {
   const html = `
     <h2>🛏️ Wayfarer's Rest</h2>
     <div class="shop-greeting">Welcome, hero. Take a moment to rest your weary bones.</div>
-    <div class="shop-rupees">You have: 💰 <b>${player.rupees}</b></div>
+    <div class="shop-rubies">You have: 💰 <b>${player.rubies}</b></div>
     <div class="shop-row">
       <div class="shop-item">
         <div class="shop-item-name">🛌 Rest — Full Heal</div>
         <div class="shop-item-meta">${canRest ? `Restores HP to ${player.maxHp}` : 'Already at full HP'}</div>
       </div>
-      <button class="ssbtn" ${player.rupees < INN_REST_COST || !canRest ? 'disabled' : ''} onclick="buyInnRest()">
+      <button class="ssbtn" ${player.rubies < INN_REST_COST || !canRest ? 'disabled' : ''} onclick="buyInnRest()">
         💰 ${INN_REST_COST}
       </button>
     </div>
@@ -40,9 +40,9 @@ function renderInnContents() {
 }
 
 function buyInnRest() {
-  if (player.rupees < INN_REST_COST) return;
+  if (player.rubies < INN_REST_COST) return;
   if (player.hp >= player.maxHp) return;
-  player.rupees -= INN_REST_COST;
+  player.rubies -= INN_REST_COST;
   player.hp = player.maxHp;
   showMsg('💤 You feel refreshed. Full HP restored.', 3000);
   renderInnContents();

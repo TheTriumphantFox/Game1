@@ -1,12 +1,12 @@
 // ─── Player state and movement ────────────────────────────────────────────────
 
 // Inventory cap shared by every stackable item (potions, herbals, trophies, and
-// each entry in player.arrows). Rupees are exempt — they bank far higher under
-// RUPEE_CAP. Starting amount given to a fresh player for every item (and every
+// each entry in player.arrows). Rubies are exempt — they bank far higher under
+// RUBY_CAP. Starting amount given to a fresh player for every item (and every
 // elemental arrow / sword). Stats like maxHp / swordLevel / bowLevel / armor are
 // progression — not items — and are intentionally not capped here.
 const ITEM_CAP = 128;
-const RUPEE_CAP = 99999;
+const RUBY_CAP = 99999;
 const STARTING_ITEM_AMOUNT = 64;
 
 // Fresh-player trophy counters, derived from the TROPHIES registry (config.js):
@@ -20,10 +20,10 @@ function trophyDefaults() {
 }
 
 // Cap-respecting increment for a scalar inventory key. Returns the amount
-// actually added (may be less than `n` when the cap clamps). Rupees use the
-// larger RUPEE_CAP; every other stackable shares ITEM_CAP.
+// actually added (may be less than `n` when the cap clamps). Rubies use the
+// larger RUBY_CAP; every other stackable shares ITEM_CAP.
 function addItem(key, n) {
-  const cap = key === 'rupees' ? RUPEE_CAP : ITEM_CAP;
+  const cap = key === 'rubies' ? RUBY_CAP : ITEM_CAP;
   const before = player[key] || 0;
   player[key] = Math.min(cap, before + n);
   return player[key] - before;
@@ -61,7 +61,7 @@ let player = {
   // Temporary HP — a green-heart buffer (bought at the General Store) that
   // absorbs damage before real HP. Not healed by potions/hearts/rest.
   tempHp: 0,
-  rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
+  rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
   invincible: 0,
   weapon: 'sword',
@@ -328,11 +328,11 @@ function respawn() {
   player.hp = player.maxHp;
   currentMapId = 0;
   placePlayerInStarterHouse(worldMaps[0]);  // same spot as a fresh game: beside the bed
-  player.rupees = Math.max(0, player.rupees - 10);  // small death penalty
+  player.rubies = Math.max(0, player.rubies - 10);  // small death penalty
   clampCam(true);
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
-  showMsg('💀 Defeated! Returned to start (-10 rupees)', 3000);
+  showMsg('💀 Defeated! Returned to start (-10 rubies)', 3000);
 }
 
 // ─── Per-enemy-type loot table ────────────────────────────────────────────────
@@ -470,7 +470,7 @@ function killEnemy(e) {
   spawnParticle(sp.x, sp.y, '#ffcc00', 6, 3);
 
   // Region context drives a couple of drop tweaks: fire-region hearts roll
-  // bigger (1d6 vs 1d4), and the boss rupee payout scales with the region tier.
+  // bigger (1d6 vs 1d4), and the boss ruby payout scales with the region tier.
   const cm = currentMap();
   const region = (typeof REGIONS !== 'undefined' && cm && typeof cm.regionIdx === 'number')
     ? REGIONS[cm.regionIdx] : null;
@@ -479,19 +479,19 @@ function killEnemy(e) {
   gainXP(e.xp);   // XP is awarded on every kill, unchanged.
 
   if (e.boss) {
-    // Boss payout: 100 rupees per region in progression order (forest=1,
+    // Boss payout: 100 rubies per region in progression order (forest=1,
     // fire=2, …), plus a guaranteed 6-HP heart. Type-specific loot rolls are
     // for rank-and-file enemies only.
     const regionOrder = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx + 1 : 1;
-    addItem('rupees', 100 * regionOrder);
+    addItem('rubies', 100 * regionOrder);
     drops.push({
       type: 'hp', val: 6,
       x: Math.round(e.x), y: Math.round(e.y),
       life: 10000, bob: 0, collected: false
     });
   } else {
-    // Rupees now drop on only 30% of (non-boss) kills.
-    if (Math.random() < 0.30) addItem('rupees', Math.floor(e.maxHp * 0.1) + 1);
+    // Rubies now drop on only 30% of (non-boss) kills.
+    if (Math.random() < 0.30) addItem('rubies', Math.floor(e.maxHp * 0.1) + 1);
     // 40% chance to drop an HP heart — 1d6 in the fire region, 1d4 elsewhere.
     if (Math.random() < 0.40) {
       drops.push({
@@ -660,8 +660,8 @@ function handlePickup(bnx, bny, map) {
     const roll = Math.random();
     let reward;
     if (roll < 0.3) {
-      addItem('rupees', 10 + Math.floor(Math.random() * 25));
-      reward = '💎 Found Rupees!';
+      addItem('rubies', 10 + Math.floor(Math.random() * 25));
+      reward = '💎 Found Rubies!';
     } else if (roll < 0.55) {
       player.hp = player.maxHp;
       reward = '❤️ Full Hearts Restored!';
@@ -737,7 +737,7 @@ function handlePickup(bnx, bny, map) {
         player.maxHp      = (player.maxHp || 6) + 4;
         player.hp         = player.maxHp;
         player.bowLevel   = (player.bowLevel || 1) + 2;
-        addItem('rupees', 250);
+        addItem('rubies', 250);
         addItem('potions', 3);
         gainXP(1000);
         showMsg('👑 The King\'s Hoard! +3 Sword, +3 Armor, +4 Max HP, +2 Bow, 250 💎, 3 🧪, 1000 XP!', 7000);

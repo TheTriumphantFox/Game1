@@ -6,7 +6,7 @@
 // The forest Herbalist trades foraged goods for medicine: 1 🍄 Mushroom +
 // 1 🌿 Herbal + 5 💰 brews 1 🧪 Health Potion (heals 1d4). Ingredients are
 // gathered by cutting mushrooms and flowers out in the forest (see projectiles.js).
-const HERB_POTION_RECIPE = { mushrooms: 1, herbals: 1, rupees: 5 };
+const HERB_POTION_RECIPE = { mushrooms: 1, herbals: 1, rubies: 5 };
 
 // Every other region's Herbalist is bespoke (see renderHerbalistContents). Each
 // region N (1-indexed; forest=1) brews:
@@ -61,10 +61,10 @@ function renderHerbalistContents() {
   const elemName = elem ? elem.label : name;
   const secs = ((typeof ELIXIR_IMMUNITY_MS !== 'undefined') ? ELIXIR_IMMUNITY_MS : 30000) / 1000;
 
-  // "You have" line: every ingredient this region's recipes consume + rupees.
+  // "You have" line: every ingredient this region's recipes consume + rubies.
   const have = [...recipe.heal, ...recipe.elixir]
     .map(k => { const m = itemMeta(k); return `${m.icon} ${player[k] || 0}`; })
-    .concat(`💰 ${player.rupees || 0}`).join(' · ');
+    .concat(`💰 ${player.rubies || 0}`).join(' · ');
 
   // Healing-potion row.
   const potCount = (player.regionPotions && player.regionPotions[regionId]) || 0;
@@ -87,7 +87,7 @@ function renderHerbalistContents() {
   document.getElementById('herb-modal').innerHTML = `
     <h2>🌿 Herbalist's Hut</h2>
     <div class="shop-greeting">The ${name} remedies are my craft, traveler — what'll it be?</div>
-    <div class="shop-rupees">You have: ${have}</div>
+    <div class="shop-rubies">You have: ${have}</div>
     <div class="shop-row">
       <div class="shop-item">
         <div class="shop-item-name">🧪 Brew a ${name} Potion <span style="color:#88cc88">x${potCount}</span></div>
@@ -114,12 +114,12 @@ function renderHerbalistContents() {
 function canBrewHerbPotion() {
   return (player.mushrooms || 0) >= HERB_POTION_RECIPE.mushrooms &&
          (player.herbals   || 0) >= HERB_POTION_RECIPE.herbals   &&
-         (player.rupees    || 0) >= HERB_POTION_RECIPE.rupees    &&
+         (player.rubies    || 0) >= HERB_POTION_RECIPE.rubies    &&
          (player.potions   || 0) <  ITEM_CAP;
 }
 
 function renderForestHerbalist() {
-  const have = `🍄 ${player.mushrooms || 0} · 🌿 ${player.herbals || 0} · 💰 ${player.rupees || 0} · 🧪 ${player.potions || 0}`;
+  const have = `🍄 ${player.mushrooms || 0} · 🌿 ${player.herbals || 0} · 💰 ${player.rubies || 0} · 🧪 ${player.potions || 0}`;
   const capped = (player.potions || 0) >= ITEM_CAP;
   const meta = capped
     ? `Your satchel can't hold more potions (max ${ITEM_CAP})`
@@ -127,7 +127,7 @@ function renderForestHerbalist() {
   document.getElementById('herb-modal').innerHTML = `
     <h2>🌿 Herbalist's Hut</h2>
     <div class="shop-greeting">Bring me mushrooms and herbs, and I'll brew you a remedy.</div>
-    <div class="shop-rupees">You have: ${have}</div>
+    <div class="shop-rubies">You have: ${have}</div>
     <div class="shop-row">
       <div class="shop-item">
         <div class="shop-item-name">🧪 Brew a Health Potion</div>
@@ -145,20 +145,20 @@ function brewHerbPotion() {
   if (!canBrewHerbPotion()) return;
   player.mushrooms -= HERB_POTION_RECIPE.mushrooms;
   player.herbals   -= HERB_POTION_RECIPE.herbals;
-  player.rupees    -= HERB_POTION_RECIPE.rupees;
+  player.rubies    -= HERB_POTION_RECIPE.rubies;
   addItem('potions', 1);
   showMsg('🧪 The Herbalist brews you a Health Potion!', 3000);
   renderHerbalistContents();
   updateHUD();
 }
 
-// Region Health Potion: needs both forage ingredients + 5N rupees, and room to
+// Region Health Potion: needs both forage ingredients + 5N rubies, and room to
 // carry one more of that region's potion.
 function canBrewRegionPotion(regionId, N) {
   const recipe = HERBALIST_RECIPES[regionId];
   if (!recipe) return false;
   if (((player.regionPotions && player.regionPotions[regionId]) || 0) >= ITEM_CAP) return false;
-  if ((player.rupees || 0) < 5 * N) return false;
+  if ((player.rubies || 0) < 5 * N) return false;
   return recipe.heal.every(k => (player[k] || 0) >= 1);
 }
 
@@ -166,7 +166,7 @@ function brewRegionPotion(regionId, N) {
   if (!canBrewRegionPotion(regionId, N)) return;
   const recipe = HERBALIST_RECIPES[regionId];
   for (const k of recipe.heal) player[k] -= 1;
-  player.rupees -= 5 * N;
+  player.rubies -= 5 * N;
   player.regionPotions = player.regionPotions || {};
   player.regionPotions[regionId] = Math.min(ITEM_CAP, (player.regionPotions[regionId] || 0) + 1);
   const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
@@ -175,12 +175,12 @@ function brewRegionPotion(regionId, N) {
   updateHUD();
 }
 
-// Region Elixir: needs all three trophies + 5N rupees, and room to carry one more.
+// Region Elixir: needs all three trophies + 5N rubies, and room to carry one more.
 function canBrewElixir(regionId, N) {
   const recipe = HERBALIST_RECIPES[regionId];
   if (!recipe) return false;
   if (((player.elixirs && player.elixirs[regionId]) || 0) >= ITEM_CAP) return false;
-  if ((player.rupees || 0) < 5 * N) return false;
+  if ((player.rubies || 0) < 5 * N) return false;
   return recipe.elixir.every(k => (player[k] || 0) >= 1);
 }
 
@@ -188,7 +188,7 @@ function brewElixir(regionId, N) {
   if (!canBrewElixir(regionId, N)) return;
   const recipe = HERBALIST_RECIPES[regionId];
   for (const k of recipe.elixir) player[k] -= 1;
-  player.rupees -= 5 * N;
+  player.rubies -= 5 * N;
   player.elixirs = player.elixirs || {};
   player.elixirs[regionId] = Math.min(ITEM_CAP, (player.elixirs[regionId] || 0) + 1);
   const elem = SWORD_ELEMENTS[regionId];
@@ -245,7 +245,7 @@ function trophySellValue(type) {
   return t ? t.value : 0;
 }
 
-// Reward in rupees for a collection quest: 1.5× the shop price of every item it
+// Reward in rubies for a collection quest: 1.5× the shop price of every item it
 // asks for — COLLECTOR_QTY of each target trophy at its per-unit store value.
 function collectorReward(q) {
   const total = (q && q.targets ? q.targets : [])
@@ -300,7 +300,7 @@ function renderCollectorContents() {
   document.getElementById('quest-modal').innerHTML = `
     <h2>📜 The Collector</h2>
     <div class="shop-greeting">I'm cataloguing the spoils of the ${regionName} reaches. Bring me <b>${COLLECTOR_QTY}</b> each of these five and I'll pay you well.</div>
-    <div class="shop-rupees">Reward: 💰 <b>${reward}</b></div>
+    <div class="shop-rubies">Reward: 💰 <b>${reward}</b></div>
     ${rows}
     <div class="shop-row">
       <div class="shop-item">
@@ -322,7 +322,7 @@ function turnInCollectorQuest() {
   if (!collectorQuestReady(q)) { renderCollectorContents(); return; }
   for (const type of q.targets) player[type + 's'] -= COLLECTOR_QTY;
   const reward = collectorReward(q);
-  player.rupees += reward;
+  player.rubies += reward;
   q.status = 'done';
   showMsg(`📜 Collection complete! The Collector pays 💰 ${reward}.`, 3500);
   renderCollectorContents();

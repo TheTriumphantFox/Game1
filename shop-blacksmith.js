@@ -4,12 +4,12 @@
 
 // Elemental armor is now a regional reward: each Blacksmith forges only its own
 // region's element. The cost scales with the region number N (forest=1 … mana=11):
-//   • BLACKSMITH_ARMOR_RUPEE_PER_REGION × N rupees, AND
+//   • BLACKSMITH_ARMOR_RUBY_PER_REGION × N rubies, AND
 //   • BLACKSMITH_ARMOR_PART_QTY of each of BLACKSMITH_ARMOR_PART_COUNT monster
 //     parts dropped by that region's element-matched foes (see regionArmorPartTypes).
-// Owned armor still sells back for a flat rupee value.
+// Owned armor still sells back for a flat ruby value.
 const ELEMENTAL_ARMOR_SELL_VALUE        = 100;
-const BLACKSMITH_ARMOR_RUPEE_PER_REGION = 100;  // rupee cost = this × region number N
+const BLACKSMITH_ARMOR_RUBY_PER_REGION = 100;  // ruby cost = this × region number N
 const BLACKSMITH_ARMOR_PART_QTY         = 30;   // parts required of EACH demanded type
 const BLACKSMITH_ARMOR_PART_COUNT       = 4;    // distinct enemy parts demanded
 
@@ -80,11 +80,11 @@ function regionArmorPartTypes(regionIdx, regionId) {
   return out;
 }
 
-// Rupee + part cost to forge this region's elemental armor.
+// Ruby + part cost to forge this region's elemental armor.
 function regionArmorCost(regionIdx, regionId) {
   const N = (typeof regionNumberOf === 'function') ? regionNumberOf(regionId) : 1;
   return {
-    rupees: BLACKSMITH_ARMOR_RUPEE_PER_REGION * N,
+    rubies: BLACKSMITH_ARMOR_RUBY_PER_REGION * N,
     parts:  regionArmorPartTypes(regionIdx, regionId),
   };
 }
@@ -117,13 +117,13 @@ function regionSwordPartTypes(regionId) {
   return out;
 }
 
-// Rupee + part cost to forge this region's elemental sword — same rupees as armor
+// Ruby + part cost to forge this region's elemental sword — same rubies as armor
 // (100×N) but a different, rarer set of parts (this region's foes' prized trophies),
 // each demanded at half quantity (see swordPartQty).
 function regionSwordCost(regionId) {
   const N = (typeof regionNumberOf === 'function') ? regionNumberOf(regionId) : 1;
   return {
-    rupees: BLACKSMITH_ARMOR_RUPEE_PER_REGION * N,
+    rubies: BLACKSMITH_ARMOR_RUBY_PER_REGION * N,
     parts:  regionSwordPartTypes(regionId),
   };
 }
@@ -132,13 +132,13 @@ function regionSwordCost(regionId) {
 // / ORE_TYPES). The bonus scales with the ore's class — Grimsilver +2, Emberbrass
 // +4, Glimmerspar +6, Wyrmgold +8, Eclipsium +10, Voidsteel +12, i.e. (tier+1)×2 where tier is
 // the ore's index in ORE_TYPES. A forge consumes ORE_ARMOR_ORE_COST of that ore
-// plus a tier-scaled rupee fee and SETS player.armor to the new piece's value,
+// plus a tier-scaled ruby fee and SETS player.armor to the new piece's value,
 // replacing any lesser armor (it does not stack). So it's a tiered progression
 // climbing region by region, not a repeatable grind — forging is pointless once
 // player.armor already meets/exceeds the local ore's value. player.armor already
 // persists, so no save changes are needed.
 const ORE_ARMOR_ORE_COST       = 3;   // raw ore consumed per forge
-const ORE_ARMOR_RUPEE_PER_TIER = 80;  // rupee fee = (tier+1) × this
+const ORE_ARMOR_RUBY_PER_TIER = 80;  // ruby fee = (tier+1) × this
 
 // Resolve the smith's region ore and the armor it forges. Null if the ore tables
 // are unavailable (keeps the Blacksmith working even if config is stripped).
@@ -151,7 +151,7 @@ function smithOreArmor() {
     ore, tier,
     armor:     (tier + 1) * 2,
     oreCost:   ORE_ARMOR_ORE_COST,
-    rupeeCost: (tier + 1) * ORE_ARMOR_RUPEE_PER_TIER,
+    rubyCost: (tier + 1) * ORE_ARMOR_RUBY_PER_TIER,
   };
 }
 
@@ -175,7 +175,7 @@ function renderBlacksmithContents() {
     const have    = player[oa.ore.id] || 0;
     const curArmor = player.armor || 0;
     const haveBetter = curArmor >= oa.armor;
-    const broke = have < oa.oreCost || player.rupees < oa.rupeeCost;
+    const broke = have < oa.oreCost || player.rubies < oa.rubyCost;
     const ownTag = haveBetter ? ` <span style="color:#88cc88">✓ have +${curArmor}</span>` : '';
     pieceRows = `
       <div class="shop-row">
@@ -184,7 +184,7 @@ function renderBlacksmithContents() {
           <div class="shop-item-meta">Sets Armor to +${oa.armor} (replaces lesser) — forged from ${oa.ore.label} · You have ${oa.ore.icon} ${have}</div>
         </div>
         <button class="ssbtn" ${(haveBetter || broke) ? 'disabled' : ''} onclick="forgeOreArmor()">
-          ${oa.ore.icon}${oa.oreCost} + 💰${oa.rupeeCost}
+          ${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}
         </button>
       </div>
     `;
@@ -202,8 +202,8 @@ function renderBlacksmithContents() {
 
   // Forge row — only the home region forges its own element, and only until owned.
   if (homeElem && !owned.includes(regionId)) {
-    const { rupees: rupeeCost, parts } = regionArmorCost(regionIdx, regionId);
-    const haveRupees = player.rupees >= rupeeCost;
+    const { rubies: rubyCost, parts } = regionArmorCost(regionIdx, regionId);
+    const haveRubies = player.rubies >= rubyCost;
     const haveParts  = parts.every(t => (player[t + 's'] || 0) >= BLACKSMITH_ARMOR_PART_QTY);
     const partChips = parts.map(t => {
       const meta = (typeof TROPHY_META !== 'undefined' && TROPHY_META[t]) ? TROPHY_META[t] : { icon: '•', label: t };
@@ -215,9 +215,9 @@ function renderBlacksmithContents() {
       <div class="shop-row">
         <div class="shop-item">
           <div class="shop-item-name">🛡${elemIconHTML(homeElem)} ${homeElem.label} Armor <span style="color:#999">(new · Lv 0)</span></div>
-          <div class="shop-item-meta">Forge: 💰 ${rupeeCost} + ${BLACKSMITH_ARMOR_PART_QTY}× each of 4 ${homeElem.label} foes' parts: ${partChips}</div>
+          <div class="shop-item-meta">Forge: 💰 ${rubyCost} + ${BLACKSMITH_ARMOR_PART_QTY}× each of 4 ${homeElem.label} foes' parts: ${partChips}</div>
         </div>
-        <button class="ssbtn" ${(!haveRupees || !haveParts) ? 'disabled' : ''} onclick="forgeRegionalArmor()">🔨 Forge</button>
+        <button class="ssbtn" ${(!haveRubies || !haveParts) ? 'disabled' : ''} onclick="forgeRegionalArmor()">🔨 Forge</button>
       </div>`;
   }
 
@@ -247,8 +247,8 @@ function renderBlacksmithContents() {
 
     // Forge row — only the home region forges its own element, and only until owned.
     if (canForgeSword) {
-      const { rupees: rupeeCost, parts } = regionSwordCost(regionId);
-      const haveRupees = player.rupees >= rupeeCost;
+      const { rubies: rubyCost, parts } = regionSwordCost(regionId);
+      const haveRubies = player.rubies >= rubyCost;
       const haveParts  = parts.length > 0 && parts.every(t => (player[t + 's'] || 0) >= swordPartQty(t));
       const partChips = parts.map(t => {
         const meta = (typeof TROPHY_META !== 'undefined' && TROPHY_META[t]) ? TROPHY_META[t] : { icon: '•', label: t };
@@ -261,9 +261,9 @@ function renderBlacksmithContents() {
         <div class="shop-row">
           <div class="shop-item">
             <div class="shop-item-name">⚔${elemIconHTML(homeElem)} ${homeElem.label} Sword <span style="color:#999">(new · Lv 0)</span></div>
-            <div class="shop-item-meta">Forge: 💰 ${rupeeCost} + rare ${homeElem.label} foes' prized parts (½ qty): ${partChips}</div>
+            <div class="shop-item-meta">Forge: 💰 ${rubyCost} + rare ${homeElem.label} foes' prized parts (½ qty): ${partChips}</div>
           </div>
-          <button class="ssbtn" ${(!haveRupees || !haveParts) ? 'disabled' : ''} onclick="forgeRegionalSword()">🔨 Forge</button>
+          <button class="ssbtn" ${(!haveRubies || !haveParts) ? 'disabled' : ''} onclick="forgeRegionalSword()">🔨 Forge</button>
         </div>`;
     }
 
@@ -273,7 +273,7 @@ function renderBlacksmithContents() {
   document.getElementById('smith-modal').innerHTML = `
     <h2>🔨 Blacksmith's Forge</h2>
     <div class="shop-greeting">Blade or armor, hero? I forge the finest in the land.</div>
-    <div class="shop-rupees">You have: 💰 <b>${player.rupees}</b> · 🛡 Armor +${player.armor || 0}</div>
+    <div class="shop-rubies">You have: 💰 <b>${player.rubies}</b> · 🛡 Armor +${player.armor || 0}</div>
     ${pieceRows}
     ${armorsRows}
     ${swordsRows}
@@ -300,8 +300,8 @@ function blacksmithSwordRow(id, oa) {
   } else if (oa && oa.tier === lv) {
     // This village's ore is exactly the sword's next sequential tier.
     const haveOre = player[oa.ore.id] || 0;
-    const broke   = haveOre < oa.oreCost || player.rupees < oa.rupeeCost;
-    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalSword('${id}')">${oa.ore.icon}${oa.oreCost} + 💰${oa.rupeeCost}</button>`;
+    const broke   = haveOre < oa.oreCost || player.rubies < oa.rubyCost;
+    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalSword('${id}')">${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}</button>`;
     meta = `+${bonus} ${elem.label} dmg · upgrade → +${bonus + 2} dmg · have ${oa.ore.icon} ${haveOre}`;
   } else {
     // Next upgrade belongs to a different ore tier — point the hero at it.
@@ -324,7 +324,7 @@ function blacksmithSwordRow(id, oa) {
 // Upgrade an owned elemental sword by one ore tier. Sequential like armor: this
 // village's ore (oa.tier) must be exactly the sword's next tier (== its current
 // level), so each sword climbs Grimsilver→Eclipsium across the matching villages.
-// Costs the same ore + rupees as forging that tier's plain armor; adds +2 flat
+// Costs the same ore + rubies as forging that tier's plain armor; adds +2 flat
 // elemental damage (elementalSwordBonus).
 function upgradeRegionalSword(id) {
   if (!SWORD_ELEMENTS[id]) return;
@@ -337,9 +337,9 @@ function upgradeRegionalSword(id) {
   if (lv >= 6) return;
   if (oa.tier !== lv) return;                          // must be upgraded in sequence at the right ore village
   if ((player[oa.ore.id] || 0) < oa.oreCost) return;
-  if (player.rupees < oa.rupeeCost) return;
+  if (player.rubies < oa.rubyCost) return;
   player[oa.ore.id] -= oa.oreCost;
-  player.rupees     -= oa.rupeeCost;
+  player.rubies     -= oa.rubyCost;
   player.swordUpgrades[id] = lv + 1;
   const elem = SWORD_ELEMENTS[id];
   showMsg(`🔨 Upgraded ⚔${elem.icon} ${elem.label} Sword → Lv ${lv + 1}: +${(lv + 1) * 2} ${elem.label} damage`, 3800);
@@ -367,10 +367,10 @@ function blacksmithArmorRow(id, oa) {
   } else if (oa && oa.tier === lv) {
     // This village's ore is exactly the armor's next sequential tier.
     const haveOre  = player[oa.ore.id] || 0;
-    const broke    = haveOre < oa.oreCost || player.rupees < oa.rupeeCost;
+    const broke    = haveOre < oa.oreCost || player.rubies < oa.rubyCost;
     const nextPct  = elementalBlockPctForLevel(lv + 1);
     const blockUp  = nextPct > blockPct ? `, block ${blockPct}→${nextPct}%` : '';
-    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalArmor('${id}')">${oa.ore.icon}${oa.oreCost} + 💰${oa.rupeeCost}</button>`;
+    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalArmor('${id}')">${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}</button>`;
     meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · upgrade → +${phys + 2} def${blockUp} · have ${oa.ore.icon} ${haveOre}${swims}`;
   } else {
     // Next upgrade belongs to a different ore tier — point the hero at it.
@@ -396,16 +396,16 @@ function forgeOreArmor() {
   if (!oa) return;
   if ((player.armor || 0) >= oa.armor) return;   // already have an equal/better piece — no downgrade
   if ((player[oa.ore.id] || 0) < oa.oreCost) return;
-  if (player.rupees < oa.rupeeCost) return;
+  if (player.rubies < oa.rubyCost) return;
   player[oa.ore.id] -= oa.oreCost;
-  player.rupees     -= oa.rupeeCost;
+  player.rubies     -= oa.rubyCost;
   player.armor = oa.armor;   // replace the lesser piece with this tier's value
   showMsg(`🔨 Forged ${oa.ore.label} Armor — Armor now +${player.armor}`, 3000);
   renderBlacksmithContents();
   updateHUD();
 }
 
-// Forge this region's elemental armor: charge 100×N rupees AND BLACKSMITH_ARMOR_PART_QTY
+// Forge this region's elemental armor: charge 100×N rubies AND BLACKSMITH_ARMOR_PART_QTY
 // of each demanded element-matched part, then grant the matching armor element.
 function forgeRegionalArmor() {
   const { idx: regionIdx, region } = storeRegion();
@@ -414,11 +414,11 @@ function forgeRegionalArmor() {
   if (!elem) return;
   player.armorElements = player.armorElements || [];
   if (player.armorElements.includes(regionId)) return;
-  const { rupees: rupeeCost, parts } = regionArmorCost(regionIdx, regionId);
+  const { rubies: rubyCost, parts } = regionArmorCost(regionIdx, regionId);
   // Re-verify against live inventory (guards a stale enabled button).
-  if (player.rupees < rupeeCost) return;
+  if (player.rubies < rubyCost) return;
   if (!parts.every(t => (player[t + 's'] || 0) >= BLACKSMITH_ARMOR_PART_QTY)) return;
-  player.rupees -= rupeeCost;
+  player.rubies -= rubyCost;
   for (const t of parts) player[t + 's'] -= BLACKSMITH_ARMOR_PART_QTY;
   player.armorElements.push(regionId);
   player.armorUpgrades = player.armorUpgrades || {};
@@ -428,7 +428,7 @@ function forgeRegionalArmor() {
   updateHUD();
 }
 
-// Forge this region's elemental sword: charge 100×N rupees AND swordPartQty of each
+// Forge this region's elemental sword: charge 100×N rubies AND swordPartQty of each
 // demanded same-region prized part (regionSwordPartTypes) — half quantity because
 // they're rare — then grant the sword at level 0. Mirrors forgeRegionalArmor.
 function forgeRegionalSword() {
@@ -438,12 +438,12 @@ function forgeRegionalSword() {
   if (!elem) return;
   player.swordElements = player.swordElements || [];
   if (player.swordElements.includes(regionId)) return;
-  const { rupees: rupeeCost, parts } = regionSwordCost(regionId);
+  const { rubies: rubyCost, parts } = regionSwordCost(regionId);
   if (parts.length === 0) return;
   // Re-verify against live inventory (guards a stale enabled button).
-  if (player.rupees < rupeeCost) return;
+  if (player.rubies < rubyCost) return;
   if (!parts.every(t => (player[t + 's'] || 0) >= swordPartQty(t))) return;
-  player.rupees -= rupeeCost;
+  player.rubies -= rubyCost;
   for (const t of parts) player[t + 's'] -= swordPartQty(t);
   player.swordElements.push(regionId);
   player.swordUpgrades = player.swordUpgrades || {};
@@ -456,7 +456,7 @@ function forgeRegionalSword() {
 // Upgrade an owned elemental armor by one ore tier. Sequential: this village's ore
 // (oa.tier) must be exactly the armor's next tier (== its current level), so each
 // armor must climb Grimsilver→Eclipsium across the matching villages. Costs the same
-// ore + rupees as forging that tier's plain armor; bumps physical defense (level×2)
+// ore + rubies as forging that tier's plain armor; bumps physical defense (level×2)
 // and, on the 1st/3rd/5th/6th upgrade, its elemental block % (elementalBlockPctForLevel).
 function upgradeRegionalArmor(id) {
   if (!SWORD_ELEMENTS[id]) return;
@@ -469,9 +469,9 @@ function upgradeRegionalArmor(id) {
   if (lv >= 6) return;
   if (oa.tier !== lv) return;                          // must be upgraded in sequence at the right ore village
   if ((player[oa.ore.id] || 0) < oa.oreCost) return;
-  if (player.rupees < oa.rupeeCost) return;
+  if (player.rubies < oa.rubyCost) return;
   player[oa.ore.id] -= oa.oreCost;
-  player.rupees     -= oa.rupeeCost;
+  player.rubies     -= oa.rubyCost;
   player.armorUpgrades[id] = lv + 1;
   const elem = SWORD_ELEMENTS[id];
   showMsg(`🔨 Upgraded 🛡${elem.icon} ${elem.label} Armor → Lv ${lv + 1}: +${(lv + 1) * 2} def, blocks ${elementalBlockPctForLevel(lv + 1)}% ${elem.label}`, 3800);

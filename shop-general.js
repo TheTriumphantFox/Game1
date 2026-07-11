@@ -26,8 +26,8 @@ const ELEMENTAL_SELL_VALUE = 150;
 // Elemental arrows: bought in packs, sold individually. Plain arrows trade at
 // half price — no elemental rider on the hit.
 const ARROW_PACK_SIZE  = 5;
-const ARROW_PACK_COST  = 50;     // 50 rupees for 5 arrows
-const ARROW_SELL_VALUE = 5;      // 5 rupees per arrow sold back
+const ARROW_PACK_COST  = 50;     // 50 rubies for 5 arrows
+const ARROW_SELL_VALUE = 5;      // 5 rubies per arrow sold back
 const PLAIN_ARROW_PACK_COST  = 25;
 const PLAIN_ARROW_SELL_VALUE = 2;
 
@@ -162,7 +162,7 @@ function renderStoreContents() {
     : 'Forest';
 
   const buyRows = STORE_ITEMS.map(it => {
-    const broke = player.rupees < it.cost;
+    const broke = player.rubies < it.cost;
     const owned = it.canBuy ? !it.canBuy() : false;
     const disabled = broke || owned;
     const tag = owned ? '<span style="color:#88cc88">✓ owned</span>' : '';
@@ -192,7 +192,7 @@ function renderStoreContents() {
         <div class="shop-row">
           <div class="shop-item">
             <div class="shop-item-name">${elemIconHTML(elem)} ${elem.label} Sword</div>
-            <div class="shop-item-meta">Sell for rupees</div>
+            <div class="shop-item-meta">Sell for rubies</div>
           </div>
           <button class="ssbtn" onclick="sellElementalSword('${id}')">
             ➜ 💰 ${ELEMENTAL_SELL_VALUE}
@@ -226,7 +226,7 @@ function renderStoreContents() {
         <div class="shop-item-name">${arrowPlain ? '🏹' : elemIconHTML(arrowElem)} ${arrowElem.label} Arrow <span style="color:#88cc88">x${arrowCount}</span></div>
         <div class="shop-item-meta">${arrowMeta}</div>
       </div>
-      <button class="ssbtn" ${player.rupees < arrowPackCost ? 'disabled' : ''} onclick="buyElementalArrows('${arrowId}')">
+      <button class="ssbtn" ${player.rubies < arrowPackCost ? 'disabled' : ''} onclick="buyElementalArrows('${arrowId}')">
         +${ARROW_PACK_SIZE} 💰${arrowPackCost}
       </button>
       <button class="ssbtn" ${arrowCount <= 0 ? 'disabled' : ''} onclick="sellElementalArrow('${arrowId}')">
@@ -270,7 +270,7 @@ function renderStoreContents() {
   // until the player actually carries some.
   const oreRows =
     `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#cc9988">
-      We pay top rupee for raw ore — any kind, brought from anywhere:
+      We pay top ruby for raw ore — any kind, brought from anywhere:
     </div>` +
     (typeof ORE_TYPES === 'undefined' ? '' : ORE_TYPES.map(o => {
       const count = player[o.id] || 0;
@@ -306,8 +306,8 @@ function renderStoreContents() {
 
   document.getElementById('store-modal').innerHTML = `
     <h2>🏪 General Store</h2>
-    <div class="shop-greeting">Greetings, traveler! Care to spend some rupees?</div>
-    <div class="shop-rupees">You have: 💰 <b>${player.rupees}</b></div>
+    <div class="shop-greeting">Greetings, traveler! Care to spend some rubies?</div>
+    <div class="shop-rubies">You have: 💰 <b>${player.rubies}</b></div>
     ${buyRows}
     ${arrowsRows}
     ${trophyRows}
@@ -327,8 +327,8 @@ function sellElementalArmor(id) {
   player.armorElements.splice(idx, 1);
   if (player.armorUpgrades) delete player.armorUpgrades[id];   // drop its upgrade level — a re-forge starts at Lv 0
   if (player.activeArmorElement === id) player.activeArmorElement = null;
-  addItem('rupees', ELEMENTAL_ARMOR_SELL_VALUE);
-  showMsg(`💰 Sold 🛡${elem.icon} ${elem.label} Armor for ${ELEMENTAL_ARMOR_SELL_VALUE} rupees`, 3000);
+  addItem('rubies', ELEMENTAL_ARMOR_SELL_VALUE);
+  showMsg(`💰 Sold 🛡${elem.icon} ${elem.label} Armor for ${ELEMENTAL_ARMOR_SELL_VALUE} rubies`, 3000);
   renderBlacksmithContents();
   updateHUD();
 }
@@ -337,8 +337,8 @@ function buyElementalArrows(id) {
   const plain = id === 'plain';
   if (!plain && !SWORD_ELEMENTS[id]) return;
   const cost = plain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST;
-  if (player.rupees < cost) return;
-  player.rupees -= cost;
+  if (player.rubies < cost) return;
+  player.rubies -= cost;
   const gained = addArrow(id, ARROW_PACK_SIZE);
   const elem = plain ? { icon: '🏹', label: 'Plain' } : SWORD_ELEMENTS[id];
   const tail = gained < ARROW_PACK_SIZE ? ` — quiver capped at ${ITEM_CAP}` : '';
@@ -354,12 +354,12 @@ function sellElementalArrow(id) {
   if ((player.arrows[id] || 0) <= 0) return;
   player.arrows[id]--;
   const value = plain ? PLAIN_ARROW_SELL_VALUE : ARROW_SELL_VALUE;
-  addItem('rupees', value);
+  addItem('rubies', value);
   if (player.arrows[id] <= 0 && player.activeArrowElement === id) {
     player.activeArrowElement = null;
   }
   const elem = plain ? { icon: '🏹', label: 'Plain' } : SWORD_ELEMENTS[id];
-  showMsg(`💰 Sold 1 ${elem.icon} ${elem.label} Arrow for ${value} rupees`, 2500);
+  showMsg(`💰 Sold 1 ${elem.icon} ${elem.label} Arrow for ${value} rubies`, 2500);
   renderStoreContents();
   updateHUD();
 }
@@ -375,8 +375,8 @@ function sellElementalSword(id) {
   if (player.swordUpgrades) delete player.swordUpgrades[id];   // drop its upgrade level — a re-won sword starts at Lv 0
   // If the player was wielding this sword, fall back to the base sword
   if (player.activeSwordElement === id) player.activeSwordElement = null;
-  addItem('rupees', ELEMENTAL_SELL_VALUE);
-  showMsg(`💰 Sold ${elem.icon} ${elem.label} Sword for ${ELEMENTAL_SELL_VALUE} rupees`, 3000);
+  addItem('rubies', ELEMENTAL_SELL_VALUE);
+  showMsg(`💰 Sold ${elem.icon} ${elem.label} Sword for ${ELEMENTAL_SELL_VALUE} rubies`, 3000);
   renderStoreContents();
   updateHUD();
 }
@@ -388,8 +388,8 @@ function sellTrophy(key) {
   if (count <= 0) return;
   player[key] = 0;
   const earned = count * t.value;
-  addItem('rupees', earned);
-  showMsg(`💰 Sold ${count} ${t.icon} ${t.label}${count > 1 ? 's' : ''} for ${earned} rupees`, 3000);
+  addItem('rubies', earned);
+  showMsg(`💰 Sold ${count} ${t.icon} ${t.label}${count > 1 ? 's' : ''} for ${earned} rubies`, 3000);
   renderStoreContents();
   updateHUD();
 }
@@ -399,8 +399,8 @@ function sellPotionItem(key) {
   if (!p) return;
   if ((player[key] || 0) <= 0) return;
   player[key]--;
-  addItem('rupees', p.value);
-  showMsg(`💰 Sold 1 ${p.icon} ${p.label} for ${p.value} rupees`, 2500);
+  addItem('rubies', p.value);
+  showMsg(`💰 Sold 1 ${p.icon} ${p.label} for ${p.value} rubies`, 2500);
   renderStoreContents();
   updateHUD();
 }
@@ -409,8 +409,8 @@ function buyStoreItem(id) {
   const it = STORE_ITEMS.find(x => x.id === id);
   if (!it) return;
   if (it.canBuy && !it.canBuy()) return;
-  if (player.rupees < it.cost) return;
-  player.rupees -= it.cost;
+  if (player.rubies < it.cost) return;
+  player.rubies -= it.cost;
   it.apply();
   showMsg(`🛒 Purchased ${it.label}!`, 3000);
   renderStoreContents();

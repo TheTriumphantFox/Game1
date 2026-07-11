@@ -515,7 +515,7 @@ function drawDrop(d, ts) {
     return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
   };
   const glowColor =
-    d.type === 'rupee'    ? '40,220,90'   :
+    d.type === 'ruby'    ? '40,220,90'   :
     d.type === 'herbal'   ? '120,210,80'  :
     d.type === 'mushroom' ? '200,112,74'  :
     d.type === 'potion'   ? '255,120,180' :
@@ -589,8 +589,8 @@ function drawDrop(d, ts) {
     ctx.fillText('+' + d.val, cx, lblY);
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
-  } else if (d.type === 'rupee') {
-    // Hexagonal-ish green Zelda-style rupee
+  } else if (d.type === 'ruby') {
+    // Hexagonal-ish green Zelda-style ruby
     const w = ts * 0.12 * pulse, h = ts * 0.20 * pulse;
     ctx.fillStyle = '#22aa3a';
     ctx.beginPath();
