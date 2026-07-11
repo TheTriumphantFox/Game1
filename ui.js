@@ -37,7 +37,7 @@ function hudEls() {
   if (_hudEls) return _hudEls;
   const $ = id => document.getElementById(id);
   _hudEls = {
-    hearts: $('hearts'), rupees: $('rupees'), level: $('level'),
+    hearts: $('hearts'), rubies: $('rubies'), level: $('level'),
     xp: $('xp'), xpnext: $('xpnext'), roomName: $('roomName'),
     sword: $('ws-sword'), bow: $('ws-bow'), bomb: $('ws-bomb'),
     armor: $('ws-armor'), immunity: $('ws-immunity'), interact: $('ws-interact'),
@@ -65,7 +65,7 @@ function updateHUD() {
     }
     el.hearts.innerHTML = h;
   }
-  if (last.rupees !== player.rupees) { last.rupees = player.rupees; el.rupees.textContent = player.rupees; }
+  if (last.rubies !== player.rubies) { last.rubies = player.rubies; el.rubies.textContent = player.rubies; }
   if (last.level  !== player.level)  { last.level  = player.level;  el.level.textContent  = player.level; }
   if (last.xp     !== player.xp)     { last.xp     = player.xp;     el.xp.textContent     = player.xp; }
   if (last.xpNext !== player.xpNext) { last.xpNext = player.xpNext; el.xpnext.textContent = player.xpNext; }

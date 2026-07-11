@@ -24,7 +24,7 @@ body {
   height: 100%;
 }
 
-/* Top HUD: hearts, rupees, level, map name */
+/* Top HUD: hearts, rubies, level, map name */
 #hud {
   display: flex;
   align-items: center;

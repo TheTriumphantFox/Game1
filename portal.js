@@ -6,7 +6,7 @@
 
 let portalOpen = false;
 
-// Rupees the Gatekeeper charges per trip through the gate.
+// Rubies the Gatekeeper charges per trip through the gate.
 const PORTAL_TOLL = 5;
 
 function openPortalModal() {
@@ -86,8 +86,8 @@ function renderPortalContents() {
   }).join('');
   document.getElementById('portal-modal').innerHTML = `
     <h2>🌀 Portal Gate</h2>
-    <div class="shop-greeting">The Gatekeeper minds the gate — ${PORTAL_TOLL} rupees per trip.</div>
-    <div class="shop-rupees">You have: 💰 <b>${player.rupees}</b></div>
+    <div class="shop-greeting">The Gatekeeper minds the gate — ${PORTAL_TOLL} rubies per trip.</div>
+    <div class="shop-rubies">You have: 💰 <b>${player.rubies}</b></div>
     ${rows}
     <button class="shop-close" onclick="closePortalModal()">✕ Cancel</button>
   `;
@@ -101,9 +101,9 @@ function portalSelect(i) {
   if (!d) return;
   // Can't cover the Gatekeeper's toll? Refuse before resolving/building the
   // destination (village rows would otherwise build a map on demand).
-  if (d.mapId !== currentMapId && (player.rupees || 0) < PORTAL_TOLL) {
+  if (d.mapId !== currentMapId && (player.rubies || 0) < PORTAL_TOLL) {
     if (typeof showMsg === 'function') {
-      showMsg(`🌀 Gatekeeper: "The toll is ${PORTAL_TOLL} rupees — come back when you can pay."`, 2800);
+      showMsg(`🌀 Gatekeeper: "The toll is ${PORTAL_TOLL} rubies — come back when you can pay."`, 2800);
     }
     return;
   }
@@ -126,13 +126,13 @@ function portalTravelTo(mapId) {
 
   // Gatekeeper's toll — charged per trip through the gate. Leave the modal open
   // if the player can't pay so they can still cancel.
-  if ((player.rupees || 0) < PORTAL_TOLL) {
+  if ((player.rubies || 0) < PORTAL_TOLL) {
     if (typeof showMsg === 'function') {
-      showMsg(`🌀 Gatekeeper: "The toll is ${PORTAL_TOLL} rupees — come back when you can pay."`, 2800);
+      showMsg(`🌀 Gatekeeper: "The toll is ${PORTAL_TOLL} rubies — come back when you can pay."`, 2800);
     }
     return;
   }
-  player.rupees -= PORTAL_TOLL;
+  player.rubies -= PORTAL_TOLL;
   if (typeof updateHUD === 'function') updateHUD();
 
   // Persist enemy/villager state on the source map before we leave it.

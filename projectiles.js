@@ -503,7 +503,7 @@ function stepProjectiles(dt, map) {
         if (player.hp <= 0) respawn();
       }
       // Destroy rocks and snow drifts in blast radius. Each broken rock has a
-      // 40% chance to drop 1–20 rupees on its tile; each flattened drift has a
+      // 40% chance to drop 1–20 rubies on its tile; each flattened drift has a
       // 50% chance to leave a sellable snowball. Use floor (not round) so the
       // tile-centered bomb position (bx + 0.5) maps to its actual tile bx.
       const btc = Math.floor(p.tx), btr = Math.floor(p.ty);
@@ -511,7 +511,7 @@ function stepProjectiles(dt, map) {
         const tr = btr + dr, tc = btc + dc;
         if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
         if (map[tr][tc] === T.ROCK) {
-          // 5% chance the rock concealed a cave tunnel — wins over rupee roll
+          // 5% chance the rock concealed a cave tunnel — wins over ruby roll
           if (Math.random() < 0.05) {
             map[tr][tc] = T.CAVE_ENTRANCE;
             showMapMsg('🕳️ The blast reveals a hidden tunnel!');
@@ -519,7 +519,7 @@ function stepProjectiles(dt, map) {
             map[tr][tc] = mapGroundTile();
             if (Math.random() < 0.40) {
               drops.push({
-                type: 'rupee', val: 1 + Math.floor(Math.random() * 20),  // 1..20
+                type: 'ruby', val: 1 + Math.floor(Math.random() * 20),  // 1..20
                 x: tc, y: tr,
                 life: 10000, bob: 0, collected: false
               });
@@ -607,12 +607,12 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#ff4488', 10, 3);
         spawnParticle(sp.x, sp.y, '#ffaacc', 6, 2);
         if (gained > 0) showMsg(`❤️ +${gained} HP`, 1500);
-      } else if (d.type === 'rupee') {
-        addItem('rupees', d.val);
+      } else if (d.type === 'ruby') {
+        addItem('rubies', d.val);
         const sp = screenPX(d.x, d.y);
         spawnParticle(sp.x, sp.y, '#22cc44', 10, 3);
         spawnParticle(sp.x, sp.y, '#aaffcc', 6, 2);
-        showMsg(`💎 +${d.val} Rupee`, 1500);
+        showMsg(`💎 +${d.val} Ruby`, 1500);
       } else if (d.type === 'herbal') {
         addItem('herbals', d.val);
         const sp = screenPX(d.x, d.y);

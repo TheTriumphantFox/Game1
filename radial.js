@@ -6,7 +6,7 @@
 //     • swords     → base sword + each owned elemental sword
 //     • arrows     → bow + plain & elemental arrows
 //     • consumables→ Bomb + Health Potion
-//     • drops      → passive pickups (rupees, herbals, fangs, …)
+//     • drops      → passive pickups (rubies, herbals, fangs, …)
 //     • armor      → Armor (only when the player has some)
 //
 //   ◀ / ▶  → previous / next item within the current ring (wraps)
@@ -40,11 +40,11 @@ const radialMouse = { x: 0, y: 0 };
 // All rings share one radius so swapping rings doesn't visibly resize.
 const RADIAL_RADIUS = 150;
 
-// Passive drop items (rupees, herbals, monster trophies). They have no action —
+// Passive drop items (rubies, herbals, monster trophies). They have no action —
 // they're displayed for at-a-glance inventory tracking. Kept in one table so the
 // drops ring stays a single source of truth for "everything off the ground."
 const PASSIVE_DROPS = [
-  { type: 'rupees',  icon: '💎', label: 'Rupees',  key: 'rupees'  },
+  { type: 'rubies',  icon: '💎', label: 'Rubies',  key: 'rubies'  },
   { type: 'herbals', icon: '🌿', label: 'Herbal',  key: 'herbals' },
   // Monster-trophy satchel rows — derived from the TROPHIES registry (config.js),
   // split around bonemeal to preserve the exact satchel order (the 6 forest-tier
@@ -101,7 +101,7 @@ const DROP_CATEGORIES = [
   { id: 'ore',      label: 'Ores'           },
 ];
 const DROP_CAT_OF = {
-  rupees: 'currency',
+  rubies: 'currency',
   herbals: 'herbal', winterberries: 'herbal', frostpetals: 'herbal', sage: 'herbal',
   moss: 'herbal', skypetals: 'herbal', windseeds: 'herbal', thistledown: 'herbal',
   voltpetals: 'herbal', sparkseeds: 'herbal', manapetals: 'herbal', heartfronds: 'herbal',

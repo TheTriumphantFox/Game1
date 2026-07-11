@@ -69,7 +69,7 @@ const DEFAULT_PLAYER = {
   x: EXIT_COL, y: EXIT_ROW,
   renderX: EXIT_COL, renderY: EXIT_ROW,
   hp: 12, maxHp: 12, tempHp: 0,
-  rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
+  rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
   invincible: 0,
   weapon: 'sword',
@@ -378,7 +378,7 @@ function newGame() {
   Object.assign(player, {
     x: EXIT_COL, y: EXIT_ROW,
     hp: 12, maxHp: 12, tempHp: 0,
-    rupees: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
+    rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
     swordTimer: 0, swordDir: { x: 0, y: -1 }, invincible: 0,
     weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
     potions: STARTING_ITEM_AMOUNT, medPotions: 0, herbals: STARTING_ITEM_AMOUNT,
