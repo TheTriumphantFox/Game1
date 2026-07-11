@@ -170,10 +170,6 @@ function createOverworldMap(id, gx, gy, regionIdx) {
   };
 }
 
-// Back-compat wrappers used by the boot path / older callers.
-function createForestMap(id, gx, gy) { return createOverworldMap(id, gx, gy, 0); }
-function createDesertMap(id, gx, gy) { return createOverworldMap(id, gx, gy, 1); }
-
 // Find an existing village map for `regionIdx`, or -1 if none has been built.
 function findRegionVillageId(regionIdx) {
   for (let i = 0; i < worldMaps.length; i++) {
@@ -210,35 +206,6 @@ function getOrCreateActiveRegionVillage(regionIdx) {
   if (!obj.activated) activateVillage(obj);
   obj.savedEnemies = [];   // monster-free on (re)entry
   return id;
-}
-
-// Build a one-shot cave map that returns to (returnMapId, returnX, returnY).
-// Caves are not part of the (gx, gy) grid — they're only reachable via a
-// CAVE_ENTRANCE tile on the source map.
-function createCaveMap(returnMapId, returnX, returnY) {
-  const newId = worldMaps.length;
-  const mapTiles = buildCaveMap();
-  const obj = {
-    id: newId, gx: 0, gy: 0,
-    name: 'Hidden Cave',
-    type: 'cave', depth: 0,
-    map: mapTiles,
-    enemyDefs: [],
-    openedChests: new Set(),
-    visited: true,
-    returnMapId, returnX, returnY,
-    // Pre-reveal the small chamber so the player can see what they walked into
-    fog: (() => {
-      const f = new Uint8Array(MCOLS * MROWS);
-      const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
-      for (let r = cy - 12; r <= cy + 12; r++)
-        for (let c = cx - 12; c <= cx + 12; c++)
-          if (r >= 0 && r < MROWS && c >= 0 && c < MCOLS) f[r * MCOLS + c] = 1;
-      return f;
-    })()
-  };
-  worldMaps.push(obj);
-  return newId;
 }
 
 // ─── Waterfall cave chain ──────────────────────────────────────────────────────
@@ -418,11 +385,6 @@ function sealRegion(regionIdx) {
     }
   }
 }
-
-// Back-compat: forest-village clear used to call sealUnusedTransitions, fire
-// (desert) clear used to call sealDesertRegion. Both now delegate to sealRegion.
-function sealUnusedTransitions() { sealRegion(0); }
-function sealDesertRegion()      { sealRegion(1); }
 
 // Walking out of an exit. Compute the neighbor's coordinate; if a map already
 // exists there, return it. Otherwise create a new one. The target region is:
