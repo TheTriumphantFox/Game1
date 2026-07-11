@@ -10,10 +10,20 @@
 // tiles it's invoked once by buildTileSprite to populate the cache; the thin
 // drawTile() wrapper above blits that cache thereafter. Animated / hashed /
 // autotiled / stateful tiles reach here every frame.
+// When true, drawTileProcedural is running as the enlarged-landmark overlay pass
+// (see drawBigLandmark): the region's signature open-ground landmarks skip their
+// flat ground fill and draw only their object art (which the overlay has scaled up
+// ~2.6× about its foot), so the giant sits on the real clearing floor drawn by the
+// normal tile pass instead of over a stamped square of its own base colour. Default
+// false — the normal tile pass and the sprite cache draw landmarks ground-only.
+let landmarkOverlayPass = false;
+
 function drawTileProcedural(col, row, t, sx, sy, s) {
   const x = sx, y = sy;
-  ctx.fillStyle = TILE_COLORS[t] || '#111';
-  ctx.fillRect(x, y, s, s);
+  if (!landmarkOverlayPass) {                 // overlay pass paints no base square
+    ctx.fillStyle = TILE_COLORS[t] || '#111';
+    ctx.fillRect(x, y, s, s);
+  }
 
   switch (t) {
     case T.GRASS:
@@ -2177,7 +2187,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // A solid shaft of radiant light rising from the sanctum floor — a luminous
       // landmark. A warm-gold crystalline column with a brilliant white core,
       // breathing a soft halo, capped in light at the top.
-      ctx.fillStyle = '#f4ead0'; ctx.fillRect(x, y, s, s);
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#f4ead0'; ctx.fillRect(x, y, s, s); break; }
       const pulse = 0.5 + 0.5 * Math.sin(Date.now()/700 + col*0.4 + row*0.4);
       ctx.fillStyle = `rgba(255,246,206,${0.4 + pulse*0.25})`;
       ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.5, s*0.5, 0, Math.PI*2); ctx.fill();
@@ -2381,7 +2391,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // side (per hash), a chiselled cross, a fracture, and dead lichen at its foot.
       const h = (col * 137 + row * 71);
       const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.16;
-      ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s);            // blight base
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s); break; }   // blight base
       ctx.fillStyle = '#221820';                                       // cast shadow
       ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.86, s*0.34, s*0.09, 0,0,Math.PI*2); ctx.fill();
       ctx.save();
@@ -3257,8 +3267,10 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // the grass, raked by weathered cracks, with cushions of moss on its crown. Solid.
       const h = (col*137 + row*71);
       const j = (a, n) => (((h >> a) & 3) / 3) * n;
-      ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x, y, s, s);             // grass base
-      ctx.fillStyle = '#3d7530'; ctx.fillRect(x+2, y+3, 4, 2); ctx.fillRect(x+s-6, y+s-5, 4, 2);
+      if (!landmarkOverlayPass) {
+        ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x, y, s, s);           // grass base
+        ctx.fillStyle = '#3d7530'; ctx.fillRect(x+2, y+3, 4, 2); ctx.fillRect(x+s-6, y+s-5, 4, 2);
+        break; }
       ctx.fillStyle = '#2c5a2c';                                       // cast shadow
       ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.82, s*0.40, s*0.12, 0, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#6e6a64';                                       // boulder mass
@@ -3282,7 +3294,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       const cx = x+s*0.5;
       const top = y+s*0.06, capH = s*0.13, shTop = top+capH, bot = y+s*0.9;
       const htop = s*0.07, hbot = s*0.15;                              // half-widths at cap base / ground
-      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);             // sand base
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s); break; }   // sand base
       ctx.fillStyle = '#b89055';                                       // sand drift / cast shadow
       ctx.beginPath(); ctx.ellipse(cx+s*0.06, bot, s*0.28, s*0.08, 0, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#cbb27e';                                       // shaft — lit left face
@@ -3307,7 +3319,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // grooves, and exposed end grain, over a cast shadow on the sand. Static. Solid.
       const h = (col*131 + row*83);
       const j = (a, n) => (((h >> a) & 3) / 3) * n;
-      ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s);             // sand base
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s); break; }   // sand base
       ctx.fillStyle = '#b8945a';                                       // cast shadow on sand
       ctx.beginPath(); ctx.ellipse(x+s*0.52, y+s*0.66, s*0.40, s*0.12, -0.12, 0, Math.PI*2); ctx.fill();
       ctx.save();
@@ -3336,7 +3348,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // shadow facet, a smaller shard at its foot, a cool cast shadow, and a glint. Solid.
       const h = (col*137 + row*71);
       const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
-      ctx.fillStyle = '#e4ecf2'; ctx.fillRect(x, y, s, s);             // snow base
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#e4ecf2'; ctx.fillRect(x, y, s, s); break; }   // snow base
       ctx.fillStyle = '#cdd9e6';                                       // cast shadow on snow
       ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.86, s*0.34, s*0.09, 0, 0, Math.PI*2); ctx.fill();
       const apexX = x+s*(0.48+j(0,0.10)), apexY = y+s*0.06;
@@ -3358,8 +3370,10 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // and bearing a faint carved ring, over a cast shadow on the rubble. Solid.
       const h = (col*131 + row*71);
       const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.16;
-      ctx.fillStyle = '#8a8174'; ctx.fillRect(x, y, s, s);             // scree base
-      ctx.fillStyle = '#766d61'; ctx.fillRect(x+s*0.18, y+s*0.20, 3, 2); ctx.fillRect(x+s*0.66, y+s*0.74, 3, 2);   // rubble flecks
+      if (!landmarkOverlayPass) {
+        ctx.fillStyle = '#8a8174'; ctx.fillRect(x, y, s, s);           // scree base
+        ctx.fillStyle = '#766d61'; ctx.fillRect(x+s*0.18, y+s*0.20, 3, 2); ctx.fillRect(x+s*0.66, y+s*0.74, 3, 2);   // rubble flecks
+        break; }
       ctx.fillStyle = '#5f584e';                                       // cast shadow
       ctx.beginPath(); ctx.ellipse(x+s*0.56, y+s*0.86, s*0.30, s*0.08, 0, 0, Math.PI*2); ctx.fill();
       ctx.save();
@@ -3384,7 +3398,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // Solid.
       const h = (col*131 + row*83);
       const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
-      ctx.fillStyle = '#dde6f2'; ctx.fillRect(x, y, s, s);             // cloud base
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#dde6f2'; ctx.fillRect(x, y, s, s); break; }   // cloud base
       const puff = (px, py, r, shade, lit) => {
         ctx.fillStyle = shade; ctx.beginPath(); ctx.arc(x+s*px, y+s*py, s*r, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = lit;   ctx.beginPath(); ctx.arc(x+s*(px-0.05), y+s*(py-0.05), s*r*0.62, 0, Math.PI*2); ctx.fill();
@@ -3401,7 +3415,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // lightning region's open-ground landmark. Animated flicker. Solid.
       const h = (col*131 + row*83);
       const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
-      ctx.fillStyle = '#313749'; ctx.fillRect(x, y, s, s);             // storm floor base
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#313749'; ctx.fillRect(x, y, s, s); break; }   // storm floor base
       const puff = (px, py, r, shade, lit) => {
         ctx.fillStyle = shade; ctx.beginPath(); ctx.arc(x+s*px, y+s*py, s*r, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = lit;   ctx.beginPath(); ctx.arc(x+s*(px-0.05), y+s*(py-0.05), s*r*0.62, 0, Math.PI*2); ctx.fill();
@@ -3549,7 +3563,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // warm molten glow bleeding from its base, and a bright edge glint. Static.
       const h=(col*137+row*71);
       const j=(a,n)=>(((h>>a)&3)/3-0.5)*n;
-      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);            // caldera base
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s); break; }   // caldera base
       ctx.fillStyle = 'rgba(255,90,20,0.28)';                          // molten glow at foot
       ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.86, s*0.34, s*0.10, 0, 0, Math.PI*2); ctx.fill();
       const apexX=x+s*(0.48+j(0,0.10)), apexY=y+s*0.06;
@@ -3667,7 +3681,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // and a faint light-drinking halo, over a cast shadow. Hashed lean; static.
       const h=(col*131+row*71);
       const lean=(((h>>0)&3)/3-0.5)*0.08;
-      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);            // umbral base
+      if (!landmarkOverlayPass) { ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s); break; }   // umbral base
       ctx.fillStyle = 'rgba(90,60,150,0.18)';                          // light-drinking halo
       ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.44, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#150f22';                                       // cast shadow
@@ -3765,6 +3779,34 @@ function drawColossalTree(col, row, ts) {
   g.addColorStop(0, `rgba(150,90,210,${0.05 + 0.06*bp})`);
   g.addColorStop(1, 'rgba(150,90,210,0)');
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(canX, canY, W*1.55, 0, Math.PI*2); ctx.fill();
+}
+
+// ─── Enlarged open-ground landmark overlay ──────────────────────────────────
+// The elemental / non-forest regions' answer to the mana forest's colossal trees:
+// every region's signature open-ground landmark (mossy boulder, sandstone obelisk,
+// ice/cloud/storm/obsidian spire, standing stone, shadow monolith, tombstone, light
+// pillar, driftwood) is placed on a tile whose whole 8-neighbourhood is open ground
+// (see addRegionLandmarks / addTombstones / addLightPillars), so it can be drawn HERE
+// blown up ~2.6× about its foot into a multi-tile giant that overhangs the clearing.
+// Like drawColossalTree this runs after the entity pass so the hero and enemies walk
+// BEHIND the overhang. It re-issues the landmark's own tile art via drawTileProcedural
+// with landmarkOverlayPass set, so the object is drawn (scaled) without its flat
+// ground square — the base tile itself already rendered as plain clearing floor.
+// The poison FALLEN_LOG keeps its own seamless multi-tile run and is not enlarged here.
+const BIG_LANDMARK_SCALE = 3.0;   // ~2.5-tile-tall giants, matching the colossal trees
+function drawBigLandmark(tile, col, row, ts) {
+  const s = ts;
+  const x = (col - camC) * s;
+  const y = (row - camR) * s;
+  const baseX = x + s * 0.5, baseY = y + s * 0.9;   // planted at the landmark's foot
+  ctx.save();
+  ctx.translate(baseX, baseY);
+  ctx.scale(BIG_LANDMARK_SCALE, BIG_LANDMARK_SCALE);
+  ctx.translate(-baseX, -baseY);
+  landmarkOverlayPass = true;
+  try { drawTileProcedural(col, row, tile, x, y, s); }
+  finally { landmarkOverlayPass = false; }
+  ctx.restore();
 }
 
 // ─── Whirlpool suction overlay ────────────────────────────────────────────────

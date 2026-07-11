@@ -1428,6 +1428,33 @@ function mapFeatureTiles(mapObj, tileType, cacheKey) {
   return list;
 }
 
+// The signature open-ground landmark tiles enlarged into multi-tile giants by the
+// drawBigLandmark overlay pass — one per region (the poison FALLEN_LOG is a seamless
+// multi-tile run and keeps its own draw). Placed once at generation and never mutated.
+const BIG_LANDMARK_TILES = new Set([
+  T.MOSS_BOULDER, T.DESERT_OBELISK, T.DRIFTWOOD, T.ICE_SPIRE, T.STANDING_STONE,
+  T.CLOUD_SPIRE, T.STORM_SPIRE, T.OBSIDIAN_SPIRE, T.SHADOW_MONOLITH,
+  T.LIGHT_PILLAR, T.TOMBSTONE,
+].filter(v => v !== undefined));
+
+// Like mapFeatureTiles but collects every enlarged-landmark tile in one scan, sorted
+// top-to-bottom so lower (nearer) giants paint over higher ones. Cached per map.
+function mapBigLandmarkTiles(mapObj) {
+  let list = mapObj._bigLandmarks;
+  if (list) return list;
+  const pts = [];
+  const g = mapObj.map;
+  for (let r = 0; r < MROWS; r++) {
+    const row = g[r];
+    for (let c = 0; c < MCOLS; c++) if (BIG_LANDMARK_TILES.has(row[c])) pts.push([c, r]);
+  }
+  pts.sort((a, b) => a[1] - b[1]);   // painter's order: lower rows drawn last (in front)
+  list = [];
+  for (const [c, r] of pts) list.push(c, r);
+  mapObj._bigLandmarks = list;
+  return list;
+}
+
 function render() {
   ensureSpriteCacheSize();   // drop cached sprites if the tile size changed
   ctx.clearRect(0, 0, PW, PH);
@@ -1494,6 +1521,17 @@ function render() {
     const mc = colossalTrees[i], mr = colossalTrees[i + 1];
     if (mc >= startC - 3 && mc <= endC + 3 && mr >= startR - 1 && mr <= endR + 4 &&
         !isFoggy(mapObj, mc, mr)) drawColossalTree(mc, mr, ts);
+  }
+
+  // Enlarged region landmarks — the elemental / non-forest regions' answer to the
+  // colossal trees, given the same after-entities overlay treatment. Scan range is
+  // widened a few tiles (a giant whose foot sits just off-screen still overhangs into
+  // view) and each is drawn only once its foot tile is unfogged.
+  const bigLandmarks = mapBigLandmarkTiles(mapObj);
+  for (let i = 0; i < bigLandmarks.length; i += 2) {
+    const mc = bigLandmarks[i], mr = bigLandmarks[i + 1];
+    if (mc >= startC - 3 && mc <= endC + 3 && mr >= startR - 2 && mr <= endR + 4 &&
+        !isFoggy(mapObj, mc, mr)) drawBigLandmark(map[mr][mc], mc, mr, ts);
   }
 
   // Lightning-region storm flash — over the world, under the HUD/minimap.
