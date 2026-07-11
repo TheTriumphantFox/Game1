@@ -805,6 +805,18 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#6f4fb0', 10, 3);
         spawnParticle(sp.x, sp.y, '#a488e0', 6, 2);
         showMsg(`🌌 +${d.val} Void Petal (now ${player.voidpetals})`, 1500);
+      } else if (d.type === 'ore') {
+        // Raw region ore dropped by a slain enemy. The specific ore id is on
+        // d.ore; its inventory key is the id itself (see ORE_TYPES / chest ore).
+        addItem(d.ore, d.val);
+        const ore = (typeof ORE_TYPES !== 'undefined')
+          ? ORE_TYPES.find(o => o.id === d.ore) : null;
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, ore ? ore.color : '#b9bcc6', 10, 3);
+        spawnParticle(sp.x, sp.y, '#ffffff', 6, 2);
+        const icon = ore ? ore.icon : '⛏️';
+        const label = ore ? ore.label : 'Ore';
+        showMsg(`${icon} +${d.val} ${label} ore (now ${player[d.ore] || 0})`, 1500);
       } else if (TROPHY_META[d.type]) {
         // Enemy trophy collectibles. Inventory key is the plural of the drop
         // type (fangs, fingers, bones, wings, organs, feathers, scales, …).

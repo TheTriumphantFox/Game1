@@ -469,14 +469,26 @@ function killEnemy(e) {
   spawnParticle(sp.x, sp.y, e.color, 14, 5);
   spawnParticle(sp.x, sp.y, '#ffcc00', 6, 3);
 
-  // Region context drives a couple of drop tweaks: fire-region hearts roll
-  // bigger (1d6 vs 1d4), and the boss ruby payout scales with the region tier.
+  // Region context drives a couple of drop tweaks: HP hearts roll 1d4 per region
+  // level (forest=1 … shadow=13), and the boss ruby payout scales with the region
+  // tier. regionLevel is the 1-based progression order (regionIdx + 1).
   const cm = currentMap();
-  const region = (typeof REGIONS !== 'undefined' && cm && typeof cm.regionIdx === 'number')
-    ? REGIONS[cm.regionIdx] : null;
-  const inFire = !!region && region.id === 'fire';
+  const regionLevel = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx + 1 : 1;
 
   gainXP(e.xp);   // XP is awarded on every kill, unchanged.
+
+  // 2% chance any enemy also drops a chunk of the region's raw ore, on top of its
+  // normal loot. Which ore is set by the region (see oreForMap / ORE_TYPES).
+  if (Math.random() < 0.02) {
+    const ore = oreForMap(cm);
+    if (ore) {
+      drops.push({
+        type: 'ore', ore: ore.id, val: 1,
+        x: Math.round(e.x), y: Math.round(e.y),
+        life: 10000, bob: 0, collected: false
+      });
+    }
+  }
 
   if (e.boss) {
     // Boss payout: 100 rubies per region in progression order (forest=1,
@@ -492,11 +504,14 @@ function killEnemy(e) {
   } else {
     // Rubies now drop on only 30% of (non-boss) kills.
     if (Math.random() < 0.30) addItem('rubies', Math.floor(e.maxHp * 0.1) + 1);
-    // 40% chance to drop an HP heart — 1d6 in the fire region, 1d4 elsewhere.
+    // 40% chance to drop an HP heart — rolls 1d4 per region level (so the value
+    // scales the deeper into the world you fight).
     if (Math.random() < 0.40) {
+      let hp = 0;
+      for (let i = 0; i < regionLevel; i++) hp += 1 + Math.floor(Math.random() * 4);
       drops.push({
         type: 'hp',
-        val: 1 + Math.floor(Math.random() * (inFire ? 6 : 4)),
+        val: hp,
         x: Math.round(e.x), y: Math.round(e.y),
         life: 10000, bob: 0, collected: false
       });
