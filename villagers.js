@@ -50,6 +50,8 @@ const VILLAGER_CHAT = {
   Herbalist: ["Bring me mushrooms and herbs for a remedy."],
   Blacksmith:["Need armor? I forge the finest in the land."],
   Collector: ["I'm cataloguing the spoils of this region — talk to me for a commission."],
+  Parent:    ["Have you seen my boy? Please, find my Timmy!"],
+  Timmy:     ["Thank you for finding me! I'll never wander off again."],
 };
 
 // Live list for the current map (mirrors `enemies`).
@@ -74,6 +76,7 @@ function isVillagerOffLimits(tileId) {
 function generateVillagers(mapObj) {
   const list = placeShopkeepers(mapObj);
   placeCollector(mapObj, list);
+  placeLostParent(mapObj, list);
   let nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
   const m = mapObj.map;
   const count = 20;
@@ -193,6 +196,84 @@ function placeCollector(mapObj, list) {
   });
 }
 
+// Stand a stationary "Worried Parent" on the village plaza, near the fountain,
+// where the hero can't miss them. They hand out the region's "Find Timmy" quest
+// (their son wandered off to the region's 3rd dead-end map) and, once he's home,
+// stand beside the reunited boy. `list` is mutated in place. No-op if no open
+// plaza tile is free (extremely unlikely on the fixed village layout).
+function placeLostParent(mapObj, list) {
+  const m = mapObj.map;
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  // Open marble tiles ringing the 7×7 fountain colonnade — north first, then the
+  // flanks. All clear of the pillars (±3), the plaza torches (±5), and the boss
+  // chest to the south (midR+6..+7).
+  const cands = [
+    { x: midC,     y: midR - 6 }, { x: midC - 1, y: midR - 6 }, { x: midC + 1, y: midR - 6 },
+    { x: midC,     y: midR - 7 },
+    { x: midC - 6, y: midR     }, { x: midC + 6, y: midR     },
+    { x: midC - 6, y: midR - 1 }, { x: midC + 6, y: midR - 1 },
+    { x: midC - 7, y: midR     }, { x: midC + 7, y: midR     },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 0 || s.y < 0 || s.x >= MCOLS || s.y >= MROWS) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (isVillagerOffLimits(m[s.y][s.x])) continue;
+    if (list.some(v => v.x === s.x && v.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) return;
+  const nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+  list.push({
+    id: nextId,
+    kind: 'Parent', role: 'lostson',
+    robe: '#7a3a3a', hair: '#5a4020', skin: '#e8c8a0',
+    size: 1,
+    x: spot.x, y: spot.y,
+    renderX: spot.x, renderY: spot.y,
+    stationary: true,
+    dir: { x: 0, y: 1 },        // facing south, toward the plaza
+    timer: 0, stepMs: 9999,
+  });
+}
+
+// Hide Timmy (the lost child) on a dead-end map: find the open tile nearest the
+// map's centre and stand him there, then stash him as the map's savedVillagers so
+// he spawns whenever the hero explores in. Returns the Timmy entry, or null if no
+// open tile exists. Called from sealRegion (world.js) at region-seal time.
+function placeTimmyOnMap(mapObj) {
+  if (!mapObj || !mapObj.map) return null;
+  const m = mapObj.map;
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  let spot = null;
+  for (let radius = 0; radius <= 60 && !spot; radius++) {
+    for (let dy = -radius; dy <= radius && !spot; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;  // ring only
+        const x = cx + dx, y = cy + dy;
+        if (x < 1 || y < 1 || x >= MCOLS - 1 || y >= MROWS - 1) continue;
+        if (isSolid(m, x, y)) continue;
+        if (isVillagerOffLimits(m[y][x])) continue;
+        spot = { x, y }; break;
+      }
+    }
+  }
+  if (!spot) return null;
+  const timmy = {
+    id: 0,
+    kind: 'Timmy', role: 'lostchild', lost: true,
+    robe: '#4a7abf', hair: '#8a5a2a', skin: '#f0d0a8',
+    size: 0.72,
+    x: spot.x, y: spot.y,
+    renderX: spot.x, renderY: spot.y,
+    stationary: true,
+    dir: { x: 0, y: 1 },
+    timer: 0, stepMs: 9999,
+  };
+  mapObj.savedVillagers = [timmy];
+  return timmy;
+}
+
 // Locate the (single) portal tile on a map. Returns {r,c} or null.
 function findPortalTile(m) {
   for (let r = 0; r < MROWS; r++)
@@ -252,6 +333,7 @@ function spawnVillagersForMap(mid) {
   if (rm.savedVillagers) {
     villagers = rm.savedVillagers.map(v => ({ ...v, renderX: v.x, renderY: v.y }));
     ensurePortalKeeper(rm);
+    if (typeof ensureGuildRecruiter === 'function') ensureGuildRecruiter(rm);
     return;
   }
   if (rm.type === 'village' && rm.activated) {
@@ -260,6 +342,7 @@ function spawnVillagersForMap(mid) {
     villagers = [];
   }
   ensurePortalKeeper(rm);
+  if (typeof ensureGuildRecruiter === 'function') ensureGuildRecruiter(rm);
   // Persist so the keeper survives re-entry. Previously only villages saved;
   // the cabin needs it too now that it has a portal keeper.
   if (villagers.length) rm.savedVillagers = villagers.map(v => ({ ...v }));
@@ -460,9 +543,83 @@ function drawVillager(v, ts) {
     ctx.fillText(done ? '✓' : '!', cx, markY);
   }
 
+  // The Worried Parent floats a quest marker like the Collector — gold "!" while
+  // Timmy is still lost, green "✓" once he's been brought home.
+  if (v.role === 'lostson') {
+    let done = false;
+    try {
+      const reg = (typeof storeRegion === 'function') ? storeRegion().region : null;
+      const rid = reg ? reg.id : null;
+      const q = (rid && player.lostSonQuests) ? player.lostSonQuests[rid] : null;
+      done = !!(q && q.status === 'done');
+    } catch (e) {}
+    const markBob = Math.sin(Date.now() / 300 + phase) * (s * 0.04);
+    ctx.fillStyle = done ? '#66dd88' : '#ffdd33';
+    ctx.font = `bold ${Math.round(s * 0.42)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 2;
+    const markY = py - s * 0.02 + markBob;
+    ctx.strokeText(done ? '✓' : '!', cx, markY);
+    ctx.fillText(done ? '✓' : '!', cx, markY);
+  }
+
+  // Lost Timmy waves for help — a bobbing cyan "!" so the hero spots him across
+  // the dead-end map. (Once home in the village he's `lost:false`, no marker.)
+  if (v.role === 'lostchild' && v.lost) {
+    const markBob = Math.sin(Date.now() / 260 + phase) * (s * 0.05);
+    ctx.fillStyle = '#66d8ff';
+    ctx.font = `bold ${Math.round(s * 0.46)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 2;
+    const markY = py - s * 0.04 + markBob;
+    ctx.strokeText('!', cx, markY);
+    ctx.fillText('!', cx, markY);
+  }
+
+  // The Guild Recruiter wears a steel-grey tabard blazoned with a crossed
+  // sword-and-shield, and floats a crossed-swords "⚔" marker (green "✓" once the
+  // hero is a member) so they stand out among the wandering crowd.
+  if (v.role === 'guild') {
+    // Tabard panel over the robe
+    ctx.fillStyle = '#b8c0cc';
+    ctx.fillRect(px + s * 0.32, py + s * 0.44, s * 0.36, s * 0.44);
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fillRect(px + s * 0.50, py + s * 0.44, s * 0.18, s * 0.44);
+    // Shield emblem
+    ctx.fillStyle = '#3a5a9a';
+    ctx.fillRect(px + s * 0.42, py + s * 0.54, s * 0.16, s * 0.16);
+    ctx.fillStyle = '#dfe6ef';
+    ctx.fillRect(px + s * 0.47, py + s * 0.54, s * 0.06, s * 0.22);   // sword blade
+    ctx.fillStyle = '#8a6a2a';
+    ctx.fillRect(px + s * 0.44, py + s * 0.64, s * 0.12, s * 0.03);   // crossguard
+
+    let done = false;
+    try {
+      const reg = (typeof storeRegion === 'function') ? storeRegion().region : null;
+      const rid = reg ? reg.id : null;
+      const q = (rid && player.guildQuests) ? player.guildQuests[rid] : null;
+      done = !!(q && q.status === 'done');
+    } catch (e) {}
+    const markBob = Math.sin(Date.now() / 300 + phase) * (s * 0.04);
+    ctx.fillStyle = done ? '#66dd88' : '#dfe6ef';
+    ctx.font = `bold ${Math.round(s * 0.40)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 2;
+    const markY = py - s * 0.02 + markBob;
+    ctx.strokeText(done ? '✓' : '⚔', cx, markY);
+    ctx.fillText(done ? '✓' : '⚔', cx, markY);
+  }
+
   // Shopkeepers wear an apron — a lighter strip over the front of the robe
   // so they're easy to pick out across the counter.
-  if (v.role && v.role !== 'portal' && v.role !== 'quest') {
+  if (v.role && v.role !== 'portal' && v.role !== 'quest' &&
+      v.role !== 'lostson' && v.role !== 'lostchild' && v.role !== 'guild') {
     ctx.fillStyle = '#f0e8d8';
     ctx.fillRect(px + s * 0.32, py + s * 0.46, s * 0.36, s * 0.42);
     ctx.fillStyle = 'rgba(0,0,0,0.10)';
@@ -510,6 +667,19 @@ function tryVillagerInteraction() {
   if (v.role === 'smith' && typeof openBlacksmithModal === 'function') { openBlacksmithModal(); return true; }
   // The Collector hands out the region's trophy-gathering quest.
   if (v.role === 'quest' && typeof openCollectorModal === 'function') { openCollectorModal(); return true; }
+  // The Worried Parent hands out (and closes) the "Find Timmy" quest.
+  if (v.role === 'lostson')   { talkLostParent(v);  return true; }
+  // The Guild Recruiter inducts the hero into the Sword & Shield Guild.
+  if (v.role === 'guild' && typeof talkGuildRecruiter === 'function') { talkGuildRecruiter(v); return true; }
+  // Timmy: lost & scared out on a dead end, or safely home in the village.
+  if (v.role === 'lostchild') {
+    if (v.lost) findTimmy(v);
+    else {
+      const line = (VILLAGER_CHAT.Timmy || ["…"])[0];
+      if (typeof showMsg === 'function') showMsg(`💬 Timmy: "${line}"`, 2500);
+    }
+    return true;
+  }
   // The Gatekeeper opens the portal gate (the toll is collected on travel).
   if (v.role === 'portal') {
     if (typeof portalOpen !== 'undefined' && portalOpen) return true;
@@ -521,4 +691,148 @@ function tryVillagerInteraction() {
   const line = lines[Math.floor(Math.random() * lines.length)];
   if (typeof showMsg === 'function') showMsg(`💬 ${v.kind}: "${line}"`, 2500);
   return true;
+}
+
+// ─── "Find Timmy" quest ─────────────────────────────────────────────────────
+// A per-region errand: the village's Worried Parent asks the hero to find their
+// son Timmy, who wandered off to the region's 3rd dead-end map (seeded in
+// sealRegion). Reaching Timmy whisks him home beside the parent and rewards the
+// hero with +1 bow level.
+
+// The region id of the map the player is standing on ('forest' … 'shadow'),
+// used to key player.lostSonQuests. Falls back through biome then forest.
+function currentRegionId() {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  if (cm && typeof cm.regionIdx === 'number' && typeof REGIONS !== 'undefined' && REGIONS[cm.regionIdx])
+    return REGIONS[cm.regionIdx].id;
+  if (cm && typeof REGIONS !== 'undefined') {
+    const r = REGIONS.find(rr => rr.id === cm.biome);
+    if (r) return r.id;
+  }
+  return 'forest';
+}
+
+// Talk to the Worried Parent. Drives the quest state machine:
+//   (none)  → start the quest: hide Timmy on the region's 3rd dead-end map and
+//             send the hero after him.  status → 'active'
+//   'active'→ Timmy's still lost: a reminder of where to look.
+//   'found' → Timmy is safely home beside them: hand over the reward (+1 bow
+//             level).  status → 'done'
+//   'done'  → a grateful thank-you.
+function talkLostParent(v) {
+  const rid = currentRegionId();
+  const regionIdx = (typeof currentMap === 'function' && currentMap()) ? currentMap().regionIdx : null;
+  player.lostSonQuests = player.lostSonQuests || {};
+  let q = player.lostSonQuests[rid];
+
+  // ── Reward turn-in: Timmy is home, hand over the +1 bow level ──────────────
+  if (q && q.status === 'found') {
+    q.status = 'done';
+    player.bowLevel = (player.bowLevel || 1) + 1;   // each level = +2 bow damage
+    if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+    if (typeof updateHUD === 'function') updateHUD();
+    const msg = `💬 Parent: "Bless you, hero — you brought my Timmy home! Take this: my late father's bow arm will serve you well." 🏹 Bow Level up — now Lv ${player.bowLevel}!`;
+    if (typeof showMapMsg === 'function') showMapMsg(msg);
+    else if (typeof showMsg === 'function') showMsg(msg, 5000);
+    return;
+  }
+
+  // ── Already fully done ─────────────────────────────────────────────────────
+  if (q && q.status === 'done') {
+    if (typeof showMsg === 'function')
+      showMsg(`💬 Parent: "Timmy hasn't left my side since you brought him home. Thank you, hero."`, 4000);
+    return;
+  }
+
+  // ── Start the quest on first contact: place Timmy, then send the hero off ──
+  if (!q) {
+    let placed = false;
+    if (typeof regionDeadEndMaps === 'function' && typeof regionIdx === 'number') {
+      const deads = regionDeadEndMaps(regionIdx);
+      if (deads.length) {
+        const timmyMap = deads.length >= 3 ? deads[2] : deads[deads.length - 1];
+        placeTimmyOnMap(timmyMap);
+        q = player.lostSonQuests[rid] = { status: 'active', timmyMapId: timmyMap.id };
+        placed = true;
+      }
+    }
+    if (!placed) q = player.lostSonQuests[rid] = { status: 'active', timmyMapId: null };
+    if (typeof showMsg === 'function')
+      showMsg(`💬 Parent: "Please, hero — my son Timmy wandered off and hasn't come home. Search the dead ends at the edges of this land!"`, 5000);
+    return;
+  }
+
+  // ── Quest active, Timmy still out there ────────────────────────────────────
+  if (typeof showMsg === 'function')
+    showMsg(`💬 Parent: "Any sign of my Timmy? Search the dead-end trails at the far edges of this land."`, 4000);
+}
+
+// Reach the lost Timmy on a dead-end map. He's whisked home to stand beside his
+// parent; the quest waits on 'found' until the hero returns to claim the reward.
+function findTimmy(v) {
+  const rid = currentRegionId();
+  player.lostSonQuests = player.lostSonQuests || {};
+  const q = player.lostSonQuests[rid] || (player.lostSonQuests[rid] = { status: 'active' });
+  if (q.status === 'found' || q.status === 'done') return;   // already reunited (defensive)
+  q.status = 'found';
+
+  // Timmy vanishes from this dead-end map — pull him from the live list and the
+  // map's saved copy so he never reappears here.
+  v.lost = false;
+  villagers = villagers.filter(o => o !== v);
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  if (cm) cm.savedVillagers = villagers.map(o => ({ ...o }));
+
+  // …and reappears in the region's village, standing beside the parent.
+  reuniteTimmyInVillage(cm ? cm.regionIdx : null);
+
+  if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  if (typeof showMapMsg === 'function') {
+    showMapMsg(`👦 You found Timmy! He races home to the village — go tell his parent for your reward.`);
+  } else if (typeof showMsg === 'function') {
+    showMsg(`👦 You found Timmy! He races home — go see his parent.`, 4000);
+  }
+}
+
+// Drop a reunited Timmy into the region's village, on an open tile beside the
+// Worried Parent, and persist him to the village's savedVillagers so he's there
+// when the hero returns. No-op if the village map or parent can't be found.
+function reuniteTimmyInVillage(regionIdx) {
+  if (typeof regionIdx !== 'number' || typeof findRegionVillageId !== 'function') return;
+  const vid = findRegionVillageId(regionIdx);
+  if (vid < 0) return;
+  const vm = worldMaps[vid];
+  if (!vm || !vm.map) return;
+  const saved = vm.savedVillagers ? vm.savedVillagers.slice() : [];
+  if (saved.some(o => o.role === 'lostchild')) return;   // already home
+  const parent = saved.find(o => o.role === 'lostson');
+  const m = vm.map;
+  const base = parent || { x: Math.floor(MCOLS / 2), y: Math.floor(MROWS / 2) };
+  const cands = [
+    { x: base.x - 1, y: base.y     }, { x: base.x + 1, y: base.y     },
+    { x: base.x,     y: base.y + 1 }, { x: base.x,     y: base.y - 1 },
+    { x: base.x - 1, y: base.y + 1 }, { x: base.x + 1, y: base.y + 1 },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 0 || s.y < 0 || s.x >= MCOLS || s.y >= MROWS) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (isVillagerOffLimits(m[s.y][s.x])) continue;
+    if (saved.some(o => o.x === s.x && o.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) spot = { x: base.x, y: base.y };
+  const nextId = saved.reduce((mx, o) => Math.max(mx, o.id || 0), -1) + 1;
+  saved.push({
+    id: nextId,
+    kind: 'Timmy', role: 'lostchild', lost: false, reunited: true,
+    robe: '#4a7abf', hair: '#8a5a2a', skin: '#f0d0a8',
+    size: 0.72,
+    x: spot.x, y: spot.y,
+    renderX: spot.x, renderY: spot.y,
+    stationary: true,
+    dir: { x: Math.sign((base.x) - spot.x) || 0, y: Math.sign((base.y) - spot.y) || 1 },
+    timer: 0, stepMs: 9999,
+  });
+  vm.savedVillagers = saved;
 }

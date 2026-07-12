@@ -89,6 +89,12 @@ const DEFAULT_PLAYER = {
   regionPotions: {}, elixirs: {},
   // Per-region Collector quests, keyed by region id (see openCollectorModal).
   collectorQuests: {},
+  // Per-region "Find Timmy" quests, keyed by region id (see villagers.js).
+  lostSonQuests: {},
+  // Per-region Sword & Shield Guild quests, keyed by region id (see guild.js).
+  guildQuests: {},
+  // Sword & Shield Guild membership card (granted on first induction).
+  guildCard: false,
   immunityElement: null, immunityTimer: 0,
   // swordElements / arrows are populated by applyStartingInventory() at boot
   // and on newGame, once SWORD_ELEMENTS has loaded.
@@ -113,6 +119,8 @@ function applyLoadData(data) {
   player.regionPotions = { ...((data.player && data.player.regionPotions) || {}) };
   player.elixirs = { ...((data.player && data.player.elixirs) || {}) };
   player.collectorQuests = { ...((data.player && data.player.collectorQuests) || {}) };
+  player.lostSonQuests = { ...((data.player && data.player.lostSonQuests) || {}) };
+  player.guildQuests = { ...((data.player && data.player.guildQuests) || {}) };
   player.armorUpgrades = { ...((data.player && data.player.armorUpgrades) || {}) };
   player.swordUpgrades = { ...((data.player && data.player.swordUpgrades) || {}) };
   // renderX/Y aren't meaningful values to load — they should match x/y after
@@ -386,7 +394,8 @@ function newGame() {
     ...trophyDefaults(),
     bonemeal: 0,
     grimsilver: 0, emberbrass: 0, glimmerspar: 0, wyrmgold: 0, eclipsium: 0,
-    regionPotions: {}, elixirs: {}, collectorQuests: {},
+    regionPotions: {}, elixirs: {}, collectorQuests: {}, lostSonQuests: {}, guildQuests: {},
+    guildCard: false,
     immunityElement: null, immunityTimer: 0,
     swordElements: [], activeSwordElement: null, swordUpgrades: {},
     arrows: {}, activeArrowElement: null,
