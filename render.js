@@ -547,6 +547,7 @@ function drawDrop(d, ts) {
     d.type === 'sunseed'     ? '244,230,176' :  // warm gold light-seed
     d.type === 'prism'       ? '253,240,200' :  // bright prism shard
     d.type === 'reedpith'    ? '200,184,106' :  // pale reed-pith tan
+    d.type === 'guildhead'   ? '204,51,68'   :  // bloody trophy-head red
     oreMeta               ? hexToRGB(oreMeta.color) :
     arrowElem             ? hexToRGB(arrowElem.color) :
     d.type === 'arrows'   ? '221,170,68' :  // plain arrows: warm tan/wood
@@ -652,7 +653,7 @@ function drawDrop(d, ts) {
     leaf(cx,             cy - s * 0.75, 0);
     leaf(cx - s * 0.45,  cy + s * 0.05, -Math.PI / 4);
     leaf(cx + s * 0.45,  cy + s * 0.05,  Math.PI / 4);
-  } else if (oreMeta || trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal' || d.type === 'skypetal' || d.type === 'windseed' || d.type === 'thistledown' || d.type === 'voltpetal' || d.type === 'sparkseed' || d.type === 'fulgurite' || d.type === 'witherwood' || d.type === 'gravebloom' || d.type === 'mote' || d.type === 'manapetal' || d.type === 'heartfrond' || d.type === 'glowcap' || d.type === 'fiddlehead' || d.type === 'aloe' || d.type === 'frostfern' || d.type === 'sunseed' || d.type === 'prism' || d.type === 'reedpith') {
+  } else if (oreMeta || trophy || d.type === 'potion' || d.type === 'arrows' || d.type === 'mushroom' || d.type === 'bonemeal' || d.type === 'winterberry' || d.type === 'frostpetal' || d.type === 'seashell' || d.type === 'coral' || d.type === 'sage' || d.type === 'moss' || d.type === 'crystal' || d.type === 'skypetal' || d.type === 'windseed' || d.type === 'thistledown' || d.type === 'voltpetal' || d.type === 'sparkseed' || d.type === 'fulgurite' || d.type === 'witherwood' || d.type === 'gravebloom' || d.type === 'mote' || d.type === 'manapetal' || d.type === 'heartfrond' || d.type === 'glowcap' || d.type === 'fiddlehead' || d.type === 'aloe' || d.type === 'frostfern' || d.type === 'sunseed' || d.type === 'prism' || d.type === 'reedpith' || d.type === 'guildhead') {
     // Trophy items + potion + arrow bundle + mushroom + bone meal + winter berry
     // + frost petal: render as a glyph centered on the tile. Arrow drops show the
     // elemental icon and the count; the rest show their thematic icon.
@@ -687,6 +688,7 @@ function drawDrop(d, ts) {
       d.type === 'sunseed'     ? '🌟' :
       d.type === 'prism'       ? '🔆' :
       d.type === 'reedpith'    ? '🌾' :
+      d.type === 'guildhead'   ? '💀' :
       (trophy ? trophy.icon : '❓');
     const size = Math.round(ts * 0.42 * pulse);
     ctx.font = `${size}px monospace`;

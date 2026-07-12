@@ -843,6 +843,18 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, elem.color, 10, 3);
         const label = el === 'plain' ? 'Arrow' : (elem.label + ' Arrow');
         showMsg(`${elem.icon} +${d.val} ${label}${d.val > 1 ? 's' : ''} (x${player.arrows[el]})`, 1800);
+      } else if (d.type === 'guildhead') {
+        // The Guild Quarry's severed head — the token to return to the recruiter.
+        // The quest already advanced on the kill; picking up the drop just confirms
+        // it (idempotent) with a flourish.
+        player.guildQuests = player.guildQuests || {};
+        const gq = player.guildQuests[d.region];
+        if (gq && gq.status === 'active') gq.status = 'head';
+        const nm = (gq && DND_ENEMIES[gq.creature]) ? DND_ENEMIES[gq.creature].name : 'the beast';
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#cc3344', 12, 4);
+        spawnParticle(sp.x, sp.y, '#ffccaa', 8, 2);
+        showMsg(`🗡️ Claimed the ${nm}'s Head — bring it to the Guild recruiter.`, 3000);
       }
       d.collected = true;
     }

@@ -332,6 +332,13 @@ function spawnEnemiesForMap(mid) {
     // First visit — instantiate fresh from defs
     enemies = rm.enemyDefs.map((def, i) => {
       const base = DND_ENEMIES[def.type] || DND_ENEMIES.goblin;
+      // A Guild Quarry def (see guild.js) — a boss-flagged elite kept at its base
+      // creature's stats & drops. Only hit on the rare never-visited target map;
+      // visited maps carry the quarry as a live entry in savedEnemies instead.
+      if (def.guild && typeof makeGuildBossEnemy === 'function') {
+        const gb = makeGuildBossEnemy(def.type, def.x, def.y, def.guild, i);
+        return gb;
+      }
       // Village "tier 1.5": double HP/damage/XP and grow 1.5x.
       const hpMul  = def.tier15 ? 2   : 1;
       const dmgMul = def.tier15 ? 2   : 1;

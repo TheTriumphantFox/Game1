@@ -95,6 +95,20 @@ let player = {
   // fresh player; each region's quest is rolled the first time its Collector is
   // visited.
   collectorQuests: {},
+  // Per-region "Find Timmy" quests (see the Worried Parent villager). Keyed by
+  // region id → { status:'active'|'done', timmyMapId }. Seeded when a region is
+  // sealed (its village cleared) — that's when the dead-end maps, and Timmy on
+  // the 3rd of them, come into being. Reward on reunion is +1 bow level.
+  lostSonQuests: {},
+  // Per-region Sword & Shield Guild quests (see guild.js), keyed by region id →
+  // { status:'active'|'head'|'done', creature, bossMapId }. Started by talking to
+  // the region's wandering Guild Recruiter; slaying the Guild Quarry on a mid-depth
+  // map and returning its head makes you a guild member. Region N's recruiter only
+  // appears once region N-1's quest is 'done'.
+  guildQuests: {},
+  // Sword & Shield Guild membership card — granted on the first guild induction
+  // (subsequent regions reward potions/elixirs/rubies instead). See guild.js.
+  guildCard: false,
   // Active elemental immunity from drinking an Elixir: the element id made
   // immune and the remaining buff time in ms (ticked down in main.js update()).
   immunityElement: null, immunityTimer: 0,
@@ -490,7 +504,7 @@ function killEnemy(e) {
     }
   }
 
-  if (e.boss) {
+  if (e.boss && !e.guildBoss) {
     // Boss payout: 100 rubies per region in progression order (forest=1,
     // fire=2, …), plus a guaranteed 6-HP heart. Type-specific loot rolls are
     // for rank-and-file enemies only.
@@ -502,6 +516,8 @@ function killEnemy(e) {
       life: 10000, bob: 0, collected: false
     });
   } else {
+    // Rank-and-file AND Guild Quarries roll normal loot — the quarry "keeps its
+    // stats and other drops," it's just flagged a boss for the fight.
     // Rubies now drop on only 30% of (non-boss) kills.
     if (Math.random() < 0.30) addItem('rubies', Math.floor(e.maxHp * 0.1) + 1);
     // 40% chance to drop an HP heart — rolls 1d4 per region level (so the value
@@ -518,12 +534,27 @@ function killEnemy(e) {
     }
     rollEnemyTypeDrops(e);
   }
-  if (e.boss) {
+  // Guild Quarry: a guaranteed trophy head on top of its normal loot. The quest
+  // advances on the kill itself so leaving before grabbing the drop can't
+  // soft-lock it (the floor drop is a bonus visual to pick up — see stepDrops).
+  if (e.guildBoss) {
+    drops.push({
+      type: 'guildhead', region: e.guildRegion, val: 1,
+      x: Math.round(e.x), y: Math.round(e.y),
+      life: 600000, bob: 0, collected: false
+    });
+    player.guildQuests = player.guildQuests || {};
+    const gq = player.guildQuests[e.guildRegion];
+    if (gq && gq.status === 'active') gq.status = 'head';
+  }
+  if (e.boss && !e.guildBoss) {
     // Boss kills no longer grant +6 maxHp / a random elemental sword — those
     // rewards were removed by request. The flag is still set so saves / future
     // progression checks can tell a boss has been cleared.
     player.defeatedBoss = true;
     showMsg(`🏆 THE ${e.name} IS DEFEATED!`, 0);
+  } else if (e.guildBoss) {
+    showMsg(`🗡️ ${e.name} falls! Take its head to the Guild recruiter.`, 3500);
   } else {
     showMsg(`⚔️ ${e.name} defeated! +${e.xp} XP`, 1500);
   }
@@ -877,6 +908,13 @@ function interactionHint() {
   const cm = currentMap();
   if (!cm) return null;
 
+  // 0. Lost Timmy standing on a dead-end map (villagers exist off-village here).
+  if (typeof villagers !== 'undefined' && villagers && villagers.length) {
+    const child = villagers.find(v => v.role === 'lostchild' && v.lost &&
+      Math.abs(v.x - player.x) <= 1 && Math.abs(v.y - player.y) <= 1);
+    if (child) return '👦 Help [Space]';
+  }
+
   // 1. Talk to / shop with an adjacent villager in an activated village.
   if (cm.type === 'village' && cm.activated &&
       typeof villagers !== 'undefined' && villagers && villagers.length) {
@@ -887,6 +925,7 @@ function interactionHint() {
       if (near.role === 'store') return '🛒 Shop [Space]';
       if (near.role === 'inn')   return '🛏️ Inn [Space]';
       if (near.role === 'herb')  return '🌿 Herbalist [Space]';
+      if (near.role === 'guild') return '⚔️ Guild [Space]';
       return '💬 Talk [Space]';
     }
   }

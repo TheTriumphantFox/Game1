@@ -427,6 +427,13 @@ function sealRegion(regionIdx) {
   }
 }
 
+// The region's dead-end maps ('sealed' single-exit detours carved by sealRegion),
+// in creation order (their order in worldMaps). Used by the "Find Timmy" quest to
+// pick the 3rd one to hide the lost child on, once the quest is started.
+function regionDeadEndMaps(regionIdx) {
+  return worldMaps.filter(m => m && m.sealed && m.regionIdx === regionIdx);
+}
+
 // Walking out of an exit. Compute the neighbor's coordinate; if a map already
 // exists there, return it. Otherwise create a new one. The target region is:
 //   • current map's region when stepping out of an overworld map
