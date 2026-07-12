@@ -7,7 +7,10 @@
 // progression — not items — and are intentionally not capped here.
 const ITEM_CAP = 128;
 const RUBY_CAP = 99999;
-const STARTING_ITEM_AMOUNT = 64;
+// Fresh players start empty-handed: only a base sword and a bow with 10 plain
+// arrows (see applyStartingInventory). 0 zeroes every stackable seeded from this
+// constant — rubies, potions, herbals, mushrooms, and the granted trophies.
+const STARTING_ITEM_AMOUNT = 0;
 
 // Fresh-player trophy counters, derived from the TROPHIES registry (config.js):
 // `granted` trophies (fang/finger/bone/wing) seed at STARTING_ITEM_AMOUNT, the
@@ -37,18 +40,33 @@ function addArrow(elemId, n) {
   return player.arrows[elemId] - before;
 }
 
-// Fill in starting inventory that depends on SWORD_ELEMENTS. Called from boot
-// and newGame.
+// Fill in the starting weapons/arrows inventory. Called from boot and newGame.
 function applyStartingInventory(p) {
-  const ids = Object.keys(SWORD_ELEMENTS);
-  p.swordElements = ids.slice();   // grant every elemental sword…
+  // A fresh player carries only a base sword and a bow with 10 plain arrows —
+  // no elemental swords, no armor, no elemental arrows.
+  p.swordElements = [];
   p.swordUpgrades = {};
-  for (const id of ids) p.swordUpgrades[id] = 6;   // …fully upgraded (god start)
-  p.armorElements = ids.slice();   // grant every elemental armor…
+  p.armorElements = [];
   p.armorUpgrades = {};
-  for (const id of ids) p.armorUpgrades[id] = 6;   // …fully upgraded (god start)
-  p.arrows = { plain: STARTING_ITEM_AMOUNT };
-  for (const id of ids) p.arrows[id] = STARTING_ITEM_AMOUNT;
+  p.arrows = { plain: 10 };
+}
+
+// Admin "God Mode" grant, fired from the radial Menu ring (see radial.js). Hands
+// the player every elemental sword and armor at max upgrade (level 6), 100 HP,
+// and 10000 rubies — the old god-start, on demand.
+function grantGodMode() {
+  const ids = Object.keys(SWORD_ELEMENTS);
+  player.swordElements = ids.slice();
+  player.swordUpgrades = {};
+  for (const id of ids) player.swordUpgrades[id] = 6;
+  player.armorElements = ids.slice();
+  player.armorUpgrades = {};
+  for (const id of ids) player.armorUpgrades[id] = 6;
+  player.maxHp = 100;
+  player.hp = 100;
+  player.rubies = 10000;
+  if (typeof updateHUD === 'function') updateHUD();
+  if (typeof showMsg === 'function') showMsg('😇 God Mode — full arsenal, 100 HP, 10000 rubies.', 2500);
 }
 
 let player = {
