@@ -45,8 +45,8 @@ function makeSpriteCanvas(w, h) {
 // Tiles whose drawTile output is a pure function of (type, size) — identical
 // pixels regardless of column, row, neighbours, game state, or time. Only these
 // are safe to paint once and blit from cache; every other tile (animated
-// water/glow/torches, per-tile hash noise, neighbour-autotiled terrain like
-// mountains/cliffs/CLIMB, and state-driven chests) keeps drawing procedurally.
+// water/glow/torches, neighbour-autotiled terrain like mountains/cliffs/CLIMB,
+// and state-driven chests) keeps drawing procedurally.
 //
 // Derived empirically rather than by reading the switch: each tile type was
 // rendered at several positions, Date.now() values, AND neighbourhood fills, and
@@ -59,6 +59,9 @@ function makeSpriteCanvas(w, h) {
 // correct, just unoptimised), so new tiles need no edit unless you want caching.
 // Several of these (TREE, CACTUS, STATUE, …) draw above/beside their tile box, so
 // buildTileSprite captures each sprite's full drawn extent, not just s×s.
+//
+// Tiles that vary ONLY by a deterministic (col,row) hash get a second chance via
+// VARIANT_TILE_HASH below: one cached sprite per hash value instead of per type.
 const CACHEABLE_TILES = new Set([
   T.BED, T.BONES, T.BONE_PILE, T.BRIDGE, T.CACTUS, T.CATTAIL, T.CAVE_FLOOR,
   T.CHAIR, T.CORAL, T.CRYSTAL_CLUSTER, T.DESERT_OBELISK, T.DESERT_SUCCULENT,
@@ -73,6 +76,17 @@ const CACHEABLE_TILES = new Set([
   T.EMBER_FLOWER, T.SULFUR_SHRUB, T.GLOOM_BLOOM, T.VOID_FROND,
 ].filter(v => v !== undefined));
 
+// Tiles that are pure per (type, size, hash-variant): their art is static and
+// tile-bounded, but picks one of a few looks from a deterministic (col,row) hash
+// so neighbours differ. Cached one sprite per variant (village ground is ~all
+// marble + cobblestone, so this is what keeps village FPS at overworld levels).
+// Each hash fn MUST mirror the seed math in its render-tiles.js case exactly
+// (MARBLE and COBBLESTONE cases); cobble's variant is the pre-division `& 15`.
+const VARIANT_TILE_HASH = new Map([
+  [T.MARBLE,      (col, row) => ((col * 73) ^ (row * 41)) & 7],   // 8 vein variants
+  [T.COBBLESTONE, (col, row) => (col * 113 + row * 71) & 15],     // 16 jitter variants
+].filter(([t]) => t !== undefined));
+
 // Paint a pure tile once into a trimmed offscreen sprite. Renders into a scratch
 // canvas padded by a full tile on every side (so art that overhangs the tile box
 // — cactus arms, pine tips, statue heads — is captured), finds the drawn bounding
@@ -81,7 +95,7 @@ const CACHEABLE_TILES = new Set([
 //
 // It reuses the existing procedural switch verbatim by briefly redirecting the
 // global `ctx` at the scratch context — synchronous, restored in finally.
-function buildTileSprite(t, s) {
+function buildTileSprite(t, s, col = 0, row = 0) {
   const si  = Math.ceil(s);
   const pad = si;                          // one tile of slack per side
   const W   = si + pad * 2;
@@ -89,7 +103,7 @@ function buildTileSprite(t, s) {
   const g = scratch.getContext('2d');
   const saved = ctx;
   ctx = g;                                 // redirect drawTileProcedural's draws
-  try { drawTileProcedural(0, 0, t, pad, pad, s); }
+  try { drawTileProcedural(col, row, t, pad, pad, s); }
   finally { ctx = saved; }
 
   // Bounding box of every non-transparent pixel (the opaque base fill guarantees
@@ -132,6 +146,22 @@ function drawTile(col, row, t, sx, sy, s) {
     const spr = getTileSprite(t, s);
     if (spr) {
       ctx.drawImage(spr.canvas, Math.floor(sx) + spr.dx, Math.floor(sy) + spr.dy);
+      return;
+    }
+  }
+  // Hash-variant tiles: cached per (type, variant). String keys can't collide
+  // with the numeric type keys above, so they share tileSpriteCache (and its
+  // size-change invalidation) for free.
+  const hashFn = VARIANT_TILE_HASH.get(t);
+  if (hashFn) {
+    const key = t + ':' + hashFn(col, row);
+    let e = tileSpriteCache.get(key);
+    if (e === undefined) {
+      e = buildTileSprite(t, s, col, row) || false;  // false = clipped, never re-probe
+      tileSpriteCache.set(key, e);
+    }
+    if (e) {
+      ctx.drawImage(e.canvas, Math.floor(sx) + e.dx, Math.floor(sy) + e.dy);
       return;
     }
   }
