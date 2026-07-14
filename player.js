@@ -843,6 +843,29 @@ function handlePickup(bnx, bny, map) {
     }
   }
 
+  // The region's mysterious Guild artifact — waiting in the ruined dungeon's heart
+  // chest (the same LARGE_CHEST) while its Guild commission is 'active'. Granted
+  // independently of the Hero's Cache flag above, keyed only off artifactStatus, so
+  // a dungeon whose cache was already looted can't soft-lock the quest. The
+  // 'active'→'held' flip is itself the idempotent guard.
+  {
+    const tHere = map[bny][bnx];
+    if ((tHere === T.LARGE_CHEST || tHere === T.LARGE_CHEST_R) && currentMap().type === 'dungeon') {
+      const rid = regionIdForMap(currentMap());
+      player.guildQuests = player.guildQuests || {};
+      const gq = player.guildQuests[rid];
+      if (gq && gq.artifactStatus === 'active') {
+        gq.artifactStatus = 'held';
+        showMsg('🏺 You lift a rare and mysterious artifact from the chest! Return it to the Guild Recruiter.', 5000);
+        if (typeof buzz === 'function') buzz([0, 30, 20, 40]);
+        const sp = screenPX(bnx, bny);
+        spawnParticle(sp.x, sp.y, '#cc66ff', 24, 6);
+        spawnParticle(sp.x, sp.y, '#ffffff', 16, 4);
+        if (typeof updateHUD === 'function') updateHUD();
+      }
+    }
+  }
+
   // The King's Hoard — one-time epic reward at the boss arena. 2×2 chest with
   // BOSS_CHEST_TL as the anchor; the other three quadrants resolve back to TL.
   {
@@ -1190,6 +1213,63 @@ function tryCaveTransition() {
     clampCam(true);
     revealAround(currentMap(), player.x, player.y, 12);
     showMapMsg('🕳️ You emerge back from the cave.');
+    return true;
+  }
+
+  // Step onto a ruined-dungeon door out in the overworld → descend into the
+  // region's dungeon (built on first entry; caveLinks keys it to the door tile so
+  // re-entering the same door returns to the same dungeon). Mirrors the cave-chain
+  // entry — the dungeon is a single level whose own DUNGEON_DOOR leads back out.
+  if (t === T.DUNGEON_DOOR && cm.type !== 'dungeon') {
+    const regionIdx = (typeof cm.regionIdx === 'number' && REGIONS[cm.regionIdx])
+      ? cm.regionIdx
+      : Math.max(0, REGIONS.findIndex(r => r.id === cm.biome));
+    // The dungeon is sealed by ancient magic until the region's Guild artifact
+    // commission is taken (see guildDungeonSealed / talkGuildRecruiter). Bounce off.
+    if (typeof guildDungeonSealed === 'function' && guildDungeonSealed(regionIdx)) {
+      showMapMsg('🔒 The ruined dungeon is sealed by ancient magic. Only the Sword & Shield Guild can break it.');
+      return true;
+    }
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    const sourceId = currentMapId, sourceX = player.x, sourceY = player.y;
+    cm.caveLinks = cm.caveLinks || {};
+    const key = `${sourceX},${sourceY}`;
+    let dungId = cm.caveLinks[key];
+    if (dungId == null) {
+      dungId = createDungeonMap(sourceId, sourceX, sourceY, regionIdx);
+      cm.caveLinks[key] = dungId;
+    }
+    currentMapId = dungId;
+    { const land = worldMaps[dungId].entryLand; player.x = land.x; player.y = land.y; }
+    spawnEnemiesForMap(dungId);
+    spawnVillagersForMap(dungId);
+    transitionCooldown = 400;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 14);
+    showMapMsg('🏛️ You step down into the ruined dungeon…');
+    return true;
+  }
+
+  // Step onto the dungeon's door → climb back out to the overworld, landing just
+  // south of the door that opened it (falling back to the door tile itself if that
+  // spot is somehow blocked). Mirrors CAVE_EXIT for the rock caves.
+  if (t === T.DUNGEON_DOOR && cm.type === 'dungeon') {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    currentMapId = cm.returnMapId;
+    const srcMap = worldMaps[currentMapId].map;
+    let tx = cm.returnX, ty = Math.min(MROWS - 2, cm.returnY + 1);
+    if (isSolid(srcMap, tx, ty)) { tx = cm.returnX; ty = cm.returnY; }
+    player.x = tx; player.y = ty;
+    spawnEnemiesForMap(currentMapId);
+    spawnVillagersForMap(currentMapId);
+    transitionCooldown = 600;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 12);
+    showMapMsg('🏛️ You emerge from the ruined dungeon.');
     return true;
   }
   return false;

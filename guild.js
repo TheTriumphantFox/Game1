@@ -159,6 +159,30 @@ function guildRank() {
   return Object.values(player.guildQuests).filter(q => q && q.status === 'done').length;
 }
 
+// ─── Second commission: the sealed-dungeon artifact ──────────────────────────
+// Once inducted (head quest 'done'), the recruiter offers a second commission per
+// region: retrieve the region's mysterious artifact from its ruined dungeon. That
+// dungeon is sealed from the start of the game — its DUNGEON_DOOR can't be entered
+// — until this quest is taken, which breaks the ancient seal for good.
+//
+// The artifact sub-quest lives on the SAME quest record as a separate field,
+// player.guildQuests[regionId].artifactStatus:
+//   (unset)    — not yet offered (dungeon sealed)
+//   'active'   — commission taken, dungeon unsealed, artifact waiting in its chest
+//   'held'     — artifact claimed from the chest, not yet handed in
+//   'done'     — artifact returned and rewarded
+// Keeping it off `status` leaves the head-quest chain (guildRecruiterUnlocked, which
+// keys the next region off status==='done') completely untouched.
+
+// Is region N's ruined dungeon still sealed? Sealed until its artifact commission
+// has been taken (any artifactStatus at all); thereafter it stays open forever.
+function guildDungeonSealed(regionIdx) {
+  const region = REGIONS[regionIdx];
+  if (!region) return false;
+  const q = player.guildQuests ? player.guildQuests[region.id] : null;
+  return !(q && q.artifactStatus);
+}
+
 // Talk to a Guild Recruiter. Drives the state machine: offer/start → remind while
 // the quarry lives → induct once its head is in hand → thereafter greet a member.
 function talkGuildRecruiter(v) {
@@ -220,7 +244,52 @@ function talkGuildRecruiter(v) {
     return;
   }
 
-  // Already a member.
+  // ── Inducted member (q.status === 'done'): the artifact commission ──────────
+  const as = q.artifactStatus;
+
+  // Not yet offered — hand over the second commission and break the dungeon seal.
+  if (!as) {
+    q.artifactStatus = 'active';
+    const msg = `⚔️ Guild Recruiter: "One last charge for the Guild, member. A rare and mysterious artifact lies sealed within this land's ruined dungeon — the Guild's writ breaks the ancient seal. Bring it back to me." 🔓 The ruined dungeon's seal is broken!`;
+    if (typeof showMapMsg === 'function') showMapMsg(msg);
+    else if (typeof showMsg === 'function') showMsg(msg, 6000);
+    return;
+  }
+
+  // Commission taken, artifact not yet in hand — remind where.
+  if (as === 'active') {
+    if (typeof showMsg === 'function')
+      showMsg(`💬 Guild Recruiter: "The mysterious artifact still lies in the deepest chest of this land's ruined dungeon. Bring it to me, member."`, 4000);
+    return;
+  }
+
+  // Artifact in hand — the recruiter takes it and pays the bounty.
+  if (as === 'held') {
+    q.artifactStatus = 'done';
+    if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+    // Bounty: 200 × region level rubies, 2d4 region Health Potions, 2d4 region ore.
+    const d4 = () => 1 + Math.floor(Math.random() * 4);
+    const rewards = [];
+    if (typeof addItem === 'function' && typeof regionNumberOf === 'function') {
+      const rubyGot = addItem('rubies', 200 * regionNumberOf(rid));
+      rewards.push(`💎 ${rubyGot} Rubies!`);
+    }
+    if (typeof grantRegionPotions === 'function') rewards.push(grantRegionPotions(rid, d4() + d4()));
+    if (typeof oreForRegionIdx === 'function' && typeof addItem === 'function') {
+      const ore = oreForRegionIdx(regionIdx);
+      if (ore) {
+        const oreGot = addItem(ore.id, d4() + d4());
+        rewards.push(`✦ ${oreGot} ${ore.icon} ${ore.label} ore!`);
+      }
+    }
+    if (typeof updateHUD === 'function') updateHUD();
+    const msg = `⚔️ Guild Recruiter: "The artifact — at last! The Guild is in your debt, member. Take this for your trouble." ` + rewards.join(' ');
+    if (typeof showMapMsg === 'function') showMapMsg(msg);
+    else if (typeof showMsg === 'function') showMsg(msg, 6000);
+    return;
+  }
+
+  // Artifact commission fully done — greet a member.
   if (typeof showMsg === 'function')
     showMsg(`💬 Guild Recruiter: "Well met, guild member. Steel and shield stand with you."`, 3500);
 }

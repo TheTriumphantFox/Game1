@@ -28,6 +28,7 @@ function buildSaveData() {
     desertsVisited,
     currentRegionIdx,
     regionMapsVisited,
+    regionDungeonPlaced,
     mapSequence,
     worldGrid,
     worldMapsLite: worldMaps.map(m => ({
@@ -132,9 +133,11 @@ function applyLoadData(data) {
   desertsVisited = data.desertsVisited || 0;
   currentRegionIdx = data.currentRegionIdx || 0;
   regionMapsVisited = data.regionMapsVisited || {};
+  regionDungeonPlaced = data.regionDungeonPlaced || {};
   // Back-fill region counters for older saves so progression keeps working.
   for (let i = 0; i < REGIONS.length; i++) {
     if (regionMapsVisited[i] === undefined) regionMapsVisited[i] = 0;
+    if (regionDungeonPlaced[i] === undefined) regionDungeonPlaced[i] = false;
   }
   if (desertsVisited && !regionMapsVisited[1]) regionMapsVisited[1] = desertsVisited;
   mapSequence = data.mapSequence || [];
@@ -165,6 +168,7 @@ function applyLoadData(data) {
       : lite.type === 'cave'    ? buildCaveMap()
       : lite.type === 'cave_chain' ? buildCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1)).map
       : lite.type === 'sky_cave' ? buildSkyCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1), region).map
+      : lite.type === 'dungeon' ? buildDungeonLevelMap().map
       : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
       : lite.type === 'house'   ? buildStarterHouseMap()
       : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth)
@@ -178,7 +182,7 @@ function applyLoadData(data) {
     // 'sky_cave' type isn't a spawn key makeEnemyDefs understands).
     const enemyType = (lite.type === 'village')
       ? `${region.id}_village`
-      : (lite.type === 'sky_cave') ? region.id
+      : (lite.type === 'sky_cave' || lite.type === 'dungeon') ? region.id
       : lite.type;
     const obj = {
       id: lite.id, gx: lite.gx || 0, gy: lite.gy || 0,

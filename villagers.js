@@ -237,11 +237,10 @@ function placeLostParent(mapObj, list) {
   });
 }
 
-// Hide Timmy (the lost child) on a dead-end map: find the open tile nearest the
-// map's centre and stand him there, then stash him as the map's savedVillagers so
-// he spawns whenever the hero explores in. Returns the Timmy entry, or null if no
-// open tile exists. Called from sealRegion (world.js) at region-seal time.
-function placeTimmyOnMap(mapObj) {
+// Build a Timmy (the lost child) standing on the open tile nearest a dead-end
+// map's centre. Returns the Timmy entry, or null if no open tile exists. The
+// caller decides where to stash him (see ensureTimmyOnDeadEnd).
+function buildTimmyForMap(mapObj) {
   if (!mapObj || !mapObj.map) return null;
   const m = mapObj.map;
   const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
@@ -259,7 +258,7 @@ function placeTimmyOnMap(mapObj) {
     }
   }
   if (!spot) return null;
-  const timmy = {
+  return {
     id: 0,
     kind: 'Timmy', role: 'lostchild', lost: true,
     robe: '#4a7abf', hair: '#8a5a2a', skin: '#f0d0a8',
@@ -270,8 +269,40 @@ function placeTimmyOnMap(mapObj) {
     dir: { x: 0, y: 1 },
     timer: 0, stepMs: 9999,
   };
-  mapObj.savedVillagers = [timmy];
-  return timmy;
+}
+
+// The "Find Timmy" quest hides the lost boy on the 3rd distinct dead-end map the
+// hero enters *after* taking the quest — not a pre-chosen one they'd never spot.
+// Called from spawnVillagersForMap on every map entry (mirrors ensureGuildRecruiter):
+// each new dead-end the hero steps into for that map's region is counted, and when
+// the third is reached, Timmy is stood there — both in the live list and the map's
+// saved copy so he persists. No-op unless this map is a dead-end whose region has an
+// active quest and Timmy hasn't been placed yet.
+function ensureTimmyOnDeadEnd(mapObj) {
+  if (!mapObj || !mapObj.sealed || !mapObj.map) return;   // dead-ends only
+  if (typeof villagers === 'undefined') return;
+  if (typeof player === 'undefined' || !player.lostSonQuests) return;
+  if (typeof REGIONS === 'undefined') return;
+  const regionIdx = (typeof mapObj.regionIdx === 'number')
+    ? mapObj.regionIdx
+    : REGIONS.findIndex(r => r.id === mapObj.biome);
+  if (regionIdx < 0 || !REGIONS[regionIdx]) return;
+  const rid = REGIONS[regionIdx].id;
+  const q = player.lostSonQuests[rid];
+  if (!q || q.status !== 'active') return;   // no active quest in this region
+  if (q.timmyMapId != null) return;          // already placed on a dead-end
+
+  // Count this dead-end the first time the hero enters it.
+  q.enteredDeadEnds = q.enteredDeadEnds || [];
+  if (!q.enteredDeadEnds.includes(mapObj.id)) q.enteredDeadEnds.push(mapObj.id);
+  if (q.enteredDeadEnds.length < 3) return;  // not the 3rd distinct one yet
+
+  // The 3rd dead-end the hero has explored — Timmy is here. Add him live and save.
+  const timmy = buildTimmyForMap(mapObj);
+  if (!timmy) return;                        // no open tile (vanishingly rare); retry next dead-end
+  q.timmyMapId = mapObj.id;
+  villagers.push(timmy);
+  mapObj.savedVillagers = villagers.map(v => ({ ...v }));
 }
 
 // Locate the (single) portal tile on a map. Returns {r,c} or null.
@@ -334,6 +365,7 @@ function spawnVillagersForMap(mid) {
     villagers = rm.savedVillagers.map(v => ({ ...v, renderX: v.x, renderY: v.y }));
     ensurePortalKeeper(rm);
     if (typeof ensureGuildRecruiter === 'function') ensureGuildRecruiter(rm);
+    ensureTimmyOnDeadEnd(rm);
     return;
   }
   if (rm.type === 'village' && rm.activated) {
@@ -343,6 +375,7 @@ function spawnVillagersForMap(mid) {
   }
   ensurePortalKeeper(rm);
   if (typeof ensureGuildRecruiter === 'function') ensureGuildRecruiter(rm);
+  ensureTimmyOnDeadEnd(rm);
   // Persist so the keeper survives re-entry. Previously only villages saved;
   // the cabin needs it too now that it has a portal keeper.
   if (villagers.length) rm.savedVillagers = villagers.map(v => ({ ...v }));
@@ -721,7 +754,6 @@ function currentRegionId() {
 //   'done'  → a grateful thank-you.
 function talkLostParent(v) {
   const rid = currentRegionId();
-  const regionIdx = (typeof currentMap === 'function' && currentMap()) ? currentMap().regionIdx : null;
   player.lostSonQuests = player.lostSonQuests || {};
   let q = player.lostSonQuests[rid];
 
@@ -744,27 +776,20 @@ function talkLostParent(v) {
     return;
   }
 
-  // ── Start the quest on first contact: place Timmy, then send the hero off ──
+  // ── Start the quest on first contact ──────────────────────────────────────
+  // Timmy isn't pre-placed; he's stood on the 3rd distinct dead-end the hero
+  // enters from here on (see ensureTimmyOnDeadEnd). `enteredDeadEnds` tracks that
+  // count; `timmyMapId` stays null until the third one is reached.
   if (!q) {
-    let placed = false;
-    if (typeof regionDeadEndMaps === 'function' && typeof regionIdx === 'number') {
-      const deads = regionDeadEndMaps(regionIdx);
-      if (deads.length) {
-        const timmyMap = deads.length >= 3 ? deads[2] : deads[deads.length - 1];
-        placeTimmyOnMap(timmyMap);
-        q = player.lostSonQuests[rid] = { status: 'active', timmyMapId: timmyMap.id };
-        placed = true;
-      }
-    }
-    if (!placed) q = player.lostSonQuests[rid] = { status: 'active', timmyMapId: null };
+    q = player.lostSonQuests[rid] = { status: 'active', enteredDeadEnds: [], timmyMapId: null };
     if (typeof showMsg === 'function')
-      showMsg(`💬 Parent: "Please, hero — my son Timmy wandered off and hasn't come home. Search the dead ends at the edges of this land!"`, 5000);
+      showMsg(`💬 Parent: "Please, hero — my son Timmy wandered off! Folk saw him slip down the third dead-end trail he could find. Search the sealed paths at the edges of this land — the third one holds my boy!"`, 5000);
     return;
   }
 
   // ── Quest active, Timmy still out there ────────────────────────────────────
   if (typeof showMsg === 'function')
-    showMsg(`💬 Parent: "Any sign of my Timmy? Search the dead-end trails at the far edges of this land."`, 4000);
+    showMsg(`💬 Parent: "Any sign of my Timmy? Keep exploring the dead-end trails — he's waiting down the third one you find."`, 4000);
 }
 
 // Reach the lost Timmy on a dead-end map. He's whisked home to stand beside his
