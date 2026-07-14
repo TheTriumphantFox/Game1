@@ -238,3 +238,20 @@ function buildSkyCaveLevelMap(isFinal, region) {
   });
 }
 
+// ─── Ruined dungeon interior ───────────────────────────────────────────────────
+// The single-level dungeon reached by stepping onto a DUNGEON_DOOR out in an
+// overworld map (one per region — see stampRuinedDungeon / createDungeonMap). Same
+// maze-of-rooms carving as a rock cave, but themed in dressed stone: solid WALL
+// tunneled into flagstone FLOOR, torch-lit, with a LARGE_CHEST reward at the heart
+// of the labyrinth. There is only one transition — a DUNGEON_DOOR on one edge that
+// leads back out to the overworld (built as a "final" level, so no way deeper).
+const DUNGEON_THEME = {
+  wall: T.WALL, floor: T.FLOOR,
+  exit: T.DUNGEON_DOOR, descent: T.DUNGEON_DOOR,   // single level — descent unused
+  decoration: T.TORCH, pools: false, torches: true,
+};
+function buildDungeonLevelMap() {
+  // isFinal=true: one exit door + the heart-chest reward, no descent.
+  return buildCaveLevelMap(true, DUNGEON_THEME);
+}
+

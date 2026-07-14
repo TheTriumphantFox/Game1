@@ -85,6 +85,28 @@ function addSkyWindGusts(m, region) {
   }
 }
 
+// ─── Ruined dungeon entrance ─────────────────────────────────────────────────
+// Stamp the region's ruined-dungeon room onto an overworld map: a 7×9 flagstone
+// FLOOR chamber with pillared corners, a pair of torches, and a central
+// DUNGEON_DOOR that drops into the region's dungeon (see createDungeonMap /
+// tryCaveTransition). Placed on a clearing so the whole room sits on already-open,
+// connected ground; the door is offset one tile south of the clearing centre so a
+// chest/shrine that happens to share the clearing can't land on (and clobber) it.
+// The DUNGEON_DOOR is an "interesting" tile, so ensureConnectivity always carves a
+// route to it even if the clearing pocket is otherwise walled off. Called once per
+// region, gated by createOverworldMap — never randomly per map.
+function stampRuinedDungeon(m, clearings) {
+  if (!clearings || !clearings.length) return;
+  const cl = clearings[Math.floor(Math.random() * clearings.length)];
+  let dr = Math.max(2, Math.min(MROWS - 9,  cl.r - 2));
+  let dc = Math.max(2, Math.min(MCOLS - 11, cl.c - 4));
+  setRect(m, dr, dc, dr + 6, dc + 8, T.FLOOR);
+  m[dr + 3][dc + 4] = T.DUNGEON_DOOR;                 // one tile S of the clearing centre
+  m[dr][dc] = T.PILLAR;       m[dr][dc + 8] = T.PILLAR;
+  m[dr + 6][dc] = T.PILLAR;   m[dr + 6][dc + 8] = T.PILLAR;
+  m[dr + 1][dc + 3] = T.TORCH; m[dr + 1][dc + 5] = T.TORCH;
+}
+
 // ─── Forest map ───────────────────────────────────────────────────────────────
 // Starts as wall-to-wall trees, then carves open regions, paths, water features,
 // and finally scatters decorations and treasure.
@@ -92,7 +114,7 @@ function addSkyWindGusts(m, region) {
 // `openSides` is an optional { left, right, up, down } flag set restricting which
 // border exits get cut. Defaults to all four open. Sealed dead-end maps spawned
 // after the village is saved pass a single-side object here.
-function buildForestMap(seed, depth, openSides) {
+function buildForestMap(seed, depth, openSides, placeDungeon) {
   const open = openSides || { left: true, right: true, up: true, down: true };
   const m = makeTile(MROWS, MCOLS, T.TREE);
 
@@ -189,18 +211,10 @@ function buildForestMap(seed, depth, openSides) {
     if (cl.c < MCOLS - 1) m[cl.r][cl.c + 1] = T.TORCH;
   }
 
-  // Phase 9: rare ruined dungeon at deeper depths
-  if (depth > 5 && Math.random() < 0.5) {
-    const dr = rnd(30, MROWS - 40), dc = rnd(30, MCOLS - 40);
-    const tooCloseToExit = Math.abs(dr - EXIT_ROW) < 8 || Math.abs(dc - EXIT_COL) < 8;
-    if (!tooCloseToExit) {
-      setRect(m, dr, dc, dr + 6, dc + 8, T.FLOOR);
-      m[dr + 3][dc + 4] = T.DUNGEON_DOOR;
-      m[dr][dc] = T.PILLAR;       m[dr][dc + 8] = T.PILLAR;
-      m[dr + 6][dc] = T.PILLAR;   m[dr + 6][dc + 8] = T.PILLAR;
-      m[dr + 1][dc + 3] = T.TORCH; m[dr + 1][dc + 5] = T.TORCH;
-    }
-  }
+  // Phase 9: the region's one ruined dungeon — placed here only when this map is
+  // the chosen host for its region (see createOverworldMap). Its DUNGEON_DOOR
+  // drops into the region's dungeon; ensureConnectivity (below) guarantees a route.
+  if (placeDungeon) stampRuinedDungeon(m, clearings);
 
   // Phase 11: waterfalls — a source pool at the very top of the map spills down
   // a vertical waterfall into a splash pool, and a stream carries that water to
@@ -449,7 +463,7 @@ function addFloweringCactiNearWater(m, waters) {
 // cacti as the equivalent of trees (solid border + sparse interior), DUNE
 // patches as visual variety, the occasional oasis (water surrounded by
 // palm-cactus), bones as decoration, and rock/lava hazards at higher depth.
-function buildDesertMap(seed, depth, openSides) {
+function buildDesertMap(seed, depth, openSides, placeDungeon) {
   const open = openSides || { left: true, right: true, up: true, down: true };
   const m = makeTile(MROWS, MCOLS, T.CACTUS);
 
@@ -566,18 +580,9 @@ function buildDesertMap(seed, depth, openSides) {
     if (cl.c < MCOLS - 1) m[cl.r][cl.c + 1] = T.TORCH;
   }
 
-  // Phase 10: rare sunbaked ruins at deeper depths
-  if (depth > 5 && Math.random() < 0.5) {
-    const dr = rnd(30, MROWS - 40), dc = rnd(30, MCOLS - 40);
-    const tooCloseToExit = Math.abs(dr - EXIT_ROW) < 8 || Math.abs(dc - EXIT_COL) < 8;
-    if (!tooCloseToExit) {
-      setRect(m, dr, dc, dr + 6, dc + 8, T.FLOOR);
-      m[dr + 3][dc + 4] = T.DUNGEON_DOOR;
-      m[dr][dc] = T.PILLAR;       m[dr][dc + 8] = T.PILLAR;
-      m[dr + 6][dc] = T.PILLAR;   m[dr + 6][dc + 8] = T.PILLAR;
-      m[dr + 1][dc + 3] = T.TORCH; m[dr + 1][dc + 5] = T.TORCH;
-    }
-  }
+  // Phase 10: the region's one ruined dungeon (sunbaked ruins) — placed here only
+  // when this map is the chosen host for its region (see createOverworldMap).
+  if (placeDungeon) stampRuinedDungeon(m, clearings);
 
   // Ensure exit corridors reach interior
   cutExits(m, open.left, open.right, open.up, open.down);
@@ -628,7 +633,7 @@ function buildDesertMap(seed, depth, openSides) {
 // ice, earth, air, lightning, luminous, necrotic, poison, mana). Takes a
 // region object from REGIONS — that supplies border/ground/decoration/accent
 // tiles and everything else here is identical structure to the desert builder.
-function buildRegionMap(seed, depth, openSides, region) {
+function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   const open = openSides || { left: true, right: true, up: true, down: true };
   const BORDER = region.border, GROUND = region.ground;
   const DECOR = region.decoration, ACCENT = region.accent;
@@ -752,18 +757,9 @@ function buildRegionMap(seed, depth, openSides, region) {
     if (cl.c < MCOLS - 1) m[cl.r][cl.c + 1] = T.TORCH;
   }
 
-  // Phase 9: rare ruins at deeper depths.
-  if (depth > 5 && Math.random() < 0.5) {
-    const dr = rnd(30, MROWS - 40), dc = rnd(30, MCOLS - 40);
-    const tooCloseToExit = Math.abs(dr - EXIT_ROW) < 8 || Math.abs(dc - EXIT_COL) < 8;
-    if (!tooCloseToExit) {
-      setRect(m, dr, dc, dr + 6, dc + 8, T.FLOOR);
-      m[dr + 3][dc + 4] = T.DUNGEON_DOOR;
-      m[dr][dc] = T.PILLAR;       m[dr][dc + 8] = T.PILLAR;
-      m[dr + 6][dc] = T.PILLAR;   m[dr + 6][dc + 8] = T.PILLAR;
-      m[dr + 1][dc + 3] = T.TORCH; m[dr + 1][dc + 5] = T.TORCH;
-    }
-  }
+  // Phase 9: the region's one ruined dungeon — placed here only when this map is
+  // the chosen host for its region (see createOverworldMap).
+  if (placeDungeon) stampRuinedDungeon(m, clearings);
 
   // Earth region: rough up the map into mountain terrain (rocky cliff bands, mud,
   // talus) before the exit corridors are re-cut through it. No-op elsewhere.

@@ -770,6 +770,20 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       const pulse = Math.sin(Date.now()/300) * 2;
       ctx.fillStyle = '#440066'; ctx.beginPath(); ctx.arc(x+s/2,y+s/2,s*0.38+pulse,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = '#cc44ff'; ctx.beginPath(); ctx.arc(x+s/2,y+s/2,s*0.1,0,Math.PI*2); ctx.fill();
+      // Still sealed by the Guild's ancient magic? Stamp an iron padlock over the
+      // portal so the door reads as locked out on the overworld (never in the
+      // dungeon itself, whose own DUNGEON_DOOR is the way back out).
+      {
+        const cm = (typeof currentMap === 'function') ? currentMap() : null;
+        if (cm && cm.type !== 'dungeon' && typeof guildDungeonSealed === 'function' &&
+            guildDungeonSealed(cm.regionIdx)) {
+          const lw = s * 0.30, lh = s * 0.26, lx = x + s/2 - lw/2, ly = y + s*0.52;
+          ctx.strokeStyle = '#c8c8d0'; ctx.lineWidth = Math.max(1.5, s*0.09);
+          ctx.beginPath(); ctx.arc(x+s/2, ly, lw*0.42, Math.PI, 0); ctx.stroke();   // shackle
+          ctx.fillStyle = '#8a8a95'; ctx.fillRect(lx, ly, lw, lh);                   // body
+          ctx.fillStyle = '#2a2a30'; ctx.fillRect(x+s/2 - s*0.03, ly + lh*0.35, s*0.06, lh*0.4); // keyhole
+        }
+      }
       break; }
     case T.LAVA: {
       const lw = Math.sin(Date.now()/400 + col + row) * 2;

@@ -18,6 +18,13 @@ let mapSequence = [];    // ordered visit log (for UI / debugging)
 let currentRegionIdx = 0;
 let regionMapsVisited = {};
 
+// One ruined dungeon per region. `regionDungeonPlaced[N]` flips to true once the
+// region's dungeon-hosting overworld map has been generated, so no second dungeon
+// is ever stamped for that region (see createOverworldMap / stampRuinedDungeon).
+// The depth (map count into the region) at which the dungeon may first appear.
+let regionDungeonPlaced = {};
+const DUNGEON_MIN_DEPTH = 3;
+
 // Legacy alias kept so older save slots that stored `desertsVisited` still
 // migrate cleanly. Mirrors regionMapsVisited[1] (the fire region).
 let desertsVisited = 0;
@@ -85,7 +92,8 @@ function initWorld() {
   desertsVisited = 0;
   currentRegionIdx = 0;
   regionMapsVisited = {};
-  for (let i = 0; i < REGIONS.length; i++) regionMapsVisited[i] = 0;
+  regionDungeonPlaced = {};
+  for (let i = 0; i < REGIONS.length; i++) { regionMapsVisited[i] = 0; regionDungeonPlaced[i] = false; }
   mapSequence = [0];
   const firstMap = createStarterHouseMap(0, 0, 0);
   firstMap.visited = true;
@@ -125,10 +133,10 @@ function createStarterHouseMap(id, gx, gy) {
 // Pick the right overworld builder for a region. Forest and fire (desert) keep
 // their bespoke art; every later region falls back to the generic palette
 // builder driven entirely by REGIONS[regionIdx].
-function buildOverworldForRegion(regionIdx, seed, depth, openSides) {
-  if (regionIdx === 0) return buildForestMap(seed, depth, openSides);
-  if (regionIdx === 1) return buildDesertMap(seed, depth, openSides);
-  return buildRegionMap(seed, depth, openSides, REGIONS[regionIdx]);
+function buildOverworldForRegion(regionIdx, seed, depth, openSides, placeDungeon) {
+  if (regionIdx === 0) return buildForestMap(seed, depth, openSides, placeDungeon);
+  if (regionIdx === 1) return buildDesertMap(seed, depth, openSides, placeDungeon);
+  return buildRegionMap(seed, depth, openSides, REGIONS[regionIdx], placeDungeon);
 }
 
 // Construct a map for the given region at (gx, gy). When the player has
@@ -159,7 +167,16 @@ function createOverworldMap(id, gx, gy, regionIdx) {
   // Open every side that isn't blocked by an existing, non-reciprocating
   // neighbor, so we never create a one-way transition into a sealed map.
   const openSides = reconcileOpenSides(gx, gy, { left: true, right: true, up: true, down: true });
-  const mapTiles = buildOverworldForRegion(regionIdx, id, depth, openSides);
+  // Exactly one ruined dungeon per region: host it on the first overworld map at
+  // or past DUNGEON_MIN_DEPTH, then never again for this region. Depth climbs by 1
+  // per new overworld map, so a qualifying map is always generated before the
+  // region's village (depth 20) — the region's dungeon is guaranteed to exist.
+  let placeDungeon = false;
+  if (!regionDungeonPlaced[regionIdx] && depth >= DUNGEON_MIN_DEPTH) {
+    placeDungeon = true;
+    regionDungeonPlaced[regionIdx] = true;
+  }
+  const mapTiles = buildOverworldForRegion(regionIdx, id, depth, openSides, placeDungeon);
   const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
   return {
     id, gx, gy,
@@ -238,6 +255,34 @@ function createCaveChainMap(returnMapId, returnX, returnY, sourceTier, chainDept
     visited: true,
     returnMapId, returnX, returnY
     // Fog is created lazily — a full-sized cave is explored, not pre-revealed.
+  };
+  worldMaps.push(obj);
+  return newId;
+}
+
+// ─── Ruined dungeon ────────────────────────────────────────────────────────────
+// Build the single-level dungeon behind an overworld DUNGEON_DOOR. Like caves,
+// dungeons live off the (gx, gy) grid — reachable only by stepping onto their
+// door, and returning through the dungeon's own DUNGEON_DOOR (an edge tile that
+// leads back to (returnMapId, returnX, returnY): the overworld door that opened
+// it). Stocked from the region's own overworld roster. `entryLand` is the inner
+// landing tile beside the exit door, where the hero arrives on entry.
+function createDungeonMap(returnMapId, returnX, returnY, regionIdx) {
+  const newId = worldMaps.length;
+  const region = REGIONS[regionIdx] || REGIONS[0];
+  const built = buildDungeonLevelMap();
+  const obj = {
+    id: newId, gx: 0, gy: 0,
+    name: 'Ruined Dungeon',
+    type: 'dungeon', biome: region.id, regionIdx,
+    depth: region.enemyTier,
+    map: built.map,
+    entryLand: built.entryLand,
+    enemyDefs: makeEnemyDefs(20, region.id, built.map),
+    openedChests: new Set(),
+    visited: true,
+    returnMapId, returnX, returnY
+    // Fog is created lazily — a full-sized dungeon is explored, not pre-revealed.
   };
   worldMaps.push(obj);
   return newId;
@@ -425,13 +470,6 @@ function sealRegion(regionIdx) {
       createSealedNeighbor(src.id, dir);
     }
   }
-}
-
-// The region's dead-end maps ('sealed' single-exit detours carved by sealRegion),
-// in creation order (their order in worldMaps). Used by the "Find Timmy" quest to
-// pick the 3rd one to hide the lost child on, once the quest is started.
-function regionDeadEndMaps(regionIdx) {
-  return worldMaps.filter(m => m && m.sealed && m.regionIdx === regionIdx);
 }
 
 // Walking out of an exit. Compute the neighbor's coordinate; if a map already
