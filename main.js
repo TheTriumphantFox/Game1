@@ -33,7 +33,8 @@ function update(dt) {
   // (so the menu's purchases / item use visually update), but every dt-based
   // state change is frozen.
   if ((typeof radialMenuOpen !== 'undefined' && radialMenuOpen) ||
-      (typeof ledgerOpen     !== 'undefined' && ledgerOpen)) {
+      (typeof ledgerOpen     !== 'undefined' && ledgerOpen)     ||
+      (typeof statsPageOpen  !== 'undefined' && statsPageOpen)) {
     updateHUD();
     return;
   }
@@ -138,6 +139,11 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeDropLedger();
     return;   // ledger modal swallows gameplay input
   }
+  if (typeof statsPageOpen !== 'undefined' && statsPageOpen) {
+    // Esc — or V again — closes the character sheet.
+    if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeStatsPage();
+    return;   // stats modal swallows gameplay input
+  }
   // 'V' toggles the radial inventory menu (works whether open or closed)
   if (e.key === 'v' || e.key === 'V') {
     e.preventDefault();
@@ -239,7 +245,8 @@ function joyUpdate(x, y) {
 function gameplayTouchBlocked() {
   return (typeof shopOpen   !== 'undefined' && shopOpen)   ||
          (typeof portalOpen !== 'undefined' && portalOpen) ||
-         (typeof ledgerOpen !== 'undefined' && ledgerOpen);
+         (typeof ledgerOpen !== 'undefined' && ledgerOpen) ||
+         (typeof statsPageOpen !== 'undefined' && statsPageOpen);
 }
 
 canvas.addEventListener('touchstart', e => {

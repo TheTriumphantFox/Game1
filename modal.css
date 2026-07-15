@@ -256,6 +256,105 @@
 }
 .shop-close:hover { background: #1a2a1a; }
 
+/* ─── Character / stats page ─── */
+#stats-modal { max-width: 640px; }
+.stats-layout {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+.stats-model {
+  flex: 0 0 46%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: radial-gradient(ellipse at 50% 38%, #1c2433 0%, #0a0d14 78%);
+  border: 1px solid #2e3a52;
+  border-radius: 6px;
+  padding: 8px;
+}
+#stats-canvas {
+  width: 100%;
+  height: 300px;
+  display: block;
+}
+.stats-name {
+  font-size: 15px;
+  color: #aef;
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+.stats-sub {
+  font-size: 11px;
+  color: #7a9a7a;
+  margin-bottom: 4px;
+}
+.stats-sheet {
+  flex: 1;
+  min-width: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  /* Reserve room for the scrollbar so it never overlaps the right-aligned
+     values; padding keeps a little breathing space beside the track. */
+  scrollbar-gutter: stable;
+  padding-right: 10px;
+}
+.stats-group { margin-bottom: 12px; }
+.stats-group-title {
+  font-size: 11px;
+  color: #5f8f5f;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px dashed #2a4a2a;
+  padding-bottom: 3px;
+  margin-bottom: 5px;
+}
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+.stats-label { color: #9ab09a; }
+.stats-val { font-weight: bold; text-align: right; }
+.stats-arsenal {
+  margin-top: 14px;
+  border-top: 1px solid #2a4a2a;
+  padding-top: 10px;
+}
+.stats-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.stats-chip {
+  font-size: 11px;
+  color: #cec;
+  background: #141f14;
+  border: 1px solid var(--chip, #3a5a3a);
+  border-radius: 12px;
+  padding: 3px 9px;
+}
+.stats-chip b { color: var(--chip, #ffcc44); }
+.stats-chip-worn {
+  box-shadow: 0 0 8px var(--chip, #ffcc44);
+  background: #1e321e;
+}
+.stats-empty {
+  font-size: 11px;
+  color: #667;
+  font-style: italic;
+  margin-top: 4px;
+}
+@media (max-width: 560px) {
+  .stats-layout { flex-direction: column; }
+  .stats-model { flex-basis: auto; }
+  .stats-sheet { max-height: none; }
+}
+
 /* ─── Drops ledger ─── */
 .ledger-cat {
   font-size: 11px;
