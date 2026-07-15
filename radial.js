@@ -282,6 +282,10 @@ const RADIAL_RINGS = [
       const kinds = PASSIVE_DROPS.reduce(
         (n, d) => n + ((player[d.key] || 0) > 0 ? 1 : 0), 0);
       return [
+        // Character sheet — opens the stats page (3-D hero model + full readout).
+        { type: 'stats', icon: '🧍', label: 'Character', launcher: true,
+          val: () => 'Lv' + (player.level || 1),
+          action: () => { if (typeof openStatsPage === 'function') openStatsPage(); } },
         { type: 'drops', icon: '🎒', label: 'Drops', launcher: true,
           val: () => kinds ? 'x' + kinds : '—',
           action: () => { if (typeof openDropLedger === 'function') openDropLedger(); } },
