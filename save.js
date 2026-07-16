@@ -69,6 +69,8 @@ function buildSaveData() {
 const DEFAULT_PLAYER = {
   // Hero name — chosen on New Game (name prompt, main.js); labels save slots.
   heroName: '',
+  // Lifetime death count — bumped in respawn() (player.js), shown on stats page.
+  deaths: 0,
   x: EXIT_COL, y: EXIT_ROW,
   renderX: EXIT_COL, renderY: EXIT_ROW,
   hp: 12, maxHp: 12, tempHp: 0,
@@ -409,6 +411,7 @@ function newGame() {
 function resetGame(heroName) {
   Object.assign(player, {
     heroName,
+    deaths: 0,
     x: EXIT_COL, y: EXIT_ROW,
     hp: 12, maxHp: 12, tempHp: 0,
     rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,

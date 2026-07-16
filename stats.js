@@ -158,6 +158,7 @@ function renderStatsContents() {
   renown += statRow('⚔️ Guild Member', p.guildCard ? 'Inducted' : 'No', p.guildCard ? '#7bd67b' : '#889');
   const questsDone = doneCount(p.guildQuests) + doneCount(p.collectorQuests) + doneCount(p.lostSonQuests);
   renown += statRow('📜 Quests Done', String(questsDone), '#8fbf8f');
+  renown += statRow('💀 Deaths', String(p.deaths || 0), (p.deaths || 0) > 0 ? '#ff5a5a' : '#889');
 
   // ── Arsenal: owned elemental swords & armors with upgrade levels ────────────
   const gearChips = (ids, levelOf, worn, wrap) => {
@@ -179,7 +180,7 @@ function renderStatsContents() {
     <div class="stats-layout">
       <div class="stats-model">
         <canvas id="stats-canvas"></canvas>
-        <div class="stats-name">The Hero</div>
+        <div class="stats-name">${p.heroName || 'The Hero'}</div>
         <div class="stats-sub">Level ${p.level || 1} Adventurer</div>
       </div>
       <div class="stats-sheet">

@@ -74,6 +74,8 @@ function grantGodMode() {
 let player = {
   // Hero name — chosen in the New Game name prompt; labels save slots.
   heroName: '',
+  // Lifetime death count — bumped in respawn(), shown on the stats page.
+  deaths: 0,
   x: EXIT_COL, y: EXIT_ROW,
   // Smoothed sub-tile position used for rendering only. Game logic still
   // operates on integer (x, y). renderX/Y lerps toward x/y each frame at the
@@ -365,6 +367,7 @@ function gainXP(amt) {
 
 // ─── Death / respawn ──────────────────────────────────────────────────────────
 function respawn() {
+  player.deaths = (player.deaths || 0) + 1;
   player.hp = player.maxHp;
   currentMapId = 0;
   placePlayerInStarterHouse(worldMaps[0]);  // same spot as a fresh game: beside the bed
