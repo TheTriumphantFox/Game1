@@ -72,6 +72,8 @@ function grantGodMode() {
 }
 
 let player = {
+  // Hero name — chosen in the New Game name prompt; labels save slots.
+  heroName: '',
   x: EXIT_COL, y: EXIT_ROW,
   // Smoothed sub-tile position used for rendering only. Game logic still
   // operates on integer (x, y). renderX/Y lerps toward x/y each frame at the

@@ -22,6 +22,20 @@
   </div>
 </div>
 
+<!-- Hero name prompt — shown when starting a New Game (from the title screen or
+     the in-game New button). The chosen name is stored on player.heroName and
+     used to label save slots so saves are identifiable per hero. -->
+<div id="name-overlay">
+  <div id="name-box">
+    <div id="name-crest">🛡️</div>
+    <h2 id="name-heading">Name Your Hero</h2>
+    <p id="name-tagline">Your saves will carry this name.</p>
+    <input id="name-input" type="text" placeholder="Enter a name…" maxlength="20" autocomplete="off">
+    <button class="title-btn" onclick="confirmNamePrompt()">⚔️ Begin Adventure</button>
+    <button class="title-btn" onclick="closeNamePrompt()">← Back</button>
+  </div>
+</div>
+
 <!-- Inn modal -->
 <div id="inn-modal-overlay" class="shop-overlay">
   <div id="inn-modal" class="shop-modal"></div>

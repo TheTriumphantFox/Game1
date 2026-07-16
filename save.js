@@ -67,6 +67,8 @@ function buildSaveData() {
 
 // Authoritative default shape — any save missing a field falls back here.
 const DEFAULT_PLAYER = {
+  // Hero name — chosen on New Game (name prompt, main.js); labels save slots.
+  heroName: '',
   x: EXIT_COL, y: EXIT_ROW,
   renderX: EXIT_COL, renderY: EXIT_ROW,
   hp: 12, maxHp: 12, tempHp: 0,
@@ -256,7 +258,10 @@ function renderSlotList() {
 
       const metaSpan = document.createElement('div');
       metaSpan.className = 'save-slot-meta';
-      metaSpan.textContent = `Lv${meta.level} · Map ${meta.mapsVisited}/232 · ${meta.date}`;
+      // Show the hero's name when the slot name doesn't already carry it.
+      const hero = (meta.heroName && meta.heroName !== meta.saveName)
+        ? `🛡 ${meta.heroName} · ` : '';
+      metaSpan.textContent = `${hero}Lv${meta.level} · Map ${meta.mapsVisited}/232 · ${meta.date}`;
 
       const btns = document.createElement('div');
       btns.className = 'save-slot-btns';
@@ -296,11 +301,17 @@ function renderSlotList() {
   }
 }
 
+// Default slot name — the hero's name (chosen on New Game) so saves are
+// identifiable per character; falls back to the old generic slot label.
+function defaultSlotName(slotIdx) {
+  return player.heroName || `Save ${slotIdx + 1}`;
+}
+
 function startSlotSave(slotIdx, existingName) {
   pendingSlot = slotIdx;
   const nameRow = document.getElementById('modal-name-row');
   const nameInput = document.getElementById('modal-name-input');
-  nameInput.value = existingName || `Save ${slotIdx + 1}`;
+  nameInput.value = existingName || defaultSlotName(slotIdx);
   nameRow.style.display = 'flex';
   nameInput.focus();
   document.getElementById('modal-confirm-btn').onclick = () => doSave(slotIdx);
@@ -308,13 +319,14 @@ function startSlotSave(slotIdx, existingName) {
 
 function doSave(slotIdx) {
   const nameInput = document.getElementById('modal-name-input');
-  const saveName = nameInput.value.trim() || `Save ${slotIdx + 1}`;
+  const saveName = nameInput.value.trim() || defaultSlotName(slotIdx);
   try {
     const data = buildSaveData();
     localStorage.setItem(SAVE_KEY_PREFIX + slotIdx, JSON.stringify(data));
     const idx = getSaveIndex();
     idx[slotIdx] = {
       saveName,
+      heroName: player.heroName || '',
       level: player.level,
       mapsVisited,
       date: new Date().toLocaleDateString() + ' ' +
@@ -389,7 +401,14 @@ document.getElementById('modal-name-input').addEventListener('keydown', e => {
 // ─── New game button ──────────────────────────────────────────────────────────
 function newGame() {
   if (!confirm('Start a new game? Unsaved progress will be lost.')) return;
+  // Ask for the hero's name first — the world reset runs once a name is chosen
+  // (cancelling the prompt leaves the current game untouched).
+  openNamePrompt(name => resetGame(name));
+}
+
+function resetGame(heroName) {
   Object.assign(player, {
+    heroName,
     x: EXIT_COL, y: EXIT_ROW,
     hp: 12, maxHp: 12, tempHp: 0,
     rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,

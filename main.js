@@ -18,12 +18,52 @@ function startGame() {
   gameStarted = true;
   document.getElementById('title-overlay').classList.remove('open');
 }
-// New Game from the title: boot already built a fresh world, so just drop the
-// title and greet the player.
+// New Game from the title: boot already built a fresh world, so just ask for
+// the hero's name, then drop the title and greet the player.
 function titleNewGame() {
-  startGame();
-  showMapMsg('🛏️ You awaken in your cabin. Step outside to begin your adventure.');
+  openNamePrompt(name => {
+    player.heroName = name;
+    startGame();
+    showMapMsg('🛏️ You awaken in your cabin. Step outside to begin your adventure.');
+  });
 }
+
+// ─── Hero name prompt ─────────────────────────────────────────────────────────
+// Modal asking for the hero's name before a new game begins. The name lands on
+// player.heroName (persisted in saves) and labels save slots in save.js.
+let namePromptOpen = false;
+let namePromptConfirm = null;   // callback invoked with the chosen name
+
+function openNamePrompt(onConfirm) {
+  namePromptOpen = true;
+  namePromptConfirm = onConfirm;
+  const input = document.getElementById('name-input');
+  input.value = '';
+  document.getElementById('name-overlay').classList.add('open');
+  input.focus();
+}
+// Cancel — closes the prompt, revealing whatever was underneath (title screen
+// or the running game); the pending new-game callback is dropped.
+function closeNamePrompt() {
+  namePromptOpen = false;
+  namePromptConfirm = null;
+  document.getElementById('name-overlay').classList.remove('open');
+}
+function confirmNamePrompt() {
+  const input = document.getElementById('name-input');
+  const name = input.value.trim();
+  if (!name) { input.focus(); return; }   // a name is required
+  const cb = namePromptConfirm;
+  closeNamePrompt();
+  if (cb) cb(name);
+}
+// Enter confirms, Escape cancels. Registered on the input itself so keystrokes
+// while typing never reach the gameplay keydown handler below.
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmNamePrompt();
+  if (e.key === 'Escape') closeNamePrompt();
+  e.stopPropagation();
+});
 
 function update(dt) {
   // Frozen on the title screen — no world stepping until a game is chosen.
@@ -126,6 +166,10 @@ function clearAllKeys() {
 }
 
 document.addEventListener('keydown', e => {
+  if (namePromptOpen) {
+    if (e.key === 'Escape') closeNamePrompt();
+    return;   // name prompt swallows gameplay input
+  }
   if (typeof shopOpen !== 'undefined' && shopOpen) {
     if (e.key === 'Escape') closeShopModals();
     return;   // shop modal swallows gameplay input
