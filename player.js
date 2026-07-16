@@ -1,12 +1,14 @@
 // ─── Player state and movement ────────────────────────────────────────────────
 
-// Inventory cap shared by every stackable item (potions, herbals, trophies, and
-// each entry in player.arrows). Rubies are exempt — they bank far higher under
-// RUBY_CAP. Starting amount given to a fresh player for every item (and every
-// elemental arrow / sword). Stats like maxHp / swordLevel / bowLevel / armor are
-// progression — not items — and are intentionally not capped here.
-const ITEM_CAP = 128;
-const RUBY_CAP = 99999;
+// Inventory caps have been removed — every stackable item (potions, herbals,
+// trophies, arrows, bombs) and rubies now bank without limit. Both constants are
+// Infinity so the existing Math.min(...) clamps and `>= CAP` checks scattered
+// across the shops become no-ops rather than needing per-site edits. Starting
+// amount given to a fresh player for every item (and every elemental arrow /
+// sword). Stats like maxHp / swordLevel / bowLevel / armor are progression — not
+// items — and are intentionally not capped here.
+const ITEM_CAP = Infinity;
+const RUBY_CAP = Infinity;
 // Fresh players start empty-handed: only a base sword and a bow with 10 plain
 // arrows (see applyStartingInventory). 0 zeroes every stackable seeded from this
 // constant — rubies, potions, herbals, mushrooms, and the granted trophies.
@@ -88,6 +90,10 @@ let player = {
   // Medium Health Potions — brewed only by the fire-region Herbalist (heal 1d8).
   // Brew-only, so a fresh player starts with none.
   medPotions: 0,
+  // Bombs — no longer infinite. A fresh player starts with none; bombs are bought
+  // at the General Store or found (5 at a time) in small chests. Placing one
+  // consumes it (see placePlayerBomb).
+  bombs: 0,
   herbals: STARTING_ITEM_AMOUNT,
   mushrooms: STARTING_ITEM_AMOUNT,
   // Trophy / crafting collectibles dropped by specific enemies — seeded from the
@@ -533,14 +539,17 @@ function killEnemy(e) {
       x: Math.round(e.x), y: Math.round(e.y),
       life: 10000, bob: 0, collected: false
     });
+    // Slaying the village boss raises its King's Hoard on the plaza (the chest is
+    // no longer pre-placed). It's stripped the first time the hero leaves town.
+    if (cm && cm.type === 'village') placeVillageBossChest(cm);
   } else {
     // Rank-and-file AND Guild Quarries roll normal loot — the quarry "keeps its
     // stats and other drops," it's just flagged a boss for the fight.
     // Rubies now drop on only 30% of (non-boss) kills.
     if (Math.random() < 0.30) addItem('rubies', Math.floor(e.maxHp * 0.1) + 1);
-    // 40% chance to drop an HP heart — rolls 1d4 per region level (so the value
+    // 60% chance to drop an HP heart — rolls 1d4 per region level (so the value
     // scales the deeper into the world you fight).
-    if (Math.random() < 0.40) {
+    if (Math.random() < 0.60) {
       let hp = 0;
       for (let i = 0; i < regionLevel; i++) hp += 1 + Math.floor(Math.random() * 4);
       drops.push({
@@ -642,6 +651,12 @@ function tryTransition() {
 
   const nextId = getOrCreateNeighbor(dir);
   if (nextId == null) return;
+
+  // Leaving a village strips its King's Hoard: the boss chest is a one-time,
+  // grab-it-before-you-go reward. The village gates only open once the boss is
+  // dead (so the chest is always present by now); walking out any exit removes it.
+  const leavingMap = currentMap();
+  if (leavingMap && leavingMap.type === 'village') removeVillageBossChest(leavingMap);
 
   currentMapId = nextId;
   const nm = worldMaps[nextId];
@@ -797,7 +812,14 @@ function handlePickup(bnx, bny, map) {
         if (got > 0) oreNote = ` ✦ ${got} ${ore.icon} ${ore.label} ore!`;
       }
     }
-    showMsg(reward + oreNote, 3000);
+    // Independent 10% bonus: a bundle of 5 bombs stashed in the chest. Added on top
+    // of the normal reward, regardless of what the main roll gave.
+    let bombNote = '';
+    if (Math.random() < 0.10) {
+      addItem('bombs', 5);
+      bombNote = ' 💣 5 Bombs!';
+    }
+    showMsg(reward + oreNote + bombNote, 3000);
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
     const sp = screenPX(bnx, bny);
     spawnParticle(sp.x, sp.y, '#ffcc00', 12, 4);
@@ -896,6 +918,54 @@ function handlePickup(bnx, bny, map) {
       }
     }
   }
+}
+
+// ─── Village boss chest (King's Hoard) — appear on boss kill, vanish on exit ───
+// The 2×2 chest is no longer baked into the village map (see mapgen-village.js).
+// It materialises here the moment the village boss is slain, then is stripped the
+// first time the hero walks out of the village — a grab-it-before-you-go reward.
+
+// Stamp the King's Hoard (2×2 chest + flanking torches) onto the village plaza.
+// Guards off the tile grid itself (which persists through save/load via mapTiles),
+// so it's idempotent and needs no separate saved flag: if the anchor is already a
+// boss chest, there's nothing to do.
+function placeVillageBossChest(cm) {
+  if (!cm || cm.type !== 'village' || !cm.map) return;
+  const { r: bcr, c: bcc } = villageBossChestAnchor();
+  const m = cm.map;
+  if (m[bcr][bcc] === T.BOSS_CHEST_TL) return;   // already raised
+  m[bcr    ][bcc    ] = T.BOSS_CHEST_TL;
+  m[bcr    ][bcc + 1] = T.BOSS_CHEST_TR;
+  m[bcr + 1][bcc    ] = T.BOSS_CHEST_BL;
+  m[bcr + 1][bcc + 1] = T.BOSS_CHEST_BR;
+  // Flanking torches for dramatic effect.
+  m[bcr][bcc - 2] = T.TORCH;
+  m[bcr][bcc + 3] = T.TORCH;
+  minimapDirty = true;
+  if (cm === currentMap()) {
+    const sp = screenPX(bcc, bcr);
+    spawnParticle(sp.x, sp.y, '#ffdd33', 28, 6);
+    spawnParticle(sp.x, sp.y, '#ff66ff', 20, 5);
+    showMapMsg("👑 A King's Hoard rises on the plaza — claim it before you leave!");
+  }
+}
+
+// Strip the King's Hoard back to bare plaza marble (chest + its torches). Called
+// when the hero first leaves the village, so an unclaimed (or claimed) chest is
+// gone for good on return. Tile-guarded (persists via mapTiles): a no-op once the
+// anchor is already marble, so re-leaving does nothing.
+function removeVillageBossChest(cm) {
+  if (!cm || cm.type !== 'village' || !cm.map) return;
+  const { r: bcr, c: bcc } = villageBossChestAnchor();
+  const m = cm.map;
+  if (m[bcr][bcc] !== T.BOSS_CHEST_TL) return;   // nothing to strip
+  m[bcr    ][bcc    ] = T.MARBLE;
+  m[bcr    ][bcc + 1] = T.MARBLE;
+  m[bcr + 1][bcc    ] = T.MARBLE;
+  m[bcr + 1][bcc + 1] = T.MARBLE;
+  m[bcr][bcc - 2] = T.MARBLE;
+  m[bcr][bcc + 3] = T.MARBLE;
+  minimapDirty = true;
 }
 
 // ─── Chest interaction (SPACE) ────────────────────────────────────────────────

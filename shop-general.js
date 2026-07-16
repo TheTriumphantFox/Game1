@@ -15,6 +15,9 @@ const STORE_ITEMS = [
   { id: 'temphp', label: '💚 Temp HP +1',  cost: 150,
     desc: '+1 temporary HP (green heart) — soaks damage before your HP',
     apply: () => { player.tempHp = (player.tempHp || 0) + 1; } },
+  { id: 'bombs', label: '💣 Bombs ×5',    cost: 60,
+    desc: 'A bundle of 5 bombs — lob to blast enemies & crack rocks',
+    apply: () => { addItem('bombs', 5); } },
   // Elemental swords aren't sold or dropped — each is forged at its home region's
   // Blacksmith (see forgeRegionalSword). The store only buys them back; see the
   // sell list rendered separately.

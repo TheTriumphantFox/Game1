@@ -148,7 +148,7 @@ function renderStatsContents() {
   inv += statRow('🧪 Potions', String(potionsTotal), '#ff9ac4');
   inv += statRow('⚗️ Elixirs', String(elixirTotal), '#c6ff5a');
   inv += statRow('➳ Arrows', String(arrowsTotal), '#cde');
-  inv += statRow('💣 Bombs', '∞', '#cde');
+  inv += statRow('💣 Bombs', String(p.bombs || 0), '#cde');
 
   // ── Progression / renown ───────────────────────────────────────────────────
   const doneCount = o => Object.values(o || {}).filter(q => q && q.status === 'done').length;

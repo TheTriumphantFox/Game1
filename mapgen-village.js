@@ -395,19 +395,14 @@ function buildVillageMap(biome) {
   m[midR + 5][midC - 5] = T.TORCH; m[midR + 5][midC + 5] = T.TORCH;
 
   // ─── Boss chest: 2×2 King's Hoard ───────────────────────────────────────
-  // Placed on the marble plaza, south of the fountain so the player can
-  // clearly see it on approach from the south exit. Anchor (TL) at
-  // (midR+6, midC-1); the four tiles span rows midR+6..midR+7 and cols
-  // midC-1..midC. All four tiles sit inside the 21×21 marble plaza
-  // (midR±10, midC±10) and clear of the 7×7 fountain colonnade (midR±3).
-  const bcr = midR + 6, bcc = midC - 1;
-  m[bcr    ][bcc    ] = T.BOSS_CHEST_TL;
-  m[bcr    ][bcc + 1] = T.BOSS_CHEST_TR;
-  m[bcr + 1][bcc    ] = T.BOSS_CHEST_BL;
-  m[bcr + 1][bcc + 1] = T.BOSS_CHEST_BR;
-  // Flanking torches for dramatic effect
-  m[bcr    ][bcc - 2] = T.TORCH;
-  m[bcr    ][bcc + 3] = T.TORCH;
+  // The chest is NO LONGER painted here — the plaza south of the fountain is
+  // left as bare marble at build time. The 2×2 King's Hoard (and its flanking
+  // torches) materialises only once the village boss is defeated, and is
+  // stripped the first time the hero leaves the village (see
+  // placeVillageBossChest / removeVillageBossChest in player.js). Its position
+  // is villageBossChestAnchor() (map-helpers.js): anchor (TL) at (midR+6,
+  // midC-1), inside the 21×21 plaza (midR±10, midC±10), clear of the 7×7
+  // fountain colonnade (midR±3).
 
   // ─── Replace dirt: turn every remaining PATH tile into ground ───────────
   // Forest villages look green (grass); desert villages look sandy (sand).

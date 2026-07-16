@@ -77,6 +77,8 @@ const DEFAULT_PLAYER = {
   bowLevel: 1, swordLevel: 1, armor: 0,
   potions: STARTING_ITEM_AMOUNT,
   medPotions: 0,
+  // Bombs — bought at the store / found in chests; a fresh player starts with none.
+  bombs: 0,
   herbals: STARTING_ITEM_AMOUNT,
   mushrooms: STARTING_ITEM_AMOUNT,
   // Trophy counters — seeded from the TROPHIES registry (config.js) via
@@ -393,7 +395,7 @@ function newGame() {
     rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
     swordTimer: 0, swordDir: { x: 0, y: -1 }, invincible: 0,
     weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
-    potions: STARTING_ITEM_AMOUNT, medPotions: 0, herbals: STARTING_ITEM_AMOUNT,
+    potions: STARTING_ITEM_AMOUNT, medPotions: 0, bombs: 0, herbals: STARTING_ITEM_AMOUNT,
     mushrooms: STARTING_ITEM_AMOUNT,
     ...trophyDefaults(),
     bonemeal: 0,
