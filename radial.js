@@ -191,7 +191,7 @@ const RADIAL_RINGS = [
   { name: 'consumables', radius: RADIAL_RADIUS, getItems: () => {
       const items = [
         { type: 'bomb', icon: '💣', label: 'Bomb',
-          val: () => '∞',
+          val: () => 'x' + (player.bombs || 0),
           dmg: () => String(7 + (player.swordLevel || 1)),
           consumable: true,
           action: () => { player.weapon = 'bomb'; placePlayerBomb(); },

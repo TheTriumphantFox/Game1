@@ -36,6 +36,15 @@ function isChestTile(t) {
          t === T.BOSS_CHEST_BL || t === T.BOSS_CHEST_BR;
 }
 
+// The 2×2 King's Hoard boss chest sits on the village plaza, south of the central
+// fountain. Its anchor (top-left tile) is deterministic from the map size, so both
+// the village builder (which paints the plaza) and the runtime place/remove logic
+// (player.js — the chest only materialises once the boss falls, and is stripped
+// the moment the hero first leaves the village) derive its position from here.
+function villageBossChestAnchor() {
+  return { r: Math.floor(MROWS / 2) + 6, c: Math.floor(MCOLS / 2) - 1 };
+}
+
 // Returns true if the tile at (c, r) blocks movement.
 // Used both by movement code and the connectivity flood-fill.
 // The blocking-tile list lives in SOLID_TILES (config.js); chests block too but

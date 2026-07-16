@@ -255,6 +255,13 @@ function firePlayerArrow() {
 }
 
 function placePlayerBomb() {
+  // Bombs are a finite consumable now — no bombs, no boom.
+  if ((player.bombs || 0) <= 0) {
+    showMsg('💣 Out of bombs — buy some at the General Store.', 1500);
+    return;
+  }
+  player.bombs--;
+  if (typeof updateHUD === 'function') updateHUD();
   if (typeof buzz === 'function') buzz(20);
   const bx = player.x + player.swordDir.x * 3;
   const by = player.y + player.swordDir.y * 3;
