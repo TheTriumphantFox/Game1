@@ -184,6 +184,15 @@ function drawPlayer(ts) {
   const isSide = facing === 'left' || facing === 'right';
   const flipX = facing === 'left';   // mirror side-view details
 
+  // ── Elf-knight palette (matches the character-sheet portrait) ──
+  const P_STEEL = '#b9bfca', P_STEEL_D = '#868d99', P_STEEL_L = '#e4e8ee';
+  const P_LEATHER = '#6f4a24', P_LEATHER_D = '#452c12';
+  const P_CAPE = '#3f6a2f', P_CAPE_D = '#294a1f', P_CAPE_L = '#568c3d';
+  const P_HAIR = '#e6c257', P_HAIR_D = '#b58f34', P_HAIR_L = '#f7df8a';
+  const P_SKIN = '#f2d59c', P_SKIN_D = '#d0a870';
+  const P_GOLD = '#d8b24a';
+  const P_SHIELD = '#5e7a49', P_TREE = '#dbe2e6';
+
   // Subtle walking bob — only oscillates when a movement key is held
   const moving = !!(keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown']||
                     keys['a']||keys['A']||keys['d']||keys['D']||keys['w']||keys['W']||keys['s']||keys['S']);
@@ -258,8 +267,28 @@ function drawPlayer(ts) {
     drawElementFX(sx + s / 2, sy + s * 0.5 + bob, s * 0.62, player.activeArmorElement, 0.6, 0);
   }
 
-  // ── Boots ─────────────────────────────────────────────
-  ctx.fillStyle = '#3a240e';
+  // ── Flowing green cape (behind the whole body) ────────
+  const capeSway = walkBob * s * 0.05;
+  ctx.fillStyle = P_CAPE_D;
+  ctx.beginPath();
+  ctx.moveTo(sx + s*0.30, sy + s*0.34 + bob);
+  ctx.lineTo(sx + s*0.70, sy + s*0.34 + bob);
+  ctx.lineTo(sx + s*0.84 + capeSway, sy + s*0.92 + bob);
+  ctx.lineTo(sx + s*0.16 + capeSway, sy + s*0.92 + bob);
+  ctx.closePath();
+  ctx.fill();
+  // Lit left fold of the cape
+  ctx.fillStyle = P_CAPE;
+  ctx.beginPath();
+  ctx.moveTo(sx + s*0.30, sy + s*0.34 + bob);
+  ctx.lineTo(sx + s*0.50, sy + s*0.34 + bob);
+  ctx.lineTo(sx + s*0.50 + capeSway, sy + s*0.92 + bob);
+  ctx.lineTo(sx + s*0.16 + capeSway, sy + s*0.92 + bob);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Boots (dark leather) ──────────────────────────────
+  ctx.fillStyle = P_LEATHER_D;
   if (isSide) {
     // staggered footing
     const frontX = flipX ? sx + s*0.30 : sx + s*0.52;
@@ -271,153 +300,198 @@ function drawPlayer(ts) {
     ctx.fillRect(sx + s*0.54, sy + s*0.84 + bob, s*0.18, s*0.10);
   }
   // Boot soles
-  ctx.fillStyle = '#1a1006';
+  ctx.fillStyle = '#160c04';
   ctx.fillRect(sx + s*0.28, sy + s*0.91 + bob, s*0.44, s*0.03);
 
-  // ── Tunic (trapezoid + shading) ───────────────────────
-  ctx.fillStyle = '#2a8a2a';
+  // ── Leather faulds (skirt) under the breastplate ──────
+  ctx.fillStyle = P_LEATHER;
   ctx.beginPath();
-  ctx.moveTo(sx + s*0.26, sy + s*0.44 + bob);
-  ctx.lineTo(sx + s*0.74, sy + s*0.44 + bob);
-  ctx.lineTo(sx + s*0.80, sy + s*0.84 + bob);
-  ctx.lineTo(sx + s*0.20, sy + s*0.84 + bob);
+  ctx.moveTo(sx + s*0.26, sy + s*0.63 + bob);
+  ctx.lineTo(sx + s*0.74, sy + s*0.63 + bob);
+  ctx.lineTo(sx + s*0.78, sy + s*0.85 + bob);
+  ctx.lineTo(sx + s*0.22, sy + s*0.85 + bob);
   ctx.closePath();
   ctx.fill();
-  // Right-side shading
-  ctx.fillStyle = '#1c6a1c';
+
+  // ── Steel breastplate (torso) ─────────────────────────
+  ctx.fillStyle = P_STEEL;
+  ctx.beginPath();
+  ctx.moveTo(sx + s*0.28, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.72, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.74, sy + s*0.66 + bob);
+  ctx.lineTo(sx + s*0.50, sy + s*0.72 + bob);
+  ctx.lineTo(sx + s*0.26, sy + s*0.66 + bob);
+  ctx.closePath();
+  ctx.fill();
+  // Right-side core shadow
+  ctx.fillStyle = P_STEEL_D;
+  ctx.beginPath();
+  ctx.moveTo(sx + s*0.50, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.72, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.74, sy + s*0.66 + bob);
+  ctx.lineTo(sx + s*0.50, sy + s*0.72 + bob);
+  ctx.closePath();
+  ctx.fill();
+  // Center ridge highlight
+  ctx.strokeStyle = P_STEEL_L;
+  ctx.lineWidth = Math.max(1, s*0.02);
   ctx.beginPath();
   ctx.moveTo(sx + s*0.50, sy + s*0.44 + bob);
-  ctx.lineTo(sx + s*0.74, sy + s*0.44 + bob);
-  ctx.lineTo(sx + s*0.80, sy + s*0.84 + bob);
-  ctx.lineTo(sx + s*0.50, sy + s*0.84 + bob);
-  ctx.closePath();
-  ctx.fill();
-  // V-neck collar (skin)
-  ctx.fillStyle = '#f8d070';
+  ctx.lineTo(sx + s*0.50, sy + s*0.70 + bob);
+  ctx.stroke();
+  // Green cape collar gathered at the neck + skin décolletage
+  ctx.fillStyle = P_CAPE_L;
+  ctx.fillRect(sx + s*0.40, sy + s*0.40 + bob, s*0.20, s*0.05);
+  ctx.fillStyle = P_SKIN;
   ctx.beginPath();
-  ctx.moveTo(sx + s*0.42, sy + s*0.44 + bob);
-  ctx.lineTo(sx + s*0.58, sy + s*0.44 + bob);
-  ctx.lineTo(sx + s*0.50, sy + s*0.52 + bob);
+  ctx.moveTo(sx + s*0.44, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.56, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.50, sy + s*0.50 + bob);
   ctx.closePath();
   ctx.fill();
-  // Belt + buckle
-  ctx.fillStyle = '#5a3a14';
-  ctx.fillRect(sx + s*0.22, sy + s*0.68 + bob, s*0.56, s*0.06);
-  ctx.fillStyle = '#e0b040';
-  ctx.fillRect(sx + s*0.46, sy + s*0.68 + bob, s*0.08, s*0.06);
 
-  // ── Arms ──────────────────────────────────────────────
-  ctx.fillStyle = '#f8d070';
+  // ── Belt + buckle ─────────────────────────────────────
+  ctx.fillStyle = P_LEATHER_D;
+  ctx.fillRect(sx + s*0.24, sy + s*0.62 + bob, s*0.52, s*0.05);
+  ctx.fillStyle = P_GOLD;
+  ctx.fillRect(sx + s*0.47, sy + s*0.61 + bob, s*0.06, s*0.07);
+
+  // ── Arms (leather sleeves + steel pauldrons) ──────────
+  ctx.fillStyle = P_LEATHER;
   if (isSide) {
-    ctx.fillRect(sx + s*0.38, sy + s*0.52 + bob, s*0.10, s*0.18);
-    ctx.fillRect(sx + s*0.52, sy + s*0.52 + bob, s*0.10, s*0.18);
+    ctx.fillRect(sx + s*0.40, sy + s*0.50 + bob, s*0.10, s*0.18);
+    ctx.fillRect(sx + s*0.52, sy + s*0.50 + bob, s*0.10, s*0.18);
   } else {
-    ctx.fillRect(sx + s*0.18, sy + s*0.52 + bob, s*0.10, s*0.18);
-    ctx.fillRect(sx + s*0.72, sy + s*0.52 + bob, s*0.10, s*0.18);
+    ctx.fillRect(sx + s*0.16, sy + s*0.50 + bob, s*0.11, s*0.18);
+    ctx.fillRect(sx + s*0.73, sy + s*0.50 + bob, s*0.11, s*0.18);
+  }
+  ctx.fillStyle = P_STEEL_L;
+  if (isSide) {
+    ctx.fillRect(sx + s*0.39, sy + s*0.44 + bob, s*0.12, s*0.08);
+    ctx.fillRect(sx + s*0.51, sy + s*0.44 + bob, s*0.12, s*0.08);
+  } else {
+    ctx.fillRect(sx + s*0.15, sy + s*0.44 + bob, s*0.13, s*0.09);
+    ctx.fillRect(sx + s*0.72, sy + s*0.44 + bob, s*0.13, s*0.09);
   }
 
-  // ── Shield (idle only; hidden during swing or when facing away) ──
+  // ── Round tree-emblem shield (idle only; hidden during swing/away) ──
   if (facing !== 'up' && player.swordTimer <= 0) {
-    const shx = flipX ? sx + s*0.76 : sx + s*0.06;
-    const shy = sy + s*0.48 + bob;
-    ctx.fillStyle = '#7a5018';            // wood backing
-    ctx.fillRect(shx, shy, s*0.18, s*0.28);
-    ctx.fillStyle = '#b07028';            // wood face
-    ctx.fillRect(shx + s*0.02, shy + s*0.02, s*0.14, s*0.24);
-    ctx.fillStyle = '#cc2222';            // red crest
+    const cxs = flipX ? sx + s*0.80 : sx + s*0.20;   // shield centre
+    const cys = sy + s*0.62 + bob;
+    const rr  = s*0.20;
+    // steel rim
+    ctx.fillStyle = P_STEEL_D;
+    ctx.beginPath(); ctx.ellipse(cxs, cys, rr, rr*1.15, 0, 0, Math.PI*2); ctx.fill();
+    // green field
+    ctx.fillStyle = P_SHIELD;
+    ctx.beginPath(); ctx.ellipse(cxs, cys, rr*0.80, rr*0.96, 0, 0, Math.PI*2); ctx.fill();
+    // silver tree of life
+    ctx.strokeStyle = P_TREE;
+    ctx.lineWidth = Math.max(1, s*0.028);
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(shx + s*0.09, shy + s*0.04);
-    ctx.lineTo(shx + s*0.03, shy + s*0.18);
-    ctx.lineTo(shx + s*0.09, shy + s*0.26);
-    ctx.lineTo(shx + s*0.15, shy + s*0.18);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#ffcc00';            // gold boss
-    ctx.fillRect(shx + s*0.07, shy + s*0.14, s*0.04, s*0.04);
+    ctx.moveTo(cxs, cys + rr*0.62); ctx.lineTo(cxs, cys - rr*0.10);          // trunk
+    ctx.moveTo(cxs, cys + rr*0.15); ctx.lineTo(cxs - rr*0.42, cys - rr*0.22); // low branches
+    ctx.moveTo(cxs, cys + rr*0.15); ctx.lineTo(cxs + rr*0.42, cys - rr*0.22);
+    ctx.moveTo(cxs, cys - rr*0.05); ctx.lineTo(cxs - rr*0.30, cys - rr*0.52); // upper branches
+    ctx.moveTo(cxs, cys - rr*0.05); ctx.lineTo(cxs + rr*0.30, cys - rr*0.52);
+    ctx.stroke();
+    // silver canopy
+    ctx.fillStyle = P_TREE;
+    ctx.beginPath(); ctx.arc(cxs, cys - rr*0.42, rr*0.17, 0, Math.PI*2); ctx.fill();
   }
 
-  // ── Head (skin with subtle shading) ───────────────────
-  ctx.fillStyle = '#e8c060';
-  ctx.beginPath();
-  ctx.arc(sx + s/2, sy + s*0.30 + bob, s*0.21, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = '#f8d070';
-  ctx.beginPath();
-  ctx.arc(sx + s/2 - s*0.03, sy + s*0.29 + bob, s*0.18, 0, Math.PI*2);
-  ctx.fill();
-
-  // Pointed Hylian ears (only side / front views show them)
-  ctx.fillStyle = '#e8c060';
-  if (facing === 'right') {
-    ctx.beginPath();
-    ctx.moveTo(sx + s*0.30, sy + s*0.28 + bob);
-    ctx.lineTo(sx + s*0.22, sy + s*0.26 + bob);
-    ctx.lineTo(sx + s*0.32, sy + s*0.36 + bob);
-    ctx.closePath(); ctx.fill();
-  } else if (facing === 'left') {
-    ctx.beginPath();
-    ctx.moveTo(sx + s*0.70, sy + s*0.28 + bob);
-    ctx.lineTo(sx + s*0.78, sy + s*0.26 + bob);
-    ctx.lineTo(sx + s*0.68, sy + s*0.36 + bob);
-    ctx.closePath(); ctx.fill();
-  } else if (facing === 'down') {
-    ctx.beginPath();
-    ctx.moveTo(sx + s*0.30, sy + s*0.30 + bob);
-    ctx.lineTo(sx + s*0.22, sy + s*0.32 + bob);
-    ctx.lineTo(sx + s*0.32, sy + s*0.38 + bob);
-    ctx.closePath(); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(sx + s*0.70, sy + s*0.30 + bob);
-    ctx.lineTo(sx + s*0.78, sy + s*0.32 + bob);
-    ctx.lineTo(sx + s*0.68, sy + s*0.38 + bob);
-    ctx.closePath(); ctx.fill();
-  }
-
-  // Hair tufts under brim
-  ctx.fillStyle = '#d8a040';
+  // ── Long blonde hair (behind the head, flowing to the shoulders) ──
+  ctx.fillStyle = P_HAIR_D;
   if (facing === 'up') {
-    ctx.fillRect(sx + s*0.30, sy + s*0.20 + bob, s*0.40, s*0.14);  // back of head
+    // full mane covering the back of the head
+    ctx.beginPath();
+    ctx.ellipse(sx + s/2, sy + s*0.34 + bob, s*0.26, s*0.30, 0, 0, Math.PI*2);
+    ctx.fill();
   } else {
-    ctx.fillRect(sx + s*0.30, sy + s*0.20 + bob, s*0.10, s*0.08);
-    ctx.fillRect(sx + s*0.60, sy + s*0.20 + bob, s*0.10, s*0.08);
+    // side locks framing the face and streaming down past the shoulders
+    ctx.beginPath();
+    ctx.moveTo(sx + s*0.27, sy + s*0.18 + bob);
+    ctx.lineTo(sx + s*0.40, sy + s*0.18 + bob);
+    ctx.lineTo(sx + s*0.37, sy + s*0.62 + bob);
+    ctx.lineTo(sx + s*0.25, sy + s*0.58 + bob);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(sx + s*0.60, sy + s*0.18 + bob);
+    ctx.lineTo(sx + s*0.73, sy + s*0.18 + bob);
+    ctx.lineTo(sx + s*0.77, sy + s*0.64 + bob);   // longer windswept lock
+    ctx.lineTo(sx + s*0.63, sy + s*0.60 + bob);
+    ctx.closePath(); ctx.fill();
   }
 
-  // ── Pointed cap ───────────────────────────────────────
-  // Brim
-  ctx.fillStyle = '#1a7a1a';
-  ctx.fillRect(sx + s*0.14, sy + s*0.16 + bob, s*0.72, s*0.06);
-  // Cone (leans toward facing direction)
-  const tilt = facing === 'left' ? -1 : facing === 'right' ? 1 : 0;
-  ctx.fillStyle = '#229a22';
-  ctx.beginPath();
-  ctx.moveTo(sx + s*0.26, sy + s*0.16 + bob);
-  ctx.lineTo(sx + s*0.74, sy + s*0.16 + bob);
-  ctx.lineTo(sx + s/2 + tilt * s*0.18, sy - s*0.18 + bob);
-  ctx.closePath();
-  ctx.fill();
-  // Cone highlight stripe
-  ctx.fillStyle = '#3aba3a';
-  ctx.beginPath();
-  ctx.moveTo(sx + s*0.32, sy + s*0.16 + bob);
-  ctx.lineTo(sx + s*0.40, sy + s*0.16 + bob);
-  ctx.lineTo(sx + s/2 + tilt * s*0.12 - s*0.05, sy - s*0.10 + bob);
-  ctx.closePath();
-  ctx.fill();
-
-  // ── Eyes ──────────────────────────────────────────────
+  // ── Head + face (front / side views) ──────────────────
   if (facing !== 'up') {
-    ctx.fillStyle = '#000';
+    // skin with subtle shading
+    ctx.fillStyle = P_SKIN_D;
+    ctx.beginPath();
+    ctx.arc(sx + s/2, sy + s*0.29 + bob, s*0.19, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = P_SKIN;
+    ctx.beginPath();
+    ctx.arc(sx + s/2 - s*0.02, sy + s*0.28 + bob, s*0.16, 0, Math.PI*2);
+    ctx.fill();
+
+    // Pointed elf ears
+    ctx.fillStyle = P_SKIN_D;
+    if (facing === 'right') {
+      ctx.beginPath();
+      ctx.moveTo(sx + s*0.30, sy + s*0.27 + bob);
+      ctx.lineTo(sx + s*0.21, sy + s*0.24 + bob);
+      ctx.lineTo(sx + s*0.32, sy + s*0.35 + bob);
+      ctx.closePath(); ctx.fill();
+    } else if (facing === 'left') {
+      ctx.beginPath();
+      ctx.moveTo(sx + s*0.70, sy + s*0.27 + bob);
+      ctx.lineTo(sx + s*0.79, sy + s*0.24 + bob);
+      ctx.lineTo(sx + s*0.68, sy + s*0.35 + bob);
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(sx + s*0.31, sy + s*0.29 + bob);
+      ctx.lineTo(sx + s*0.22, sy + s*0.30 + bob);
+      ctx.lineTo(sx + s*0.33, sy + s*0.37 + bob);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(sx + s*0.69, sy + s*0.29 + bob);
+      ctx.lineTo(sx + s*0.78, sy + s*0.30 + bob);
+      ctx.lineTo(sx + s*0.67, sy + s*0.37 + bob);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // Blonde bangs / fringe over the forehead
+    ctx.fillStyle = P_HAIR;
+    ctx.beginPath();
+    ctx.moveTo(sx + s*0.30, sy + s*0.13 + bob);
+    ctx.lineTo(sx + s*0.70, sy + s*0.13 + bob);
+    ctx.lineTo(sx + s*0.66, sy + s*0.27 + bob);
+    ctx.lineTo(sx + s*0.55, sy + s*0.19 + bob);
+    ctx.lineTo(sx + s*0.50, sy + s*0.26 + bob);
+    ctx.lineTo(sx + s*0.45, sy + s*0.19 + bob);
+    ctx.lineTo(sx + s*0.34, sy + s*0.27 + bob);
+    ctx.closePath(); ctx.fill();
+    // top highlight
+    ctx.fillStyle = P_HAIR_L;
+    ctx.fillRect(sx + s*0.40, sy + s*0.13 + bob, s*0.20, s*0.03);
+
+    // Narrow blue elf eyes
     if (facing === 'down') {
-      ctx.fillRect(sx + s*0.38, sy + s*0.30 + bob, s*0.07, s*0.07);
-      ctx.fillRect(sx + s*0.55, sy + s*0.30 + bob, s*0.07, s*0.07);
+      ctx.fillStyle = '#28405e';
+      ctx.fillRect(sx + s*0.38, sy + s*0.29 + bob, s*0.07, s*0.06);
+      ctx.fillRect(sx + s*0.55, sy + s*0.29 + bob, s*0.07, s*0.06);
       ctx.fillStyle = '#fff';
-      ctx.fillRect(sx + s*0.40, sy + s*0.31 + bob, s*0.02, s*0.02);
-      ctx.fillRect(sx + s*0.57, sy + s*0.31 + bob, s*0.02, s*0.02);
+      ctx.fillRect(sx + s*0.40, sy + s*0.30 + bob, s*0.02, s*0.02);
+      ctx.fillRect(sx + s*0.57, sy + s*0.30 + bob, s*0.02, s*0.02);
     } else {
       const ex = facing === 'right' ? sx + s*0.56 : sx + s*0.36;
-      ctx.fillRect(ex, sy + s*0.30 + bob, s*0.09, s*0.07);
+      ctx.fillStyle = '#28405e';
+      ctx.fillRect(ex, sy + s*0.29 + bob, s*0.09, s*0.06);
       ctx.fillStyle = '#fff';
-      ctx.fillRect(ex + (facing === 'right' ? s*0.05 : 0), sy + s*0.31 + bob, s*0.02, s*0.02);
+      ctx.fillRect(ex + (facing === 'right' ? s*0.05 : 0), sy + s*0.30 + bob, s*0.02, s*0.02);
     }
   }
 
