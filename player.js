@@ -500,9 +500,21 @@ function rollEnemyTypeDrops(e) {
   }
 }
 
+// ─── Kill sound ───────────────────────────────────────────────────────────────
+// Every kill plays the classic Wilhelm scream. The base element is created once;
+// each play clones it so rapid multi-kills overlap instead of cutting each other
+// off. play() can reject before the first user gesture — swallow that quietly.
+const WILHELM_SCREAM = new Audio('wilhelm-scream.wav');
+function playKillSound() {
+  const s = WILHELM_SCREAM.cloneNode();
+  s.volume = 0.5;
+  s.play().catch(() => {});
+}
+
 // ─── Kill enemy ───────────────────────────────────────────────────────────────
 function killEnemy(e) {
   e.dead = true;
+  playKillSound();
   const sp = screenPX(e.x, e.y);
   spawnParticle(sp.x, sp.y, e.color, 14, 5);
   spawnParticle(sp.x, sp.y, '#ffcc00', 6, 3);
