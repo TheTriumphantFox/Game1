@@ -7,14 +7,11 @@
 // armor's block %), inventory tallies, and the full owned arsenal of elemental
 // swords & armors with their upgrade levels.
 //
-// The portrait is a hand-drawn-style vector illustration painted with 2-D
-// canvas paths — smooth curved shapes, cel shading and dark contour lines, in
-// the spirit of the classic painted key art of the Hylian hero. It never
-// moves, but the equipped ELEMENTS stay alive on it: the tunic and pedestal
-// take the worn armor's colour, the blade takes the active sword's colour, and
-// the exact gameplay FX (drawElementFX) animate behind the figure (armor aura)
-// and over the blade (sword glow) each frame. No WebGL / external libraries —
-// just 2-D canvas, so it runs on file:// exactly like the rest of the game.
+// The portrait is a painted illustration (hero-portrait.png) drawn into the
+// canvas and shown as-is — a static image with no element FX overlaid. If the
+// artwork ever fails to load, the page falls back to a hand-drawn vector
+// portrait (buildHeroPortrait) so it is never blank. No WebGL / external
+// libraries — just 2-D canvas, so it runs on file:// like the rest of the game.
 //
 // `statsPageOpen` gates gameplay input and freezes the world (see main.js),
 // matching the shop / portal / ledger modal pattern.
@@ -22,11 +19,30 @@
 let statsPageOpen = false;
 let statsRAF = null;          // requestAnimationFrame handle for the element FX
 
+// ─── Portrait artwork ─────────────────────────────────────────────────────────
+// The character-sheet portrait is a painted illustration (hero-portrait.png) drawn
+// into the stats canvas. It loads once, lazily; while it's loading — or if it ever
+// fails — we fall back to the hand-drawn procedural portrait below so the page is
+// never blank. The image is shown as-is (no element FX overlaid).
+const STATS_PORTRAIT_SRC = 'hero-portrait.png';
+let statsHeroImg = null;             // HTMLImageElement, once created
+let statsHeroImgState = 'idle';      // 'idle' | 'loading' | 'ready' | 'error'
+
+function ensureStatsHeroImg() {
+  if (statsHeroImg) return;
+  statsHeroImg = new Image();
+  statsHeroImgState = 'loading';
+  statsHeroImg.onload  = () => { statsHeroImgState = 'ready';  if (statsPageOpen) drawStatsModel(); };
+  statsHeroImg.onerror = () => { statsHeroImgState = 'error';  if (statsPageOpen) drawStatsModel(); };
+  statsHeroImg.src = STATS_PORTRAIT_SRC;
+}
+
 function openStatsPage() {
   // Reached through the radial menu — close it first so overlays don't stack.
   if (typeof closeRadialMenu === 'function') closeRadialMenu();
   statsPageOpen = true;
   if (typeof clearAllKeys === 'function') clearAllKeys();
+  ensureStatsHeroImg();          // begin loading the portrait art (no-op if cached)
   document.getElementById('stats-modal-overlay').classList.add('open');
   renderStatsContents();
   startStatsModel();
@@ -472,9 +488,8 @@ function buildHeroPortrait(cv, dpr, s, ox, oy) {
   return cv;
 }
 
-// Draw one composited frame: backdrop, pedestal, armor aura FX, the cached
-// hero portrait, sword FX over the blade, vignette. Standalone so it can be
-// driven directly — the rAF loop just calls this to animate the element FX.
+// Paint the portrait. When the artwork is ready it is drawn as-is; until then
+// (or on load failure) it falls back to the hand-drawn procedural portrait.
 function drawStatsModel() {
   const canvas = document.getElementById('stats-canvas');
   if (!canvas) return;
@@ -491,6 +506,40 @@ function drawStatsModel() {
   g2.setTransform(dpr, 0, 0, dpr, 0, 0);
   g2.clearRect(0, 0, cssW, cssH);
 
+  if (statsHeroImgState === 'ready' && statsHeroImg) {
+    drawStatsPortraitImage(g2, cssW, cssH);
+  } else {
+    drawStatsProceduralModel(g2, canvas, cssW, cssH, dpr);
+  }
+}
+
+// ── Image portrait: the painted artwork, shown as-is (no element FX). The image
+// is a tall 2:3 and the canvas is wider, so a plain crop would lose the raised
+// sword or the tree shield. Instead we fill the frame edge-to-edge with a blurred
+// COVER copy (no letterbox bars), then lay the whole figure over it CONTAINED so
+// nothing is cropped. ──
+function drawStatsPortraitImage(g2, cssW, cssH) {
+  const iw = statsHeroImg.naturalWidth  || 1024;
+  const ih = statsHeroImg.naturalHeight || 1536;
+
+  // Blurred cover fill so the surrounding forest bleeds to the edges.
+  const covS = Math.max(cssW / iw, cssH / ih);
+  const covW = iw * covS, covH = ih * covS;
+  g2.save();
+  g2.filter = `blur(${Math.max(4, cssW * 0.03)}px)`;
+  g2.drawImage(statsHeroImg, (cssW - covW) / 2, (cssH - covH) / 2, covW, covH);
+  g2.restore();
+
+  // The whole figure, contained and centred — sword tip through shield all visible.
+  const conS = Math.min(cssW / iw, cssH / ih);
+  const dw = iw * conS, dh = ih * conS;
+  g2.drawImage(statsHeroImg, (cssW - dw) / 2, (cssH - dh) / 2, dw, dh);
+}
+
+// ── Procedural fallback: the hand-drawn vector portrait (backdrop, pedestal,
+// armor aura FX, cached hero bitmap, sword FX, vignette). Used until the artwork
+// loads, or permanently if it fails to load. ──
+function drawStatsProceduralModel(g2, canvas, cssW, cssH, dpr) {
   // ── Painterly backdrop: a cold, misty canyon fading to dark, with a soft
   // light halo behind the figure so the silhouette pops like painted key art. ──
   const bgGrad = g2.createLinearGradient(0, 0, 0, cssH);
@@ -566,18 +615,11 @@ function drawStatsModel() {
 }
 
 function startStatsModel() {
-  statsHeroCache = null;   // gear may have changed since last open
-  function frame() {
-    if (!statsPageOpen) { statsRAF = null; return; }
-    drawStatsModel();
-    statsRAF = requestAnimationFrame(frame);
-  }
-  if (statsRAF !== null) cancelAnimationFrame(statsRAF);
-  drawStatsModel();   // paint one frame immediately (rAF may lag a beat)
-  // Keep animating only if element FX are live — the portrait itself is static.
-  if (player.activeArmorElement || player.activeSwordElement) {
-    statsRAF = requestAnimationFrame(frame);
-  }
+  statsHeroCache = null;   // procedural-fallback cache may be stale
+  if (statsRAF !== null) { cancelAnimationFrame(statsRAF); statsRAF = null; }
+  // The portrait is a static image now, so a single paint is enough. If the
+  // artwork is still loading, its onload handler repaints once it's ready.
+  drawStatsModel();
 }
 
 // Close on click outside the modal (matches shop / ledger behaviour).
