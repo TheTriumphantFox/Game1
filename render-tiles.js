@@ -1282,6 +1282,25 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.arc(x+s/2, y+s/2, s*0.08, 0, Math.PI*2);
       ctx.fill();
       break; }
+    case T.CHEST_EXIT: {
+      // Radiant golden return portal beside the deep reward chest — warps the hero
+      // straight back out to the overworld. Warm sunlit tones set it apart from the
+      // cool CAVE_EXIT so it reads as "the way home", not "one level back".
+      ctx.fillStyle = '#2a1d10'; ctx.fillRect(x,y,s,s);
+      const pulse = Math.sin(Date.now()/240) * 3;
+      const grad = ctx.createRadialGradient(x+s/2, y+s/2, 1, x+s/2, y+s/2, s*0.42 + pulse);
+      grad.addColorStop(0, '#fff6d8');
+      grad.addColorStop(0.5, '#f0c860');
+      grad.addColorStop(1, '#5a3a10');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x+s/2, y+s/2, s*0.40 + pulse, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x+s/2, y+s/2, s*0.09, 0, Math.PI*2);
+      ctx.fill();
+      break; }
     case T.PORTAL: {
       // Cabin fast-travel portal — a vertical violet arch on the floor.
       ctx.fillStyle = '#9a7550'; ctx.fillRect(x,y,s,s);

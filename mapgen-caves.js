@@ -211,6 +211,12 @@ function buildCaveLevelMap(isFinal, theme = ROCK_CAVE_THEME) {
   } else {
     m[cy][cx]     = T.LARGE_CHEST;          // the reward at the heart of the deepest cave
     m[cy][cx + 1] = T.LARGE_CHEST_R;
+    // A radiant return portal two tiles below the chest — a one-step shortcut back
+    // out to the overworld region map, so claiming the prize doesn't mean retracing
+    // the whole labyrinth (or climbing back up every chain level). Set below (not
+    // flush against) the chest so the spot the hero opens it from stays a plain
+    // floor tile — no accidental teleport while reaching for the reward.
+    m[cy + 2][cx] = T.CHEST_EXIT;
     if (theme.torches) {                    // torches flanking the prize chamber (rock caves only)
       m[cy - 2][cx - 2] = T.TORCH; m[cy - 2][cx + 2] = T.TORCH;
       m[cy + 2][cx - 2] = T.TORCH; m[cy + 2][cx + 2] = T.TORCH;

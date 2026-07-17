@@ -67,7 +67,7 @@ function isVillagerOffLimits(tileId) {
          tileId === T.BOSS_CHEST_TL || tileId === T.BOSS_CHEST_TR ||
          tileId === T.BOSS_CHEST_BL || tileId === T.BOSS_CHEST_BR ||
          tileId === T.SHRINE   || tileId === T.CAVE_ENTRANCE ||
-         tileId === T.CAVE_EXIT || tileId === T.PORTAL;
+         tileId === T.CAVE_EXIT || tileId === T.CHEST_EXIT || tileId === T.PORTAL;
 }
 
 // Fresh spawn for a newly-activated village. Two shopkeepers stand behind

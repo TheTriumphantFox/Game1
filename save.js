@@ -44,6 +44,10 @@ function buildSaveData() {
       returnMapId: m.returnMapId,
       returnX: m.returnX,
       returnY: m.returnY,
+      // Overworld root-return target for the deep CHEST_EXIT portal (caves/dungeons).
+      rootMapId: m.rootMapId,
+      rootX: m.rootX,
+      rootY: m.rootY,
       caveLinks: m.caveLinks ? { ...m.caveLinks } : undefined,
       // Waterfall cave-chain state (set on cave_chain maps).
       sourceTier: m.sourceTier,
@@ -218,6 +222,11 @@ function applyLoadData(data) {
       obj.returnMapId = lite.returnMapId;
       obj.returnX = lite.returnX;
       obj.returnY = lite.returnY;
+    }
+    if (lite.rootMapId != null) {
+      obj.rootMapId = lite.rootMapId;
+      obj.rootX = lite.rootX;
+      obj.rootY = lite.rootY;
     }
     if (lite.caveLinks) obj.caveLinks = { ...lite.caveLinks };
     if (lite.sourceTier != null) obj.sourceTier = lite.sourceTier;
