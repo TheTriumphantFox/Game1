@@ -74,7 +74,8 @@ function update(dt) {
   // state change is frozen.
   if ((typeof radialMenuOpen !== 'undefined' && radialMenuOpen) ||
       (typeof ledgerOpen     !== 'undefined' && ledgerOpen)     ||
-      (typeof statsPageOpen  !== 'undefined' && statsPageOpen)) {
+      (typeof statsPageOpen  !== 'undefined' && statsPageOpen)  ||
+      (typeof victoryOpen    !== 'undefined' && victoryOpen)) {
     updateHUD();
     return;
   }
@@ -173,6 +174,11 @@ document.addEventListener('keydown', e => {
   if (typeof shopOpen !== 'undefined' && shopOpen) {
     if (e.key === 'Escape') closeShopModals();
     return;   // shop modal swallows gameplay input
+  }
+  if (typeof victoryOpen !== 'undefined' && victoryOpen) {
+    // Enter / Esc / Space dismiss the victory screen back into the world.
+    if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') continueFromVictory();
+    return;   // victory overlay swallows gameplay input
   }
   if (typeof portalOpen !== 'undefined' && portalOpen) {
     if (e.key === 'Escape') closePortalModal();

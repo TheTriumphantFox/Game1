@@ -18,6 +18,27 @@
 // false — the normal tile pass and the sprite cache draw landmarks ground-only.
 let landmarkOverlayPass = false;
 
+// Castle tower heraldry — per-region [deep cloth, bright trim] hues for the
+// BANNER and CASTLE_WINDOW tiles. Each tower floor carries its region's id in
+// map.biome, so the same tile type recolors itself per floor. NOTE: this is why
+// BANNER/CASTLE_WINDOW must never enter CACHEABLE_TILES — a cached sprite would
+// freeze one floor's colors for every floor.
+const TOWER_ELEMENT_HUES = {
+  forest:    ['#1f6a2e', '#3f9a52'],
+  fire:      ['#b0400e', '#e87830'],
+  water:     ['#1d4f9e', '#4a86d8'],
+  ice:       ['#5aa8cc', '#b8e4f4'],
+  earth:     ['#6e5228', '#a08050'],
+  volcanic:  ['#a02808', '#ff6a22'],
+  air:       ['#8aa8cc', '#e4f0fc'],
+  lightning: ['#2c4a80', '#7ec8ff'],
+  luminous:  ['#c89a30', '#ffe9a6'],
+  necrotic:  ['#4a3358', '#8a6aa8'],
+  poison:    ['#4a7014', '#8ab83a'],
+  mana:      ['#5c2f9e', '#9a6ae0'],
+  shadow:    ['#231640', '#5a3f8a'],
+};
+
 function drawTileProcedural(col, row, t, sx, sy, s) {
   const x = sx, y = sy;
   if (!landmarkOverlayPass) {                 // overlay pass paints no base square
@@ -2851,6 +2872,268 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
         ctx.moveTo(x+s*0.34, yy);
         ctx.lineTo(x+s*0.50, yy + s*0.12);
         ctx.lineTo(x+s*0.66, yy);
+        ctx.stroke();
+      }
+      break; }
+    case T.TOWER_STAIRS_UP:
+    case T.TOWER_STAIRS_DOWN: {
+      // Castle spiral stair — the tower's floor-to-floor transitions. Both share
+      // a round stone well sunk in flagstone; the UP stair's wedge steps climb
+      // brighter toward a sunlit arch (with rising chevrons), the DOWN stair's
+      // wind darker into the depths (with sinking chevrons). A slow-pulsing gold
+      // rim marks both as the way onward.
+      const up = (t === T.TOWER_STAIRS_UP);
+      const tt = Date.now();
+      // Flagstone surround (matches T.FLOOR's palette).
+      ctx.fillStyle = '#9a7550'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#8a6540'; ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);
+      ctx.fillStyle = '#aa8560'; ctx.fillRect(x + s - 2, y, 2, s);
+      const cx = x + s / 2, cy = y + s / 2;
+      // Stairwell mouth — stone ring, then the well itself.
+      ctx.fillStyle = '#5a5248';
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.46, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = up ? '#3a342c' : '#141008';
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.40, 0, Math.PI * 2); ctx.fill();
+      // Spiral wedge steps — 8 pie wedges stepping lighter (up) or darker (down)
+      // around the newel, so the stair visibly winds.
+      for (let i = 0; i < 8; i++) {
+        const a0 = (i / 8) * Math.PI * 2 - Math.PI / 2;
+        const a1 = a0 + Math.PI / 4;
+        const f = up ? (i / 7) : (1 - i / 7);      // brightness ramp around the turn
+        const g = Math.floor(0x2c + f * 0x4a);
+        ctx.fillStyle = `rgb(${g + 14},${g + 4},${Math.max(0, g - 10)})`;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, s * 0.38, a0, a1);
+        ctx.closePath(); ctx.fill();
+        // Riser edge between wedges.
+        ctx.strokeStyle = 'rgba(20,14,8,0.55)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a0) * s * 0.12, cy + Math.sin(a0) * s * 0.12);
+        ctx.lineTo(cx + Math.cos(a0) * s * 0.38, cy + Math.sin(a0) * s * 0.38);
+        ctx.stroke();
+      }
+      // Center newel post.
+      ctx.fillStyle = '#6a6258';
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8a8074';
+      ctx.beginPath(); ctx.arc(cx - s * 0.02, cy - s * 0.02, s * 0.05, 0, Math.PI * 2); ctx.fill();
+      // UP only: daylight spilling down the well from the floor above.
+      if (up) {
+        const dg = ctx.createRadialGradient(cx, cy, 1, cx, cy, s * 0.38);
+        dg.addColorStop(0, 'rgba(255,240,190,0.35)');
+        dg.addColorStop(1, 'rgba(255,240,190,0)');
+        ctx.fillStyle = dg;
+        ctx.beginPath(); ctx.arc(cx, cy, s * 0.38, 0, Math.PI * 2); ctx.fill();
+      }
+      // Pulsing gold rim — the "step here" cue shared by both directions.
+      const rimGlow = (Math.sin(tt / 300) * 0.5 + 0.5) * 0.45 + 0.35;
+      ctx.strokeStyle = `rgba(255,210,74,${rimGlow})`;
+      ctx.lineWidth = Math.max(1.5, s * 0.05);
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.44, 0, Math.PI * 2); ctx.stroke();
+      // Directional chevrons — up or down, pulsing like the cave/sky cues.
+      ctx.strokeStyle = `rgba(255,230,140,${rimGlow + 0.15})`;
+      ctx.lineWidth = Math.max(1, s * 0.05);
+      for (let i = 0; i < 2; i++) {
+        const yy = up ? cy + s * (0.16 - i * 0.15) : cy + s * (-0.16 + i * 0.15);
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.13, yy);
+        ctx.lineTo(cx, yy + (up ? -s * 0.10 : s * 0.10));
+        ctx.lineTo(cx + s * 0.13, yy);
+        ctx.stroke();
+      }
+      ctx.lineWidth = 1;
+      break; }
+    case T.CARPET: {
+      // Royal crimson runner laid over the castle flagstone. Edge-aware: gold
+      // selvage braid only on sides where the carpet ends (neighbor isn't
+      // CARPET), so a 3-wide runner reads as one continuous woven strip instead
+      // of a grid of squares. Per-tile hashed weave flecks give it nap.
+      const M = mapData();
+      const isC = (rr, cc) =>
+        rr >= 0 && cc >= 0 && rr < MROWS && cc < MCOLS && M[rr] && M[rr][cc] === T.CARPET;
+      // Body: deep crimson with a darker woven center field.
+      ctx.fillStyle = '#7a141c'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#68101a'; ctx.fillRect(x + s * 0.14, y + s * 0.14, s * 0.72, s * 0.72);
+      // Weave flecks — deterministic per tile.
+      const ch = (col * 131 + row * 57);
+      ctx.fillStyle = 'rgba(160,40,50,0.8)';
+      ctx.fillRect(x + 3 + (ch & 15), y + 4 + ((ch >> 3) & 15), 2, 1);
+      ctx.fillRect(x + s - 8 - ((ch >> 5) & 7), y + s * 0.6 + ((ch >> 7) & 7), 2, 1);
+      ctx.fillStyle = 'rgba(40,6,10,0.6)';
+      ctx.fillRect(x + s * 0.5 + ((ch >> 2) & 7) - 4, y + s * 0.3 + ((ch >> 6) & 7), 1, 2);
+      // Gold selvage braid on exposed edges only.
+      const braid = '#c89a30', braidHi = '#ecc860';
+      const bw = Math.max(2, s * 0.08);
+      if (!isC(row - 1, col)) { ctx.fillStyle = braid; ctx.fillRect(x, y, s, bw); ctx.fillStyle = braidHi; ctx.fillRect(x, y, s, bw * 0.4); }
+      if (!isC(row + 1, col)) { ctx.fillStyle = braid; ctx.fillRect(x, y + s - bw, s, bw); ctx.fillStyle = braidHi; ctx.fillRect(x, y + s - bw, s, bw * 0.4); }
+      if (!isC(row, col - 1)) { ctx.fillStyle = braid; ctx.fillRect(x, y, bw, s); ctx.fillStyle = braidHi; ctx.fillRect(x, y, bw * 0.4, s); }
+      if (!isC(row, col + 1)) { ctx.fillStyle = braid; ctx.fillRect(x + s - bw, y, bw, s); ctx.fillStyle = braidHi; ctx.fillRect(x + s - bw, y, bw * 0.4, s); }
+      break; }
+    case T.BANNER: {
+      // Wall-hung heraldic banner — dressed stone backing (this tile replaces a
+      // WALL) with a swallow-tailed cloth in the floor's element hue, hanging
+      // from a gold rod and swaying gently as if in a castle draft.
+      // Stone backing, identical to T.WALL so banner walls sit flush.
+      ctx.fillStyle = '#555'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#333'; ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);
+      ctx.fillStyle = '#666'; ctx.fillRect(x + s - 2, y, 2, s); ctx.fillRect(x, y + s - 2, s, 2);
+      const cmB = currentMap();
+      const hues = TOWER_ELEMENT_HUES[cmB && cmB.biome] || ['#7a141c', '#c8404e'];
+      const sway = Math.sin(Date.now() / 340 + col * 1.3) * s * 0.035;
+      const bx = x + s * 0.22, bw2 = s * 0.56;         // cloth span
+      const topY = y + s * 0.14, botY = y + s * 0.90;
+      // Gold rod with finial ends.
+      ctx.fillStyle = '#8a6a20'; ctx.fillRect(x + s * 0.12, topY - s * 0.045, s * 0.76, s * 0.05);
+      ctx.fillStyle = '#e0b040'; ctx.fillRect(x + s * 0.12, topY - s * 0.045, s * 0.76, s * 0.025);
+      ctx.fillStyle = '#ffd070';
+      ctx.beginPath(); ctx.arc(x + s * 0.12, topY - s * 0.02, s * 0.035, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s * 0.88, topY - s * 0.02, s * 0.035, 0, Math.PI * 2); ctx.fill();
+      // Cloth — swallow-tail bottom whose points drift with the sway.
+      ctx.fillStyle = hues[0];
+      ctx.beginPath();
+      ctx.moveTo(bx, topY);
+      ctx.lineTo(bx + bw2, topY);
+      ctx.lineTo(bx + bw2 + sway, botY);                       // right tail point
+      ctx.lineTo(bx + bw2 * 0.5 + sway * 0.6, botY - s * 0.14); // notch between tails
+      ctx.lineTo(bx + sway, botY);                             // left tail point
+      ctx.closePath(); ctx.fill();
+      // Fold shading — two soft vertical creases.
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.fillRect(bx + bw2 * 0.30 + sway * 0.3, topY, Math.max(1, s * 0.045), botY - topY - s * 0.16);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      ctx.fillRect(bx + bw2 * 0.62 + sway * 0.3, topY, Math.max(1, s * 0.04), botY - topY - s * 0.18);
+      // Trim band under the rod + emblem diamond in the bright hue.
+      ctx.fillStyle = hues[1];
+      ctx.fillRect(bx, topY + s * 0.03, bw2, s * 0.045);
+      const ex = bx + bw2 / 2 + sway * 0.4, ey = y + s * 0.46;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey - s * 0.11); ctx.lineTo(ex + s * 0.085, ey);
+      ctx.lineTo(ex, ey + s * 0.11); ctx.lineTo(ex - s * 0.085, ey);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.moveTo(ex, ey - s * 0.05); ctx.lineTo(ex + s * 0.04, ey);
+      ctx.lineTo(ex, ey + s * 0.05); ctx.lineTo(ex - s * 0.04, ey);
+      ctx.closePath(); ctx.fill();
+      break; }
+    case T.CASTLE_WINDOW: {
+      // Tall arched window set in the tower's outer wall — a pointed-arch
+      // opening glowing with the floor's element light, split by a stone
+      // mullion cross. A slow shimmer drifts across the glass.
+      ctx.fillStyle = '#555'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#333'; ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);
+      ctx.fillStyle = '#666'; ctx.fillRect(x + s - 2, y, 2, s); ctx.fillRect(x, y + s - 2, s, 2);
+      const cmW = currentMap();
+      const wh = TOWER_ELEMENT_HUES[cmW && cmW.biome] || ['#2c4a80', '#7ab0d8'];
+      const wx = x + s * 0.26, ww = s * 0.48;
+      const arcY = y + s * 0.30, botW = y + s * 0.86;
+      // Dressed stone frame ring around the opening.
+      ctx.fillStyle = '#6e6a62';
+      ctx.beginPath();
+      ctx.moveTo(wx - s * 0.06, botW + s * 0.04);
+      ctx.lineTo(wx - s * 0.06, arcY);
+      ctx.quadraticCurveTo(x + s / 2, y + s * 0.02, wx + ww + s * 0.06, arcY);
+      ctx.lineTo(wx + ww + s * 0.06, botW + s * 0.04);
+      ctx.closePath(); ctx.fill();
+      // Glass — element-lit gradient inside the pointed arch.
+      const wgrad = ctx.createLinearGradient(x, arcY - s * 0.2, x, botW);
+      wgrad.addColorStop(0, wh[1]);
+      wgrad.addColorStop(1, wh[0]);
+      ctx.fillStyle = wgrad;
+      ctx.beginPath();
+      ctx.moveTo(wx, botW);
+      ctx.lineTo(wx, arcY);
+      ctx.quadraticCurveTo(x + s / 2, y + s * 0.08, wx + ww, arcY);
+      ctx.lineTo(wx + ww, botW);
+      ctx.closePath(); ctx.fill();
+      // Drifting shimmer band across the glass.
+      const ph = ((Date.now() / 2600 + col * 0.37 + row * 0.21) % 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.fillRect(wx, arcY - s * 0.1 + ph * (botW - arcY + s * 0.1), ww, s * 0.07);
+      // Stone mullion cross.
+      ctx.fillStyle = '#57534b';
+      ctx.fillRect(x + s / 2 - Math.max(1, s * 0.025), arcY - s * 0.14, Math.max(2, s * 0.05), botW - arcY + s * 0.14);
+      ctx.fillRect(wx, y + s * 0.52, ww, Math.max(2, s * 0.05));
+      // Sill.
+      ctx.fillStyle = '#7a766e'; ctx.fillRect(wx - s * 0.08, botW, ww + s * 0.16, s * 0.06);
+      break; }
+    case T.THRONE: {
+      // The dragon-usurped royal throne — a gilded high-backed seat on the
+      // pinnacle dais. Drawn overtall like the statues so the back rises above
+      // its tile. Solid.
+      const gt = Date.now();
+      // Plinth step.
+      ctx.fillStyle = '#8a8074'; ctx.fillRect(x + s * 0.08, y + s * 0.82, s * 0.84, s * 0.14);
+      ctx.fillStyle = '#a89e90'; ctx.fillRect(x + s * 0.08, y + s * 0.82, s * 0.84, s * 0.04);
+      // Tall gold back with pointed side finials.
+      ctx.fillStyle = '#9a7a1e';
+      ctx.fillRect(x + s * 0.20, y - s * 0.10, s * 0.60, s * 0.72);
+      ctx.fillStyle = '#c8a232';
+      ctx.fillRect(x + s * 0.24, y - s * 0.06, s * 0.52, s * 0.64);
+      ctx.fillStyle = '#e2c258';
+      ctx.beginPath();                                  // crowned top edge
+      ctx.moveTo(x + s * 0.20, y - s * 0.10);
+      ctx.lineTo(x + s * 0.32, y - s * 0.20);
+      ctx.lineTo(x + s * 0.50, y - s * 0.30);
+      ctx.lineTo(x + s * 0.68, y - s * 0.20);
+      ctx.lineTo(x + s * 0.80, y - s * 0.10);
+      ctx.closePath(); ctx.fill();
+      // Crimson cushion back + seat.
+      ctx.fillStyle = '#7a141c'; ctx.fillRect(x + s * 0.30, y + s * 0.02, s * 0.40, s * 0.48);
+      ctx.fillStyle = '#96202a'; ctx.fillRect(x + s * 0.30, y + s * 0.02, s * 0.40, s * 0.10);
+      ctx.fillStyle = '#68101a'; ctx.fillRect(x + s * 0.26, y + s * 0.54, s * 0.48, s * 0.16);
+      ctx.fillStyle = '#8a1a26'; ctx.fillRect(x + s * 0.26, y + s * 0.54, s * 0.48, s * 0.05);
+      // Gold armrests.
+      ctx.fillStyle = '#c8a232';
+      ctx.fillRect(x + s * 0.12, y + s * 0.42, s * 0.14, s * 0.34);
+      ctx.fillRect(x + s * 0.74, y + s * 0.42, s * 0.14, s * 0.34);
+      ctx.fillStyle = '#e2c258';
+      ctx.fillRect(x + s * 0.12, y + s * 0.42, s * 0.14, s * 0.05);
+      ctx.fillRect(x + s * 0.74, y + s * 0.42, s * 0.14, s * 0.05);
+      // Crown gem at the back's peak, glinting.
+      const gpulse = Math.sin(gt / 420) * 0.5 + 0.5;
+      ctx.fillStyle = `rgba(220,40,60,${0.7 + gpulse * 0.3})`;
+      ctx.beginPath(); ctx.arc(x + s * 0.50, y - s * 0.22, s * 0.06, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(255,200,210,${0.4 + gpulse * 0.5})`;
+      ctx.beginPath(); ctx.arc(x + s * 0.48, y - s * 0.24, s * 0.022, 0, Math.PI * 2); ctx.fill();
+      break; }
+    case T.HOARD: {
+      // The dragon's treasure — a mounded drift of gold coins with buried gems,
+      // sparkling as torchlight catches it. Passable: the hero wades through
+      // the pile. Per-tile hashed so the mound reads as one rumpled mass.
+      const hh = (col * 97 + row * 61);
+      const ht = Date.now();
+      // Base drift — dark gold shadow low, bright crest high.
+      ctx.fillStyle = '#a8842c'; ctx.fillRect(x, y + s * 0.5, s, s * 0.5);
+      // Coin clusters: overlapping ellipses in three gold shades, hashed offsets.
+      const shades = ['#c8a232', '#e2c258', '#f4dc84'];
+      for (let i = 0; i < 7; i++) {
+        const oxc = x + ((hh >> (i * 2)) & 15) / 15 * (s - 8) + 4;
+        const oyc = y + ((hh >> (i * 2 + 3)) & 15) / 15 * (s - 8) + 4;
+        ctx.fillStyle = shades[i % 3];
+        ctx.beginPath(); ctx.ellipse(oxc, oyc, s * 0.11, s * 0.065, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(120,84,16,0.5)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(oxc, oyc, s * 0.11, s * 0.065, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      // A buried gem or two — color hashed per tile.
+      const gems = ['#d02848', '#2868d0', '#28a858', '#8a4ad0'];
+      ctx.fillStyle = gems[hh & 3];
+      const gx2 = x + s * (0.25 + ((hh >> 4) & 7) / 14), gy2 = y + s * (0.3 + ((hh >> 7) & 7) / 14);
+      ctx.beginPath();
+      ctx.moveTo(gx2, gy2 - s * 0.07); ctx.lineTo(gx2 + s * 0.055, gy2);
+      ctx.lineTo(gx2, gy2 + s * 0.07); ctx.lineTo(gx2 - s * 0.055, gy2);
+      ctx.closePath(); ctx.fill();
+      // Twinkling sparkle — brief per-tile flashes like the deep-sea glints.
+      const tw = Math.sin(ht / 260 + col * 1.9 + row * 1.3);
+      if (tw > 0.75) {
+        const sx2 = x + s * (0.2 + ((hh >> 9) & 7) / 10), sy2 = y + s * (0.2 + ((hh >> 11) & 7) / 10);
+        ctx.strokeStyle = 'rgba(255,250,220,0.95)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx2 - s * 0.06, sy2); ctx.lineTo(sx2 + s * 0.06, sy2);
+        ctx.moveTo(sx2, sy2 - s * 0.06); ctx.lineTo(sx2, sy2 + s * 0.06);
         ctx.stroke();
       }
       break; }

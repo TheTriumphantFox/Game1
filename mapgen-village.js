@@ -239,9 +239,12 @@ function floodWaterVillage(m) {
 // Fixed layout used as the boss arena at the end of a region. 18 houses around
 // a central fountain plaza. `biome` selects the palette: 'forest' (trees +
 // grass + flowers) or 'desert' (cacti + sand + bones).
-function buildVillageMap(biome) {
+function buildVillageMap(biome, exits = { left: true, right: true, up: true, down: true }) {
   // Resolve the region's palette. `biome` is a region id ('forest', 'fire',
-  // 'water', ...). Legacy 'desert' callers map to 'fire'.
+  // 'water', ...). Legacy 'desert' callers map to 'fire'. `exits` selects which
+  // cardinal gates are cut — every village opens all four except the FINAL
+  // region's, which opens exactly two: the side the player entered from and
+  // the castle-tower gate (see createOverworldMap / enterCastleTower).
   const regionId = biome === 'desert' ? 'fire' : (biome || 'forest');
   const region = regionById(regionId);
   const BORDER = region.border;
@@ -267,11 +270,11 @@ function buildVillageMap(biome) {
   // village (houses, marble plaza, fountain) is built on top of stable
   // corridors instead of getting chopped by them.
   const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
-  cutExits(m, true, true, true, true);
-  drunkWalk(m, EXIT_ROW, 1,         EXIT_ROW, midC,    T.PATH, 2);
-  drunkWalk(m, EXIT_ROW, MCOLS - 2, EXIT_ROW, midC,    T.PATH, 2);
-  drunkWalk(m, 1,         EXIT_COL, midR,     EXIT_COL, T.PATH, 2);
-  drunkWalk(m, MROWS - 2, EXIT_COL, midR,     EXIT_COL, T.PATH, 2);
+  cutExits(m, exits.left, exits.right, exits.up, exits.down);
+  if (exits.left)  drunkWalk(m, EXIT_ROW, 1,         EXIT_ROW, midC,    T.PATH, 2);
+  if (exits.right) drunkWalk(m, EXIT_ROW, MCOLS - 2, EXIT_ROW, midC,    T.PATH, 2);
+  if (exits.up)    drunkWalk(m, 1,         EXIT_COL, midR,     EXIT_COL, T.PATH, 2);
+  if (exits.down)  drunkWalk(m, MROWS - 2, EXIT_COL, midR,     EXIT_COL, T.PATH, 2);
 
   // Marble plaza around the fountain — 21×21 of polished tiles, fitting
   // neatly between the inner ring of houses (which sit at rows 49–61 and
@@ -368,7 +371,7 @@ function buildVillageMap(biome) {
   // above may have painted over border tiles).
   for (let c = 0; c < MCOLS; c++) { m[0][c] = BORDER; m[MROWS - 1][c] = BORDER; }
   for (let r = 0; r < MROWS; r++) { m[r][0] = BORDER; m[r][MCOLS - 1] = BORDER; }
-  cutExits(m, true, true, true, true);
+  cutExits(m, exits.left, exits.right, exits.up, exits.down);
 
   // Place the village's single chest now, after all path carving.
   if (chestHouse) m[chestHouse.hr + 2][chestHouse.hc + Math.floor(hw / 2)] = T.CHEST;
@@ -487,12 +490,12 @@ function buildVillageMap(biome) {
       if (m[r][c] === GROUND || m[r][c] === DECOR) m[r][c] = T.COBBLESTONE;
     }
   }
-  // Lay the four exit corridors first so doors that BFS into one of them
+  // Lay the exit corridors first so doors that BFS into one of them
   // naturally merge with the trunk instead of running parallel beside it.
-  layCobble(bfsToPlaza(EXIT_ROW,  1));
-  layCobble(bfsToPlaza(EXIT_ROW,  MCOLS - 2));
-  layCobble(bfsToPlaza(1,         EXIT_COL));
-  layCobble(bfsToPlaza(MROWS - 2, EXIT_COL));
+  if (exits.left)  layCobble(bfsToPlaza(EXIT_ROW,  1));
+  if (exits.right) layCobble(bfsToPlaza(EXIT_ROW,  MCOLS - 2));
+  if (exits.up)    layCobble(bfsToPlaza(1,         EXIT_COL));
+  if (exits.down)  layCobble(bfsToPlaza(MROWS - 2, EXIT_COL));
   // Then each door — its path will join the nearest exit trunk or marble.
   for (let r = 0; r < MROWS; r++) {
     for (let c = 0; c < MCOLS; c++) {

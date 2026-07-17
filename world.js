@@ -80,6 +80,7 @@ function mapGroundTile() {
   const cm = currentMap();
   if (!cm) return T.GRASS;
   if (cm.type === 'cave' || cm.type === 'cave_chain') return T.CAVE_FLOOR;
+  if (cm.type === 'castle_tower') return T.FLOOR;   // castle exposes flagstone
   return regionById(cm.biome).ground;
 }
 
@@ -147,15 +148,40 @@ function createOverworldMap(id, gx, gy, regionIdx) {
   const visited = regionMapsVisited[regionIdx] || 0;
 
   if (visited >= 20) {
-    // The 21st new area in a region is its village.
-    const mapTiles = buildVillageMap(region.id);
+    // The 21st new area in a region is its village. The FINAL region's village
+    // is special: exactly two exits — the one the player entered through, and
+    // one leading out to the castle tower (see enterCastleTower). All earlier
+    // villages keep their four exits.
+    let exits = { left: true, right: true, up: true, down: true };
+    let castleExitDir;
+    if (regionIdx === REGIONS.length - 1) {
+      // Entry side = the existing neighbor whose facing edge opens toward this
+      // cell (there is always exactly one at creation time — the map the
+      // player is stepping out of).
+      let entry = null;
+      for (const dir of ['left', 'right', 'up', 'down']) {
+        const nId = worldGrid[gridKey(gx + DIR_DELTA[dir].dx, gy + DIR_DELTA[dir].dy)];
+        if (nId !== undefined && mapEdgeOpen(worldMaps[nId], OPPOSITE_DIR[dir])) { entry = dir; break; }
+      }
+      entry = entry || 'down';
+      // Castle side: the side opposite the entry, falling back to the first
+      // other side with an empty grid cell (so the gate never faces an
+      // already-built map).
+      const prefs = [OPPOSITE_DIR[entry], ...['left', 'right', 'up', 'down'].filter(d => d !== entry)];
+      castleExitDir = prefs.find(d =>
+        worldGrid[gridKey(gx + DIR_DELTA[d].dx, gy + DIR_DELTA[d].dy)] === undefined) || OPPOSITE_DIR[entry];
+      exits = { left: false, right: false, up: false, down: false };
+      exits[entry] = true;
+      exits[castleExitDir] = true;
+    }
+    const mapTiles = buildVillageMap(region.id, exits);
     const enemyType = `${region.id}_village`;
     const enemyDefs = makeEnemyDefs(20, enemyType, mapTiles);
     return {
       id, gx, gy,
       name: region.villageName,
       type: 'village', biome: region.id,
-      regionIdx,
+      regionIdx, castleExitDir,
       map: mapTiles, enemyDefs, openedChests: new Set(),
       visited: false, depth: 20
     };
@@ -208,11 +234,19 @@ function getOrCreateActiveRegionVillage(regionIdx) {
     const region = REGIONS[regionIdx];
     if (!region) return -1;
     id = worldMaps.length;
-    const mapTiles = buildVillageMap(region.id);
+    // The final region's dev village mirrors the real one: two exits (enter
+    // from the south, castle gate to the north) so the tower stays reachable
+    // when fast-traveling straight to the endgame.
+    const isFinalRegion = regionIdx === REGIONS.length - 1;
+    const exits = isFinalRegion
+      ? { left: false, right: false, up: true, down: true }
+      : { left: true, right: true, up: true, down: true };
+    const mapTiles = buildVillageMap(region.id, exits);
     worldMaps.push({
       id, gx: 10000 + regionIdx, gy: 10000,   // off-grid; not in worldGrid
       name: region.villageName,
       type: 'village', biome: region.id, regionIdx,
+      castleExitDir: isFinalRegion ? 'up' : undefined,
       map: mapTiles, enemyDefs: makeEnemyDefs(20, `${region.id}_village`, mapTiles),
       openedChests: new Set(),
       visited: true, depth: 20, devSpawned: true
@@ -325,6 +359,47 @@ function createSkyCaveMap(returnMapId, returnX, returnY, regionIdx, chainDepth, 
     returnMapId, returnX, returnY
     // Fog is created lazily — a full-sized sky cave is explored, not pre-revealed.
   };
+  worldMaps.push(obj);
+  return newId;
+}
+
+// ─── Final castle tower ────────────────────────────────────────────────────────
+// Build one floor of the endgame castle rising from the last (shadow) village —
+// a 14-floor ascending chain (see buildTowerFloorMap / enterCastleTower). Floors
+// live off the (gx, gy) grid like caves; TOWER_STAIRS_UP climbs one floor,
+// TOWER_STAIRS_DOWN returns to (returnMapId, returnX, returnY): the village
+// gate for floor 1, the previous floor's stair-up thereafter. Floors 1–13 are
+// each one region in game order, stocked exactly like that region's village
+// (Greater roster + region boss); floor 14 is the dragon's throne hall (see
+// makeTowerFinaleDefs), pre-lit so the staged finale reads at a glance.
+function createTowerFloorMap(returnMapId, returnX, returnY, floorIdx) {
+  const newId = worldMaps.length;
+  const isFinal = floorIdx >= 14;
+  const region = REGIONS[Math.min(floorIdx, 13) - 1];
+  const built = buildTowerFloorMap(floorIdx);
+  const regionLabel = region.id.charAt(0).toUpperCase() + region.id.slice(1);
+  const obj = {
+    id: newId, gx: 0, gy: 0,
+    name: isFinal ? 'Dragon’s Throne — Castle Pinnacle'
+                  : `Castle Tower — ${regionLabel} Hall (Floor ${floorIdx}/14)`,
+    type: 'castle_tower', biome: region.id,
+    // Drives the per-boss ruby payout (100 × regionIdx+1) and heart scaling in
+    // killEnemy: themed floors pay at their region's rate, the pinnacle at the
+    // final region's.
+    regionIdx: isFinal ? REGIONS.length - 1 : floorIdx - 1,
+    floorIdx, chainDepth: floorIdx, chainLen: 14, depth: 20,
+    map: built.map,
+    entryLand: built.entryLand,
+    deeperLand: built.deeperLand,
+    enemyDefs: isFinal ? makeTowerFinaleDefs(built.map)
+                       : makeEnemyDefs(20, `${region.id}_village`, built.map),
+    openedChests: new Set(),
+    visited: true,
+    returnMapId, returnX, returnY
+  };
+  // The throne hall is revealed in full on entry — 13 bosses and the sleeping
+  // dragon on its gold should read at a glance (the grotto idiom).
+  if (isFinal) obj.fog = new Uint8Array(MCOLS * MROWS).fill(1);
   worldMaps.push(obj);
   return newId;
 }
@@ -461,10 +536,22 @@ function sealRegion(regionIdx) {
   const snapshot = worldMaps.slice();
   for (const src of snapshot) {
     if (src.regionIdx !== regionIdx) continue;
+    // Only maps that actually claim their worldGrid cell can host dead-end
+    // neighbors. Off-grid maps (caves, dungeons, grottos, sky caves, castle
+    // tower floors, dev villages) carry placeholder gx/gy like (0,0) — stamping
+    // neighbors for them would register phantom dead-ends at REAL overworld
+    // coordinates next to the starter house.
+    if (worldGrid[gridKey(src.gx, src.gy)] !== src.id) continue;
     // Leave the village's unused exits open so they can connect into the next
     // region as the player walks out (mirrors the forest→fire transition).
     if (src.type === 'village' && hasNextRegion) continue;
     for (const dir of ['left', 'right', 'up', 'down']) {
+      // Never brick over the final village's castle gate — the tower is the
+      // whole point of clearing the last region.
+      if (src.type === 'village' && src.castleExitDir === dir) continue;
+      // The final village only opens two sides; don't stamp junk dead-end
+      // neighbors behind its solid walls.
+      if (src.type === 'village' && !mapEdgeOpen(src, dir)) continue;
       const { dx, dy } = DIR_DELTA[dir];
       if (worldGrid[gridKey(src.gx + dx, src.gy + dy)] !== undefined) continue;
       createSealedNeighbor(src.id, dir);

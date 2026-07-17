@@ -22,6 +22,20 @@
   </div>
 </div>
 
+<!-- Victory screen — raised when the Adult Red Dragon falls at the castle
+     pinnacle (see showVictoryScreen in tower.js). The world is frozen under it
+     (victoryOpen in main.js) until Continue is pressed. -->
+<div id="victory-overlay">
+  <div id="victory-box">
+    <div id="victory-crest">🐉</div>
+    <h1 id="victory-heading">THE REALM IS SAVED</h1>
+    <p id="victory-tagline">The Adult Red Dragon falls from its stolen throne.<br>
+       Thirteen regions breathe free — the hero's legend is complete.</p>
+    <div id="victory-stats"></div>
+    <button class="title-btn" onclick="continueFromVictory()">👑 Continue exploring</button>
+  </div>
+</div>
+
 <!-- Hero name prompt — shown when starting a New Game (from the title screen or
      the in-game New button). The chosen name is stored on player.heroName and
      used to label save slots so saves are identifiable per hero. -->
@@ -132,6 +146,7 @@
 <script src="mapgen-foliage.js"></script>
 <script src="mapgen-caves.js"></script>
 <script src="mapgen-village.js"></script>
+<script src="mapgen-tower.js"></script>
 <script src="mapgen-biomes.js"></script>
 <script src="enemies.js"></script>
 <script src="world.js"></script>
@@ -149,6 +164,7 @@
 <script src="shop-herbalist.js"></script>
 <script src="villagers.js"></script>
 <script src="guild.js"></script>
+<script src="tower.js"></script>
 <script src="radial.js"></script>
 <script src="portal.js"></script>
 <script src="ledger.js"></script>

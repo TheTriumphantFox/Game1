@@ -272,7 +272,18 @@ const T = {
   // maps). SKY_ASCENT is the stronger updraft inside a sky cave that lifts the
   // hero one level higher (the CAVE_DESCENT twin); SKY_EXIT is the downdraft that
   // drops them back out (the CAVE_EXIT twin). All three are passable.
-  WIND_GUST:143, SKY_ASCENT:144, SKY_EXIT:145
+  WIND_GUST:143, SKY_ASCENT:144, SKY_EXIT:145,
+
+  // ─── Final castle tower ──────────────────────────────────────────────────────
+  // The endgame castle rising from the last (shadow) village: 14 floors, one per
+  // elemental region plus the dragon's throne at the pinnacle. TOWER_STAIRS_UP /
+  // TOWER_STAIRS_DOWN are the passable spiral-stair transitions between floors
+  // (the castle twins of SKY_ASCENT / SKY_EXIT). CARPET is a passable crimson
+  // runner laid over flagstone; HOARD the passable gold-pile floor of the
+  // dragon's treasure mound. BANNER and CASTLE_WINDOW are solid wall dressings
+  // (swapped in place of T.WALL, never carved); THRONE is the solid royal seat.
+  TOWER_STAIRS_DOWN:146, TOWER_STAIRS_UP:147, CARPET:148,
+  BANNER:149, CASTLE_WINDOW:150, THRONE:151, HOARD:152
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -312,6 +323,10 @@ const SOLID_TILES = new Set([
   // Shadow region: void-stone border, the SHADOW_RIFT chasm accent, and the
   // black-obelisk landmark.
   T.SHADOW_WALL, T.SHADOW_RIFT, T.SHADOW_MONOLITH,
+  // Castle tower: banners and windows are wall-swap dressings (solid like the
+  // WALL they replace); the throne is a solid royal seat. Stairs, CARPET and
+  // HOARD are passable and deliberately absent.
+  T.BANNER, T.CASTLE_WINDOW, T.THRONE,
 ].filter(v => v !== undefined));
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -463,6 +478,13 @@ const TILE_COLORS = {
   [T.SHADOW_DAPPLE]: '#1a1526',   [T.SHADOW_RIFT]: '#080510',
   [T.GLOOM_BLOOM]: '#9a86c4',     [T.VOID_FROND]: '#6f4fb0',
   [T.SHADOW_MONOLITH]: '#0b0712',
+  // Castle tower — bright gold stair markers so the way up/down pops on the
+  // minimap; a deep crimson carpet and banner; a cool glass-blue window; a
+  // gilded throne; and the warm gold of the dragon's hoard.
+  [T.TOWER_STAIRS_DOWN]: '#ffd24a', [T.TOWER_STAIRS_UP]: '#ffe98a',
+  [T.CARPET]: '#8a1a20',            [T.BANNER]: '#6a1622',
+  [T.CASTLE_WINDOW]: '#7ab0d8',     [T.THRONE]: '#caa64a',
+  [T.HOARD]: '#e8c04a',
 };
 
 // ─── Monster trophies ─────────────────────────────────────────────────────────
