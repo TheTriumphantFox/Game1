@@ -162,7 +162,9 @@ let player = {
   armorElements: [],
   armorUpgrades: {},
   activeArmorElement: null,
-  defeatedBoss: false
+  defeatedBoss: false,
+  // True once the Adult Red Dragon at the castle pinnacle has been slain.
+  wonGame: false
 };
 
 // Drink one Health Potion. Heals 1d4 HP (1-4, random), clamped to maxHp.
@@ -638,8 +640,26 @@ function killEnemy(e) {
         const nextRegion = REGIONS[nextIdx];
         showMapMsg(`🏘️ The village awakens! Beyond its gates: the ${nextRegion.id} region.`);
       } else {
-        showMapMsg('🏘️ The village awakens! You have conquered every elemental region.');
+        showMapMsg('🏘️ The village awakens! To the castle — the realm’s last evil waits at its pinnacle.');
       }
+    }
+  }
+  // ─── Castle pinnacle: the staged finale ────────────────────────────────────
+  // The dragon sleeps on its hoard until every region boss guarding the throne
+  // hall has fallen; slaying the dragon itself wins the game.
+  if (cm && cm.type === 'castle_tower' && cm.floorIdx === 14) {
+    const dragon = enemies.find(en => en.finalBoss);
+    if (dragon && dragon.dormant && enemies.every(en => en.dead || en.finalBoss)) {
+      dragon.dormant = false;
+      const dsp = screenPX(dragon.x, dragon.y);
+      spawnParticle(dsp.x, dsp.y, '#ff6622', 24, 6);
+      spawnParticle(dsp.x, dsp.y, '#ffd24a', 16, 4);
+      showMapMsg('🐉 The gold shifts and slides — the ADULT RED DRAGON WAKES!');
+    }
+    if (e.finalBoss) {
+      player.wonGame = true;
+      if (typeof placeTowerHoardChest === 'function') placeTowerHoardChest(cm);
+      if (typeof showVictoryScreen === 'function') showVictoryScreen();
     }
   }
 }
@@ -660,6 +680,18 @@ function tryTransition() {
     showMapMsg('🔒 The village gates are sealed! Defeat every enemy here first.');
     transitionCooldown = 600;   // throttle the message
     return;
+  }
+
+  // The final village's castle gate: walking out that side enters the castle
+  // tower instead of generating an overworld neighbor. Intercepted before
+  // getOrCreateNeighbor so no phantom map is ever created on the castle side.
+  {
+    const cmv = currentMap();
+    if (cmv.type === 'village' && cmv.castleExitDir === dir &&
+        typeof enterCastleTower === 'function') {
+      enterCastleTower(cmv, dir);
+      return;
+    }
   }
 
   // Snapshot the current map's enemy + villager state before leaving
@@ -1225,6 +1257,62 @@ function tryCaveTransition() {
     clampCam(true);
     revealAround(currentMap(), player.x, player.y, 12);
     showMapMsg('🌬️ The wind sets you gently back down.');
+    return true;
+  }
+
+  // Step onto the spiral stair UP inside the castle tower → climb one floor
+  // (building the next floor on first visit). Each stair links back to itself
+  // for the descent. Mirrors SKY_ASCENT for the sky caves.
+  if (t === T.TOWER_STAIRS_UP && cm.type === 'castle_tower') {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    const sourceId = currentMapId, sourceX = player.x, sourceY = player.y;
+    cm.caveLinks = cm.caveLinks || {};
+    const key = `${sourceX},${sourceY}`;
+    let nextId = cm.caveLinks[key];
+    if (nextId == null) {
+      nextId = createTowerFloorMap(sourceId, sourceX, sourceY, cm.floorIdx + 1);
+      cm.caveLinks[key] = nextId;
+    }
+    currentMapId = nextId;
+    { const land = worldMaps[nextId].entryLand; player.x = land.x; player.y = land.y; }
+    spawnEnemiesForMap(nextId);
+    spawnVillagersForMap(nextId);
+    transitionCooldown = 400;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 16);
+    const nf = worldMaps[nextId].floorIdx;
+    showMapMsg(nf >= 14
+      ? '🐉 The pinnacle. Every fallen champion of the realm stands guard here…'
+      : `🏰 You climb the spiral stair — Floor ${nf}/14.`);
+    return true;
+  }
+
+  // Step onto the spiral stair DOWN inside the castle tower → descend: to the
+  // floor below, or out through the castle gate into the final village.
+  // Mirrors SKY_EXIT for the sky caves.
+  if (t === T.TOWER_STAIRS_DOWN && cm.type === 'castle_tower') {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    currentMapId = cm.returnMapId;
+    const dest = worldMaps[currentMapId];
+    if (dest.type === 'castle_tower' && dest.deeperLand) {
+      // Descending a floor: land beside the stair-up we climbed through.
+      player.x = dest.deeperLand.x; player.y = dest.deeperLand.y;
+    } else {
+      // Leaving the castle: land just inside the village's castle gate.
+      player.x = cm.returnX; player.y = cm.returnY;
+    }
+    spawnEnemiesForMap(currentMapId);
+    spawnVillagersForMap(currentMapId);
+    transitionCooldown = 600;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 12);
+    showMapMsg(dest.type === 'castle_tower'
+      ? `🏰 You wind back down — Floor ${dest.floorIdx}/14.`
+      : '🏘️ You step out of the castle, back into the village.');
     return true;
   }
 

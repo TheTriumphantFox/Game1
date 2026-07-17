@@ -2566,6 +2566,247 @@ function drawEnemy(e, ts) {
       ctx.beginPath(); ctx.arc(px + s*0.56, py + s*0.30, s*0.012, 0, Math.PI*2); ctx.fill();
       break;
     }
+    case 'adult_red_dragon': {
+      // The final boss — an adult red dragon. Two poses: DORMANT, coiled asleep
+      // on the crest of its hoard (wings folded, eyes shut, smoke curling from
+      // its nostrils, flanks swelling with slow breath); and AWAKE, rearing
+      // with vast ribbed wings, a furnace glowing in its chest, and burning
+      // slit eyes. Size 2.8 — it dwarfs every other creature in the game.
+      const tt = Date.now();
+      if (e.dormant) {
+        // ── Asleep on the gold ──
+        const pyd = sy + oy;                       // no idle bob — it's asleep
+        const breath = Math.sin(tt / 900 + phase) * 0.5 + 0.5;   // slow swell
+        const bw = 1 + breath * 0.035;
+        // Coiled tail wrapping the body — drawn first, underneath.
+        ctx.strokeStyle = '#7a1206'; ctx.lineWidth = Math.max(4, s * 0.10);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.ellipse(cx, pyd + s * 0.60, s * 0.42, s * 0.28, 0, Math.PI * 0.15, Math.PI * 1.55);
+        ctx.stroke();
+        // Tail spade tip.
+        ctx.fillStyle = '#7a1206';
+        ctx.beginPath();
+        ctx.moveTo(px + s * 0.86, pyd + s * 0.44);
+        ctx.lineTo(px + s * 0.98, pyd + s * 0.38);
+        ctx.lineTo(px + s * 0.92, pyd + s * 0.52);
+        ctx.closePath(); ctx.fill();
+        // Body mass — a heavy scarlet mound, swelling with each breath.
+        ctx.fillStyle = '#8a1408';
+        ctx.beginPath(); ctx.ellipse(cx + s * 0.04, pyd + s * 0.58, s * 0.34 * bw, s * 0.24 * bw, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#a01d0c';
+        ctx.beginPath(); ctx.ellipse(cx + s * 0.02, pyd + s * 0.54, s * 0.28 * bw, s * 0.18 * bw, 0, 0, Math.PI * 2); ctx.fill();
+        // Folded wings — two dark ridges laid along the back, scalloped edges.
+        ctx.fillStyle = '#5e0e04';
+        ctx.beginPath();
+        ctx.moveTo(px + s * 0.28, pyd + s * 0.42);
+        ctx.quadraticCurveTo(cx, pyd + s * 0.30, px + s * 0.74, pyd + s * 0.44);
+        ctx.quadraticCurveTo(px + s * 0.62, pyd + s * 0.52, px + s * 0.50, pyd + s * 0.50);
+        ctx.quadraticCurveTo(px + s * 0.38, pyd + s * 0.52, px + s * 0.28, pyd + s * 0.42);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#4a0a02'; ctx.lineWidth = Math.max(1, s * 0.015);
+        for (const fx of [0.36, 0.48, 0.60]) {     // folded wing-finger ridges
+          ctx.beginPath();
+          ctx.moveTo(px + s * fx, pyd + s * 0.44);
+          ctx.lineTo(px + s * (fx + 0.10), pyd + s * 0.36);
+          ctx.stroke();
+        }
+        // Back spines along the coil.
+        ctx.fillStyle = '#4a0a02';
+        for (const fx of [0.30, 0.42, 0.54, 0.66]) {
+          ctx.beginPath();
+          ctx.moveTo(px + s * fx, pyd + s * 0.40);
+          ctx.lineTo(px + s * (fx + 0.03), pyd + s * 0.33);
+          ctx.lineTo(px + s * (fx + 0.06), pyd + s * 0.40);
+          ctx.closePath(); ctx.fill();
+        }
+        // Head at rest on its forepaws, lower-left, eyes closed.
+        ctx.fillStyle = '#a01d0c';
+        ctx.beginPath(); ctx.ellipse(px + s * 0.24, pyd + s * 0.70, s * 0.15, s * 0.11, -0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#b82a12';
+        ctx.beginPath(); ctx.ellipse(px + s * 0.15, pyd + s * 0.73, s * 0.09, s * 0.06, -0.2, 0, Math.PI * 2); ctx.fill();  // snout
+        // Backswept horns.
+        ctx.fillStyle = '#3a2a20';
+        ctx.beginPath();
+        ctx.moveTo(px + s * 0.28, pyd + s * 0.62);
+        ctx.lineTo(px + s * 0.40, pyd + s * 0.54);
+        ctx.lineTo(px + s * 0.32, pyd + s * 0.66);
+        ctx.closePath(); ctx.fill();
+        // Closed eye — a thin dark slit.
+        ctx.strokeStyle = '#2a0604'; ctx.lineWidth = Math.max(1, s * 0.014);
+        ctx.beginPath();
+        ctx.moveTo(px + s * 0.20, pyd + s * 0.685);
+        ctx.lineTo(px + s * 0.26, pyd + s * 0.675);
+        ctx.stroke();
+        // Lazy smoke wisps curling up from the nostrils.
+        for (let i = 0; i < 3; i++) {
+          const ph2 = ((tt / 1600) + i * 0.33 + phase * 0.1) % 1;
+          const wx = px + s * 0.13 + Math.sin(tt / 500 + i * 2.1) * s * 0.03;
+          const wy = pyd + s * 0.70 - ph2 * s * 0.30;
+          ctx.fillStyle = `rgba(120,110,110,${(1 - ph2) * 0.40})`;
+          ctx.beginPath(); ctx.arc(wx, wy, s * (0.015 + ph2 * 0.030), 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.lineCap = 'butt';
+        break;
+      }
+      // ── Awake — the fight ──
+      // Fiery boss aura behind everything.
+      const auraR = s * 0.62 + Math.sin(tt / 200) * s * 0.05;
+      const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, auraR);
+      aura.addColorStop(0, 'rgba(255,110,30,0.38)');
+      aura.addColorStop(1, 'rgba(180,40,10,0)');
+      ctx.fillStyle = aura; ctx.fillRect(cx - auraR, cy - auraR, auraR * 2, auraR * 2);
+      // Vast ribbed wings, beating on the flap phase, with membrane struts.
+      const wf = 1 + Math.sin(tt / 130 + phase) * 0.22;
+      ctx.fillStyle = '#6e1004';
+      ctx.beginPath();                                          // left wing
+      ctx.moveTo(cx - s * 0.08, py + s * 0.36);
+      ctx.quadraticCurveTo(px - s * 0.06, py + s * (0.10 / wf), px + s * 0.00, py + s * 0.30 / wf);
+      ctx.lineTo(px + s * 0.10, py + s * 0.52);
+      ctx.quadraticCurveTo(px + s * 0.22, py + s * 0.62, cx - s * 0.08, py + s * 0.52);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();                                          // right wing
+      ctx.moveTo(cx + s * 0.08, py + s * 0.36);
+      ctx.quadraticCurveTo(px + s * 1.06, py + s * (0.10 / wf), px + s * 1.00, py + s * 0.30 / wf);
+      ctx.lineTo(px + s * 0.90, py + s * 0.52);
+      ctx.quadraticCurveTo(px + s * 0.78, py + s * 0.62, cx + s * 0.08, py + s * 0.52);
+      ctx.closePath(); ctx.fill();
+      // Membrane inner glow + wing-finger struts.
+      ctx.fillStyle = 'rgba(200,60,20,0.55)';
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.08, py + s * 0.38);
+      ctx.quadraticCurveTo(px + s * 0.06, py + s * (0.16 / wf), px + s * 0.08, py + s * 0.34 / wf);
+      ctx.lineTo(cx - s * 0.10, py + s * 0.48);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 0.08, py + s * 0.38);
+      ctx.quadraticCurveTo(px + s * 0.94, py + s * (0.16 / wf), px + s * 0.92, py + s * 0.34 / wf);
+      ctx.lineTo(cx + s * 0.10, py + s * 0.48);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#3a0802'; ctx.lineWidth = Math.max(1, s * 0.015);
+      for (const [tx2, tyf] of [[0.02, 0.30], [0.10, 0.22], [0.18, 0.18]]) {
+        ctx.beginPath(); ctx.moveTo(cx - s * 0.08, py + s * 0.40);
+        ctx.lineTo(px + s * tx2, py + s * (tyf / wf)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx + s * 0.08, py + s * 0.40);
+        ctx.lineTo(px + s * (1 - tx2), py + s * (tyf / wf)); ctx.stroke();
+      }
+      // Lashing tail (under the body).
+      ctx.strokeStyle = '#8a1408'; ctx.lineWidth = Math.max(3, s * 0.07);
+      ctx.lineCap = 'round';
+      const tlash = Math.sin(tt / 170 + phase) * s * 0.20;
+      ctx.beginPath();
+      ctx.moveTo(cx, py + s * 0.78);
+      ctx.quadraticCurveTo(cx + tlash * 0.5, py + s * 0.92, cx + tlash, py + s * 1.02);
+      ctx.stroke();
+      ctx.fillStyle = '#6e1004';                                // tail spade
+      ctx.beginPath();
+      ctx.moveTo(cx + tlash, py + s * 1.02);
+      ctx.lineTo(cx + tlash - s * 0.05, py + s * 0.96);
+      ctx.lineTo(cx + tlash + s * 0.05, py + s * 0.96);
+      ctx.closePath(); ctx.fill();
+      // Rearing torso.
+      ctx.fillStyle = '#9a1808';
+      ctx.beginPath(); ctx.ellipse(cx, py + s * 0.54, s * 0.22, s * 0.30, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#b02410';
+      ctx.beginPath(); ctx.ellipse(cx - s * 0.04, py + s * 0.50, s * 0.16, s * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+      // Belly plates.
+      ctx.fillStyle = '#d8703a';
+      ctx.beginPath(); ctx.ellipse(cx, py + s * 0.60, s * 0.09, s * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#a84c22'; ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.07, py + s * (0.48 + i * 0.07));
+        ctx.lineTo(cx + s * 0.07, py + s * (0.48 + i * 0.07));
+        ctx.stroke();
+      }
+      // Furnace glow building in the chest.
+      const furn = Math.sin(tt / 260 + phase) * 0.5 + 0.5;
+      const fg = ctx.createRadialGradient(cx, py + s * 0.46, 0, cx, py + s * 0.46, s * 0.14);
+      fg.addColorStop(0, `rgba(255,220,90,${0.55 + furn * 0.40})`);
+      fg.addColorStop(1, 'rgba(255,120,30,0)');
+      ctx.fillStyle = fg;
+      ctx.beginPath(); ctx.arc(cx, py + s * 0.46, s * 0.14, 0, Math.PI * 2); ctx.fill();
+      // Forelimbs with talons.
+      ctx.strokeStyle = '#8a1408'; ctx.lineWidth = Math.max(2, s * 0.05);
+      ctx.beginPath(); ctx.moveTo(cx - s * 0.16, py + s * 0.56); ctx.lineTo(cx - s * 0.26, py + s * 0.70); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + s * 0.16, py + s * 0.56); ctx.lineTo(cx + s * 0.26, py + s * 0.70); ctx.stroke();
+      ctx.fillStyle = '#2a1a12';
+      for (const sgn of [-1, 1])
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.moveTo(cx + sgn * s * 0.26 + i * s * 0.025, py + s * 0.70);
+          ctx.lineTo(cx + sgn * s * 0.26 + i * s * 0.025 + s * 0.012, py + s * 0.745);
+          ctx.lineTo(cx + sgn * s * 0.26 + i * s * 0.025 + s * 0.024, py + s * 0.70);
+          ctx.closePath(); ctx.fill();
+        }
+      // Neck + horned head.
+      ctx.fillStyle = '#a81f0c';
+      ctx.beginPath(); ctx.ellipse(cx, py + s * 0.30, s * 0.10, s * 0.13, 0, 0, Math.PI * 2); ctx.fill();  // neck
+      ctx.fillStyle = '#b8260e';
+      ctx.beginPath(); ctx.ellipse(cx, py + s * 0.20, s * 0.14, s * 0.11, 0, 0, Math.PI * 2); ctx.fill();  // skull
+      // Great backswept horns.
+      ctx.fillStyle = '#3a2a20';
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.10, py + s * 0.14);
+      ctx.quadraticCurveTo(cx - s * 0.22, py + s * 0.02, cx - s * 0.26, py - s * 0.06);
+      ctx.lineTo(cx - s * 0.18, py + s * 0.06);
+      ctx.quadraticCurveTo(cx - s * 0.14, py + s * 0.12, cx - s * 0.06, py + s * 0.16);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 0.10, py + s * 0.14);
+      ctx.quadraticCurveTo(cx + s * 0.22, py + s * 0.02, cx + s * 0.26, py - s * 0.06);
+      ctx.lineTo(cx + s * 0.18, py + s * 0.06);
+      ctx.quadraticCurveTo(cx + s * 0.14, py + s * 0.12, cx + s * 0.06, py + s * 0.16);
+      ctx.closePath(); ctx.fill();
+      // Brow crest spikes.
+      ctx.fillStyle = '#4a0a02';
+      for (const fx of [-0.05, 0.0, 0.05]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + s * fx - s * 0.02, py + s * 0.12);
+        ctx.lineTo(cx + s * fx, py + s * 0.05);
+        ctx.lineTo(cx + s * fx + s * 0.02, py + s * 0.12);
+        ctx.closePath(); ctx.fill();
+      }
+      // Open jaw with fire building inside.
+      ctx.fillStyle = '#8a1408';
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.10, py + s * 0.24);
+      ctx.lineTo(cx, py + s * 0.34);
+      ctx.lineTo(cx + s * 0.10, py + s * 0.24);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(255,170,40,${0.6 + furn * 0.4})`;
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.06, py + s * 0.25);
+      ctx.lineTo(cx, py + s * 0.31);
+      ctx.lineTo(cx + s * 0.06, py + s * 0.25);
+      ctx.closePath(); ctx.fill();
+      // Teeth.
+      ctx.fillStyle = '#f4ead8';
+      for (const fx of [-0.07, -0.03, 0.01, 0.05]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + s * fx, py + s * 0.24);
+        ctx.lineTo(cx + s * fx + s * 0.012, py + s * 0.27);
+        ctx.lineTo(cx + s * fx + s * 0.024, py + s * 0.24);
+        ctx.closePath(); ctx.fill();
+      }
+      // Burning slit eyes.
+      ctx.fillStyle = `rgba(255,210,60,${0.85 + furn * 0.15})`;
+      ctx.beginPath(); ctx.ellipse(cx - s * 0.06, py + s * 0.18, s * 0.030, s * 0.018, -0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx + s * 0.06, py + s * 0.18, s * 0.030, s * 0.018, 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.fillRect(cx - s * 0.065, py + s * 0.168, s * 0.012, s * 0.026);
+      ctx.fillRect(cx + s * 0.055, py + s * 0.168, s * 0.012, s * 0.026);
+      // Rising embers around the beast.
+      for (let i = 0; i < 5; i++) {
+        const ph3 = ((tt / 800) + i * 0.21 + phase * 0.13) % 1;
+        const ex2 = cx + Math.sin(tt / 210 + i * 1.9) * s * 0.30;
+        const ey2 = py + s * 0.55 - ph3 * s * 0.55;
+        ctx.fillStyle = `rgba(255,${120 + Math.floor(ph3 * 110)},40,${(1 - ph3) * 0.85})`;
+        ctx.fillRect(ex2 - 1, ey2 - 1, 2.5, 2.5);
+      }
+      ctx.lineCap = 'butt';
+      break;
+    }
     default: {
       // Generic fallback: a stylized blob with eyes
       ctx.fillStyle = e.color;
@@ -2584,6 +2825,20 @@ function drawEnemy(e, ts) {
   }
 
   // ── HP bar — pill background with gradient fill ──────────────────────
+  // The dormant dragon is untargetable — no HP bar, just a slumbering tag.
+  if (e.dormant) {
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#000';
+    const tag = `💤 ${e.name}`;
+    ctx.strokeText(tag, sx + ts / 2, sy + oy - 6);
+    ctx.fillStyle = '#ffb066';
+    ctx.fillText(tag, sx + ts / 2, sy + oy - 6);
+    ctx.textAlign = 'left';
+    ctx.restore();
+    return;
+  }
   const barW = ts * e.size * 0.92;
   const barX = sx + ox + s * 0.04, barY = sy + oy - 8;
   const barH = 5;

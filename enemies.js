@@ -132,6 +132,12 @@ const DND_ENEMIES = {
   hydra_queen:    { name: 'HYDRA QUEEN',         hp: 940,  spd: 700, dmg: 28, xp:100000, color: '#88cc44', size: 1.9, ranged: true, boss: true, cr: 'Boss', element: 'poison' },
   archmage_void:  { name: 'VOID ARCHMAGE',       hp:1100,  spd: 600, dmg: 32, xp: 90000, color: '#aa66ee', size: 1.9, ranged: true, boss: true, cr: 'Boss' },
   eclipse_sovereign:{ name: 'ECLIPSE SOVEREIGN', hp:1250,  spd: 600, dmg: 34, xp:150000, color: '#1a0f2e', size: 2.0, ranged: true, boss: true, cr: 'Boss', element: 'shadow' },
+
+  // The final boss atop the castle tower — sleeps on its hoard until every
+  // region boss guarding the throne hall has fallen. `flies` lets it soar over
+  // every solid tile (see stepEnemies); `breath` gives it a wall-crossing
+  // fire-breath fan instead of the stock single shot (see stepEnemyRanged).
+  adult_red_dragon: { name: 'ADULT RED DRAGON',  hp:2200,  spd: 450, dmg: 40, xp:250000, color: '#aa1100', size: 2.8, ranged: true, boss: true, cr: 'Boss', element: 'fire', flies: true, breath: 'fire', finalBoss: true },
 };
 
 // Difficulty curve — one pool per region, in progression order. Each region's
@@ -309,6 +315,38 @@ function makeCaveEnemyDefs(sourceTier, map) {
   return defs;
 }
 
+// ─── Castle tower finale ────────────────────────────────────────────────────────
+// The pinnacle throne hall's roster: every region boss, in game order, standing
+// guard on a ring around the hall, plus the Adult Red Dragon asleep on its
+// hoard (dormant until the last guardian falls — see killEnemy). Bosses keep
+// their exact village stats (no tier15 — they're already boss-statted).
+function makeTowerFinaleDefs(map) {
+  const defs = [];
+  const cx = 74, cy = 78;                    // heart of the grand hall
+  const radius = 24;
+  const snapOpen = (x, y) => {
+    if (!map || !isSolid(map, x, y)) return { x, y };
+    for (let r = 1; r < 20; r++)
+      for (let dr = -r; dr <= r; dr++)
+        for (let dc = -r; dc <= r; dc++) {
+          if (Math.abs(dr) !== r && Math.abs(dc) !== r) continue;
+          const tx = x + dc, ty = y + dr;
+          if (tx > 0 && ty > 0 && tx < MCOLS - 1 && ty < MROWS - 1 && !isSolid(map, tx, ty))
+            return { x: tx, y: ty };
+        }
+    return { x, y };
+  };
+  REGIONS.forEach((region, i) => {
+    const ang = -Math.PI / 2 + (i / REGIONS.length) * Math.PI * 2;
+    const p = snapOpen(Math.round(cx + Math.cos(ang) * radius),
+                       Math.round(cy + Math.sin(ang) * radius));
+    defs.push({ type: region.boss, x: p.x, y: p.y });
+  });
+  // The dragon, coiled on the crest of its gold.
+  defs.push({ type: 'adult_red_dragon', x: 74, y: 45, dormant: true, finalBoss: true });
+  return defs;
+}
+
 // ─── Live enemy state per map ─────────────────────────────────────────────────
 // `enemies` is the active list for the current map.
 // When the player leaves a map, this list is cloned onto map.savedEnemies so
@@ -355,6 +393,13 @@ function spawnEnemiesForMap(mid) {
         ranged: base.ranged || false,
         swims: base.swims || false,
         boss: base.boss || false,
+        // Final-boss dragon plumbing — must be copied here or a never-visited
+        // pinnacle spawned after a reload gets an inert dragon (savedEnemies
+        // clones and the JSON save carry these automatically).
+        flies: base.flies || false,
+        breath: base.breath || null,
+        dormant: !!def.dormant,
+        finalBoss: !!def.finalBoss || !!base.finalBoss,
         tier15: !!def.tier15,
         element: base.element || null,
         timer: Math.random() * base.spd,

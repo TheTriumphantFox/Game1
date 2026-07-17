@@ -1184,7 +1184,8 @@ let minimapCanvases = {};   // keyed by mapId
 function edgeTransitions(mapObj) {
   const m = mapObj.map;
   const isTrans = (t) => t === T.CAVE_EXIT || t === T.CAVE_DESCENT ||
-                         t === T.SKY_EXIT  || t === T.SKY_ASCENT;
+                         t === T.SKY_EXIT  || t === T.SKY_ASCENT ||
+                         t === T.TOWER_STAIRS_UP || t === T.TOWER_STAIRS_DOWN;
   const gap = (c, r) => !isSolid(m, c, r);                 // overworld border gap
   const nearMid = (rows, cols) => {                        // cave transition at edge mid
     for (const r of rows) for (const c of cols) if (isTrans(m[r][c])) return true;

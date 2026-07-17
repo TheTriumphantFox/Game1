@@ -282,7 +282,7 @@ function doSwordSwing() {
   const ty = player.y + player.swordDir.y;
   const sp = screenPX(tx, ty);
   spawnParticle(sp.x, sp.y, '#ffee88', 4, 3);
-  enemies.filter(e => !e.dead).forEach(e => {
+  enemies.filter(e => !e.dead && !e.dormant).forEach(e => {
     if (Math.abs(e.x - tx) <= 1 && Math.abs(e.y - ty) <= 1) {
       // Base physical damage
       const baseDmg = player.swordLevel + Math.floor(Math.random() * 3);
@@ -398,7 +398,7 @@ function stepEnemies(dt, map) {
   }
 
   for (const e of enemies) {
-    if (e.dead) continue;
+    if (e.dead || e.dormant) continue;      // the dormant dragon sleeps
     e.timer -= dt;
     if (e.timer > 0) continue;
     e.timer = e.spd;
@@ -439,7 +439,14 @@ function stepEnemies(dt, map) {
     const selfHere = (nx === e.x && ny === e.y) ? 1 : 0;
     const otherEnemy = ((occ.get(nkey) || 0) - selfHere) > 0;
     const onPlayer = (nx === player.x && ny === player.y);
-    const blocked = isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny));
+    // Fliers (the dragon) soar over every solid tile — walls, pillars, lava —
+    // gated only by an explicit in-bounds clamp (isSolid returns true out of
+    // bounds AND the border ring is solid, so without this a flier could never
+    // leave a wall's edge — or worse, drift off-map).
+    const inBounds = nx >= 1 && ny >= 1 && nx <= MCOLS - 2 && ny <= MROWS - 2;
+    const blocked = e.flies
+      ? !inBounds
+      : (isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny)));
     if (!blocked && !otherEnemy && !onPlayer) {
       const okey = tkey(e.x, e.y);
       occ.set(okey, (occ.get(okey) || 0) - 1);
@@ -460,13 +467,33 @@ function stepEnemies(dt, map) {
 // ─── Enemy ranged fire ────────────────────────────────────────────────────────
 function stepEnemyRanged(dt) {
   for (const e of enemies) {
-    if (e.dead || !e.ranged) continue;
+    if (e.dead || !e.ranged || e.dormant) continue;
     e.shootTimer -= dt;
     if (e.shootTimer > 0) continue;
     e.shootTimer = 1800 + Math.random() * 1200;
 
     const dx = player.x - e.x, dy = player.y - e.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Dragon fire breath — a 5-shot fan of flame with longer reach than the
+    // stock single ball, and `overWalls` so the airborne dragon can rake the
+    // hall (and anything hiding behind a pillar) from anywhere.
+    if (e.breath === 'fire') {
+      e.shootTimer = 2400 + Math.random() * 900;
+      if (dist >= 26 || dist === 0) continue;
+      const base = Math.atan2(dy, dx);
+      for (let k = -2; k <= 2; k++) {
+        const a = base + k * 0.18;
+        projectiles.push({
+          tx: e.x + 0.5, ty: e.y + 0.5,
+          vx: Math.cos(a) * 0.30, vy: Math.sin(a) * 0.30,
+          dmg: e.dmg, type: 'enemy', life: 110, color: '#ff6622',
+          element: 'fire', overWalls: true
+        });
+      }
+      continue;
+    }
+
     if (dist >= 18) continue;  // out of range
 
     projectiles.push({
@@ -491,9 +518,9 @@ function stepProjectiles(dt, map) {
       const bsp = screenPX(p.tx, p.ty);
       spawnParticle(bsp.x, bsp.y, '#ff8800', 20, 6);
       const BLAST = 2;
-      // Enemies
+      // Enemies (the dormant dragon is untargetable until it wakes)
       for (const e of enemies) {
-        if (e.dead) continue;
+        if (e.dead || e.dormant) continue;
         const dx = e.x - p.tx, dy = e.y - p.ty;
         if (Math.abs(dx) <= BLAST && Math.abs(dy) <= BLAST) {
           e.hp -= p.dmg;
@@ -553,11 +580,15 @@ function stepProjectiles(dt, map) {
     const pc = Math.floor(p.tx), pr = Math.floor(p.ty);
     // Arrows and spells fly over the medium-water shelf even though it's
     // solid to walkers; everything else solid (incl. deep water) stops them.
-    if (isSolid(map, pc, pr) && !isMediumWater(map, pc, pr)) { p.life = -999; return; }
+    // Dragon breath (`overWalls`) crosses every solid tile, so it needs its
+    // own off-map kill (isSolid no longer stops it at the border).
+    if (p.overWalls) {
+      if (pc < 0 || pr < 0 || pc >= MCOLS || pr >= MROWS) { p.life = -999; return; }
+    } else if (isSolid(map, pc, pr) && !isMediumWater(map, pc, pr)) { p.life = -999; return; }
 
     if (p.type === 'arrow') {
       for (const e of enemies) {
-        if (e.dead) continue;
+        if (e.dead || e.dormant) continue;   // arrows pass over the sleeping dragon
         const dx = e.x - p.tx, dy = e.y - p.ty;
         if (Math.abs(dx) < 0.9 && Math.abs(dy) < 0.9) {
           e.hp -= p.dmg;

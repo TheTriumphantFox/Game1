@@ -51,6 +51,10 @@ function buildSaveData() {
       chainLen: m.chainLen,
       entryLand: m.entryLand,
       deeperLand: m.deeperLand,
+      // Castle tower state — floor number (castle_tower maps) and the final
+      // village's castle-gate side.
+      floorIdx: m.floorIdx,
+      castleExitDir: m.castleExitDir,
       // Whirlpool grotto linkage — set on source maps that opened a grotto,
       // plus the cleared-chest flag on the grotto itself.
       grottoLinks: m.grottoLinks ? { ...m.grottoLinks } : undefined,
@@ -113,7 +117,9 @@ const DEFAULT_PLAYER = {
   armorElements: [],
   armorUpgrades: {},
   activeArmorElement: null,
-  defeatedBoss: false
+  defeatedBoss: false,
+  // True once the Adult Red Dragon at the castle pinnacle has been slain.
+  wonGame: false
 };
 
 function applyLoadData(data) {
@@ -174,6 +180,7 @@ function applyLoadData(data) {
       : lite.type === 'cave'    ? buildCaveMap()
       : lite.type === 'cave_chain' ? buildCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1)).map
       : lite.type === 'sky_cave' ? buildSkyCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1), region).map
+      : lite.type === 'castle_tower' ? buildTowerFloorMap(lite.floorIdx || 1).map
       : lite.type === 'dungeon' ? buildDungeonLevelMap().map
       : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
       : lite.type === 'house'   ? buildStarterHouseMap()
@@ -189,11 +196,18 @@ function applyLoadData(data) {
     const enemyType = (lite.type === 'village')
       ? `${region.id}_village`
       : (lite.type === 'sky_cave' || lite.type === 'dungeon') ? region.id
+      // Tower floors 1–13 restock like their floor-region's village (Greater
+      // roster + boss); the pinnacle gets the full finale (all bosses + dragon).
+      : (lite.type === 'castle_tower')
+        ? `${REGIONS[Math.min(lite.floorIdx || 1, 13) - 1].id}_village`
       : lite.type;
     const obj = {
       id: lite.id, gx: lite.gx || 0, gy: lite.gy || 0,
       name: lite.name, type: lite.type, biome: region.id, regionIdx, depth: lite.depth,
-      map: md, enemyDefs: makeEnemyDefs(lite.depth, enemyType, md),
+      map: md,
+      enemyDefs: (lite.type === 'castle_tower' && (lite.floorIdx || 1) >= 14)
+        ? makeTowerFinaleDefs(md)
+        : makeEnemyDefs(lite.depth, enemyType, md),
       openedChests: new Set(lite.openedChests),
       visited: lite.visited,
       savedEnemies: lite.savedEnemies || null,
@@ -211,6 +225,8 @@ function applyLoadData(data) {
     if (lite.chainLen != null) obj.chainLen = lite.chainLen;
     if (lite.entryLand) obj.entryLand = lite.entryLand;
     if (lite.deeperLand) obj.deeperLand = lite.deeperLand;
+    if (lite.floorIdx != null) obj.floorIdx = lite.floorIdx;
+    if (lite.castleExitDir) obj.castleExitDir = lite.castleExitDir;
     if (lite.grottoLinks) obj.grottoLinks = { ...lite.grottoLinks };
     if (lite.grottoChestPlaced) obj.grottoChestPlaced = true;
     if (lite.activated) obj.activated = true;
@@ -428,7 +444,8 @@ function resetGame(heroName) {
     swordElements: [], activeSwordElement: null, swordUpgrades: {},
     arrows: {}, activeArrowElement: null,
     armorElements: [], armorUpgrades: {}, activeArmorElement: null,
-    defeatedBoss: false
+    defeatedBoss: false,
+    wonGame: false
   });
   applyStartingInventory(player);
   attackCooldown = 0; bowCooldown = 0; bombCooldown = 0;
