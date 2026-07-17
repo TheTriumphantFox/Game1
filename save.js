@@ -259,6 +259,44 @@ function applyLoadData(data) {
   updateHUD();
 }
 
+// ─── Auto-save / death checkpoint ──────────────────────────────────────────────
+// A single rolling autosave written at key checkpoints (clearing a village,
+// each castle-tower floor). It lives under its own key so it never clobbers one
+// of the 6 named slots. `lastCheckpoint` holds the most recent save payload of
+// ANY kind — manual save, auto-save, or the save just loaded — and is what a
+// death reload restores from.
+const AUTOSAVE_KEY = 'hyrule_quest_autosave';
+let lastCheckpoint = null;
+
+function autoSave(label) {
+  try {
+    const json = JSON.stringify(buildSaveData());
+    localStorage.setItem(AUTOSAVE_KEY, json);
+    const idx = getSaveIndex();
+    idx.auto = {
+      saveName: label ? `Auto-save · ${label}` : 'Auto-save',
+      heroName: player.heroName || '',
+      level: player.level,
+      mapsVisited,
+      date: new Date().toLocaleDateString() + ' ' +
+            new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setSaveIndex(idx);
+    lastCheckpoint = json;
+    showMsg(label ? `💾 Auto-saved · ${label}` : '💾 Auto-saved', 1500);
+  } catch (e) { /* storage full — skip the autosave silently */ }
+}
+
+// Restore the most recent checkpoint after death. Returns false if none exists
+// yet (a fresh game that hasn't reached any save point), so the caller can fall
+// back to the return-to-start behavior.
+function reloadLastSave() {
+  const json = lastCheckpoint || localStorage.getItem(AUTOSAVE_KEY);
+  if (!json) return false;
+  try { applyLoadData(JSON.parse(json)); return true; }
+  catch (e) { return false; }
+}
+
 // ─── Modal UI ─────────────────────────────────────────────────────────────────
 function renderSlotList() {
   const idx = getSaveIndex();
@@ -272,6 +310,36 @@ function renderSlotList() {
   modeLabel.textContent = modalMode === 'save'
     ? 'Choose a slot to save into, or create a new one.'
     : 'Choose a save to load.';
+
+  // Auto-save (load mode only) — the rolling checkpoint written on village
+  // clears and tower floors, shown above the manual slots so it can be resumed.
+  if (modalMode === 'load' && idx.auto && localStorage.getItem(AUTOSAVE_KEY)) {
+    const meta = idx.auto;
+    const div = document.createElement('div');
+    div.className = 'save-slot';
+
+    const nameSpan = document.createElement('div');
+    nameSpan.className = 'save-slot-name';
+    nameSpan.textContent = '⏱ ' + (meta.saveName || 'Auto-save');
+
+    const metaSpan = document.createElement('div');
+    metaSpan.className = 'save-slot-meta';
+    const hero = meta.heroName ? `🛡 ${meta.heroName} · ` : '';
+    metaSpan.textContent = `${hero}Lv${meta.level} · Map ${meta.mapsVisited}/232 · ${meta.date}`;
+
+    const btns = document.createElement('div');
+    btns.className = 'save-slot-btns';
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'ssbtn';
+    loadBtn.textContent = '📂 Load';
+    loadBtn.onclick = () => doLoadAuto();
+    btns.appendChild(loadBtn);
+
+    div.appendChild(nameSpan);
+    div.appendChild(metaSpan);
+    div.appendChild(btns);
+    list.appendChild(div);
+  }
 
   for (let i = 0; i < MAX_SLOTS; i++) {
     const meta = idx[i];
@@ -348,8 +416,9 @@ function doSave(slotIdx) {
   const nameInput = document.getElementById('modal-name-input');
   const saveName = nameInput.value.trim() || defaultSlotName(slotIdx);
   try {
-    const data = buildSaveData();
-    localStorage.setItem(SAVE_KEY_PREFIX + slotIdx, JSON.stringify(data));
+    const json = JSON.stringify(buildSaveData());
+    localStorage.setItem(SAVE_KEY_PREFIX + slotIdx, json);
+    lastCheckpoint = json;   // a manual save is also a death-reload point
     const idx = getSaveIndex();
     idx[slotIdx] = {
       saveName,
@@ -373,10 +442,26 @@ function doLoad(slotIdx) {
   const meta = getSaveIndex()[slotIdx];
   try {
     applyLoadData(JSON.parse(raw));
+    lastCheckpoint = raw;   // dying right after loading returns to this same save
     // Dismiss the title screen if this load was launched from it (no-op mid-game).
     if (typeof startGame === 'function') startGame();
     document.getElementById('save-status').textContent =
       `✅ Loaded "${meta?.saveName || 'Save ' + (slotIdx+1)}"`;
+    showMsg(`📂 Loaded: ${currentMap().name}`, 2500);
+    closeModal();
+  } catch (e) {
+    document.getElementById('save-status').textContent = '❌ Load failed';
+  }
+}
+
+function doLoadAuto() {
+  const raw = localStorage.getItem(AUTOSAVE_KEY);
+  if (!raw) return;
+  try {
+    applyLoadData(JSON.parse(raw));
+    lastCheckpoint = raw;
+    if (typeof startGame === 'function') startGame();
+    document.getElementById('save-status').textContent = '✅ Loaded auto-save';
     showMsg(`📂 Loaded: ${currentMap().name}`, 2500);
     closeModal();
   } catch (e) {
