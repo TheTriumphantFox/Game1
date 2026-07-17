@@ -30,6 +30,21 @@ function towerLandmarkTile(regionId) {
   return f ? f() : T.STATUE;
 }
 
+// The fuller palette of passable region tiles to scatter through a courtyard:
+// the region's base decoration plus every open-ground foliage variant its
+// landmark spec knows about (SKY_BLOOM/WIND_REED/…), skipping the base ground
+// tile itself. Regions without a landmark spec fall back to just their
+// decoration. Lets a courtyard read as a genuine slice of the region rather
+// than a single repeated deco tile.
+function towerCourtyardPalette(region) {
+  const pal = [region.decoration];
+  const spec = REGION_LANDMARKS[region.id];
+  if (spec)
+    for (const t of spec.open)
+      if (t !== region.ground && !pal.includes(t)) pal.push(t);
+  return pal;
+}
+
 // Flood from (sr, sc) over passable tiles and seal every unreached passable tile
 // back to WALL. Chest tiles aren't passable per SOLID_TILES semantics but none
 // exist yet when this runs (chests are placed after). Returns reached count.
@@ -112,24 +127,29 @@ function towerDressCourtyard(m, room, region) {
   for (let r = ir0; r <= ir1; r++)
     for (let c = ic0; c <= ic1; c++)
       if (m[r][c] === T.FLOOR) m[r][c] = region.ground;
-  const groundOk = (r, c) => m[r][c] === region.ground || m[r][c] === region.decoration;
-  // Scatter the region's decoration across the courtyard ground. A solid
-  // decoration (e.g. the water region's open WATER) only lands where its whole
+  // The whole region palette (base ground + every scatter variant) counts as
+  // open courtyard ground for the ring / landmark safety checks.
+  const palette = towerCourtyardPalette(region);
+  const openSet = new Set([region.ground, ...palette]);
+  const groundOk = (r, c) => openSet.has(m[r][c]);
+  // Scatter the region's full foliage palette across the courtyard ground so it
+  // reads as a real slice of the region, not one repeated deco. A solid variant
+  // (e.g. the water region's open WATER) only lands where its whole
   // 8-neighbourhood is courtyard ground, so it can never plug the doorway.
-  const solidDeco = SOLID_TILES.has(region.decoration);
   let placed = 0, tries = 0;
-  while (placed < 12 && tries < 300) {
+  while (placed < 20 && tries < 500) {
     tries++;
     const r = rnd(ir0 + 1, ir1 - 1), c = rnd(ic0 + 1, ic1 - 1);
     if (m[r][c] !== region.ground) continue;
-    if (solidDeco) {
+    const deco = palette[rnd(0, palette.length - 1)];
+    if (SOLID_TILES.has(deco)) {
       let clear = true;
       for (let dr = -1; dr <= 1 && clear; dr++)
         for (let dc = -1; dc <= 1; dc++)
           if ((dr || dc) && !groundOk(r + dr, c + dc)) { clear = false; break; }
       if (!clear) continue;
     }
-    m[r][c] = region.decoration;
+    m[r][c] = deco;
     placed++;
   }
   // Landmark centrepiece — solid, so it needs the same full-ring check.
@@ -246,10 +266,12 @@ function dressTowerFloor(m, rooms, hall, region) {
   // Torchlight along the walls.
   towerPlaceTorches(m, 23);
 
-  // Two elemental courtyards in wing rooms (pick the two largest for space).
+  // Elemental courtyards in wing rooms — pick the four largest for space so a
+  // solid chunk of the floor reads as the region, one per quadrant where the
+  // geometry allows.
   const byArea = rooms.slice().sort((a, b) =>
     (b.r1 - b.r0) * (b.c1 - b.c0) - (a.r1 - a.r0) * (a.c1 - a.c0));
-  for (const room of byArea.slice(0, 2)) towerDressCourtyard(m, room, region);
+  for (const room of byArea.slice(0, 4)) towerDressCourtyard(m, room, region);
 
   // Elemental accent pools flanking the great hall's carpet — 2×6 channels of
   // the region's accent (open lava, void rift, water…), ring-checked so a solid

@@ -508,11 +508,39 @@ function rollEnemyTypeDrops(e) {
 }
 
 // ─── Kill sound ───────────────────────────────────────────────────────────────
-// Every kill plays the classic Wilhelm scream. The base element is created once;
-// each play clones it so rapid multi-kills overlap instead of cutting each other
-// off. play() can reject before the first user gesture — swallow that quietly.
+// Every kill plays the classic Wilhelm scream. Decoded once into a Web Audio
+// buffer so playback is instant and overlaps cleanly on rapid multi-kills —
+// cloning an <audio> element re-decoded the file on each play, which is what made
+// the scream lag behind the kill. A cloned-<audio> path stays as a fallback until
+// the buffer is ready (or if Web Audio is unavailable). play() can reject before
+// the first user gesture — swallow that quietly.
 const WILHELM_SCREAM = new Audio('wilhelm-scream.wav');
+let SCREAM_CTX = null;
+let SCREAM_BUFFER = null;
+(function preloadKillSound() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    SCREAM_CTX = new AC();
+    fetch('wilhelm-scream.wav')
+      .then(r => r.arrayBuffer())
+      .then(buf => SCREAM_CTX.decodeAudioData(buf))
+      .then(decoded => { SCREAM_BUFFER = decoded; })
+      .catch(() => {});
+  } catch (_) { SCREAM_CTX = null; }
+})();
 function playKillSound() {
+  if (SCREAM_CTX && SCREAM_BUFFER) {
+    // A user gesture may be needed before audio can start; resume if suspended.
+    if (SCREAM_CTX.state === 'suspended') SCREAM_CTX.resume().catch(() => {});
+    const src = SCREAM_CTX.createBufferSource();
+    src.buffer = SCREAM_BUFFER;
+    const gain = SCREAM_CTX.createGain();
+    gain.gain.value = 0.5;
+    src.connect(gain).connect(SCREAM_CTX.destination);
+    src.start();
+    return;
+  }
   const s = WILHELM_SCREAM.cloneNode();
   s.volume = 0.5;
   s.play().catch(() => {});
@@ -661,6 +689,13 @@ function killEnemy(e) {
       if (typeof placeTowerHoardChest === 'function') placeTowerHoardChest(cm);
       if (typeof showVictoryScreen === 'function') showVictoryScreen();
     }
+  }
+  // ─── Castle floors 1–13: unsealing the stair up ────────────────────────────
+  // When the last guardian on a tower floor falls, announce that the spiral
+  // stair has unsealed (the TOWER_STAIRS_UP handler enforces the actual lock).
+  if (cm && cm.type === 'castle_tower' && cm.floorIdx < 14 &&
+      enemies.every(en => en.dead)) {
+    showMapMsg(`🗝️ Floor ${cm.floorIdx} cleared — the spiral stair unseals. Climb on!`);
   }
 }
 
@@ -1264,6 +1299,18 @@ function tryCaveTransition() {
   // (building the next floor on first visit). Each stair links back to itself
   // for the descent. Mirrors SKY_ASCENT for the sky caves.
   if (t === T.TOWER_STAIRS_UP && cm.type === 'castle_tower') {
+    // Each floor is sealed until its garrison falls — no climbing past live
+    // guardians. (The dormant dragon only ever stands on floor 14, which has no
+    // stair up, so finalBoss is excluded defensively.) A short cooldown keeps
+    // the "sealed" message from spamming while the hero shoves at the stair.
+    const remaining = enemies.filter(e => !e.dead && !e.finalBoss).length;
+    if (remaining > 0) {
+      transitionCooldown = 400;
+      showMapMsg(remaining === 1
+        ? '🔒 The stair is sealed — one last guardian still stands on this floor.'
+        : `🔒 The stair is sealed — ${remaining} guardians still stand on this floor.`);
+      return true;
+    }
     saveEnemyStateToMap(currentMapId);
     saveVillagersToMap(currentMapId);
     const sourceId = currentMapId, sourceX = player.x, sourceY = player.y;

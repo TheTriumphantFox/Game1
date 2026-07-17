@@ -290,7 +290,8 @@ function doSwordSwing() {
       damageNumbers.push({ entity: e, val: baseDmg, color: '#ff4444', life: 1000, rise: 0 });
 
       // Elemental enemies are vulnerable to their opposite element: 50% chance
-      // per hit to take an extra 1d4 of it per 5 sword levels (none below Lv5).
+      // per hit to take an extra 1d4 of it (always at least 1d4 from Lv1, plus
+      // another die every 5 sword levels).
       rollOppositeVuln(e, player.swordLevel);
 
       // Elemental damage — ONLY the currently equipped elemental sword adds
@@ -596,7 +597,8 @@ function stepProjectiles(dt, map) {
           damageNumbers.push({ entity: e, val: p.dmg, color: '#ff4444', life: 1000, rise: 0 });
           spawnParticle(esp.x, esp.y, p.color || '#ddaa44', 4, 2);
           // Elemental enemies: 50% chance per arrow hit to take an extra 1d4
-          // of their opposite element per 5 bow levels (none below Lv5).
+          // of their opposite element (always at least 1d4 from Lv1, plus
+          // another die every 5 bow levels).
           rollOppositeVuln(e, player.bowLevel);
           // Elemental arrow: extra 1d4 of its element
           if (p.element) {

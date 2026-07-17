@@ -204,38 +204,38 @@ function renderStoreContents() {
       `;
     }).join('');
 
-  // Arrows section: each region's store stocks only ONE arrow type — its own
-  // element (plain in the elementless forest). A region with element 'fire'
-  // sells fire arrows; forest sells plain. Both buy + sell controls for that
-  // single type.
-  const arrowId = (SWORD_ELEMENTS[regionId])
-    ? regionId : 'plain';
-  const arrowPlain = arrowId === 'plain';
-  const arrowElem = arrowPlain
-    ? { label: 'Plain', icon: '🏹' }
-    : SWORD_ELEMENTS[arrowId];
-  const arrowCount = (player.arrows && player.arrows[arrowId]) || 0;
-  const arrowPackCost = arrowPlain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST;
-  const arrowSellVal  = arrowPlain ? PLAIN_ARROW_SELL_VALUE : ARROW_SELL_VALUE;
-  const arrowMeta = arrowPlain
-    ? 'Standard ammunition — no elemental rider'
-    : `+1d4 ${arrowElem.label} on hit`;
-  const arrowsRows =
-    `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#aacc88">
-      ${regionName} arrows · ${ARROW_PACK_SIZE}-pack ${arrowPackCost}💰 (sell ${arrowSellVal}💰)
-    </div>
-    <div class="shop-row">
+  // Arrows section: every store sells plain arrows in 5-arrow bundles. Elemental
+  // regions additionally stock their own element's arrows. Renders a buy/sell
+  // row for a given arrow id.
+  const arrowRowHTML = (id) => {
+    const plain = id === 'plain';
+    const elem = plain ? { label: 'Plain', icon: '🏹' } : SWORD_ELEMENTS[id];
+    const count = (player.arrows && player.arrows[id]) || 0;
+    const packCost = plain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST;
+    const sellVal  = plain ? PLAIN_ARROW_SELL_VALUE : ARROW_SELL_VALUE;
+    const meta = plain
+      ? 'Standard ammunition — no elemental rider'
+      : `+1d4 ${elem.label} on hit`;
+    return `<div class="shop-row">
       <div class="shop-item">
-        <div class="shop-item-name">${arrowPlain ? '🏹' : elemIconHTML(arrowElem)} ${arrowElem.label} Arrow <span style="color:#88cc88">x${arrowCount}</span></div>
-        <div class="shop-item-meta">${arrowMeta}</div>
+        <div class="shop-item-name">${plain ? '🏹' : elemIconHTML(elem)} ${elem.label} Arrow <span style="color:#88cc88">x${count}</span> <span style="color:#778877">· ${ARROW_PACK_SIZE}-pack ${packCost}💰 (sell ${sellVal}💰)</span></div>
+        <div class="shop-item-meta">${meta}</div>
       </div>
-      <button class="ssbtn" ${player.rubies < arrowPackCost ? 'disabled' : ''} onclick="buyElementalArrows('${arrowId}')">
-        +${ARROW_PACK_SIZE} 💰${arrowPackCost}
+      <button class="ssbtn" ${player.rubies < packCost ? 'disabled' : ''} onclick="buyElementalArrows('${id}')">
+        +${ARROW_PACK_SIZE} 💰${packCost}
       </button>
-      <button class="ssbtn" ${arrowCount <= 0 ? 'disabled' : ''} onclick="sellElementalArrow('${arrowId}')">
-        -1 ➜ 💰${arrowSellVal}
+      <button class="ssbtn" ${count <= 0 ? 'disabled' : ''} onclick="sellElementalArrow('${id}')">
+        -1 ➜ 💰${sellVal}
       </button>
     </div>`;
+  };
+  // Plain arrows are stocked everywhere; elemental regions add their own element.
+  const arrowIds = SWORD_ELEMENTS[regionId] ? [regionId, 'plain'] : ['plain'];
+  const arrowsRows =
+    `<div style="margin-top:14px;border-top:1px solid #2a4a2a;padding-top:10px;font-size:12px;color:#aacc88">
+      Arrows · ${ARROW_PACK_SIZE}-arrow bundles
+    </div>` +
+    arrowIds.map(arrowRowHTML).join('');
 
   // Trophy / forage sell section — region-scoped. The store only buys drops
   // collectible in THIS region (its monster trophies + its foraged goods, see
