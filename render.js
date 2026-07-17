@@ -1174,6 +1174,23 @@ function drawProjectile(p) {
 
 let minimapDirty = true;
 let minimapCanvases = {};   // keyed by mapId
+const MINIMAP_SCALE = 1.2;  // minimap pixels per world tile (shared by full + incremental paint)
+
+// Stamp one just-revealed tile onto a map's cached minimap canvas, matching the
+// full-rebuild loop in drawMinimap exactly. Lets fog reveals keep the minimap
+// current incrementally instead of rescanning all MROWS*MCOLS tiles every step
+// (the old minimapDirty full rebuild cost ~9ms/step on a large, mostly-revealed
+// map like a castle-tower floor — see revealAround). No-op until the canvas
+// exists; the first drawMinimap builds it in full, then reveals patch it.
+function paintMinimapTile(mapObj, c, r) {
+  const mmc = minimapCanvases[mapObj.id];
+  if (!mmc) return;
+  const g = mmc.getContext('2d');
+  const t = mapObj.map[r][c];
+  g.fillStyle = TILE_COLORS[t] || '#111';
+  g.fillRect(Math.floor(c * MINIMAP_SCALE), Math.floor(r * MINIMAP_SCALE),
+             Math.ceil(MINIMAP_SCALE), Math.ceil(MINIMAP_SCALE));
+}
 
 // Which of the four map edges actually lead somewhere, so the minimap only
 // draws an exit arrow where a real transition exists. An edge counts when the
@@ -1201,7 +1218,7 @@ function edgeTransitions(mapObj) {
 }
 
 function drawMinimap() {
-  const scale = 1.2;
+  const scale = MINIMAP_SCALE;
   const mw = Math.floor(MCOLS * scale), mh = Math.floor(MROWS * scale);
   const mx = PW - mw - 8, my = 8;
 
@@ -1235,10 +1252,16 @@ function drawMinimap() {
   // Player dot
   ctx.fillStyle = '#ffcc00';
   ctx.fillRect(mx + Math.floor(player.x*scale) - 1, my + Math.floor(player.y*scale) - 1, 3, 3);
-  // Enemy dots (live)
+  // Enemy dots (live) — larger, centered on the tile and ringed with a dark
+  // backing so they stay legible against any terrain color. Bosses are drawn
+  // noticeably bigger than regular foes so they read at a glance.
   enemies.filter(e => !e.dead).forEach(e => {
-    ctx.fillStyle = e.boss ? '#ff00ff' : '#ff4444';
-    ctx.fillRect(mx + Math.floor(e.x*scale), my + Math.floor(e.y*scale), 2, 2);
+    const sz = e.boss ? 6 : 4;
+    const cx = mx + Math.floor(e.x*scale), cy = my + Math.floor(e.y*scale);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(cx - sz/2 - 1, cy - sz/2 - 1, sz + 2, sz + 2);
+    ctx.fillStyle = e.boss ? '#ff33ff' : '#ff5555';
+    ctx.fillRect(cx - sz/2, cy - sz/2, sz, sz);
   });
   // Exit markers — only on edges that actually lead somewhere.
   const exits = edgeTransitions(currentMap());
