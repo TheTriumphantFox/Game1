@@ -283,7 +283,16 @@ const T = {
   // dragon's treasure mound. BANNER and CASTLE_WINDOW are solid wall dressings
   // (swapped in place of T.WALL, never carved); THRONE is the solid royal seat.
   TOWER_STAIRS_DOWN:146, TOWER_STAIRS_UP:147, CARPET:148,
-  BANNER:149, CASTLE_WINDOW:150, THRONE:151, HOARD:152
+  BANNER:149, CASTLE_WINDOW:150, THRONE:151, HOARD:152,
+
+  // A radiant return portal placed beside the LARGE_CHEST reward at the heart of
+  // a cave chain's deepest level, a sky cave's highest reach, or a ruined dungeon
+  // (see buildCaveLevelMap's isFinal branch). Stepping onto it whisks the hero all
+  // the way back out to the overworld region map they originally descended/rose
+  // from — a one-step shortcut so grabbing the prize doesn't mean retracing the
+  // whole labyrinth (or climbing back up every chain level). Passable. Its return
+  // target is the map's rootMapId/rootX/rootY (see createCaveChainMap etc.).
+  CHEST_EXIT:153
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -339,6 +348,7 @@ const TILE_COLORS = {
   [T.PILLAR]: '#555', [T.TORCH]: '#663300', [T.STATUE]: '#888',
   [T.SHRINE]: '#225522', [T.MUSHROOM]: '#3a7a3a', [T.FERN]: '#3a7a3a',
   [T.CAVE_ENTRANCE]: '#0a0a0a', [T.CAVE_EXIT]: '#332266',
+  [T.CHEST_EXIT]: '#f0c860',
   [T.LARGE_CHEST]: '#cc8800', [T.CAVE_FLOOR]: '#3a2a1a',
   [T.INN_DOOR]: '#aa3322', [T.STORE_DOOR]: '#33aa55', [T.HERB_DOOR]: '#66bb44',
   [T.SMITH_DOOR]: '#7088aa',

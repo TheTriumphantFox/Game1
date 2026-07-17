@@ -272,6 +272,13 @@ function createCaveChainMap(returnMapId, returnX, returnY, sourceTier, chainDept
   const newId = worldMaps.length;
   const isFinal = chainDepth >= chainLen;
   const built = buildCaveLevelMap(isFinal);
+  // Root = the overworld map this whole chain hangs off. Level 1 returns straight
+  // to it (returnMapId IS the overworld); deeper levels inherit it from the level
+  // above (the map we return to). The final level's CHEST_EXIT portal uses this to
+  // jump the hero all the way out in one step. See tryCaveTransition.
+  const root = chainDepth <= 1
+    ? { mapId: returnMapId, x: returnX, y: returnY }
+    : rootReturnOf(worldMaps[returnMapId], returnMapId, returnX, returnY);
   const obj = {
     id: newId, gx: 0, gy: 0,
     name: isFinal ? 'Cave — The Deep Hollow' : `Hidden Cave (${chainDepth}/${chainLen})`,
@@ -287,11 +294,20 @@ function createCaveChainMap(returnMapId, returnX, returnY, sourceTier, chainDept
     enemyDefs: makeCaveEnemyDefs(sourceTier, built.map),
     openedChests: new Set(),
     visited: true,
-    returnMapId, returnX, returnY
+    returnMapId, returnX, returnY,
+    rootMapId: root.mapId, rootX: root.x, rootY: root.y
     // Fog is created lazily — a full-sized cave is explored, not pre-revealed.
   };
   worldMaps.push(obj);
   return newId;
+}
+
+// Resolve the overworld root-return target for a map: its own root fields if it
+// already carries them (a chain/sky-cave level above), else the map itself at
+// (fx, fy) — used so a chain's deepest CHEST_EXIT lands back on the overworld.
+function rootReturnOf(m, fallbackId, fx, fy) {
+  if (m && m.rootMapId != null) return { mapId: m.rootMapId, x: m.rootX, y: m.rootY };
+  return { mapId: fallbackId, x: fx, y: fy };
 }
 
 // ─── Ruined dungeon ────────────────────────────────────────────────────────────
@@ -315,7 +331,10 @@ function createDungeonMap(returnMapId, returnX, returnY, regionIdx) {
     enemyDefs: makeEnemyDefs(20, region.id, built.map),
     openedChests: new Set(),
     visited: true,
-    returnMapId, returnX, returnY
+    returnMapId, returnX, returnY,
+    // Single level: the overworld door IS the root, so the chest portal returns to
+    // the same place as the edge door — just without the walk back through the maze.
+    rootMapId: returnMapId, rootX: returnX, rootY: returnY
     // Fog is created lazily — a full-sized dungeon is explored, not pre-revealed.
   };
   worldMaps.push(obj);
@@ -340,6 +359,11 @@ function createSkyCaveMap(returnMapId, returnX, returnY, regionIdx, chainDepth, 
   const isFinal = chainDepth >= chainLen;
   const built = buildSkyCaveLevelMap(isFinal, region);
   const label = SKY_CAVE_NAMES[region.id] || 'Sky Hollow';
+  // Root overworld map for the chain (see createCaveChainMap) — the final level's
+  // CHEST_EXIT portal drops the hero all the way back down to it in one step.
+  const root = chainDepth <= 1
+    ? { mapId: returnMapId, x: returnX, y: returnY }
+    : rootReturnOf(worldMaps[returnMapId], returnMapId, returnX, returnY);
   const obj = {
     id: newId, gx: 0, gy: 0,
     name: isFinal ? `${label} — The High Reach` : `${label} (${chainDepth}/${chainLen})`,
@@ -356,7 +380,8 @@ function createSkyCaveMap(returnMapId, returnX, returnY, regionIdx, chainDepth, 
     enemyDefs: makeEnemyDefs(20, region.id, built.map),
     openedChests: new Set(),
     visited: true,
-    returnMapId, returnX, returnY
+    returnMapId, returnX, returnY,
+    rootMapId: root.mapId, rootX: root.x, rootY: root.y
     // Fog is created lazily — a full-sized sky cave is explored, not pre-revealed.
   };
   worldMaps.push(obj);

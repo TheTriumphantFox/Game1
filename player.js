@@ -1389,6 +1389,46 @@ function tryCaveTransition() {
     return true;
   }
 
+  // Step onto the reward portal beside the deep large chest → warp all the way
+  // back out to the overworld region map this labyrinth hangs off (rootMapId),
+  // skipping the whole climb back up the chain. Works from a cave chain's deepest
+  // level, a sky cave's highest reach, and a ruined dungeon. Falls back to the
+  // immediate return map for any legacy save whose deep map predates rootMapId.
+  if (t === T.CHEST_EXIT) {
+    saveEnemyStateToMap(currentMapId);
+    saveVillagersToMap(currentMapId);
+    const backId = cm.rootMapId != null ? cm.rootMapId : cm.returnMapId;
+    const backX  = cm.rootMapId != null ? cm.rootX : cm.returnX;
+    const backY  = cm.rootMapId != null ? cm.rootY : cm.returnY;
+    currentMapId = backId;
+    const srcMap = worldMaps[currentMapId].map;
+    // Land one tile south of the entrance we originally used, else nearest open.
+    let tx = backX, ty = Math.min(MROWS - 2, backY + 1);
+    if (isSolid(srcMap, tx, ty)) {
+      const candidates = [
+        [0,  1], [1,  0], [-1, 0], [0, -1],
+        [1,  1], [-1, 1], [1, -1], [-1, -1],
+        [0,  2], [2,  0], [-2, 0], [0, -2]
+      ];
+      tx = backX; ty = backY;
+      for (const [dx, dy] of candidates) {
+        const cx2 = backX + dx, cy2 = backY + dy;
+        if (cx2 >= 0 && cx2 < MCOLS && cy2 >= 0 && cy2 < MROWS && !isSolid(srcMap, cx2, cy2)) {
+          tx = cx2; ty = cy2; break;
+        }
+      }
+    }
+    player.x = tx; player.y = ty;
+    spawnEnemiesForMap(currentMapId);
+    spawnVillagersForMap(currentMapId);
+    transitionCooldown = 600;
+    minimapDirty = true;
+    clampCam(true);
+    revealAround(currentMap(), player.x, player.y, 12);
+    showMapMsg('✨ The portal returns you to the surface.');
+    return true;
+  }
+
   // Step onto the cave exit → return to source map at the tunnel tile
   if (t === T.CAVE_EXIT && (cm.type === 'cave' || cm.type === 'cave_chain')) {
     saveEnemyStateToMap(currentMapId);
