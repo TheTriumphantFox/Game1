@@ -369,6 +369,17 @@ function gainXP(amt) {
 
 // ─── Death / respawn ──────────────────────────────────────────────────────────
 function respawn() {
+  // On death, restore the most recent checkpoint (manual save, auto-save, or the
+  // save just loaded) instead of the old return-to-start penalty. The death is
+  // counted on the restored state, and a brief grace window keeps any stale
+  // contact damage from the frame we died on from immediately re-killing us.
+  if (typeof reloadLastSave === 'function' && reloadLastSave()) {
+    player.deaths = (player.deaths || 0) + 1;
+    player.invincible = 1500;
+    showMsg('💀 Defeated! Restored to your last save.', 3000);
+    return;
+  }
+  // Fallback — no checkpoint reached yet: the original return-to-start behavior.
   player.deaths = (player.deaths || 0) + 1;
   player.hp = player.maxHp;
   currentMapId = 0;
@@ -670,6 +681,9 @@ function killEnemy(e) {
       } else {
         showMapMsg('🏘️ The village awakens! To the castle — the realm’s last evil waits at its pinnacle.');
       }
+      // Clearing a village for the first time is a checkpoint — auto-save so a
+      // later death restores the hero here rather than back at the cabin.
+      if (typeof autoSave === 'function') autoSave(cm.name || 'village');
     }
   }
   // ─── Castle pinnacle: the staged finale ────────────────────────────────────
@@ -1333,6 +1347,9 @@ function tryCaveTransition() {
     showMapMsg(nf >= 14
       ? '🐉 The pinnacle. Every fallen champion of the realm stands guard here…'
       : `🏰 You climb the spiral stair — Floor ${nf}/14.`);
+    // Checkpoint each floor of the climb (including the pinnacle) so a death
+    // restores the hero to the start of the floor they fell on.
+    if (typeof autoSave === 'function') autoSave(`Castle Tower — Floor ${nf}`);
     return true;
   }
 
