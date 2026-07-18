@@ -329,3 +329,170 @@ function turnInCollectorQuest() {
   updateHUD();
 }
 
+// ─── The Taxidermist: full-roster trophy quest (#3) ────────────────────────────
+// A villager on the plaza of every region's village. They ask for ONE of every
+// monster trophy the region's beasts drop; hand over the full set and they mount a
+// trophy wall, granting a permanent +1 to that region's trophy drop-count (see
+// player.trophyDropBonus, applied in rollEnemyTypeDrops). One-time per region.
+function taxidermistTargets(regionIdx) { return regionDropTypes(regionIdx); }
+
+function ensureTaxidermistQuest(regionId) {
+  player.taxidermistQuests = player.taxidermistQuests || {};
+  let q = player.taxidermistQuests[regionId];
+  if (q) return q;
+  q = { status: 'active' };
+  player.taxidermistQuests[regionId] = q;
+  return q;
+}
+
+function taxidermistReady(regionIdx) {
+  return taxidermistTargets(regionIdx).every(type => (player[type + 's'] || 0) >= 1);
+}
+
+function openTaxidermistModal() {
+  shopOpen = true;
+  document.getElementById('quest-modal-overlay').classList.add('open');
+  renderTaxidermistContents();
+}
+
+function renderTaxidermistContents() {
+  const { idx: regionIdx, region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const regionName = regionId.charAt(0).toUpperCase() + regionId.slice(1);
+  const q = ensureTaxidermistQuest(regionId);
+  const targets = taxidermistTargets(regionIdx);
+
+  if (q.status === 'done') {
+    document.getElementById('quest-modal').innerHTML = `
+      <h2>🦌 The Taxidermist</h2>
+      <div class="shop-greeting">The ${regionName} trophy wall is complete — my mounts will draw the beasts out for you now.</div>
+      <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
+    `;
+    return;
+  }
+
+  const rows = targets.map(type => {
+    const have = player[type + 's'] || 0;
+    const meta = (typeof TROPHY_META !== 'undefined' && TROPHY_META[type]) ? TROPHY_META[type] : { icon: '•', label: type };
+    const done = have >= 1;
+    return `
+      <div class="shop-row">
+        <div class="shop-item">
+          <div class="shop-item-name">${meta.icon} ${meta.label} ${done ? '<span style="color:#88cc88">✓</span>' : ''}</div>
+          <div class="shop-item-meta">${Math.min(have, 1)} / 1</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const ready = taxidermistReady(regionIdx);
+  document.getElementById('quest-modal').innerHTML = `
+    <h2>🦌 The Taxidermist</h2>
+    <div class="shop-greeting">Bring me <b>one</b> of every beast in the ${regionName} reaches and I'll mount a trophy wall — the scent draws more prey. <b>Reward: permanent +1 ${regionName} trophy drops.</b></div>
+    ${rows}
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🎁 Hand over the set</div>
+        <div class="shop-item-meta">${ready ? 'The full roster — claim your boon!' : 'Gather one of each first'}</div>
+      </div>
+      <button class="ssbtn" ${ready ? '' : 'disabled'} onclick="turnInTaxidermistQuest()">➜ 🏆</button>
+    </div>
+    <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
+  `;
+}
+
+function turnInTaxidermistQuest() {
+  const { idx: regionIdx, region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const q = (player.taxidermistQuests || {})[regionId];
+  if (!q || q.status === 'done') return;
+  if (!taxidermistReady(regionIdx)) { renderTaxidermistContents(); return; }
+  for (const type of taxidermistTargets(regionIdx)) player[type + 's'] -= 1;
+  q.status = 'done';
+  player.trophyDropBonus = player.trophyDropBonus || {};
+  player.trophyDropBonus[regionId] = (player.trophyDropBonus[regionId] || 0) + 1;
+  const regionName = regionId.charAt(0).toUpperCase() + regionId.slice(1);
+  showMsg(`🦌 Trophy wall mounted! ${regionName} beasts now drop +1 trophy.`, 3500);
+  renderTaxidermistContents();
+  updateHUD();
+}
+
+// ─── The Alchemist: repeatable bulk order (#1) ─────────────────────────────────
+// A traveling vendor camped outside every OTHER region's village (even region
+// numbers; placement gated in placeAlchemist). They run a repeatable order for
+// ALCHEMIST_QTY of a single random region trophy, paying an escalating streak
+// bonus and rolling a fresh target on each fulfillment.
+const ALCHEMIST_QTY = 15;
+
+function rollAlchemistTarget(regionIdx) {
+  const pool = regionDropTypes(regionIdx);
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+}
+
+function ensureAlchemistOrder(regionIdx, regionId) {
+  player.alchemistOrders = player.alchemistOrders || {};
+  let o = player.alchemistOrders[regionId];
+  if (o && o.target) return o;
+  o = { target: rollAlchemistTarget(regionIdx), streak: 0 };
+  player.alchemistOrders[regionId] = o;
+  return o;
+}
+
+// Escalating pay: 1.25× store value at streak 0, +0.25× per consecutive order.
+function alchemistReward(o) {
+  if (!o || !o.target) return 0;
+  const base = ALCHEMIST_QTY * trophySellValue(o.target);
+  return Math.round(base * (1.25 + 0.25 * (o.streak || 0)));
+}
+
+function openAlchemistModal() {
+  shopOpen = true;
+  document.getElementById('quest-modal-overlay').classList.add('open');
+  renderAlchemistContents();
+}
+
+function renderAlchemistContents() {
+  const { idx: regionIdx, region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const o = ensureAlchemistOrder(regionIdx, regionId);
+  if (!o.target) {
+    document.getElementById('quest-modal').innerHTML = `
+      <h2>⚗️ The Alchemist</h2>
+      <div class="shop-greeting">No reagents catch my eye here just now — come back with more spoils.</div>
+      <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>`;
+    return;
+  }
+  const meta = (typeof TROPHY_META !== 'undefined' && TROPHY_META[o.target]) ? TROPHY_META[o.target] : { icon: '•', label: o.target };
+  const have = player[o.target + 's'] || 0;
+  const reward = alchemistReward(o);
+  const ready = have >= ALCHEMIST_QTY;
+  document.getElementById('quest-modal').innerHTML = `
+    <h2>⚗️ The Alchemist</h2>
+    <div class="shop-greeting">I need reagents in bulk. Bring me <b>${ALCHEMIST_QTY}</b> ${meta.label} and I'll pay well — the more orders you fill in a row, the sweeter the price.</div>
+    <div class="shop-rubies">Reward: 💰 <b>${reward}</b> &nbsp;·&nbsp; Streak: <b>${o.streak || 0}</b></div>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">${meta.icon} ${meta.label}</div>
+        <div class="shop-item-meta">${Math.min(have, ALCHEMIST_QTY)} / ${ALCHEMIST_QTY}</div>
+      </div>
+      <button class="ssbtn" ${ready ? '' : 'disabled'} onclick="turnInAlchemistOrder()">➜ 💰 ${reward}</button>
+    </div>
+    <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
+  `;
+}
+
+function turnInAlchemistOrder() {
+  const { idx: regionIdx, region } = storeRegion();
+  const regionId = region ? region.id : 'forest';
+  const o = (player.alchemistOrders || {})[regionId];
+  if (!o || !o.target) return;
+  if ((player[o.target + 's'] || 0) < ALCHEMIST_QTY) { renderAlchemistContents(); return; }
+  player[o.target + 's'] -= ALCHEMIST_QTY;
+  const reward = alchemistReward(o);
+  player.rubies += reward;
+  o.streak = (o.streak || 0) + 1;
+  o.target = rollAlchemistTarget(regionIdx);   // roll the next order
+  showMsg(`⚗️ Order filled! The Alchemist pays 💰 ${reward}. (Streak ${o.streak})`, 3500);
+  renderAlchemistContents();
+  updateHUD();
+}
+

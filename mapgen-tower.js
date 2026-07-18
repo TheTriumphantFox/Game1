@@ -312,6 +312,32 @@ function buildTowerPinnacleMap() {
     m[r][52] = T.PILLAR; m[r][97] = T.PILLAR;
   }
 
+  // Cross buttresses — stub partition walls jutting in from alternating side
+  // walls to break the vast open floor into a run of bays. Each is 2 tiles
+  // thick and stops short of the opposite wall, and none ever touches the
+  // central carpet columns (73–77), so the ceremonial spine runs unbroken and
+  // there is always a wide pass around every buttress (connectivity by
+  // construction — the pinnacle has no self-seal pass). A short pier of pillars
+  // caps the inner tip for a castle look. Placed on FLOOR only, so the dais,
+  // hoard, colonnades and carpet are left untouched.
+  const buttresses = [
+    { r: 62,  side: 'W', reach: 70 },   // in from the west wall
+    { r: 82,  side: 'E', reach: 79 },   // in from the east wall
+    { r: 104, side: 'W', reach: 70 },
+    { r: 122, side: 'E', reach: 79 },
+  ];
+  for (const b of buttresses) {
+    const cFrom = b.side === 'W' ? C0 : b.reach;
+    const cTo   = b.side === 'W' ? b.reach : C1;
+    for (let r = b.r; r <= b.r + 1; r++)
+      for (let c = cFrom; c <= cTo; c++)
+        if (m[r][c] === T.FLOOR) m[r][c] = T.WALL;
+    // Pillar pier at the buttress's inner tip.
+    const tip = b.reach;
+    if (m[b.r][tip] === T.WALL) m[b.r][tip] = T.PILLAR;
+    if (m[b.r + 1][tip] === T.WALL) m[b.r + 1][tip] = T.PILLAR;
+  }
+
   // Marble throne dais at the north end, with the throne, stone sentinels, and
   // torch-lit corners.
   setRect(m, 25, 62, 35, 87, T.MARBLE);

@@ -59,6 +59,9 @@ function buildSaveData() {
       // village's castle-gate side.
       floorIdx: m.floorIdx,
       castleExitDir: m.castleExitDir,
+      // Sealed-shrine required element (set on the one overworld map per region
+      // that hosts the shrine; used to tint the shrine + its clue runes).
+      shrineElement: m.shrineElement,
       // Whirlpool grotto linkage — set on source maps that opened a grotto,
       // plus the cleared-chest flag on the grotto itself.
       grottoLinks: m.grottoLinks ? { ...m.grottoLinks } : undefined,
@@ -108,6 +111,18 @@ const DEFAULT_PLAYER = {
   lostSonQuests: {},
   // Per-region Sword & Shield Guild quests, keyed by region id (see guild.js).
   guildQuests: {},
+  // Per-region Sealed Shrine quests, keyed by region id (see world.js).
+  shrineQuests: {},
+  // Per-region Taxidermist quests + earned trophy-drop bonuses (shop-herbalist.js).
+  taxidermistQuests: {},
+  trophyDropBonus: {},
+  // Per-region Alchemist repeatable bulk orders (shop-herbalist.js).
+  alchemistOrders: {},
+  // Per-region escort quests (#7/8/9) + their earned rewards (villagers.js).
+  caravanQuests: {}, apprenticeQuests: {}, gathererQuests: {},
+  storeDiscounts: {}, smithFreeUpgrade: {}, forageBonus: {},
+  // Completionist's Ledger milestone (#13).
+  chronicleMilestone: 0,
   // Sword & Shield Guild membership card (granted on first induction).
   guildCard: false,
   immunityElement: null, immunityTimer: 0,
@@ -138,6 +153,16 @@ function applyLoadData(data) {
   player.collectorQuests = { ...((data.player && data.player.collectorQuests) || {}) };
   player.lostSonQuests = { ...((data.player && data.player.lostSonQuests) || {}) };
   player.guildQuests = { ...((data.player && data.player.guildQuests) || {}) };
+  player.shrineQuests = { ...((data.player && data.player.shrineQuests) || {}) };
+  player.taxidermistQuests = { ...((data.player && data.player.taxidermistQuests) || {}) };
+  player.trophyDropBonus = { ...((data.player && data.player.trophyDropBonus) || {}) };
+  player.alchemistOrders = { ...((data.player && data.player.alchemistOrders) || {}) };
+  player.caravanQuests = { ...((data.player && data.player.caravanQuests) || {}) };
+  player.apprenticeQuests = { ...((data.player && data.player.apprenticeQuests) || {}) };
+  player.gathererQuests = { ...((data.player && data.player.gathererQuests) || {}) };
+  player.storeDiscounts = { ...((data.player && data.player.storeDiscounts) || {}) };
+  player.smithFreeUpgrade = { ...((data.player && data.player.smithFreeUpgrade) || {}) };
+  player.forageBonus = { ...((data.player && data.player.forageBonus) || {}) };
   player.armorUpgrades = { ...((data.player && data.player.armorUpgrades) || {}) };
   player.swordUpgrades = { ...((data.player && data.player.swordUpgrades) || {}) };
   // renderX/Y aren't meaningful values to load — they should match x/y after
@@ -236,6 +261,7 @@ function applyLoadData(data) {
     if (lite.deeperLand) obj.deeperLand = lite.deeperLand;
     if (lite.floorIdx != null) obj.floorIdx = lite.floorIdx;
     if (lite.castleExitDir) obj.castleExitDir = lite.castleExitDir;
+    if (lite.shrineElement) obj.shrineElement = lite.shrineElement;
     if (lite.grottoLinks) obj.grottoLinks = { ...lite.grottoLinks };
     if (lite.grottoChestPlaced) obj.grottoChestPlaced = true;
     if (lite.activated) obj.activated = true;
@@ -533,6 +559,10 @@ function resetGame(heroName) {
     bonemeal: 0,
     grimsilver: 0, emberbrass: 0, glimmerspar: 0, wyrmgold: 0, eclipsium: 0,
     regionPotions: {}, elixirs: {}, collectorQuests: {}, lostSonQuests: {}, guildQuests: {},
+    shrineQuests: {}, taxidermistQuests: {}, trophyDropBonus: {}, alchemistOrders: {},
+    caravanQuests: {}, apprenticeQuests: {}, gathererQuests: {},
+    storeDiscounts: {}, smithFreeUpgrade: {}, forageBonus: {},
+    chronicleMilestone: 0,
     guildCard: false,
     immunityElement: null, immunityTimer: 0,
     swordElements: [], activeSwordElement: null, swordUpgrades: {},

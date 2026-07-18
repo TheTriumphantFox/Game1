@@ -267,7 +267,8 @@ function renderBlacksmithContents() {
         </div>`;
     }
 
-    for (const id of ownedSwords) swordsRows += blacksmithSwordRow(id, oa);
+    // Capstone Dragonbane is never upgraded through the ore tiers — skip it here.
+    for (const id of ownedSwords) { if (id === 'dragonbane') continue; swordsRows += blacksmithSwordRow(id, oa); }
   }
 
   document.getElementById('smith-modal').innerHTML = `
@@ -277,6 +278,7 @@ function renderBlacksmithContents() {
     ${pieceRows}
     ${armorsRows}
     ${swordsRows}
+    ${dragonbaneRow()}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
   `;
 }
@@ -286,6 +288,20 @@ function renderBlacksmithContents() {
 // tier (else a disabled hint pointing at the ore it needs). Swords are sold back at
 // the General Store, so there's no sell button here. `oa` is this smith's
 // ore/tier/cost (smithOreArmor()), or null.
+// #8 Runaway Apprentice reward: a one-time free upgrade voucher for THIS region's
+// smith. True while the current region has an unspent voucher.
+function smithVoucherActive() {
+  const rid = (typeof storeRegion === 'function') ? ((storeRegion().region || {}).id) : null;
+  return !!(rid && player.smithFreeUpgrade && player.smithFreeUpgrade[rid] > 0);
+}
+// Consume the current region's voucher (one upgrade). Returns true if one was spent.
+function consumeSmithVoucher() {
+  const rid = (typeof storeRegion === 'function') ? ((storeRegion().region || {}).id) : null;
+  if (!rid || !player.smithFreeUpgrade || !(player.smithFreeUpgrade[rid] > 0)) return false;
+  player.smithFreeUpgrade[rid] -= 1;
+  return true;
+}
+
 function blacksmithSwordRow(id, oa) {
   const elem = SWORD_ELEMENTS[id];
   if (!elem) return '';
@@ -300,8 +316,10 @@ function blacksmithSwordRow(id, oa) {
   } else if (oa && oa.tier === lv) {
     // This village's ore is exactly the sword's next sequential tier.
     const haveOre = player[oa.ore.id] || 0;
-    const broke   = haveOre < oa.oreCost || player.rubies < oa.rubyCost;
-    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalSword('${id}')">${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}</button>`;
+    const free    = smithVoucherActive();
+    const broke   = !free && (haveOre < oa.oreCost || player.rubies < oa.rubyCost);
+    const label   = free ? '🎟️ FREE' : `${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}`;
+    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalSword('${id}')">${label}</button>`;
     meta = `+${bonus} ${elem.label} dmg · upgrade → +${bonus + 2} dmg · have ${oa.ore.icon} ${haveOre}`;
   } else {
     // Next upgrade belongs to a different ore tier — point the hero at it.
@@ -336,13 +354,18 @@ function upgradeRegionalSword(id) {
   const lv = player.swordUpgrades[id] || 0;
   if (lv >= 6) return;
   if (oa.tier !== lv) return;                          // must be upgraded in sequence at the right ore village
-  if ((player[oa.ore.id] || 0) < oa.oreCost) return;
-  if (player.rubies < oa.rubyCost) return;
-  player[oa.ore.id] -= oa.oreCost;
-  player.rubies     -= oa.rubyCost;
+  const free = smithVoucherActive();
+  if (!free) {
+    if ((player[oa.ore.id] || 0) < oa.oreCost) return;
+    if (player.rubies < oa.rubyCost) return;
+    player[oa.ore.id] -= oa.oreCost;
+    player.rubies     -= oa.rubyCost;
+  } else {
+    consumeSmithVoucher();
+  }
   player.swordUpgrades[id] = lv + 1;
   const elem = SWORD_ELEMENTS[id];
-  showMsg(`🔨 Upgraded ⚔${elem.icon} ${elem.label} Sword → Lv ${lv + 1}: +${(lv + 1) * 2} ${elem.label} damage`, 3800);
+  showMsg(`🔨 Upgraded ⚔${elem.icon} ${elem.label} Sword → Lv ${lv + 1}: +${(lv + 1) * 2} ${elem.label} damage${free ? ' (free — the apprentice\'s thanks!)' : ''}`, 3800);
   renderBlacksmithContents();
   updateHUD();
 }
@@ -367,10 +390,12 @@ function blacksmithArmorRow(id, oa) {
   } else if (oa && oa.tier === lv) {
     // This village's ore is exactly the armor's next sequential tier.
     const haveOre  = player[oa.ore.id] || 0;
-    const broke    = haveOre < oa.oreCost || player.rubies < oa.rubyCost;
+    const free     = smithVoucherActive();
+    const broke    = !free && (haveOre < oa.oreCost || player.rubies < oa.rubyCost);
     const nextPct  = elementalBlockPctForLevel(lv + 1);
     const blockUp  = nextPct > blockPct ? `, block ${blockPct}→${nextPct}%` : '';
-    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalArmor('${id}')">${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}</button>`;
+    const label    = free ? '🎟️ FREE' : `${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}`;
+    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalArmor('${id}')">${label}</button>`;
     meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · upgrade → +${phys + 2} def${blockUp} · have ${oa.ore.icon} ${haveOre}${swims}`;
   } else {
     // Next upgrade belongs to a different ore tier — point the hero at it.
@@ -468,13 +493,103 @@ function upgradeRegionalArmor(id) {
   const lv = player.armorUpgrades[id] || 0;
   if (lv >= 6) return;
   if (oa.tier !== lv) return;                          // must be upgraded in sequence at the right ore village
-  if ((player[oa.ore.id] || 0) < oa.oreCost) return;
-  if (player.rubies < oa.rubyCost) return;
-  player[oa.ore.id] -= oa.oreCost;
-  player.rubies     -= oa.rubyCost;
+  const free = smithVoucherActive();
+  if (!free) {
+    if ((player[oa.ore.id] || 0) < oa.oreCost) return;
+    if (player.rubies < oa.rubyCost) return;
+    player[oa.ore.id] -= oa.oreCost;
+    player.rubies     -= oa.rubyCost;
+  } else {
+    consumeSmithVoucher();
+  }
   player.armorUpgrades[id] = lv + 1;
   const elem = SWORD_ELEMENTS[id];
-  showMsg(`🔨 Upgraded 🛡${elem.icon} ${elem.label} Armor → Lv ${lv + 1}: +${(lv + 1) * 2} def, blocks ${elementalBlockPctForLevel(lv + 1)}% ${elem.label}`, 3800);
+  showMsg(`🔨 Upgraded 🛡${elem.icon} ${elem.label} Armor → Lv ${lv + 1}: +${(lv + 1) * 2} def, blocks ${elementalBlockPctForLevel(lv + 1)}% ${elem.label}${free ? ' (free — the apprentice\'s thanks!)' : ''}`, 3800);
+  renderBlacksmithContents();
+  updateHUD();
+}
+
+// ─── #15 Forging the Dragonbane (capstone) ────────────────────────────────────
+// The ultimate blade — forged once at the FINAL village's smith after the hero has
+// proven themselves by slaying every region's Guild Quarry (all Guild head-quests
+// done, i.e. a boss part claimed in every land). Costs a heavy final-region ore +
+// ruby toll. It equips through the normal swordElements machinery; its damage
+// (1d12 + 12, ignores resistance) is handled in doSwordSwing.
+
+// How many regions have a Guild Quarry to slay (all of them, defensively counted).
+function dragonbaneRegionsCount() {
+  let n = 0;
+  for (let i = 0; i < REGIONS.length; i++)
+    if (typeof guildCreatureFor === 'function' && guildCreatureFor(i)) n++;
+  return n;
+}
+// Gate: every region's Guild head-quest is done (guildRank counts 'done' quests).
+function dragonbaneGateMet() {
+  const need = dragonbaneRegionsCount();
+  return need > 0 && (typeof guildRank === 'function') && guildRank() >= need;
+}
+// Forge toll: a heavy stack of the final region's ore + rubies.
+function dragonbaneCost() {
+  const lastIdx = REGIONS.length - 1;
+  const ore = (typeof oreForRegionIdx === 'function') ? oreForRegionIdx(lastIdx) : null;
+  return { rubies: 1000, ore, oreQty: 20 };
+}
+
+// The capstone row for the blacksmith modal — shown only at the final village's
+// smith (castle-gate village) or once the Dragonbane is already owned.
+function dragonbaneRow() {
+  const owns = (player.swordElements || []).includes('dragonbane');
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const atFinalSmith = !!(cm && cm.castleExitDir);
+  if (!owns && !atFinalSmith) return '';
+  const elem = SWORD_ELEMENTS.dragonbane;
+  if (owns) {
+    const wield = player.activeSwordElement === 'dragonbane' ? ' <span style="color:#88ccff">✓ wielded</span>' : '';
+    return `
+      <div style="margin-top:14px;border-top:1px solid #7a2a1a;padding-top:10px;font-size:12px;color:#ff8a5c">The Dragonbane</div>
+      <div class="shop-row">
+        <div class="shop-item">
+          <div class="shop-item-name">⚔${elem.icon} ${elem.label}${wield}</div>
+          <div class="shop-item-meta">Strikes for 1d12 + 12 and ignores all resistance — the ultimate blade.</div>
+        </div>
+        <button class="ssbtn" disabled>★ FORGED</button>
+      </div>`;
+  }
+  const gate = dragonbaneGateMet();
+  const cost = dragonbaneCost();
+  const haveRubies = player.rubies >= cost.rubies;
+  const haveOre = !cost.ore || (player[cost.ore.id] || 0) >= cost.oreQty;
+  const canForge = gate && haveRubies && haveOre;
+  const oreChip = cost.ore ? `${cost.ore.icon} ${Math.min(player[cost.ore.id] || 0, cost.oreQty)}/${cost.oreQty}` : '';
+  const meta = gate
+    ? `Forge: 💰 ${cost.rubies}${cost.ore ? ` + ${oreChip} ${cost.ore.label} ore` : ''} — you've slain a Guild Quarry in every land.`
+    : `Locked: slay every region's Guild Quarry (finish the Guild's hunt in all lands) to earn the right to forge it.`;
+  return `
+    <div style="margin-top:14px;border-top:1px solid #7a2a1a;padding-top:10px;font-size:12px;color:#ff8a5c">The Dragonbane · capstone</div>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">⚔${elem.icon} ${elem.label} <span style="color:#999">(1d12 + 12 · ignores resistance)</span></div>
+        <div class="shop-item-meta">${meta}</div>
+      </div>
+      <button class="ssbtn" ${canForge ? '' : 'disabled'} onclick="forgeDragonbane()">🔨 Forge</button>
+    </div>`;
+}
+
+function forgeDragonbane() {
+  if ((player.swordElements || []).includes('dragonbane')) return;
+  if (!dragonbaneGateMet()) return;
+  const cost = dragonbaneCost();
+  if (player.rubies < cost.rubies) return;
+  if (cost.ore && (player[cost.ore.id] || 0) < cost.oreQty) return;
+  player.rubies -= cost.rubies;
+  if (cost.ore) player[cost.ore.id] -= cost.oreQty;
+  player.swordElements = player.swordElements || [];
+  player.swordElements.push('dragonbane');
+  player.activeSwordElement = 'dragonbane';   // auto-wield the new capstone
+  if (typeof buzz === 'function') buzz([0, 30, 20, 40]);
+  const msg = '🐲 The Dragonbane is forged! Its edge fears nothing — 1d12 + 12 and no resistance turns it. Now wielded.';
+  if (typeof showMapMsg === 'function') showMapMsg(msg);
+  else if (typeof showMsg === 'function') showMsg(msg, 5000);
   renderBlacksmithContents();
   updateHUD();
 }

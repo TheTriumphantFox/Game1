@@ -137,6 +137,31 @@ let player = {
   // Sword & Shield Guild membership card — granted on the first guild induction
   // (subsequent regions reward potions/elixirs/rubies instead). See guild.js.
   guildCard: false,
+  // Per-region Sealed Shrine quests (see seedRegionShrine / tryUnsealShrine in
+  // world.js), keyed by region id → { mapId, requiredElement, status:'sealed'|'done',
+  // x, y }. One shrine seeded per region when its village is cleared; struck with a
+  // matching elemental sword/arrow it awakens (a reusable heal shrine) and grants a
+  // one-time +2 Max HP.
+  shrineQuests: {},
+  // Per-region Taxidermist quests (see openTaxidermistModal in shop-herbalist.js),
+  // keyed by region id → { status:'active'|'done' }. Turning in one of every region
+  // trophy grants a permanent +1 to that region's trophy drops (trophyDropBonus).
+  taxidermistQuests: {},
+  trophyDropBonus: {},
+  // Per-region Alchemist bulk orders (see openAlchemistModal), keyed by region id →
+  // { target, streak }. Repeatable: each fulfilled order rolls a new target and
+  // raises the streak (escalating pay). Only even-numbered regions host one.
+  alchemistOrders: {},
+  // Per-region escort quests (#7/8/9, see ESCORT_DEFS in villagers.js), keyed by
+  // region id → { status, entered, targetMapId }. Rewards land on the maps below.
+  caravanQuests: {}, apprenticeQuests: {}, gathererQuests: {},
+  // Escort rewards: storeDiscounts[rid] (0–1 fraction off the General Store, #7),
+  // smithFreeUpgrade[rid] (a one-time free blacksmith upgrade voucher, #8), and
+  // forageBonus[rid] (+N extra forage per pick in that region, #9).
+  storeDiscounts: {}, smithFreeUpgrade: {}, forageBonus: {},
+  // Highest Completionist's Ledger milestone claimed (#13, the Chronicler in the
+  // final village pays a tower-prep bundle every CHRONICLE_STEP quests done).
+  chronicleMilestone: 0,
   // Active elemental immunity from drinking an Elixir: the element id made
   // immune and the remaining buff time in ms (ticked down in main.js update()).
   immunityElement: null, immunityTimer: 0,
@@ -222,6 +247,31 @@ function useMedPotion() {
 function regionNumberOf(regionId) {
   const idx = (typeof REGIONS !== 'undefined') ? REGIONS.findIndex(r => r.id === regionId) : -1;
   return idx >= 0 ? idx + 1 : 1;
+}
+
+// Total finished quests across every quest system — used by the Character stats
+// panel and the Completionist's Ledger / Chronicler (#13). Counts a 'done' status
+// on each per-region quest map, plus each region's guild artifact sub-quest and its
+// three one-time bounties (all nested on guildQuests).
+function totalQuestsDone(p) {
+  p = p || player;
+  const doneCount = o => Object.values(o || {}).filter(q => q && q.status === 'done').length;
+  let n = 0;
+  n += doneCount(p.guildQuests);
+  n += doneCount(p.collectorQuests);
+  n += doneCount(p.lostSonQuests);
+  n += doneCount(p.taxidermistQuests);
+  n += doneCount(p.caravanQuests);
+  n += doneCount(p.apprenticeQuests);
+  n += doneCount(p.gathererQuests);
+  n += doneCount(p.shrineQuests);
+  for (const rid in (p.guildQuests || {})) {
+    const q = p.guildQuests[rid];
+    if (!q) continue;
+    if (q.artifactStatus === 'done') n++;
+    if (q.bounties) for (const k in q.bounties) if (q.bounties[k] && q.bounties[k].status === 'done') n++;
+  }
+  return n;
 }
 
 // Drink one region Health Potion. Heals Nd4 (N = that region's number), clamped
@@ -508,8 +558,16 @@ function rollEnemyTypeDrops(e) {
   const rx = Math.round(e.x), ry = Math.round(e.y);
   const drop = (extra) =>
     drops.push({ x: rx, y: ry, life: 10000, bob: 0, collected: false, ...extra });
+  // Taxidermist boon (#3): once a region's full-roster trophy quest is done, every
+  // monster-trophy drop in that region yields +N extra (player.trophyDropBonus).
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const rid = cm ? regionIdForMap(cm) : null;
+  const tBonus = (rid && player.trophyDropBonus && player.trophyDropBonus[rid]) || 0;
   for (const d of (ENEMY_DROPS[e.type] || [])) {
-    if (Math.random() < d.chance) drop({ type: d.type, val: 1 });
+    if (Math.random() < d.chance) {
+      const isTrophy = tBonus > 0 && typeof TROPHY_META !== 'undefined' && TROPHY_META[d.type];
+      drop({ type: d.type, val: 1 + (isTrophy ? tBonus : 0) });
+    }
   }
   // Every projectile-shooting enemy can also drop a 5-pack of arrows matching
   // the map's element (plain in the elementless forest).
@@ -586,7 +644,7 @@ function killEnemy(e) {
     }
   }
 
-  if (e.boss && !e.guildBoss) {
+  if (e.boss && !e.guildBoss && !e.bounty) {
     // Boss payout: 100 rubies per region in progression order (forest=1,
     // fire=2, …), plus a guaranteed 6-HP heart. Type-specific loot rolls are
     // for rank-and-file enemies only.
@@ -632,7 +690,9 @@ function killEnemy(e) {
     const gq = player.guildQuests[e.guildRegion];
     if (gq && gq.status === 'active') gq.status = 'head';
   }
-  if (e.boss && !e.guildBoss) {
+  // Guild bounty elites (#4/5/6) advance their bounty on the kill itself.
+  if (typeof guildBountyKill === 'function') guildBountyKill(e, cm);
+  if (e.boss && !e.guildBoss && !e.bounty) {
     // Boss kills no longer grant +6 maxHp / a random elemental sword — those
     // rewards were removed by request. The flag is still set so saves / future
     // progression checks can tell a boss has been cleared.
@@ -640,6 +700,8 @@ function killEnemy(e) {
     showMsg(`🏆 THE ${e.name} IS DEFEATED!`, 0);
   } else if (e.guildBoss) {
     showMsg(`🗡️ ${e.name} falls! Take its head to the Guild recruiter.`, 3500);
+  } else if (e.bounty) {
+    showMsg(`⚔️ ${e.name} slain! Report to the Guild recruiter.`, 3000);
   } else {
     showMsg(`⚔️ ${e.name} defeated! +${e.xp} XP`, 1500);
   }
@@ -928,6 +990,15 @@ function handlePickup(bnx, bny, map) {
     showMsg('🙏 Ancient Shrine — HP fully restored!', 2500);
     const sp = screenPX(bnx, bny);
     spawnParticle(sp.x, sp.y, '#aaffaa', 16, 4);
+  }
+  // A SEALED shrine can't be stepped-into for healing — it only whispers its clue.
+  // The atmospheric hint names its element; strike it with the matching elemental
+  // sword or arrow to break the seal (see tryUnsealShrine in world.js).
+  if (map[bny][bnx] === T.SEALED_SHRINE) {
+    const cm = currentMap();
+    const clue = (cm && cm.shrineElement && typeof ELEMENT_CLUE !== 'undefined')
+      ? ELEMENT_CLUE[cm.shrineElement] : null;
+    showMsg(`🔒 A sealed shrine, bound tight. ${clue || 'Old runes ring it, waiting for the right elemental strike.'}`, 3500);
   }
   // Shop doors are now just walkable entrances — the actual interaction lives
   // on the innkeeper / shopkeeper inside the building (press SPACE next to

@@ -20,8 +20,23 @@ const SWORD_ELEMENTS = {
   poison:    { id: 'poison',    label: 'Poison',    icon: '☠',  color: '#88cc44' },
   mana:      { id: 'mana',      label: 'Mana',      icon: '🔮', color: '#cc44ff' },
   volcanic:  { id: 'volcanic',  label: 'Volcanic',  icon: '🌋', color: '#ff3311' },
-  shadow:    { id: 'shadow',    label: 'Shadow',    icon: '🌑', color: '#8b5cf6' }
+  shadow:    { id: 'shadow',    label: 'Shadow',    icon: '🌑', color: '#8b5cf6' },
+  // #15 Dragonbane — the capstone blade, not a regional element. It is forged once
+  // (see forgeDragonbane in shop-blacksmith.js), never dropped or region-bound, and
+  // must be excluded anywhere the 12 regional elements are enumerated (region maps,
+  // sealed-shrine rolls). Its damage is handled specially in doSwordSwing.
+  dragonbane: { id: 'dragonbane', label: 'Dragonbane', icon: '🐲', color: '#ff2a00', capstone: true }
 };
+
+// Every regional (non-capstone) element id — use this, not Object.keys(SWORD_ELEMENTS),
+// wherever only the 12 wieldable region elements are meant (shrine rolls, etc.).
+const REGION_ELEMENT_IDS = Object.keys(SWORD_ELEMENTS).filter(id => !SWORD_ELEMENTS[id].capstone);
+
+// #15 Dragonbane hit: a flat bonus far above any elemental sword's ceiling
+// (a maxed elemental sword tops out at 1d4 + 12). Rolls 1d12 + 12 → 13..24, and its
+// swing also forces a guaranteed, deepened opposite-element proc (see rollOppositeVuln
+// / doSwordSwing) so nothing resists it.
+function dragonbaneSwordBonus() { return 12 + (1 + Math.floor(Math.random() * 12)); }
 
 // Display info (icon/label/color) for any element id.
 function elementInfo(id) {
@@ -58,7 +73,8 @@ const ELEMENT_FX = {
   necrotic:  { style: 'mist',   c1: '#aa66dd', c2: '#3a1f52' },
   poison:    { style: 'drip',   c1: '#88cc44', c2: '#c6ff5a' },
   mana:      { style: 'glow',   c1: '#cc44ff', c2: '#f0c2ff' },
-  shadow:    { style: 'mist',   c1: '#6a3aa8', c2: '#0e0820' }
+  shadow:    { style: 'mist',   c1: '#6a3aa8', c2: '#0e0820' },
+  dragonbane:{ style: 'flame',  c1: '#ff3300', c2: '#ffcc22' }
 };
 
 // Visual signature for an element id (or null if none / unknown).

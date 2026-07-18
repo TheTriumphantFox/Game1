@@ -292,7 +292,17 @@ const T = {
   // from — a one-step shortcut so grabbing the prize doesn't mean retracing the
   // whole labyrinth (or climbing back up every chain level). Passable. Its return
   // target is the map's rootMapId/rootX/rootY (see createCaveChainMap etc.).
-  CHEST_EXIT:153
+  CHEST_EXIT:153,
+
+  // ─── Sealed elemental shrine (one per region) ────────────────────────────────
+  // A dormant shrine seeded on one overworld map per region at region-seal time
+  // (see seedRegionShrine in world.js). It stays SEALED_SHRINE — barren and runed —
+  // until struck by an elemental attack of its randomly-assigned element (stored on
+  // the map as shrineElement); the right element converts it to a normal reusable
+  // SHRINE and grants a one-time boon. SHRINE_RUNE tiles ring it as the clue: they
+  // render in the required element's colour so the hero can read which strike breaks
+  // the seal. Both passable; both tinted from currentMap().shrineElement.
+  SEALED_SHRINE:154, SHRINE_RUNE:155
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -347,6 +357,9 @@ const TILE_COLORS = {
   [T.DEEP_WATER]: '#112266', [T.LAVA]: '#cc2200', [T.BRIDGE]: '#885522',
   [T.PILLAR]: '#555', [T.TORCH]: '#663300', [T.STATUE]: '#888',
   [T.SHRINE]: '#225522', [T.MUSHROOM]: '#3a7a3a', [T.FERN]: '#3a7a3a',
+  // Sealed shrine + its clue runes — a dim runed grey on the minimap (the live
+  // render tints them by the map's required element; see render-tiles.js).
+  [T.SEALED_SHRINE]: '#4a4658', [T.SHRINE_RUNE]: '#3a3850',
   [T.CAVE_ENTRANCE]: '#0a0a0a', [T.CAVE_EXIT]: '#332266',
   [T.CHEST_EXIT]: '#f0c860',
   [T.LARGE_CHEST]: '#cc8800', [T.CAVE_FLOOR]: '#3a2a1a',

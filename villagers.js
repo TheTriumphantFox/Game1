@@ -52,6 +52,88 @@ const VILLAGER_CHAT = {
   Collector: ["I'm cataloguing the spoils of this region — talk to me for a commission."],
   Parent:    ["Have you seen my boy? Please, find my Timmy!"],
   Timmy:     ["Thank you for finding me! I'll never wander off again."],
+  Taxidermist:["I mount the beasts of this land — bring me one of each and I'll teach the hunt."],
+  Alchemist: ["Fresh reagents! I pay handsomely for trophies in bulk."],
+  Chronicler:["I chronicle every hero's deeds. Complete your quests and I'll ready you for the tower."],
+};
+
+// ─── Escort quests (#7 Lost Caravan, #8 Runaway Apprentice, #9 Missing Gatherer) ──
+// All three reuse the "Find Timmy" skeleton: a stationary GIVER stands on the
+// village plaza and hands out an errand; a LOST npc is seeded on the Nth qualifying
+// map the hero enters after taking it (a dead-end / cave / deep overworld map);
+// reaching the lost npc whisks them home beside the giver; returning to the giver
+// pays the reward. One registry entry per quest keeps the plumbing shared — see
+// placeEscortGivers / ensureEscortTargets / talkEscortGiver / findEscortNpc.
+//   state:   player[def.key][regionId] = { status:'active'|'found'|'done', entered:[], targetMapId }
+const ESCORT_DEFS = {
+  caravan: {
+    id: 'caravan', key: 'caravanQuests',
+    giverKind: 'Stranded Trader',
+    giverRobe: '#7a5a2a', giverHair: '#3a2a12', giverSkin: '#e8c8a0',
+    lostKind: 'Lost Caravan', lostRobe: '#8a6a2a', lostHair: '#4a3418', lostSkin: '#e8c8a0', lostSize: 1,
+    marker: '🛒',
+    giverSpots: (mR, mC) => [
+      { x: mC - 4, y: mR - 6 }, { x: mC + 4, y: mR - 6 },
+      { x: mC - 6, y: mR - 2 }, { x: mC + 6, y: mR - 2 },
+    ],
+    qualifies: (mo) => !!mo.sealed && mo.type !== 'village',   // dead-end maps
+    count: 2,
+    offer: () => `💬 Stranded Trader: "My partner's caravan broke an axle out on a dead-end trail — the second one you come across. Bring it home and I'll open my ledger to you!"`,
+    remind: () => `💬 Stranded Trader: "Any sign of the caravan? Search the dead-end trails — it's stuck down the second one you find."`,
+    found: () => `🛒 You found the stranded caravan! It rolls home — go see the trader for your reward.`,
+    done: () => `💬 Stranded Trader: "Trade's booming again thanks to you, hero."`,
+    grant: (rid) => {
+      player.storeDiscounts = player.storeDiscounts || {};
+      player.storeDiscounts[rid] = 0.15;
+      return `🛒 The trader opens their ledger — 15% off this region's General Store, for good!`;
+    },
+  },
+  apprentice: {
+    id: 'apprentice', key: 'apprenticeQuests',
+    giverKind: 'Worried Smith',
+    giverRobe: '#3a4a6a', giverHair: '#1a1008', giverSkin: '#d8a878',
+    lostKind: 'Runaway Apprentice', lostRobe: '#5a6a8a', lostHair: '#2a1c10', lostSkin: '#e0c098', lostSize: 0.82,
+    marker: '🔨',
+    giverSpots: (mR, mC) => [
+      { x: mC + 6, y: mR + 2 }, { x: mC - 6, y: mR + 2 },
+      { x: mC + 4, y: mR + 4 }, { x: mC - 4, y: mR + 4 },
+    ],
+    qualifies: (mo) => mo.type === 'cave' || mo.type === 'cave_chain' || mo.type === 'sky_cave',
+    count: 2,
+    offer: () => `💬 Worried Smith: "My apprentice ran off into the caves in a sulk — the second cavern you delve into. Fetch them back and your first upgrade at my forge is on the house!"`,
+    remind: () => `💬 Worried Smith: "Please — my apprentice is still down in the caves. The second one you enter."`,
+    found: () => `🔨 You found the runaway apprentice! They scurry home — go see the smith for your reward.`,
+    done: () => `💬 Worried Smith: "My apprentice hasn't touched the forge-bellows since. Thank you, hero."`,
+    grant: (rid) => {
+      player.smithFreeUpgrade = player.smithFreeUpgrade || {};
+      player.smithFreeUpgrade[rid] = 1;
+      return `🔨 The smith owes you one — your next sword OR armor upgrade in this region is FREE!`;
+    },
+  },
+  gatherer: {
+    id: 'gatherer', key: 'gathererQuests',
+    giverKind: 'Anxious Herbalist',
+    giverRobe: '#5a8a3a', giverHair: '#3a2a12', giverSkin: '#e8c8a0',
+    lostKind: 'Lost Gatherer', lostRobe: '#6a9a4a', lostHair: '#4a3418', lostSkin: '#e8c8a0', lostSize: 1,
+    marker: '🌿',
+    giverSpots: (mR, mC) => [
+      { x: mC - 8, y: mR - 4 }, { x: mC + 8, y: mR - 4 },
+      { x: mC - 8, y: mR + 4 }, { x: mC + 8, y: mR + 4 },
+    ],
+    qualifies: (mo) => mo.type !== 'village' && !mo.sealed &&
+      typeof mo.regionIdx === 'number' && (mo.depth || 0) >= 8 &&
+      typeof REGIONS !== 'undefined' && REGIONS[mo.regionIdx] && mo.type === REGIONS[mo.regionIdx].id,
+    count: 2,
+    offer: () => `💬 Anxious Herbalist: "My gatherer wandered deep into the wilds and never came back — the second far-off field you reach. Find them and I'll teach you their knack for foraging!"`,
+    remind: () => `💬 Anxious Herbalist: "My gatherer is still out there, deep in the wilds — the second distant field."`,
+    found: () => `🌿 You found the lost gatherer! They head home — go see the herbalist for your reward.`,
+    done: () => `💬 Anxious Herbalist: "My gatherer's baskets are full again. Bless you, hero."`,
+    grant: (rid) => {
+      player.forageBonus = player.forageBonus || {};
+      player.forageBonus[rid] = (player.forageBonus[rid] || 0) + 1;
+      return `🌿 The gatherer teaches you their knack — +1 forage yield in this region, for good!`;
+    },
+  },
 };
 
 // Live list for the current map (mirrors `enemies`).
@@ -77,6 +159,10 @@ function generateVillagers(mapObj) {
   const list = placeShopkeepers(mapObj);
   placeCollector(mapObj, list);
   placeLostParent(mapObj, list);
+  placeTaxidermist(mapObj, list);
+  placeAlchemist(mapObj, list);
+  placeEscortGivers(mapObj, list);
+  placeChronicler(mapObj, list);
   let nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
   const m = mapObj.map;
   const count = 20;
@@ -237,6 +323,147 @@ function placeLostParent(mapObj, list) {
   });
 }
 
+// Stand a stationary "Taxidermist" on the plaza (every village), flanking the
+// fountain. They hand out the region's full-roster trophy quest (see
+// openTaxidermistModal): bring one of every monster trophy the region drops for a
+// permanent +1 to that region's trophy drops. `list` is mutated in place.
+function placeTaxidermist(mapObj, list) {
+  const m = mapObj.map;
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  // Off to the flanks of the fountain colonnade, clear of the parent (north) and
+  // the boss chest (south).
+  const cands = [
+    { x: midC + 5, y: midR - 5 }, { x: midC - 5, y: midR - 5 },
+    { x: midC + 6, y: midR - 3 }, { x: midC - 6, y: midR - 3 },
+    { x: midC + 5, y: midR - 7 }, { x: midC - 5, y: midR - 7 },
+    { x: midC + 7, y: midR - 5 }, { x: midC - 7, y: midR - 5 },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 0 || s.y < 0 || s.x >= MCOLS || s.y >= MROWS) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (isVillagerOffLimits(m[s.y][s.x])) continue;
+    if (list.some(v => v.x === s.x && v.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) return;
+  const nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+  list.push({
+    id: nextId,
+    kind: 'Taxidermist', role: 'taxidermist',
+    robe: '#4a5a3a', hair: '#3a2a18', skin: '#e0c098',
+    size: 1,
+    x: spot.x, y: spot.y, renderX: spot.x, renderY: spot.y,
+    stationary: true,
+    dir: { x: 0, y: 1 },
+    timer: 0, stepMs: 9999,
+  });
+}
+
+// Stand a wandering "Alchemist" out toward the village perimeter — but only in
+// EVERY OTHER region's village (those with an even region number). They run a
+// repeatable single-trophy bulk order (see openAlchemistModal). `list` is mutated
+// in place; no-op in odd-numbered regions or when no open perimeter tile is free.
+function placeAlchemist(mapObj, list) {
+  const regionIdx = (typeof mapObj.regionIdx === 'number')
+    ? mapObj.regionIdx
+    : (typeof REGIONS !== 'undefined' ? REGIONS.findIndex(r => r.id === mapObj.biome) : -1);
+  const regionId = (typeof REGIONS !== 'undefined' && REGIONS[regionIdx]) ? REGIONS[regionIdx].id : null;
+  // "Every other village": only even region numbers (regionNumberOf is 1-indexed,
+  // so forest=1 skipped, fire=2 has one, water=3 skipped, …).
+  if (!regionId || typeof regionNumberOf !== 'function' || regionNumberOf(regionId) % 2 !== 0) return;
+  const m = mapObj.map;
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  // Camp out near the edge of the walkable village, well away from the plaza.
+  const cands = [
+    { x: midC,      y: midR - 15 }, { x: midC - 3, y: midR - 15 }, { x: midC + 3, y: midR - 15 },
+    { x: midC,      y: midR + 15 }, { x: midC - 3, y: midR + 15 }, { x: midC + 3, y: midR + 15 },
+    { x: midC - 15, y: midR      }, { x: midC + 15, y: midR      },
+    { x: midC - 12, y: midR - 12 }, { x: midC + 12, y: midR - 12 },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 2 || s.y < 2 || s.x >= MCOLS - 2 || s.y >= MROWS - 2) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (isVillagerOffLimits(m[s.y][s.x])) continue;
+    if (m[s.y][s.x] === T.FLOOR) continue;
+    if (list.some(v => v.x === s.x && v.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) return;
+  const nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+  list.push({
+    id: nextId,
+    kind: 'Alchemist', role: 'alchemist',
+    robe: '#3a4a6a', hair: '#6a5a2a', skin: '#e8c8a0',
+    size: 1,
+    x: spot.x, y: spot.y, renderX: spot.x, renderY: spot.y,
+    dir: [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }][Math.floor(Math.random() * 4)],
+    timer: Math.random() * 600, stepMs: 600 + Math.random() * 400,
+  });
+}
+
+// Stand a stationary "Chronicler" in the FINAL village only (the one with a castle
+// gate). They run the Completionist's Ledger (#13): every CHRONICLE_STEP quests the
+// hero finishes across the world earns a tower-prep bundle. `list` is mutated.
+const CHRONICLE_STEP = 10;
+function placeChronicler(mapObj, list) {
+  if (!mapObj.castleExitDir) return;   // final village only
+  const m = mapObj.map;
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  const cands = [
+    { x: midC + 9, y: midR }, { x: midC - 9, y: midR },
+    { x: midC + 9, y: midR - 2 }, { x: midC - 9, y: midR - 2 },
+    { x: midC + 9, y: midR + 2 }, { x: midC - 9, y: midR + 2 },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 0 || s.y < 0 || s.x >= MCOLS || s.y >= MROWS) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (isVillagerOffLimits(m[s.y][s.x])) continue;
+    if (list.some(v => v.x === s.x && v.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) return;
+  const nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+  list.push({
+    id: nextId, kind: 'Chronicler', role: 'completionist',
+    robe: '#5a3a8a', hair: '#d8d0e8', skin: '#e0c098',
+    size: 1, x: spot.x, y: spot.y, renderX: spot.x, renderY: spot.y,
+    stationary: true, dir: { x: 0, y: -1 }, timer: 0, stepMs: 9999,
+  });
+}
+
+// Talk to the Chronicler: claim the next tower-prep milestone if the hero has done
+// enough quests, otherwise report progress toward it.
+function talkChronicler(v) {
+  const total = (typeof totalQuestsDone === 'function') ? totalQuestsDone(player) : 0;
+  const claimed = player.chronicleMilestone || 0;
+  const next = (claimed + 1) * CHRONICLE_STEP;
+  if (total < next) {
+    if (typeof showMsg === 'function')
+      showMsg(`📜 Chronicler: "Your legend stands at ${total} deeds. Reach ${next} and I'll ready you for the tower."`, 4500);
+    return;
+  }
+  player.chronicleMilestone = claimed + 1;
+  const tier = player.chronicleMilestone;
+  const rid = (typeof currentRegionId === 'function') ? currentRegionId() : 'shadow';
+  const regionIdx = (typeof REGIONS !== 'undefined') ? REGIONS.findIndex(r => r.id === rid) : -1;
+  const N = (typeof regionNumberOf === 'function') ? regionNumberOf(rid) : 1;
+  const rewards = [];
+  if (typeof grantRegionPotions === 'function') rewards.push(grantRegionPotions(rid, 2 * tier));
+  if (typeof oreForRegionIdx === 'function' && regionIdx >= 0 && typeof addItem === 'function') {
+    const ore = oreForRegionIdx(regionIdx);
+    if (ore) rewards.push(`✦ ${addItem(ore.id, 2 * tier)} ${ore.icon} ${ore.label} ore!`);
+  }
+  if (typeof addItem === 'function') rewards.push(`💎 ${addItem('rubies', 100 * tier * N)} Rubies!`);
+  if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  if (typeof updateHUD === 'function') updateHUD();
+  const msg = `📜 Chronicler: "Milestone ${tier} — ${total} deeds done! Take this for the climb ahead." ` + rewards.join(' ');
+  if (typeof showMapMsg === 'function') showMapMsg(msg);
+  else if (typeof showMsg === 'function') showMsg(msg, 6000);
+}
+
 // Build a Timmy (the lost child) standing on the open tile nearest a dead-end
 // map's centre. Returns the Timmy entry, or null if no open tile exists. The
 // caller decides where to stash him (see ensureTimmyOnDeadEnd).
@@ -366,6 +593,7 @@ function spawnVillagersForMap(mid) {
     ensurePortalKeeper(rm);
     if (typeof ensureGuildRecruiter === 'function') ensureGuildRecruiter(rm);
     ensureTimmyOnDeadEnd(rm);
+    ensureEscortTargets(rm);
     return;
   }
   if (rm.type === 'village' && rm.activated) {
@@ -376,6 +604,7 @@ function spawnVillagersForMap(mid) {
   ensurePortalKeeper(rm);
   if (typeof ensureGuildRecruiter === 'function') ensureGuildRecruiter(rm);
   ensureTimmyOnDeadEnd(rm);
+  ensureEscortTargets(rm);
   // Persist so the keeper survives re-entry. Previously only villages saved;
   // the cabin needs it too now that it has a portal keeper.
   if (villagers.length) rm.savedVillagers = villagers.map(v => ({ ...v }));
@@ -649,10 +878,94 @@ function drawVillager(v, ts) {
     ctx.fillText(done ? '✓' : '⚔', cx, markY);
   }
 
+  // The Taxidermist floats a deer marker — gold "!" until the region's full
+  // trophy roster is turned in, green "✓" after.
+  if (v.role === 'taxidermist') {
+    let done = false;
+    try {
+      const reg = (typeof storeRegion === 'function') ? storeRegion().region : null;
+      const rid = reg ? reg.id : null;
+      const q = (rid && player.taxidermistQuests) ? player.taxidermistQuests[rid] : null;
+      done = !!(q && q.status === 'done');
+    } catch (e) {}
+    const markBob = Math.sin(Date.now() / 300 + phase) * (s * 0.04);
+    ctx.font = `bold ${Math.round(s * 0.42)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+    const markY = py - s * 0.02 + markBob;
+    ctx.fillStyle = done ? '#66dd88' : '#ffdd33';
+    ctx.strokeText(done ? '✓' : '🦌', cx, markY);
+    ctx.fillText(done ? '✓' : '🦌', cx, markY);
+  }
+
+  // The Alchemist floats an ⚗️ marker — always available (repeatable orders).
+  if (v.role === 'alchemist') {
+    const markBob = Math.sin(Date.now() / 300 + phase) * (s * 0.04);
+    ctx.font = `bold ${Math.round(s * 0.40)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+    const markY = py - s * 0.02 + markBob;
+    ctx.fillStyle = '#c6ff8a';
+    ctx.strokeText('⚗️', cx, markY);
+    ctx.fillText('⚗️', cx, markY);
+  }
+
+  // Escort givers float their errand glyph (gold "!" while active, green "✓" once
+  // done); the lost npc waves a cyan "!" out in the field until rescued.
+  if (v.role === 'escort') {
+    let status = null;
+    try {
+      const def = ESCORT_DEFS[v.escortId];
+      const reg = (typeof storeRegion === 'function') ? storeRegion().region : null;
+      const rid = reg ? reg.id : null;
+      const q = (def && rid && player[def.key]) ? player[def.key][rid] : null;
+      status = q ? q.status : null;
+    } catch (e) {}
+    const done = status === 'done';
+    const glyph = done ? '✓' : (ESCORT_DEFS[v.escortId] ? ESCORT_DEFS[v.escortId].marker : '!');
+    const markBob = Math.sin(Date.now() / 300 + phase) * (s * 0.04);
+    ctx.font = `bold ${Math.round(s * 0.40)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+    const markY = py - s * 0.02 + markBob;
+    ctx.fillStyle = done ? '#66dd88' : '#ffdd33';
+    ctx.strokeText(glyph, cx, markY);
+    ctx.fillText(glyph, cx, markY);
+  }
+  if (v.role === 'escort_lost' && v.lost) {
+    const markBob = Math.sin(Date.now() / 260 + phase) * (s * 0.05);
+    ctx.fillStyle = '#66d8ff';
+    ctx.font = `bold ${Math.round(s * 0.46)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+    const markY = py - s * 0.04 + markBob;
+    ctx.strokeText('!', cx, markY);
+    ctx.fillText('!', cx, markY);
+  }
+
+  // The Chronicler floats a 📜 marker — gold when a milestone is claimable, else grey.
+  if (v.role === 'completionist') {
+    let claimable = false;
+    try {
+      const total = (typeof totalQuestsDone === 'function') ? totalQuestsDone(player) : 0;
+      claimable = total >= ((player.chronicleMilestone || 0) + 1) * CHRONICLE_STEP;
+    } catch (e) {}
+    const markBob = Math.sin(Date.now() / 300 + phase) * (s * 0.04);
+    ctx.font = `bold ${Math.round(s * 0.40)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+    const markY = py - s * 0.02 + markBob;
+    ctx.fillStyle = claimable ? '#ffdd33' : '#b9b0d0';
+    ctx.strokeText('📜', cx, markY);
+    ctx.fillText('📜', cx, markY);
+  }
+
   // Shopkeepers wear an apron — a lighter strip over the front of the robe
   // so they're easy to pick out across the counter.
   if (v.role && v.role !== 'portal' && v.role !== 'quest' &&
-      v.role !== 'lostson' && v.role !== 'lostchild' && v.role !== 'guild') {
+      v.role !== 'lostson' && v.role !== 'lostchild' && v.role !== 'guild' &&
+      v.role !== 'taxidermist' && v.role !== 'alchemist' &&
+      v.role !== 'escort' && v.role !== 'escort_lost' && v.role !== 'completionist') {
     ctx.fillStyle = '#f0e8d8';
     ctx.fillRect(px + s * 0.32, py + s * 0.46, s * 0.36, s * 0.42);
     ctx.fillStyle = 'rgba(0,0,0,0.10)';
@@ -700,10 +1013,24 @@ function tryVillagerInteraction() {
   if (v.role === 'smith' && typeof openBlacksmithModal === 'function') { openBlacksmithModal(); return true; }
   // The Collector hands out the region's trophy-gathering quest.
   if (v.role === 'quest' && typeof openCollectorModal === 'function') { openCollectorModal(); return true; }
+  // The Taxidermist hands out the region's full-roster trophy quest.
+  if (v.role === 'taxidermist' && typeof openTaxidermistModal === 'function') { openTaxidermistModal(); return true; }
+  // The Alchemist runs a repeatable single-trophy bulk order.
+  if (v.role === 'alchemist' && typeof openAlchemistModal === 'function') { openAlchemistModal(); return true; }
+  // The Chronicler pays out Completionist's Ledger milestones (final village).
+  if (v.role === 'completionist') { talkChronicler(v); return true; }
   // The Worried Parent hands out (and closes) the "Find Timmy" quest.
   if (v.role === 'lostson')   { talkLostParent(v);  return true; }
   // The Guild Recruiter inducts the hero into the Sword & Shield Guild.
   if (v.role === 'guild' && typeof talkGuildRecruiter === 'function') { talkGuildRecruiter(v); return true; }
+  // Escort quest givers (#7/8/9) hand out and reward their errand.
+  if (v.role === 'escort') { talkEscortGiver(v); return true; }
+  // An escort's lost npc: rescue them out in the field, or greet them once home.
+  if (v.role === 'escort_lost') {
+    if (v.lost) findEscortNpc(v);
+    else if (typeof showMsg === 'function') showMsg(`💬 ${v.kind}: "Thank you for bringing me home, hero!"`, 2500);
+    return true;
+  }
   // Timmy: lost & scared out on a dead end, or safely home in the village.
   if (v.role === 'lostchild') {
     if (v.lost) findTimmy(v);
@@ -858,6 +1185,169 @@ function reuniteTimmyInVillage(regionIdx) {
     stationary: true,
     dir: { x: Math.sign((base.x) - spot.x) || 0, y: Math.sign((base.y) - spot.y) || 1 },
     timer: 0, stepMs: 9999,
+  });
+  vm.savedVillagers = saved;
+}
+
+// ─── Escort quest engine (shared by caravan / apprentice / gatherer, #7/8/9) ──
+// Place every escort giver on the plaza of an activating village.
+function placeEscortGivers(mapObj, list) {
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  const m = mapObj.map;
+  for (const id in ESCORT_DEFS) {
+    const def = ESCORT_DEFS[id];
+    const cands = def.giverSpots(midR, midC);
+    let spot = null;
+    for (const s of cands) {
+      if (s.x < 0 || s.y < 0 || s.x >= MCOLS || s.y >= MROWS) continue;
+      if (isSolid(m, s.x, s.y)) continue;
+      if (isVillagerOffLimits(m[s.y][s.x])) continue;
+      if (list.some(v => v.x === s.x && v.y === s.y)) continue;
+      spot = s; break;
+    }
+    if (!spot) continue;
+    const nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+    list.push({
+      id: nextId, kind: def.giverKind, role: 'escort', escortId: id,
+      robe: def.giverRobe, hair: def.giverHair, skin: def.giverSkin,
+      size: 1, x: spot.x, y: spot.y, renderX: spot.x, renderY: spot.y,
+      stationary: true, dir: { x: 0, y: 1 }, timer: 0, stepMs: 9999,
+    });
+  }
+}
+
+// Build an escort's lost npc on the open tile nearest a map's centre.
+function buildEscortLost(mapObj, def) {
+  if (!mapObj || !mapObj.map) return null;
+  const m = mapObj.map;
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  let spot = null;
+  for (let radius = 0; radius <= 60 && !spot; radius++) {
+    for (let dy = -radius; dy <= radius && !spot; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+        const x = cx + dx, y = cy + dy;
+        if (x < 1 || y < 1 || x >= MCOLS - 1 || y >= MROWS - 1) continue;
+        if (isSolid(m, x, y)) continue;
+        if (isVillagerOffLimits(m[y][x])) continue;
+        spot = { x, y }; break;
+      }
+    }
+  }
+  if (!spot) return null;
+  return {
+    id: 0, kind: def.lostKind, role: 'escort_lost', escortId: def.id, lost: true,
+    robe: def.lostRobe, hair: def.lostHair, skin: def.lostSkin, size: def.lostSize || 1,
+    x: spot.x, y: spot.y, renderX: spot.x, renderY: spot.y,
+    stationary: true, dir: { x: 0, y: 1 }, timer: 0, stepMs: 9999,
+  };
+}
+
+// Seed each escort's lost npc on the Nth qualifying map (mirrors ensureTimmyOnDeadEnd).
+function ensureEscortTargets(mapObj) {
+  if (!mapObj || !mapObj.map) return;
+  if (typeof villagers === 'undefined' || typeof player === 'undefined') return;
+  if (typeof REGIONS === 'undefined') return;
+  const regionIdx = (typeof mapObj.regionIdx === 'number')
+    ? mapObj.regionIdx : REGIONS.findIndex(r => r.id === mapObj.biome);
+  if (regionIdx < 0 || !REGIONS[regionIdx]) return;
+  const rid = REGIONS[regionIdx].id;
+  let placedAny = false;
+  for (const id in ESCORT_DEFS) {
+    const def = ESCORT_DEFS[id];
+    if (!def.qualifies(mapObj)) continue;
+    const store = player[def.key]; if (!store) continue;
+    const q = store[rid];
+    if (!q || q.status !== 'active' || q.targetMapId != null) continue;
+    q.entered = q.entered || [];
+    if (!q.entered.includes(mapObj.id)) q.entered.push(mapObj.id);
+    if (q.entered.length < def.count) continue;
+    const npc = buildEscortLost(mapObj, def);
+    if (!npc) continue;
+    q.targetMapId = mapObj.id;
+    villagers.push(npc);
+    placedAny = true;
+  }
+  if (placedAny) mapObj.savedVillagers = villagers.map(v => ({ ...v }));
+}
+
+// Talk to an escort giver — offer / remind / reward / thank.
+function talkEscortGiver(v) {
+  const def = ESCORT_DEFS[v.escortId]; if (!def) return;
+  const rid = currentRegionId();
+  player[def.key] = player[def.key] || {};
+  let q = player[def.key][rid];
+  if (q && q.status === 'found') {
+    q.status = 'done';
+    const rewardMsg = def.grant(rid);
+    if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+    if (typeof updateHUD === 'function') updateHUD();
+    if (typeof showMapMsg === 'function') showMapMsg(rewardMsg);
+    else if (typeof showMsg === 'function') showMsg(rewardMsg, 5000);
+    return;
+  }
+  if (q && q.status === 'done') {
+    if (typeof showMsg === 'function') showMsg(def.done(), 4000);
+    return;
+  }
+  if (!q) {
+    player[def.key][rid] = { status: 'active', entered: [], targetMapId: null };
+    if (typeof showMsg === 'function') showMsg(def.offer(), 5500);
+    return;
+  }
+  if (typeof showMsg === 'function') showMsg(def.remind(), 4000);
+}
+
+// Reach an escort's lost npc — whisk them home beside their giver.
+function findEscortNpc(v) {
+  const def = ESCORT_DEFS[v.escortId]; if (!def) return;
+  const rid = currentRegionId();
+  player[def.key] = player[def.key] || {};
+  const q = player[def.key][rid] || (player[def.key][rid] = { status: 'active' });
+  if (q.status === 'found' || q.status === 'done') return;
+  q.status = 'found';
+  v.lost = false;
+  villagers = villagers.filter(o => o !== v);
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  if (cm) cm.savedVillagers = villagers.map(o => ({ ...o }));
+  reuniteEscortInVillage(cm ? cm.regionIdx : null, def);
+  if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  if (typeof showMapMsg === 'function') showMapMsg(def.found());
+  else if (typeof showMsg === 'function') showMsg(def.found(), 4000);
+}
+
+// Drop the reunited npc into the region's village beside their giver.
+function reuniteEscortInVillage(regionIdx, def) {
+  if (typeof regionIdx !== 'number' || typeof findRegionVillageId !== 'function') return;
+  const vid = findRegionVillageId(regionIdx);
+  if (vid < 0) return;
+  const vm = worldMaps[vid];
+  if (!vm || !vm.map) return;
+  const saved = vm.savedVillagers ? vm.savedVillagers.slice() : [];
+  if (saved.some(o => o.role === 'escort_lost' && o.escortId === def.id && o.reunited)) return;
+  const giver = saved.find(o => o.role === 'escort' && o.escortId === def.id);
+  const m = vm.map;
+  const base = giver || { x: Math.floor(MCOLS / 2), y: Math.floor(MROWS / 2) };
+  const cands = [
+    { x: base.x - 1, y: base.y }, { x: base.x + 1, y: base.y },
+    { x: base.x, y: base.y + 1 }, { x: base.x, y: base.y - 1 },
+    { x: base.x - 1, y: base.y + 1 }, { x: base.x + 1, y: base.y + 1 },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 0 || s.y < 0 || s.x >= MCOLS || s.y >= MROWS) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (isVillagerOffLimits(m[s.y][s.x])) continue;
+    if (saved.some(o => o.x === s.x && o.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) spot = { x: base.x, y: base.y };
+  const nextId = saved.reduce((mx, o) => Math.max(mx, o.id || 0), -1) + 1;
+  saved.push({
+    id: nextId, kind: def.lostKind, role: 'escort_lost', escortId: def.id, lost: false, reunited: true,
+    robe: def.lostRobe, hair: def.lostHair, skin: def.lostSkin, size: def.lostSize || 1,
+    x: spot.x, y: spot.y, renderX: spot.x, renderY: spot.y,
+    stationary: true, dir: { x: 0, y: 1 }, timer: 0, stepMs: 9999,
   });
   vm.savedVillagers = saved;
 }

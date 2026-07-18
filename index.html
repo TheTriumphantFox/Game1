@@ -78,6 +78,24 @@
 <div id="stats-modal-overlay" class="shop-overlay">
   <div id="stats-modal" class="shop-modal"></div>
 </div>
+<!-- World map — zoomable atlas of how the overworld maps connect (radial MENU ring) -->
+<div id="worldmap-modal-overlay" class="shop-overlay">
+  <div id="worldmap-modal" class="shop-modal">
+    <h2>🗺️ World Map</h2>
+    <div id="worldmap-viewport">
+      <canvas id="worldmap-canvas"></canvas>
+      <div id="worldmap-controls">
+        <button class="wm-btn" title="Zoom in" onclick="worldMapZoom(1.25)">＋</button>
+        <button class="wm-btn" title="Zoom out" onclick="worldMapZoom(0.8)">－</button>
+        <button class="wm-btn" title="Fit to view" onclick="worldMapResetView()">⤢</button>
+      </div>
+      <div id="worldmap-tooltip"></div>
+      <div id="worldmap-legend"></div>
+    </div>
+    <div id="worldmap-hint">Drag to pan · scroll / pinch / ＋－ to zoom · ⤢ fits the map</div>
+    <button class="shop-close" onclick="closeWorldMap()">✕ Close</button>
+  </div>
+</div>
 <!-- Collector quest modal — the chest-house villager's trophy-gathering quest -->
 <div id="quest-modal-overlay" class="shop-overlay">
   <div id="quest-modal" class="shop-modal"></div>
@@ -169,6 +187,7 @@
 <script src="portal.js"></script>
 <script src="ledger.js"></script>
 <script src="stats.js"></script>
+<script src="worldmap.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

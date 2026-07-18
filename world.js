@@ -582,6 +582,142 @@ function sealRegion(regionIdx) {
       createSealedNeighbor(src.id, dir);
     }
   }
+  // Seed this region's lone sealed elemental shrine (#10) now that the region's
+  // maps exist and are bounded.
+  seedRegionShrine(regionIdx);
+}
+
+// ─── Sealed elemental shrine (#10) ────────────────────────────────────────────
+// One dormant shrine per region, seeded when the region's village is cleared. It
+// is unsealed only by striking it with an elemental attack of its randomly-assigned
+// element; clue runes ring it and glow in that element's colour, and examining it
+// (stepping on) whispers an atmospheric hint. See SEALED_SHRINE / SHRINE_RUNE in
+// config.js and the sword/arrow hooks in projectiles.js.
+
+// Atmospheric riddle-clue per element, shown when the hero steps onto a sealed
+// shrine — a nudge at which elemental strike breaks the seal.
+const ELEMENT_CLUE = {
+  fire:      'The stones are scorched black and warm to the touch.',
+  water:     'A cold spray beads on the runes, though no stream is near.',
+  ice:       'Frost rimes the carvings and your breath fogs the air.',
+  lightning: 'The hair on your arms stands; the runes tick with static.',
+  earth:     'The ground is packed hard as stone, veined with raw ore.',
+  air:       'A restless wind worries the runes and tugs at your cloak.',
+  luminous:  'The runes drink the light and give back a warm glow.',
+  necrotic:  'A grave-chill hangs here; the runes are pitted with rot.',
+  poison:    'An acrid film clings to the carvings, hissing faintly.',
+  mana:      'The runes thrum with a violet, otherworldly pulse.',
+  volcanic:  'Cracked obsidian rims the seal and heat shimmers off it.',
+  shadow:    'The runes swallow every shadow, darker than the night.'
+};
+
+// Find an open clearing near a map's centre with a fully-passable 3×3 around it
+// (room for the shrine + its 4 diagonal clue runes). Returns {x,y} or null.
+function findShrineClearing(m) {
+  if (!m) return null;
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  const ok = (x, y) => x > 1 && y > 1 && x < MCOLS - 2 && y < MROWS - 2 &&
+    !isSolid(m, x, y) && !isChestTile(m[y][x]) &&
+    m[y][x] !== T.SHRINE && m[y][x] !== T.SEALED_SHRINE &&
+    m[y][x] !== T.CAVE_ENTRANCE && m[y][x] !== T.CAVE_EXIT &&
+    m[y][x] !== T.CHEST_EXIT && m[y][x] !== T.PORTAL;
+  for (let radius = 0; radius <= 45; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;   // ring only
+        const x = cx + dx, y = cy + dy;
+        let clear = true;
+        for (let r = -1; r <= 1 && clear; r++)
+          for (let c = -1; c <= 1; c++)
+            if (!ok(x + c, y + r)) { clear = false; break; }
+        if (clear) return { x, y };
+      }
+    }
+  }
+  return null;
+}
+
+// Seed a region's sealed shrine once. Picks a deeper on-grid overworld map of the
+// region, stamps the shrine + a 4-rune clue ring on an open clearing, and rolls the
+// required element. Idempotent per region (keyed on player.shrineQuests[rid]).
+function seedRegionShrine(regionIdx) {
+  const region = REGIONS[regionIdx];
+  if (!region) return;
+  const rid = region.id;
+  player.shrineQuests = player.shrineQuests || {};
+  if (player.shrineQuests[rid]) return;            // already seeded
+  const cands = worldMaps.filter(mm => mm && mm.regionIdx === regionIdx &&
+    mm.type === region.id && mm.visited &&          // visited so its tiles persist
+    worldGrid[gridKey(mm.gx, mm.gy)] === mm.id);    // on-grid overworld only
+  if (!cands.length) return;
+  cands.sort((a, b) => (b.depth || 0) - (a.depth || 0));   // deeper first
+  for (const target of cands) {
+    const spot = findShrineClearing(target.map);
+    if (!spot) continue;
+    const m = target.map;
+    m[spot.y][spot.x] = T.SEALED_SHRINE;
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const rx = spot.x + dx, ry = spot.y + dy;
+      if (ry > 0 && ry < MROWS - 1 && rx > 0 && rx < MCOLS - 1 &&
+          !isSolid(m, rx, ry) && !isChestTile(m[ry][rx]))
+        m[ry][rx] = T.SHRINE_RUNE;
+    }
+    const ids = (typeof REGION_ELEMENT_IDS !== 'undefined')
+      ? REGION_ELEMENT_IDS : Object.keys(SWORD_ELEMENTS);   // never the capstone Dragonbane
+    const requiredElement = ids[Math.floor(Math.random() * ids.length)];
+    target.shrineElement = requiredElement;
+    player.shrineQuests[rid] = { mapId: target.id, requiredElement, status: 'sealed', x: spot.x, y: spot.y };
+    return;
+  }
+}
+
+// Attempt to break a sealed shrine at tile (tc,tr) with `element` (the active sword
+// or arrow element, or null for a plain strike). Returns true if the tile WAS a
+// sealed shrine — so callers (sword swing / arrow) can stop or consume — regardless
+// of whether the element matched.
+function tryUnsealShrine(tc, tr, element) {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  if (!cm || !cm.map) return false;
+  if (tr < 0 || tc < 0 || tr >= MROWS || tc >= MCOLS) return false;
+  if (cm.map[tr][tc] !== T.SEALED_SHRINE) return false;
+  const required = cm.shrineElement;
+  // Plain (non-elemental) strike — the seal only answers to a specific element.
+  if (!element) {
+    if (typeof showMsg === 'function')
+      showMsg('🔒 The sealed shrine shrugs off a plain strike — its seal wants a certain element.', 2500);
+    return true;
+  }
+  if (element !== required) {
+    const wrong = SWORD_ELEMENTS[element];
+    if (typeof showMsg === 'function')
+      showMsg(`🔒 The seal rejects the ${wrong ? wrong.label : element} — that is not its element.`, 2500);
+    return true;
+  }
+  // Correct element — shatter the seal.
+  const rElem = SWORD_ELEMENTS[required];
+  cm.map[tr][tc] = T.SHRINE;
+  const ground = (typeof mapGroundTile === 'function') ? mapGroundTile() : T.GRASS;
+  for (let r = -1; r <= 1; r++) for (let c = -1; c <= 1; c++) {
+    const rx = tc + c, ry = tr + r;
+    if (ry >= 0 && rx >= 0 && ry < MROWS && rx < MCOLS && cm.map[ry][rx] === T.SHRINE_RUNE)
+      cm.map[ry][rx] = ground;
+  }
+  const rid = (typeof regionIdForMap === 'function') ? regionIdForMap(cm) : cm.biome;
+  player.shrineQuests = player.shrineQuests || {};
+  const q = player.shrineQuests[rid] || (player.shrineQuests[rid] = { status: 'sealed' });
+  const firstTime = q.status !== 'done';
+  q.status = 'done';
+  if (firstTime) { player.maxHp += 2; player.hp = player.maxHp; }
+  if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  const sp = screenPX(tc, tr);
+  spawnParticle(sp.x, sp.y, rElem ? rElem.color : '#aaffaa', 22, 5);
+  spawnParticle(sp.x, sp.y, '#ffffff', 12, 4);
+  if (typeof minimapDirty !== 'undefined') minimapDirty = true;
+  const msg = `${rElem ? rElem.icon : '🙏'} The ${rElem ? rElem.label : ''} seal shatters — the shrine awakens! +2 Max HP and full health restored.`;
+  if (typeof showMapMsg === 'function') showMapMsg(msg);
+  else if (typeof showMsg === 'function') showMsg(msg, 4000);
+  if (typeof updateHUD === 'function') updateHUD();
+  return true;
 }
 
 // Walking out of an exit. Compute the neighbor's coordinate; if a map already

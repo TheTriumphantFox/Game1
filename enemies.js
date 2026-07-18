@@ -377,6 +377,10 @@ function spawnEnemiesForMap(mid) {
         const gb = makeGuildBossEnemy(def.type, def.x, def.y, def.guild, i);
         return gb;
       }
+      // A guild-bounty elite def (#4/5/6, see guild.js) on a never-visited map.
+      if (def.bounty && typeof makeBountyEnemy === 'function') {
+        return makeBountyEnemy(def.type, def.x, def.y, def.bountyRegion, def.bounty, i);
+      }
       // Village "tier 1.5": double HP/damage/XP and grow 1.5x.
       const hpMul  = def.tier15 ? 2   : 1;
       const dmgMul = def.tier15 ? 2   : 1;
@@ -411,4 +415,7 @@ function spawnEnemiesForMap(mid) {
   projectiles = [];
   particles = [];
   drops = [];   // floor pickups are transient per-visit
+  // The Man-Eater bounty (#5) relocates to whatever region overworld map the hero
+  // enters while it lives (see guild.js).
+  if (typeof ensureManeaterOnMap === 'function') ensureManeaterOnMap(rm);
 }
