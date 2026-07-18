@@ -91,9 +91,6 @@ let player = {
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
   potions: STARTING_ITEM_AMOUNT,
-  // Medium Health Potions — brewed only by the fire-region Herbalist (heal 1d8).
-  // Brew-only, so a fresh player starts with none.
-  medPotions: 0,
   // Bombs — no longer infinite. A fresh player starts with none; bombs are bought
   // at the General Store or found (5 at a time) in small chests. Placing one
   // consumes it (see placePlayerBomb).
@@ -211,32 +208,7 @@ function usePotion() {
   const sp = screenPX(player.x, player.y);
   spawnParticle(sp.x, sp.y, '#ff66aa', 12, 3);
   spawnParticle(sp.x, sp.y, '#ffccdd', 8, 2);
-  showMsg(`🧪 Quaffed a Health Potion — +${gained} HP!`, 2500);
-  updateHUD();
-}
-
-// Drink one Medium Health Potion. Heals 1d8 HP (1-8, random), clamped to maxHp.
-// No-op at full HP or with none left. Legacy item — the fire Herbalist used to
-// brew these but now brews region-scaled potions/elixirs (see HERBALIST_RECIPES
-// in shop.js); kept so older saves can still drink/sell any leftovers.
-function useMedPotion() {
-  if ((player.medPotions || 0) <= 0) {
-    showMsg('🍶 No medium potions left.', 1500);
-    return;
-  }
-  if (player.hp >= player.maxHp) {
-    showMsg('🍶 Already at full HP — saving the potion.', 1500);
-    return;
-  }
-  player.medPotions--;
-  const heal = 1 + Math.floor(Math.random() * 8);   // 1d8 → 1..8
-  const before = player.hp;
-  player.hp = Math.min(player.maxHp, player.hp + heal);
-  const gained = player.hp - before;
-  const sp = screenPX(player.x, player.y);
-  spawnParticle(sp.x, sp.y, '#66ddaa', 12, 3);
-  spawnParticle(sp.x, sp.y, '#cceedd', 8, 2);
-  showMsg(`🍶 Quaffed a Medium Potion — +${gained} HP!`, 2500);
+  showMsg(`🧪 Quaffed a ${regionPotionName('forest')} — +${gained} HP!`, 2500);
   updateHUD();
 }
 
@@ -296,8 +268,7 @@ function useRegionPotion(regionId) {
   const sp = screenPX(player.x, player.y);
   spawnParticle(sp.x, sp.y, '#ff66aa', 12, 3);
   spawnParticle(sp.x, sp.y, '#ffccdd', 8, 2);
-  const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
-  showMsg(`🧪 Quaffed a ${name} Potion — +${gained} HP!`, 2500);
+  showMsg(`🧪 Quaffed a ${regionPotionName(regionId)} — +${gained} HP!`, 2500);
   updateHUD();
 }
 
@@ -898,13 +869,12 @@ function tryTransition() {
 function addRegionPotions(regionId, n) {
   const hasBrew = typeof HERBALIST_RECIPES !== 'undefined' && HERBALIST_RECIPES[regionId];
   if (!hasBrew) {
-    return { got: addItem('potions', n), label: 'Health Potion', generic: true };
+    return { got: addItem('potions', n), label: regionPotionName('forest'), generic: true };
   }
   player.regionPotions = player.regionPotions || {};
   const before = player.regionPotions[regionId] || 0;
   player.regionPotions[regionId] = Math.min(ITEM_CAP, before + n);
-  const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
-  return { got: player.regionPotions[regionId] - before, label: `${name} Potion`, generic: false };
+  return { got: player.regionPotions[regionId] - before, label: regionPotionName(regionId), generic: false };
 }
 
 // Grant `n` of a region's Health Potion and return a standalone message describing

@@ -91,7 +91,6 @@ const DEFAULT_PLAYER = {
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
   potions: STARTING_ITEM_AMOUNT,
-  medPotions: 0,
   // Bombs — bought at the store / found in chests; a fresh player starts with none.
   bombs: 0,
   herbals: STARTING_ITEM_AMOUNT,
@@ -149,6 +148,12 @@ function applyLoadData(data) {
   // Clone the object-valued brews so a save lacking them doesn't alias the shared
   // DEFAULT_PLAYER literals (which would leak mutations across loads).
   player.regionPotions = { ...((data.player && data.player.regionPotions) || {}) };
+  // The Medium Health Potion was removed. Fold any leftover stock from an older save
+  // into the fire region's Lesser Healing Potion (the closest surviving brew) so the
+  // player doesn't silently lose owned potions, and drop the retired field.
+  const legacyMed = (data.player && data.player.medPotions) || 0;
+  if (legacyMed > 0) player.regionPotions.fire = (player.regionPotions.fire || 0) + legacyMed;
+  delete player.medPotions;
   player.elixirs = { ...((data.player && data.player.elixirs) || {}) };
   player.collectorQuests = { ...((data.player && data.player.collectorQuests) || {}) };
   player.lostSonQuests = { ...((data.player && data.player.lostSonQuests) || {}) };
@@ -553,7 +558,7 @@ function resetGame(heroName) {
     rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
     swordTimer: 0, swordDir: { x: 0, y: -1 }, invincible: 0,
     weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
-    potions: STARTING_ITEM_AMOUNT, medPotions: 0, bombs: 0, herbals: STARTING_ITEM_AMOUNT,
+    potions: STARTING_ITEM_AMOUNT, bombs: 0, herbals: STARTING_ITEM_AMOUNT,
     mushrooms: STARTING_ITEM_AMOUNT,
     ...trophyDefaults(),
     bonemeal: 0,

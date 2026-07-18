@@ -896,7 +896,7 @@ function stepDrops(dt) {
         const sp = screenPX(d.x, d.y);
         spawnParticle(sp.x, sp.y, '#ff66aa', 10, 3);
         spawnParticle(sp.x, sp.y, '#ffccdd', 6, 2);
-        showMsg(`🧪 +${d.val} Health Potion (now ${player.potions})`, 1500);
+        showMsg(`🧪 +${d.val} ${regionPotionName('forest')} (now ${player.potions})`, 1500);
       } else if (d.type === 'arrows') {
         // Plain arrows: d.element is null/'plain' → stocks player.arrows.plain.
         // Elemental arrows: d.element is the SWORD_ELEMENTS id.
