@@ -475,6 +475,109 @@
   .stats-sheet { max-height: none; }
 }
 
+/* ─── World map atlas ─── */
+#worldmap-modal {
+  max-width: 860px;
+  width: 94%;
+}
+#worldmap-viewport {
+  position: relative;
+  width: 100%;
+  height: min(64vh, 520px);
+  background: #060b06;
+  border: 1px solid #2a4a2a;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+#worldmap-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;   /* we handle pan/zoom ourselves */
+}
+#worldmap-canvas:active { cursor: grabbing; }
+
+#worldmap-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.wm-btn {
+  width: 30px;
+  height: 30px;
+  background: rgba(14, 26, 14, 0.9);
+  border: 1px solid #3a5a3a;
+  color: #cec;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wm-btn:hover { background: #254a25; border-color: #5a9a5a; }
+
+#worldmap-legend {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  right: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 8px;
+  background: rgba(6, 11, 6, 0.78);
+  border: 1px solid #21351f;
+  border-radius: 5px;
+  max-height: 30%;
+  overflow-y: auto;
+}
+.wm-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #9ab09a;
+}
+.wm-legend-item i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  display: inline-block;
+}
+#worldmap-tooltip {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  z-index: 5;
+  max-width: 220px;
+  padding: 6px 9px;
+  background: rgba(10, 18, 10, 0.96);
+  border: 1px solid #3a5a3a;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #cec;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+.wm-tip-name { font-size: 12px; color: #ffd98a; font-weight: bold; }
+.wm-tip-meta { color: #9ab09a; margin-top: 1px; }
+.wm-tip-meta b { color: #ffe680; }
+.wm-tip-sub { color: #8fd0d0; margin-top: 2px; }
+#worldmap-hint {
+  font-size: 10px;
+  color: #567;
+  text-align: center;
+  margin-top: 8px;
+}
+
 /* ─── Drops ledger ─── */
 .ledger-cat {
   font-size: 11px;

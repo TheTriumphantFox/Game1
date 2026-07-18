@@ -1188,6 +1188,48 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.fillStyle = '#55aa55'; ctx.fillRect(x+3,y+3,s-6,s-6);
       ctx.fillStyle = '#aaffaa'; ctx.beginPath(); ctx.arc(x+s/2,y+s/2,s*0.22,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = '#ffffff'; ctx.fillRect(x+s/2-1,y+2,2,s-4); ctx.fillRect(x+2,y+s/2-1,s-4,2); break;
+    case T.SEALED_SHRINE: {
+      // A dark, runed plinth locked by an iron X-seal, with a dim gem glowing in
+      // the map's required element colour — the clue to which strike breaks it.
+      const cm = (typeof currentMap === 'function') ? currentMap() : null;
+      const el = (cm && cm.shrineElement && typeof SWORD_ELEMENTS !== 'undefined')
+        ? SWORD_ELEMENTS[cm.shrineElement] : null;
+      const ec = el ? el.color : '#8a86a0';
+      ctx.fillStyle = '#2a2636'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#3a3650'; ctx.fillRect(x+3, y+3, s-6, s-6);
+      const pulse = 0.4 + 0.22 * Math.sin(Date.now()/500);
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = ec;
+      ctx.beginPath(); ctx.arc(x+s/2, y+s/2, s*0.20, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = '#15121f'; ctx.lineWidth = Math.max(2, s*0.07);
+      ctx.beginPath();
+      ctx.moveTo(x+s*0.2, y+s*0.2); ctx.lineTo(x+s*0.8, y+s*0.8);
+      ctx.moveTo(x+s*0.8, y+s*0.2); ctx.lineTo(x+s*0.2, y+s*0.8);
+      ctx.stroke();
+      ctx.fillStyle = ec;
+      ctx.fillRect(x+s*0.12, y+s*0.12, s*0.10, s*0.03);
+      ctx.fillRect(x+s*0.78, y+s*0.85, s*0.10, s*0.03);
+      break; }
+    case T.SHRINE_RUNE: {
+      // A ground clue rune — a runed slab glowing in the shrine's element colour.
+      const cm2 = (typeof currentMap === 'function') ? currentMap() : null;
+      const el2 = (cm2 && cm2.shrineElement && typeof SWORD_ELEMENTS !== 'undefined')
+        ? SWORD_ELEMENTS[cm2.shrineElement] : null;
+      const rc = el2 ? el2.color : '#8a86a0';
+      ctx.fillStyle = '#2b2833'; ctx.fillRect(x, y, s, s);
+      const gl = 0.5 + 0.3 * Math.sin(Date.now()/450 + (col + row));
+      ctx.save();
+      ctx.globalAlpha = gl;
+      ctx.strokeStyle = rc; ctx.lineWidth = Math.max(1.5, s*0.05);
+      ctx.beginPath(); ctx.arc(x+s/2, y+s/2, s*0.26, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x+s/2, y+s*0.24); ctx.lineTo(x+s/2, y+s*0.76);
+      ctx.moveTo(x+s*0.24, y+s/2); ctx.lineTo(x+s*0.76, y+s/2);
+      ctx.stroke();
+      ctx.restore();
+      break; }
     case T.MUSHROOM:
       ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x,y,s,s);
       ctx.fillStyle = '#cc3300'; ctx.beginPath(); ctx.arc(x+s/2,y+s*0.4,s*0.28,Math.PI,0); ctx.fill();

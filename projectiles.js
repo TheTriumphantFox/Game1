@@ -40,12 +40,15 @@ function spawnParticle(wx, wy, color, n = 6, size = 3) {
 // by another die every 5 levels. `level` is swordLevel for sword swings and
 // bowLevel for arrows. No-op when the enemy has no element, has no defined
 // opposite, or the 50% roll fails.
-function rollOppositeVuln(e, level) {
+function rollOppositeVuln(e, level, force) {
   if (!e.element) return;
   const oppId = OPPOSITE[e.element];
   if (!oppId) return;
-  if (Math.random() >= 0.5) return;
-  const dice = Math.floor((level || 0) / 5) + 1;
+  // The Dragonbane (#15) "ignores resistance": it skips the 50% roll (always procs)
+  // and bites 3 dice deeper, so the opposite-element damage always lands and hard.
+  if (!force && Math.random() >= 0.5) return;
+  let dice = Math.floor((level || 0) / 5) + 1;
+  if (force) dice += 3;
   let bonus = 0;
   for (let d = 0; d < dice; d++) bonus += 1 + Math.floor(Math.random() * 4);
   e.hp -= bonus;
@@ -291,8 +294,10 @@ function doSwordSwing() {
 
       // Elemental enemies are vulnerable to their opposite element: 50% chance
       // per hit to take an extra 1d4 of it (always at least 1d4 from Lv1, plus
-      // another die every 5 sword levels).
-      rollOppositeVuln(e, player.swordLevel);
+      // another die every 5 sword levels). The Dragonbane forces a guaranteed,
+      // deepened proc — it ignores resistance (#15).
+      const dragon = player.activeSwordElement === 'dragonbane';
+      rollOppositeVuln(e, player.swordLevel, dragon);
 
       // Elemental damage — ONLY the currently equipped elemental sword adds
       // its 1d4 hit. (Elemental swords are specific weapons; switching swords
@@ -300,9 +305,11 @@ function doSwordSwing() {
       if (player.activeSwordElement) {
         const elem = SWORD_ELEMENTS[player.activeSwordElement];
         if (elem) {
-          // Base 1d4 + a flat +2 per upgrade level (0–10, see swordUpgradeLevel).
-          const bonus = elementalSwordBonus(player.activeSwordElement);
-          const elemDmg = 1 + Math.floor(Math.random() * 4) + bonus;
+          // Elemental sword: 1d4 + a flat +2 per upgrade level. Dragonbane instead
+          // hits for its own capstone bonus (1d12 + 12), above any elemental ceiling.
+          const elemDmg = dragon
+            ? dragonbaneSwordBonus()
+            : 1 + Math.floor(Math.random() * 4) + elementalSwordBonus(player.activeSwordElement);
           e.hp -= elemDmg;
           damageNumbers.push({
             entity: e,
@@ -326,11 +333,22 @@ function doSwordSwing() {
   // forest, sand in desert/water, snow in ice, …) and may leave a pickup behind.
   const map = mapData();
   const ground = mapGroundTile();
+  // #9 Missing Gatherer reward: +N extra forage per pick in a region whose gatherer
+  // has been rescued (player.forageBonus).
+  const forageRid = (typeof currentMap === 'function' && currentMap()) ? regionIdForMap(currentMap()) : null;
+  const forageBonus = (forageRid && player.forageBonus && player.forageBonus[forageRid]) || 0;
   const ctc = Math.round(tx), ctr = Math.round(ty);
   for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
     const tr = ctr + dr, tc = ctc + dc;
     if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
     const tile = map[tr][tc];
+    // A sealed shrine in the swing zone: the strike tries to break its seal with
+    // the equipped elemental sword (see tryUnsealShrine in world.js). Handled here,
+    // never cut like foliage.
+    if (tile === T.SEALED_SHRINE) {
+      if (typeof tryUnsealShrine === 'function') tryUnsealShrine(tc, tr, player.activeSwordElement || null);
+      continue;
+    }
     // drop type and drop chance per cuttable tile (all revert to the map ground)
     let dropType = null, dropChance = 0;
     if      (tile === T.FLOWER)           { dropType = 'herbal';   dropChance = 0.50; }
@@ -374,7 +392,7 @@ function doSwordSwing() {
     map[tr][tc] = ground;
     if (dropType && Math.random() < dropChance) {
       drops.push({
-        type: dropType, val: 1,
+        type: dropType, val: 1 + forageBonus,
         x: tc, y: tr,
         life: 10000, bob: 0, collected: false
       });
@@ -588,6 +606,13 @@ function stepProjectiles(dt, map) {
     } else if (isSolid(map, pc, pr) && !isMediumWater(map, pc, pr)) { p.life = -999; return; }
 
     if (p.type === 'arrow') {
+      // An arrow passing over a sealed shrine strikes it — try to break the seal
+      // with the arrow's element (see tryUnsealShrine in world.js).
+      if (map[pr] && map[pr][pc] === T.SEALED_SHRINE && typeof tryUnsealShrine === 'function') {
+        tryUnsealShrine(pc, pr, p.element || null);
+        p.life = -999;
+        return;
+      }
       for (const e of enemies) {
         if (e.dead || e.dormant) continue;   // arrows pass over the sleeping dragon
         const dx = e.x - p.tx, dy = e.y - p.ty;

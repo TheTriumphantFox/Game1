@@ -151,12 +151,11 @@ function renderStatsContents() {
   inv += statRow('💣 Bombs', String(p.bombs || 0), '#cde');
 
   // ── Progression / renown ───────────────────────────────────────────────────
-  const doneCount = o => Object.values(o || {}).filter(q => q && q.status === 'done').length;
   let renown = '';
   renown += statRow('🗺️ Maps Explored', String(typeof mapsVisited !== 'undefined' ? mapsVisited : '—'), '#8fbf8f');
   renown += statRow('🏆 Boss Slain', p.defeatedBoss ? 'Yes' : 'Not yet', p.defeatedBoss ? '#7bd67b' : '#889');
   renown += statRow('⚔️ Guild Member', p.guildCard ? 'Inducted' : 'No', p.guildCard ? '#7bd67b' : '#889');
-  const questsDone = doneCount(p.guildQuests) + doneCount(p.collectorQuests) + doneCount(p.lostSonQuests);
+  const questsDone = (typeof totalQuestsDone === 'function') ? totalQuestsDone(p) : 0;
   renown += statRow('📜 Quests Done', String(questsDone), '#8fbf8f');
   renown += statRow('💀 Deaths', String(p.deaths || 0), (p.deaths || 0) > 0 ? '#ff5a5a' : '#889');
 

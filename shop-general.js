@@ -132,6 +132,17 @@ function storeRegion() {
   return { idx, region: (typeof REGIONS !== 'undefined' ? REGIONS[idx] : null) };
 }
 
+// #7 Lost Caravan reward: a permanent General Store discount in the region whose
+// caravan has been escorted home. Returns the price multiplier (1 normally).
+function storeDiscountFactor() {
+  const { region } = storeRegion();
+  const rid = region ? region.id : null;
+  const d = (rid && player.storeDiscounts) ? (player.storeDiscounts[rid] || 0) : 0;
+  return 1 - Math.min(0.9, Math.max(0, d));
+}
+// A base price after the active region discount (used for both display and charge).
+function discountedCost(base) { return Math.max(0, Math.round(base * storeDiscountFactor())); }
+
 // The set of inventory keys this region's store buys: monster trophies (from the
 // region's enemy pool) plus its foraged goods.
 function regionBuyKeys(regionIdx, regionId) {
@@ -165,7 +176,8 @@ function renderStoreContents() {
     : 'Forest';
 
   const buyRows = STORE_ITEMS.map(it => {
-    const broke = player.rubies < it.cost;
+    const cost = discountedCost(it.cost);
+    const broke = player.rubies < cost;
     const owned = it.canBuy ? !it.canBuy() : false;
     const disabled = broke || owned;
     const tag = owned ? '<span style="color:#88cc88">✓ owned</span>' : '';
@@ -176,7 +188,7 @@ function renderStoreContents() {
           <div class="shop-item-meta">${it.desc}</div>
         </div>
         <button class="ssbtn" ${disabled ? 'disabled' : ''} onclick="buyStoreItem('${it.id}')">
-          💰 ${it.cost}
+          💰 ${cost}
         </button>
       </div>
     `;
@@ -211,7 +223,7 @@ function renderStoreContents() {
     const plain = id === 'plain';
     const elem = plain ? { label: 'Plain', icon: '🏹' } : SWORD_ELEMENTS[id];
     const count = (player.arrows && player.arrows[id]) || 0;
-    const packCost = plain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST;
+    const packCost = discountedCost(plain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST);
     const sellVal  = plain ? PLAIN_ARROW_SELL_VALUE : ARROW_SELL_VALUE;
     const meta = plain
       ? 'Standard ammunition — no elemental rider'
@@ -339,7 +351,7 @@ function sellElementalArmor(id) {
 function buyElementalArrows(id) {
   const plain = id === 'plain';
   if (!plain && !SWORD_ELEMENTS[id]) return;
-  const cost = plain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST;
+  const cost = discountedCost(plain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST);
   if (player.rubies < cost) return;
   player.rubies -= cost;
   const gained = addArrow(id, ARROW_PACK_SIZE);
@@ -412,8 +424,9 @@ function buyStoreItem(id) {
   const it = STORE_ITEMS.find(x => x.id === id);
   if (!it) return;
   if (it.canBuy && !it.canBuy()) return;
-  if (player.rubies < it.cost) return;
-  player.rubies -= it.cost;
+  const cost = discountedCost(it.cost);
+  if (player.rubies < cost) return;
+  player.rubies -= cost;
   it.apply();
   showMsg(`🛒 Purchased ${it.label}!`, 3000);
   renderStoreContents();

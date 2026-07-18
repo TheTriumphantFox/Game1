@@ -289,7 +289,226 @@ function talkGuildRecruiter(v) {
     return;
   }
 
-  // Artifact commission fully done — greet a member.
+  // Artifact commission fully done — the recruiter offers the repeatable-once
+  // bounties (#4/5/6). These never touch guildRecruiterUnlocked.
+  talkGuildBounties(rid, regionIdx);
+}
+
+// ─── Guild bounties (#4 Bounty Board, #5 Man-Eater, #6 Culling the Nest) ──────
+// Offered by the recruiter once a region's artifact quest is done. Three one-time
+// bounties, handed out and turned in one at a time in this order. State lives on
+// player.guildQuests[rid].bounties = { board, maneater, culling }, each with its
+// own status ('active' → 'ready' → 'done'), leaving the head-quest chain untouched.
+const GUILD_BOUNTY_ORDER = ['board', 'maneater', 'culling'];
+const GUILD_CULL_NEED = 10;   // creatures to cull on a single hunt (#6)
+
+// A live elite for a board/maneater bounty — kept at its base stats + drops, flagged
+// with `bounty` (distinct from guildBoss) so killEnemy advances the right bounty and
+// never the head quest. Man-Eaters are bigger and far tougher.
+function makeBountyEnemy(creature, x, y, regionId, kind, id) {
+  const base = DND_ENEMIES[creature] || DND_ENEMIES.goblin;
+  const hpMul  = kind === 'maneater' ? 5 : 3;
+  const dmgMul = kind === 'maneater' ? 1.7 : 1.4;
+  const hp = Math.round(base.hp * hpMul);
+  const title = kind === 'maneater' ? 'the Man-Eater' : 'Guild Bounty';
+  return {
+    id: id != null ? id : 9500,
+    type: creature, x, y, hp, maxHp: hp,
+    spd: base.spd, dmg: Math.round(base.dmg * dmgMul), xp: Math.floor(base.xp * 0.75),
+    color: base.color, size: (base.size || 1) * (kind === 'maneater' ? 1.45 : 1.3),
+    name: `${base.name}, ${title}`,
+    ranged: base.ranged || false, swims: base.swims || false,
+    boss: true, bounty: kind, bountyRegion: regionId,
+    tier15: false, element: base.element || null,
+    timer: Math.random() * base.spd, dead: false,
+    shootTimer: Math.random() * 1500 + 500
+  };
+}
+
+// A region's non-sealed, on-grid overworld maps — candidates for bounty spawns.
+function regionOverworldMaps(regionId) {
+  return worldMaps.filter(mm => mm && !mm.sealed && mm.type === regionId &&
+    typeof mm.depth === 'number' && worldGrid[gridKey(mm.gx, mm.gy)] === mm.id);
+}
+
+// First open tile spiralling out from a map's centre (mirrors spawnGuildBossOnMap).
+function findOpenTileNearCentre(m) {
+  const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
+  for (let radius = 0; radius <= 50; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+        const x = cx + dx, y = cy + dy;
+        if (x < 2 || y < 2 || x >= MCOLS - 2 || y >= MROWS - 2) continue;
+        if (m && isSolid(m, x, y)) continue;
+        return { x, y };
+      }
+    }
+  }
+  return { x: cx, y: cy };
+}
+
+// Inject a bounty elite onto a map (its live savedEnemies, or its defs for a
+// never-visited map). Never stacks two of the same bounty kind on one map.
+function spawnBountyOnMap(mapObj, creature, regionId, kind) {
+  if (!mapObj) return;
+  const spot = findOpenTileNearCentre(mapObj.map);
+  if (Array.isArray(mapObj.savedEnemies)) {
+    if (mapObj.savedEnemies.some(e => e.bounty === kind && !e.dead)) return;
+    const maxId = mapObj.savedEnemies.reduce((mx, e) => Math.max(mx, e.id || 0), -1);
+    mapObj.savedEnemies.push(makeBountyEnemy(creature, spot.x, spot.y, regionId, kind, maxId + 1));
+  } else {
+    mapObj.enemyDefs = mapObj.enemyDefs || [];
+    if (mapObj.enemyDefs.some(d => d.bounty === kind)) return;
+    mapObj.enemyDefs.push({ type: creature, x: spot.x, y: spot.y, bounty: kind, bountyRegion: regionId });
+  }
+}
+
+// Start a bounty of `kind` for a region: cullings pick a target type + count; board
+// and man-eater spawn an elite on a region map (recording where).
+function startGuildBounty(regionIdx, rid, kind) {
+  const region = REGIONS[regionIdx];
+  const q = player.guildQuests[rid];
+  q.bounties = q.bounties || {};
+  const pool = (typeof ENEMY_POOLS !== 'undefined')
+    ? (ENEMY_POOLS[Math.min(region.enemyTier, ENEMY_POOLS.length - 1)] || []) : [];
+  if (kind === 'culling') {
+    const type = pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'goblin';
+    q.bounties.culling = { status: 'active', type, need: GUILD_CULL_NEED, count: 0, mapId: null };
+    return { type };
+  }
+  const creature = kind === 'maneater'
+    ? guildCreatureFor(regionIdx)
+    : (pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'goblin');
+  const cands = regionOverworldMaps(rid);
+  const visited = cands.filter(mm => mm.visited);
+  const target = (visited.length ? visited : cands)[Math.floor(Math.random() * (visited.length ? visited.length : cands.length))];
+  let mapId = null;
+  if (target) { spawnBountyOnMap(target, creature, rid, kind); mapId = target.id; }
+  q.bounties[kind] = { status: 'active', creature, mapId };
+  return { creature, mapId };
+}
+
+// The Man-Eater relocates to whatever region overworld map the hero enters while it
+// still lives (called from spawnEnemiesForMap after `enemies` is populated).
+function ensureManeaterOnMap(rm) {
+  if (!rm || !rm.map || rm.type === 'village') return;
+  if (typeof player === 'undefined' || !player.guildQuests || typeof REGIONS === 'undefined') return;
+  const regionIdx = (typeof rm.regionIdx === 'number') ? rm.regionIdx : REGIONS.findIndex(r => r.id === rm.biome);
+  if (regionIdx < 0 || !REGIONS[regionIdx]) return;
+  const rid = REGIONS[regionIdx].id;
+  if (rm.type !== rid) return;                             // this region's own overworld
+  if (worldGrid[gridKey(rm.gx, rm.gy)] !== rm.id) return;  // on-grid only
+  const q = player.guildQuests[rid];
+  const b = (q && q.bounties) ? q.bounties.maneater : null;
+  if (!b || b.status !== 'active') return;
+  if (b.mapId === rm.id) return;                           // already denned here
+  if (enemies.some(e => e.bounty === 'maneater' && !e.dead)) { b.mapId = rm.id; return; }
+  // Pull any stale copy off the previous map, then den it here (live + saved).
+  if (b.mapId != null && worldMaps[b.mapId] && Array.isArray(worldMaps[b.mapId].savedEnemies)) {
+    worldMaps[b.mapId].savedEnemies = worldMaps[b.mapId].savedEnemies.filter(e => e.bounty !== 'maneater');
+  }
+  const spot = findOpenTileNearCentre(rm.map);
+  const maxId = enemies.reduce((mx, e) => Math.max(mx, e.id || 0), -1);
+  enemies.push(makeBountyEnemy(b.creature, spot.x, spot.y, rid, 'maneater', maxId + 1));
+  rm.savedEnemies = enemies.map(e => ({ ...e }));
+  b.mapId = rm.id;
+  if (typeof showMapMsg === 'function') showMapMsg(`🩸 The Man-Eater has tracked you to ${rm.name || 'these lands'}!`);
+}
+
+// Advance the region's bounties on a kill. board/maneater elites flip to 'ready';
+// culling counts matching kills on a single map (a kill on a new map resets it).
+function guildBountyKill(e, cm) {
+  if (!player.guildQuests || typeof REGIONS === 'undefined') return;
+  const rid = (cm && typeof cm.regionIdx === 'number' && REGIONS[cm.regionIdx])
+    ? REGIONS[cm.regionIdx].id : (cm ? cm.biome : null);
+  if (!rid) return;
+  const q = player.guildQuests[rid];
+  if (!q || !q.bounties) return;
+  const b = q.bounties;
+  if (e.bounty === 'board' && b.board && b.board.status === 'active') b.board.status = 'ready';
+  if (e.bounty === 'maneater' && b.maneater && b.maneater.status === 'active') b.maneater.status = 'ready';
+  const cull = b.culling;
+  if (cull && cull.status === 'active' && !e.bounty && e.type === cull.type) {
+    if (cull.mapId !== currentMapId) { cull.mapId = currentMapId; cull.count = 0; }
+    cull.count = (cull.count || 0) + 1;
+    if (cull.count >= cull.need) {
+      cull.status = 'ready';
+      if (typeof showMsg === 'function') showMsg(`⚔️ Culling complete — ${cull.count}/${cull.need}! Report to the Guild.`, 3500);
+    } else if (typeof showMsg === 'function') {
+      showMsg(`⚔️ Culling bounty: ${cull.count}/${cull.need}`, 1200);
+    }
+  }
+}
+
+// The recruiter's bounty state machine: reward anything ready, else remind anything
+// active, else offer the next un-started bounty, else greet a finished member.
+function talkGuildBounties(rid, regionIdx) {
+  const q = player.guildQuests[rid];
+  q.bounties = q.bounties || {};
+  const b = q.bounties;
+  for (const kind of GUILD_BOUNTY_ORDER)
+    if (b[kind] && b[kind].status === 'ready') { rewardGuildBounty(rid, regionIdx, kind); return; }
+  for (const kind of GUILD_BOUNTY_ORDER)
+    if (b[kind] && b[kind].status === 'active') { remindGuildBounty(rid, kind); return; }
+  for (const kind of GUILD_BOUNTY_ORDER)
+    if (!b[kind]) { offerGuildBounty(rid, regionIdx, kind); return; }
   if (typeof showMsg === 'function')
-    showMsg(`💬 Guild Recruiter: "Well met, guild member. Steel and shield stand with you."`, 3500);
+    showMsg(`💬 Guild Recruiter: "Every bounty cleared, member. The Guild has no equal in you."`, 3500);
+}
+
+function offerGuildBounty(rid, regionIdx, kind) {
+  const info = startGuildBounty(regionIdx, rid, kind);
+  let msg;
+  if (kind === 'culling') {
+    const nm = (DND_ENEMIES[info.type]) ? DND_ENEMIES[info.type].name : 'beasts';
+    msg = `⚔️ Guild Bounty — Culling the Nest: slay ${GUILD_CULL_NEED} ${nm} on a single hunt (all on one map), member.`;
+  } else {
+    const where = (info.mapId != null && worldMaps[info.mapId] && worldMaps[info.mapId].name)
+      ? worldMaps[info.mapId].name : 'this region';
+    const cnm = (DND_ENEMIES[info.creature]) ? DND_ENEMIES[info.creature].name : 'beast';
+    msg = kind === 'maneater'
+      ? `⚔️ Guild Bounty — the Man-Eater: a monstrous ${cnm} stalks ${where}. It flees the hunt from land to land — run it down, member.`
+      : `⚔️ Guild Bounty — the Board: a fierce ${cnm} has been marked at ${where}. Bring it down.`;
+  }
+  if (typeof showMapMsg === 'function') showMapMsg(msg);
+  else if (typeof showMsg === 'function') showMsg(msg, 5500);
+}
+
+function remindGuildBounty(rid, kind) {
+  const b = player.guildQuests[rid].bounties[kind];
+  let msg;
+  if (kind === 'culling') {
+    msg = `💬 Recruiter: "The culling isn't finished — ${b.count || 0}/${b.need} on one hunt."`;
+  } else {
+    const where = (b.mapId != null && worldMaps[b.mapId] && worldMaps[b.mapId].name)
+      ? worldMaps[b.mapId].name : 'this region';
+    msg = kind === 'maneater'
+      ? `💬 Recruiter: "The Man-Eater still roams — last tracked near ${where}."`
+      : `💬 Recruiter: "Your bounty still lives, out at ${where}."`;
+  }
+  if (typeof showMsg === 'function') showMsg(msg, 4000);
+}
+
+function rewardGuildBounty(rid, regionIdx, kind) {
+  const b = player.guildQuests[rid].bounties[kind];
+  b.status = 'done';
+  if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  const N = (typeof regionNumberOf === 'function') ? regionNumberOf(rid) : 1;
+  const d4 = () => 1 + Math.floor(Math.random() * 4);
+  const rewards = [];
+  if (kind === 'board') {
+    if (typeof addItem === 'function') rewards.push(`💎 ${addItem('rubies', 60 * N)} Rubies!`);
+  } else if (kind === 'maneater') {
+    if (typeof addItem === 'function') rewards.push(`💎 ${addItem('rubies', 120 * N)} Rubies!`);
+    if (typeof grantRegionPotions === 'function') rewards.push(grantRegionPotions(rid, d4() + d4()));
+  } else {
+    if (typeof addItem === 'function') rewards.push(`💎 ${addItem('rubies', 40 * N)} Rubies!`);
+    if (typeof grantRegionPotions === 'function') rewards.push(grantRegionPotions(rid, 3));
+  }
+  if (typeof updateHUD === 'function') updateHUD();
+  const label = kind === 'maneater' ? 'the Man-Eater' : kind === 'board' ? 'the Board bounty' : 'the culling';
+  const msg = `⚔️ Recruiter: "You've done ${label}, member. The Guild pays its own." ` + rewards.join(' ');
+  if (typeof showMapMsg === 'function') showMapMsg(msg);
+  else if (typeof showMsg === 'function') showMsg(msg, 6000);
 }

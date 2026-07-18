@@ -75,6 +75,7 @@ function update(dt) {
   if ((typeof radialMenuOpen !== 'undefined' && radialMenuOpen) ||
       (typeof ledgerOpen     !== 'undefined' && ledgerOpen)     ||
       (typeof statsPageOpen  !== 'undefined' && statsPageOpen)  ||
+      (typeof worldMapOpen   !== 'undefined' && worldMapOpen)   ||
       (typeof victoryOpen    !== 'undefined' && victoryOpen)) {
     updateHUD();
     return;
@@ -194,6 +195,14 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeStatsPage();
     return;   // stats modal swallows gameplay input
   }
+  if (typeof worldMapOpen !== 'undefined' && worldMapOpen) {
+    // Esc — or V again — closes the world map. +/- and 0 zoom / fit.
+    if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeWorldMap();
+    else if (e.key === '+' || e.key === '=') worldMapZoom(1.25);
+    else if (e.key === '-' || e.key === '_') worldMapZoom(0.8);
+    else if (e.key === '0') worldMapResetView();
+    return;   // world map swallows gameplay input
+  }
   // 'V' toggles the radial inventory menu (works whether open or closed)
   if (e.key === 'v' || e.key === 'V') {
     e.preventDefault();
@@ -296,7 +305,8 @@ function gameplayTouchBlocked() {
   return (typeof shopOpen   !== 'undefined' && shopOpen)   ||
          (typeof portalOpen !== 'undefined' && portalOpen) ||
          (typeof ledgerOpen !== 'undefined' && ledgerOpen) ||
-         (typeof statsPageOpen !== 'undefined' && statsPageOpen);
+         (typeof statsPageOpen !== 'undefined' && statsPageOpen) ||
+         (typeof worldMapOpen !== 'undefined' && worldMapOpen);
 }
 
 canvas.addEventListener('touchstart', e => {

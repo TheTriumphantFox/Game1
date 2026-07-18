@@ -289,6 +289,10 @@ const RADIAL_RINGS = [
         { type: 'drops', icon: '🎒', label: 'Drops', launcher: true,
           val: () => kinds ? 'x' + kinds : '—',
           action: () => { if (typeof openDropLedger === 'function') openDropLedger(); } },
+        // World map — zoomable atlas of how the overworld maps connect.
+        { type: 'worldmap', icon: '🗺️', label: 'World Map', launcher: true,
+          val: () => (typeof mapsVisited !== 'undefined') ? 'x' + mapsVisited : '—',
+          action: () => { if (typeof openWorldMap === 'function') openWorldMap(); } },
         // Admin "God Mode": grants full elemental swords + armor, 100 HP, 10000
         // rubies. Flagged `launcher` so scrolling past it never fires the grant —
         // only an explicit Enter/click/tap does.
