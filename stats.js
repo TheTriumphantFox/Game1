@@ -100,7 +100,7 @@ function renderStatsContents() {
   const arrowsTotal  = sum(p.arrows);
   const regionPotions = sum(p.regionPotions);
   const elixirTotal  = sum(p.elixirs);
-  const potionsTotal = (p.potions || 0) + (p.medPotions || 0) + regionPotions;
+  const potionsTotal = (p.potions || 0) + regionPotions;
 
   // ── Weapon / equipment summary ─────────────────────────────────────────────
   const weaponName = p.weapon === 'bow' ? '🏹 Bow'

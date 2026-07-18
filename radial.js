@@ -198,26 +198,19 @@ const RADIAL_RINGS = [
           isActive: () => player.weapon === 'bomb' }
       ];
       if ((player.potions || 0) > 0) {
-        items.push({ type: 'potion', icon: '🧪', label: 'Health Potion',
+        items.push({ type: 'potion', icon: '🧪', label: regionPotionName('forest'),
           val: () => 'x' + (player.potions || 0),
           consumable: true,
           action: () => usePotion() });
-      }
-      if ((player.medPotions || 0) > 0) {
-        items.push({ type: 'medpotion', icon: '🍶', label: 'Medium Potion',
-          val: () => 'x' + (player.medPotions || 0),
-          consumable: true,
-          action: () => useMedPotion() });
       }
       // Region-specific Health Potions brewed by each region's Herbalist (heal Nd4).
       const rp = player.regionPotions || {};
       for (const rid of Object.keys(rp)) {
         if ((rp[rid] || 0) <= 0) continue;
         const elem = SWORD_ELEMENTS[rid];
-        const nm = rid.charAt(0).toUpperCase() + rid.slice(1);
         const N = (typeof regionNumberOf === 'function') ? regionNumberOf(rid) : 1;
         items.push({ type: 'rpotion_' + rid, icon: '🧪' + (elem ? elem.icon : ''),
-          label: `${nm} Potion (${N}d4)`,
+          label: `${regionPotionName(rid)} (${N}d4)`,
           val: () => 'x' + (player.regionPotions[rid] || 0),
           consumable: true,
           action: () => useRegionPotion(rid) });
@@ -415,11 +408,6 @@ function useSelectedInventoryItem() {
     const before = player.potions;
     usePotion();
     return (before > player.potions) ? 600 : 0;
-  }
-  if (item.type === 'medpotion') {
-    const before = player.medPotions;
-    useMedPotion();
-    return (before > player.medPotions) ? 600 : 0;
   }
   if (item.type === 'bomb') {
     player.weapon = 'bomb';

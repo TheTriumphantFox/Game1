@@ -91,8 +91,7 @@ const TROPHY_SELL = [
 // Potions sell one at a time (selling the whole stack at once would be too
 // easy to fat-finger). Values stay below brew cost so there's no money loop.
 const POTION_SELL = [
-  { key: 'potions',    icon: '🧪', label: 'Health Potion', value: 10 },
-  { key: 'medPotions', icon: '🍶', label: 'Medium Potion', value: 25 },
+  { key: 'potions',    icon: '🧪', label: regionPotionName('forest'), value: 10 },
 ];
 
 // ─── Region-specific stock ────────────────────────────────────────────────────

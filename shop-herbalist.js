@@ -90,7 +90,7 @@ function renderHerbalistContents() {
     <div class="shop-rubies">You have: ${have}</div>
     <div class="shop-row">
       <div class="shop-item">
-        <div class="shop-item-name">🧪 Brew a ${name} Potion <span style="color:#88cc88">x${potCount}</span></div>
+        <div class="shop-item-name">🧪 Brew a ${regionPotionName(regionId)} <span style="color:#88cc88">x${potCount}</span></div>
         <div class="shop-item-meta">${healMeta}</div>
       </div>
       <button class="ssbtn" ${canBrewRegionPotion(regionId, N) ? '' : 'disabled'} onclick="brewRegionPotion('${regionId}', ${N})">
@@ -130,7 +130,7 @@ function renderForestHerbalist() {
     <div class="shop-rubies">You have: ${have}</div>
     <div class="shop-row">
       <div class="shop-item">
-        <div class="shop-item-name">🧪 Brew a Health Potion</div>
+        <div class="shop-item-name">🧪 Brew a ${regionPotionName('forest')}</div>
         <div class="shop-item-meta">${meta}</div>
       </div>
       <button class="ssbtn" ${canBrewHerbPotion() ? '' : 'disabled'} onclick="brewHerbPotion()">
@@ -147,7 +147,7 @@ function brewHerbPotion() {
   player.herbals   -= HERB_POTION_RECIPE.herbals;
   player.rubies    -= HERB_POTION_RECIPE.rubies;
   addItem('potions', 1);
-  showMsg('🧪 The Herbalist brews you a Health Potion!', 3000);
+  showMsg(`🧪 The Herbalist brews you a ${regionPotionName('forest')}!`, 3000);
   renderHerbalistContents();
   updateHUD();
 }

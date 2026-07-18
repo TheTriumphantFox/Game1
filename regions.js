@@ -118,6 +118,30 @@ const REGIONS = [
 // Quick lookup helper.
 function regionById(id) { return REGIONS.find(r => r.id === id) || REGIONS[0]; }
 
+// Display names for each region's Health Potion. Potions heal Nd4 (N = 1-indexed
+// region number), so the ladder reads as ascending potency rather than by element —
+// naming a heal after its region ("Fire Potion") is confusing and collides with the
+// element-resistance Elixirs ("Fire Elixir"). This map is the single source of truth;
+// every UI/message site resolves through regionPotionName() below. Tier 1 (forest) is
+// also the generic starter potion (player.potions), so 'Minor Healing Potion' is the
+// generic name too.
+const REGION_POTION_NAMES = {
+  forest:    'Minor Healing Potion',
+  fire:      'Lesser Healing Potion',
+  water:     'Modest Healing Potion',
+  ice:       'Healing Potion',
+  earth:     'Greater Healing Potion',
+  volcanic:  'Major Healing Potion',
+  air:       'Superior Healing Potion',
+  lightning: 'Grand Healing Potion',
+  luminous:  'Supreme Healing Potion',
+  necrotic:  'Master Healing Potion',
+  poison:    'Mythic Healing Potion',
+  mana:      'Ancient Healing Potion',
+  shadow:    'Divine Healing Potion',
+};
+function regionPotionName(id) { return REGION_POTION_NAMES[id] || REGION_POTION_NAMES.forest; }
+
 // Per-region open-ground landmark spec for the early/elemental regions — each
 // region's own answer to the necrotic TOMBSTONE / poison FALLEN_LOG / mana
 // GREAT_TREE / luminous LIGHT_PILLAR. `tile` is the solid landmark stamped into a
