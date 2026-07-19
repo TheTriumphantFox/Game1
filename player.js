@@ -1165,17 +1165,22 @@ function interactionHint() {
     if (child) return '👦 Help [Space]';
   }
 
-  // 1. Talk to / shop with an adjacent villager in an activated village.
-  if (cm.type === 'village' && cm.activated &&
-      typeof villagers !== 'undefined' && villagers && villagers.length) {
+  // 1. Talk to / shop with / travel via an adjacent villager. Adjacency alone is
+  //    the gate — villagers only populate maps where interaction is intended
+  //    (activated villages, the cabin's Gatekeeper, rescued / field NPCs), so this
+  //    mirrors tryVillagerInteraction, which acts on any map. (The old
+  //    village-only gate hid the cabin Gatekeeper's prompt from the bottom bar.)
+  if (typeof villagers !== 'undefined' && villagers && villagers.length) {
     const near = villagers
       .filter(v => Math.abs(v.x - player.x) <= 1 && Math.abs(v.y - player.y) <= 1)
       .sort((a, b) => (b.role ? 1 : 0) - (a.role ? 1 : 0))[0];
     if (near) {
-      if (near.role === 'store') return '🛒 Shop [Space]';
-      if (near.role === 'inn')   return '🛏️ Inn [Space]';
-      if (near.role === 'herb')  return '🌿 Herbalist [Space]';
-      if (near.role === 'guild') return '⚔️ Guild [Space]';
+      if (near.role === 'store')  return '🛒 Shop [Space]';
+      if (near.role === 'inn')    return '🛏️ Inn [Space]';
+      if (near.role === 'herb')   return '🌿 Herbalist [Space]';
+      if (near.role === 'smith')  return '⚒️ Blacksmith [Space]';
+      if (near.role === 'guild')  return '⚔️ Guild [Space]';
+      if (near.role === 'portal') return '🌀 Travel [Space]';
       return '💬 Talk [Space]';
     }
   }

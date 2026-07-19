@@ -265,9 +265,11 @@ document.addEventListener('visibilitychange', () => {
 // direction." A dead-zone in the middle means a still finger stands still.
 // While the radial menu (drawn on the canvas) is open, canvas touches drive the
 // menu instead of movement.
-const touchJoystick = { active: false, id: null, cx: 0, cy: 0, x: 0, y: 0 };
+const touchJoystick = { active: false, id: null, cx: 0, cy: 0, x: 0, y: 0, startTime: 0, moved: false };
 const JOY_DEAD  = 14;   // px — below this from centre: stand still
 const JOY_LEASH = 46;   // px — max the centre trails behind the finger
+const TAP_MS    = 250;  // a canvas touch shorter than this that never left the
+                        // dead-zone is a "tap" — it fires the selected weapon
 
 function joyClearKeys() {
   keys['ArrowUp'] = keys['ArrowDown'] = keys['ArrowLeft'] = keys['ArrowRight'] = false;
@@ -290,6 +292,7 @@ function joyUpdate(x, y) {
   touchJoystick.x = x; touchJoystick.y = y;
   joyClearKeys();
   if (Math.hypot(dx, dy) < JOY_DEAD) return;   // dead-zone → no movement
+  touchJoystick.moved = true;                  // left the dead-zone → it's a drag, not a tap
   // Screen space: angle 0°=right, 90°=down, 180°=left, 270°=up. Each key is on
   // for the 180° arc facing its way, so diagonals light two keys at once.
   const a = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
@@ -299,14 +302,15 @@ function joyUpdate(x, y) {
   if (a > 202.5 && a < 337.5) keys['ArrowUp']    = true;
 }
 
-// A DOM overlay (shop / portal / ledger / save modal) is capturing input; the
-// canvas shouldn't also start walking underneath it.
+// A DOM overlay (shop / portal / ledger / save modal) is capturing input, or the
+// full-screen minimap view is up — the canvas shouldn't walk/attack underneath it.
 function gameplayTouchBlocked() {
   return (typeof shopOpen   !== 'undefined' && shopOpen)   ||
          (typeof portalOpen !== 'undefined' && portalOpen) ||
          (typeof ledgerOpen !== 'undefined' && ledgerOpen) ||
          (typeof statsPageOpen !== 'undefined' && statsPageOpen) ||
-         (typeof worldMapOpen !== 'undefined' && worldMapOpen);
+         (typeof worldMapOpen !== 'undefined' && worldMapOpen) ||
+         (typeof viewMode !== 'undefined' && viewMode === 2);
 }
 
 canvas.addEventListener('touchstart', e => {
@@ -325,6 +329,8 @@ canvas.addEventListener('touchstart', e => {
   touchJoystick.active = true;
   touchJoystick.id = t.identifier;
   touchJoystick.cx = x; touchJoystick.cy = y;
+  touchJoystick.startTime = Date.now();
+  touchJoystick.moved = false;
   joyUpdate(x, y);
   e.preventDefault();
 }, { passive: false });
@@ -344,7 +350,15 @@ canvas.addEventListener('touchmove', e => {
 function onCanvasTouchEnd(e) {
   if (!touchJoystick.active) return;
   for (const t of e.changedTouches) {
-    if (t.identifier === touchJoystick.id) { joyEnd(); e.preventDefault(); break; }
+    if (t.identifier === touchJoystick.id) {
+      // A quick touch that never left the dead-zone is a tap → fire the selected
+      // weapon. A drag (moved) or long hold was movement, so it just ends.
+      const wasTap = !touchJoystick.moved && (Date.now() - touchJoystick.startTime) < TAP_MS;
+      joyEnd();
+      if (wasTap && !gameplayTouchBlocked()) activateSelectedWeapon();
+      e.preventDefault();
+      break;
+    }
   }
 }
 canvas.addEventListener('touchend',    onCanvasTouchEnd, { passive: false });
@@ -371,16 +385,56 @@ function triggerAction(kind) {
 function bindTap(id, fn) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
+  el.addEventListener('pointerdown', e => { e.preventDefault(); fn(e); });
 }
-bindTap('ws-sword', () => triggerAction('sword'));
-bindTap('ws-bow',   () => triggerAction('bow'));
-bindTap('ws-bomb',  () => triggerAction('item'));
+
+// On TOUCH, tapping a weapon slot only *selects* it (sets the highlighted
+// weapon); a later tap on the game screen is what actually swings/fires/uses it.
+// A mouse click keeps the old instant-fire feel (desktop is unchanged).
+function selectTouchWeapon(kind) {
+  if (kind === 'sword')     player.weapon = 'sword';
+  else if (kind === 'bow')  player.weapon = 'bow';
+  else /* item */           player.weapon = (typeof inventorySelectionType !== 'undefined')
+                                            ? inventorySelectionType : 'bomb';
+  if (typeof buzz === 'function') buzz(8);
+  updateHUD();   // the weapon-bar highlight tracks player.weapon
+}
+
+// Fire whichever weapon the touch player has selected (called by a screen tap).
+function activateSelectedWeapon() {
+  if (player.weapon === 'sword')     triggerAction('sword');
+  else if (player.weapon === 'bow')  triggerAction('bow');
+  else                               triggerAction('item');
+}
+
+function weaponSlotTap(kind, e) {
+  if (e && (e.pointerType === 'touch' || e.pointerType === 'pen')) selectTouchWeapon(kind);
+  else triggerAction(kind);   // mouse / desktop: instant fire, as before
+}
+
+bindTap('ws-sword', e => weaponSlotTap('sword', e));
+bindTap('ws-bow',   e => weaponSlotTap('bow',   e));
+bindTap('ws-bomb',  e => weaponSlotTap('item',  e));
 bindTap('ws-menu',  () => { if (typeof toggleRadialMenu === 'function') toggleRadialMenu(); });
 bindTap('ws-interact', () => {
   if (typeof tryVillagerInteraction === 'function' && tryVillagerInteraction()) return;
   if (typeof tryChestInteraction === 'function') tryChestInteraction();
 });
+
+// Double-tap the empty part of the weapon bar (not a weapon slot) to cycle the
+// three view modes: normal → zoomed-out → full-screen minimap → normal.
+(() => {
+  const bar = document.getElementById('weapon-bar');
+  if (!bar) return;
+  let lastTap = 0;
+  bar.addEventListener('pointerup', e => {
+    // Ignore taps that land on an actual slot — those select a weapon.
+    if (e.target.closest && e.target.closest('.weapon-slot')) { lastTap = 0; return; }
+    const now = Date.now();
+    if (now - lastTap < 320) { lastTap = 0; e.preventDefault(); cycleViewMode(); }
+    else lastTap = now;
+  });
+})();
 
 // ─── Fullscreen + screen wake-lock ───────────────────────────────────────────
 // Keep the screen awake during play; re-acquire after the tab is backgrounded

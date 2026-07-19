@@ -1217,11 +1217,12 @@ function edgeTransitions(mapObj) {
   };
 }
 
-function drawMinimap() {
+// Build (or refresh, when fog has changed) the current map's cached minimap
+// canvas at MINIMAP_SCALE and return it. Shared by the corner minimap and the
+// full-screen minimap view so the terrain paint lives in exactly one place.
+function buildMinimapCanvas() {
   const scale = MINIMAP_SCALE;
   const mw = Math.floor(MCOLS * scale), mh = Math.floor(MROWS * scale);
-  const mx = PW - mw - 8, my = 8;
-
   let mmc = minimapCanvases[currentMapId];
   if (minimapDirty || !mmc || mmc.width !== mw || mmc.height !== mh) {
     if (!mmc) {
@@ -1243,6 +1244,15 @@ function drawMinimap() {
     }
     minimapDirty = false;
   }
+  return mmc;
+}
+
+function drawMinimap() {
+  const scale = MINIMAP_SCALE;
+  const mw = Math.floor(MCOLS * scale), mh = Math.floor(MROWS * scale);
+  const mx = PW - mw - 8, my = 8;
+
+  const mmc = buildMinimapCanvas();
 
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.85)';
@@ -1328,6 +1338,83 @@ function drawFog() {
 
 // ─── Show minimap toggle (set by Tab key) ─────────────────────────────────────
 let showMinimap = false;
+
+// ─── View modes (cycled by a double-tap on the empty bottom bar) ──────────────
+// 0 = normal zoom, 1 = zoomed out (see more of the map at once), 2 = full-screen
+// minimap. Zoom is driven by TILE_PX (render + camera already read it live, and
+// the sprite cache re-bakes when it changes — see ensureSpriteCacheSize).
+const VIEW_BASE_PX     = 48;   // matches TILE_PX's config.js default
+const VIEW_ZOOM_OUT_PX = 24;   // half-scale: twice the tiles on screen
+let viewMode = 0;
+
+function cycleViewMode() {
+  viewMode = (viewMode + 1) % 3;
+  // Mode 1 zooms the world out; every other mode uses the base tile size (mode 2
+  // draws the full minimap over the top, so the world size under it doesn't matter).
+  TILE_PX = (viewMode === 1) ? VIEW_ZOOM_OUT_PX : VIEW_BASE_PX;
+  if (typeof clampCam === 'function') clampCam(true);   // snap: no scroll on a zoom jump
+  if (typeof updateHUD === 'function') updateHUD();
+  const label = viewMode === 0 ? '🔍 Normal view'
+              : viewMode === 1 ? '🗺️ Zoomed out'
+              :                   '🗺️ Full map';
+  if (typeof showMsg === 'function') showMsg(label, 1200);
+  if (typeof buzz === 'function') buzz(10);
+}
+
+// The whole-screen map: the cached minimap terrain scaled up to fill the view,
+// with live player / enemy / exit markers over it. Reuses buildMinimapCanvas so
+// terrain + fog stay in sync with the corner minimap.
+function drawFullMinimap() {
+  const mmc = buildMinimapCanvas();
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.92)';
+  ctx.fillRect(0, 0, PW, PH);
+
+  const margin = 18;
+  const s  = Math.min((PW - margin * 2) / mmc.width, (PH - margin * 2) / mmc.height);
+  const dw = mmc.width * s, dh = mmc.height * s;
+  const ox = (PW - dw) / 2, oy = (PH - dh) / 2;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(mmc, ox, oy, dw, dh);
+
+  // world tile (x,y) → screen: ox + x * (MINIMAP_SCALE * s)
+  const ws = MINIMAP_SCALE * s;
+  const dot = (tx, ty, size, color, ring) => {
+    const cx = ox + tx * ws, cy = oy + ty * ws;
+    if (ring) { ctx.fillStyle = '#000'; ctx.fillRect(cx - size/2 - 1, cy - size/2 - 1, size + 2, size + 2); }
+    ctx.fillStyle = color;
+    ctx.fillRect(cx - size/2, cy - size/2, size, size);
+  };
+
+  // Enemies (bosses bigger), then the player on top.
+  if (typeof enemies !== 'undefined') {
+    enemies.filter(e => !e.dead).forEach(e => dot(e.x, e.y, e.boss ? 10 : 6, e.boss ? '#ff33ff' : '#ff5555', true));
+  }
+  dot(player.x, player.y, Math.max(6, ws * 1.4), '#ffcc00', true);
+
+  // Edge exit arrows where a real transition exists.
+  const exits = edgeTransitions(currentMap());
+  ctx.fillStyle = '#ffff00';
+  ctx.font = `bold ${Math.round(Math.max(12, ws * 3))}px monospace`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  if (exits.right) ctx.fillText('▶', ox + dw - 6, oy + EXIT_ROW * ws);
+  if (exits.left)  ctx.fillText('◀', ox + 6,      oy + EXIT_ROW * ws);
+  if (exits.up)    ctx.fillText('▲', ox + EXIT_COL * ws, oy + 6);
+  if (exits.down)  ctx.fillText('▼', ox + EXIT_COL * ws, oy + dh - 6);
+
+  // Title / hint.
+  ctx.fillStyle = '#9fe89f';
+  ctx.font = 'bold 15px monospace';
+  ctx.fillText(currentMap().name, PW / 2, Math.max(14, oy - 12));
+  ctx.fillStyle = '#5e8a5e';
+  ctx.font = '11px monospace';
+  ctx.fillText('double-tap the bar to exit', PW / 2, Math.max(30, oy - 12) + 16);
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
 
 // ─── Main render entry point ──────────────────────────────────────────────────
 
@@ -1717,7 +1804,8 @@ function render() {
   if (cloudBiome === 'lightning') drawDriftClouds(true, 1.5);
   else if (cloudBiome)            drawDriftClouds(false, 1.0);
 
-  if (showMinimap) drawMinimap();
+  if (viewMode === 2) drawFullMinimap();
+  else if (showMinimap) drawMinimap();
 
   // Floating touch joystick — over the world, under the radial menu (which pauses
   // movement, so the stick is never active while the menu is up anyway).
