@@ -88,6 +88,19 @@ const TROPHY_SELL = [
   { key: 'voidsteel',   icon: '⬛', label: 'Voidsteel',   value: 230 },
 ];
 
+// Fresh-hero defaults (0) for every field-earned sellable — the foraged goods,
+// snowballs, and raw ores in TROPHY_SELL. Unlike granted trophies (trophyDefaults)
+// these keys are never listed in the player defaults; they spring into existence
+// via addItem the first time one is picked up. Zeroing them from the single
+// authoritative sell table means a New Game and an old save both clear stale
+// stock in exactly one place, so a newly-added sellable resets automatically.
+// (Trophy keys reappear here harmlessly — trophyDefaults already zeroes them.)
+function sellableDefaults() {
+  const o = {};
+  for (const s of TROPHY_SELL) o[s.key] = 0;
+  return o;
+}
+
 // Potions sell one at a time (selling the whole stack at once would be too
 // easy to fat-finger). Values stay below brew cost so there's no money loop.
 const POTION_SELL = [

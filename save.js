@@ -143,8 +143,10 @@ const DEFAULT_PLAYER = {
 function applyLoadData(data) {
   // Apply defaults first, then overlay saved values. This ensures fields
   // missing from older saves (e.g. armor) reset to their default rather than
-  // leaking the current in-memory value.
-  Object.assign(player, DEFAULT_PLAYER, data.player);
+  // leaking the current in-memory value. sellableDefaults() zeroes the forage /
+  // snowball / ore keys that aren't in DEFAULT_PLAYER so a save lacking them
+  // (or an older one) can't inherit stale stock from the previous session.
+  Object.assign(player, sellableDefaults(), DEFAULT_PLAYER, data.player);
   // Clone the object-valued brews so a save lacking them doesn't alias the shared
   // DEFAULT_PLAYER literals (which would leak mutations across loads).
   player.regionPotions = { ...((data.player && data.player.regionPotions) || {}) };
@@ -551,6 +553,10 @@ function newGame() {
 
 function resetGame(heroName) {
   Object.assign(player, {
+    // Zero every field-earned sellable first (forage goods, snowballs, all raw
+    // ores) so late-region stock never survives into a fresh game. Explicit
+    // fields below override any overlap. See sellableDefaults (shop-general.js).
+    ...sellableDefaults(),
     heroName,
     deaths: 0,
     x: EXIT_COL, y: EXIT_ROW,
@@ -579,7 +585,7 @@ function resetGame(heroName) {
   applyStartingInventory(player);
   attackCooldown = 0; bowCooldown = 0; bombCooldown = 0;
   transitionCooldown = 0; moveTimer = 0;
-  enemies = []; projectiles = []; particles = []; damageNumbers = [];
+  enemies = []; projectiles = []; particles = []; damageNumbers = []; drops = [];
   villagers = [];
   minimapCanvases = {}; minimapDirty = true;
 
