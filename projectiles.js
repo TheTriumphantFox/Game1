@@ -8,6 +8,13 @@ let damageNumbers = [];
 // Pickup items dropped on the ground (e.g. HP hearts from killed enemies).
 let drops = [];
 
+// Reference frame duration (60 FPS). Projectile velocities and `life` counts,
+// and particle motion, were all tuned per-frame at 60 FPS; scaling their updates
+// by (dt / FRAME_MS) makes travel distance and lifetime depend on elapsed time
+// rather than frame rate, so gameplay is identical across machines. At a steady
+// 60 FPS the factor is ~1, reproducing the original feel exactly.
+const FRAME_MS = 1000 / 60;
+
 // Visual metadata for enemy-trophy drops. Shared by stepDrops (pickup particles
 // and message) and drawDrop (ground sprite glow / glyph). Inventory key is the
 // plural of the trophy id (fang → player.fangs). Every trophy here is also
@@ -526,8 +533,12 @@ function stepEnemyRanged(dt) {
 
 // ─── Projectile physics + collision ───────────────────────────────────────────
 function stepProjectiles(dt, map) {
+  // How many 60 FPS-equivalent frames elapsed this tick (dt is real ms, clamped
+  // to 80 in the main loop). Scales both lifetime and travel so speed/range are
+  // frame-rate independent.
+  const step = (dt || FRAME_MS) / FRAME_MS;
   projectiles.forEach(p => {
-    p.life--;
+    p.life -= step;
 
     if (p.type === 'bomb') {
       if (p.life > 0) return;
@@ -595,7 +606,7 @@ function stepProjectiles(dt, map) {
       return;
     }
 
-    p.tx += p.vx; p.ty += p.vy;
+    p.tx += p.vx * step; p.ty += p.vy * step;
     const pc = Math.floor(p.tx), pr = Math.floor(p.ty);
     // Arrows and spells fly over the medium-water shelf even though it's
     // solid to walkers; everything else solid (incl. deep water) stops them.
@@ -642,6 +653,9 @@ function stepProjectiles(dt, map) {
           }
           if (e.hp <= 0) killEnemy(e);
           p.life = -999;
+          // One arrow, one target: stop scanning so a single shot can't damage
+          // multiple enemies sharing (or crowded onto) the same tile.
+          break;
         }
       }
     } else if (p.type === 'enemy') {
@@ -928,11 +942,14 @@ function stepDrops(dt) {
 }
 
 function stepParticles(dt) {
+  // Same 60 FPS-referenced scaling as projectiles so particle motion and
+  // lifetime are frame-rate independent.
+  const step = (dt || FRAME_MS) / FRAME_MS;
   particles.forEach(p => {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.06;  // mild gravity
-    p.life--;
+    p.x += p.vx * step;
+    p.y += p.vy * step;
+    p.vy += 0.06 * step;  // mild gravity
+    p.life -= step;
   });
   particles = particles.filter(p => p.life > 0);
   // Damage numbers float upward above their entity and fade over 1000ms.
