@@ -820,3 +820,117 @@ function buzz(pattern) {
   if (!hapticsEnabled) return;
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) { /* ignore */ }
 }
+
+// ─── UI mode: touch pad vs keyboard weapon bar ──────────────────────────────
+// Single source of truth for which control scheme is showing. Everything else
+// (game.css, the title hint, the save-row button) keys off the `data-ui`
+// attribute this section writes onto <html> — never off a media query, so a
+// player who forces a mode gets it applied consistently.
+//
+// Three prefs, persisted per device in localStorage (NOT in save slots — a save
+// carried to another device shouldn't drag a phone's control scheme with it):
+//   'auto'    — follow the device, then follow whatever input is actually used
+//   'touch'   — pinned to the thumbstick + action pad
+//   'desktop' — pinned to the keyboard weapon bar
+// This lives here rather than main.js because config.js loads first, so the
+// attribute is set before the first paint and there's no flash of the wrong UI.
+
+const UI_MODE_KEY = 'hyrule_quest_ui_mode';
+
+// Capability sniff, used only as the *starting* guess for 'auto'. Note the
+// `any-pointer: fine` term: a touchscreen laptop and an iPad with a trackpad
+// both report a touch capability but are being driven by a pointer, and the
+// old ontouchstart/maxTouchPoints OR-check handed them the phone UI.
+function deviceLooksTouch() {
+  if (typeof window.matchMedia === 'function') {
+    return window.matchMedia('(pointer: coarse)').matches &&
+           !window.matchMedia('(any-pointer: fine)').matches;
+  }
+  return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+}
+
+let uiModePref = 'auto';
+try {
+  const stored = localStorage.getItem(UI_MODE_KEY);
+  if (stored === 'auto' || stored === 'touch' || stored === 'desktop') uiModePref = stored;
+} catch (_) { /* private mode / storage blocked — stay on 'auto' */ }
+
+// What 'auto' currently believes. Refined live by the listeners below, so
+// docking a tablet or picking up a touchscreen laptop switches the UI without
+// a reload — the old detection was a one-shot const and could never react.
+let autoUiIsTouch = deviceLooksTouch();
+
+function uiModeIsTouch() {
+  if (uiModePref === 'touch')   return true;
+  if (uiModePref === 'desktop') return false;
+  return autoUiIsTouch;
+}
+
+// Push the resolved mode onto <html> and let the dependent UI re-fit. The bars
+// that show/hide change the canvas's available height, hence the resize.
+function applyUiMode() {
+  const touch = uiModeIsTouch();
+  const next  = touch ? 'touch' : 'desktop';
+  if (document.documentElement.dataset.ui === next) return;   // no-op re-apply
+  document.documentElement.dataset.ui = next;
+  if (typeof refreshControlHints === 'function') refreshControlHints();
+  resizeCanvas();
+  if (typeof updateHUD === 'function') updateHUD();
+}
+
+function setUiMode(mode) {
+  uiModePref = (mode === 'touch' || mode === 'desktop') ? mode : 'auto';
+  try { localStorage.setItem(UI_MODE_KEY, uiModePref); } catch (_) { /* ignore */ }
+  applyUiMode();
+  if (typeof refreshControlHints === 'function') refreshControlHints();
+}
+
+// Cycled by the 🎮 buttons on the title screen and in the save row.
+function cycleUiMode() {
+  setUiMode(uiModePref === 'auto' ? 'touch' : uiModePref === 'touch' ? 'desktop' : 'auto');
+  if (typeof buzz === 'function') buzz(8);
+}
+
+function uiModeLabel() {
+  if (uiModePref === 'touch')   return 'Touch';
+  if (uiModePref === 'desktop') return 'Desktop';
+  return 'Auto (' + (autoUiIsTouch ? 'touch' : 'desktop') + ')';
+}
+
+// ── Live input tracking (only meaningful while the pref is 'auto') ──────────
+// The most honest signal for "how is this being played right now" is the last
+// input the player actually used, not what the hardware is capable of.
+document.addEventListener('pointerdown', e => {
+  if (uiModePref !== 'auto') return;
+  if (e.pointerType === 'touch' || e.pointerType === 'pen') autoUiIsTouch = true;
+  else if (e.pointerType === 'mouse')                       autoUiIsTouch = false;
+  applyUiMode();
+}, { capture: true, passive: true });
+
+document.addEventListener('keydown', e => {
+  if (uiModePref !== 'auto' || !autoUiIsTouch) return;
+  // An on-screen keyboard typing into the hero-name / save-slot inputs is NOT
+  // evidence of a hardware keyboard — ignore keystrokes aimed at a text field,
+  // or naming a hero on a phone would yank the UI out from under the player.
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  autoUiIsTouch = false;
+  applyUiMode();
+}, { capture: true });
+
+// Capability can change mid-session (mouse plugged in, tablet undocked).
+if (typeof window.matchMedia === 'function') {
+  const coarse = window.matchMedia('(pointer: coarse)');
+  const fine   = window.matchMedia('(any-pointer: fine)');
+  const onChange = () => {
+    if (uiModePref !== 'auto') return;
+    autoUiIsTouch = deviceLooksTouch();
+    applyUiMode();
+  };
+  // addListener is the pre-2019 Safari spelling — kept as a fallback.
+  if (coarse.addEventListener) { coarse.addEventListener('change', onChange); fine.addEventListener('change', onChange); }
+  else if (coarse.addListener) { coarse.addListener(onChange);                fine.addListener(onChange); }
+}
+
+// Set the attribute now, before any other script runs or the page paints.
+document.documentElement.dataset.ui = uiModeIsTouch() ? 'touch' : 'desktop';

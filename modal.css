@@ -181,6 +181,17 @@
   font-size: 11px;
   color: #557;
 }
+/* Secondary title-screen action (control-scheme toggle) — same shape as
+   .title-btn, dialled down so it doesn't compete with New / Load Game. */
+.title-btn-mini {
+  width: 180px;
+  margin-top: 14px;
+  padding: 7px 12px;
+  font-size: 12px;
+  background: #0d180c;
+  border-color: #1f4a1f;
+  color: #8aa88a;
+}
 
 /* ─── Victory screen ─── */
 /* The endgame overlay raised when the Adult Red Dragon falls (tower.js). Gold
