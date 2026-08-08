@@ -26,18 +26,39 @@ for (const t of TROPHIES) TROPHY_META[t.id] = { icon: t.icon, label: t.label, co
 // the TROPHIES registry; it still needs ground/pickup metadata here.
 TROPHY_META.snowball = { icon: '⚪', label: 'Snowball', color: '#eef6ff' };
 
-function spawnParticle(wx, wy, color, n = 6, size = 3) {
+// Burst of particles at a canvas-pixel point (convert tiles with screenPX first).
+// `opts` is optional and every field defaults to the original behaviour, so the
+// existing five-argument calls are untouched:
+//   gravity  per-frame downward acceleration (default 0.06; negative rises)
+//   life     base lifetime in 60fps frames (default 25 + up to 20 random)
+//   spread   initial speed multiplier (default 1)
+//   fade     lifetime at which alpha reaches full (default 50; see render())
+function spawnParticle(wx, wy, color, n = 6, size = 3, opts) {
+  const o = opts || {};
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
-    const sp = 1 + Math.random() * 3;
+    const sp = (1 + Math.random() * 3) * (o.spread === undefined ? 1 : o.spread);
+    const life = (o.life === undefined ? 25 : o.life) + Math.random() * 20;
     particles.push({
       x: wx, y: wy,
       vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      life: 25 + Math.random() * 20,
+      life,
       color,
-      size: size * (0.5 + Math.random())
+      size: size * (0.5 + Math.random()),
+      gravity: o.gravity,
+      fade: o.fade === undefined ? 50 : o.fade
     });
   }
+}
+
+// Rising embers — the fire equivalent of spawnParticle's hit-spark burst.
+// Negative gravity and a long life, because embers climb and linger; the stock
+// burst falls and is gone in three quarters of a second.
+function spawnEmbers(wx, wy, n = 10) {
+  const colors = ['#ffb347', '#ff7a1f', '#ffdf7a', '#e04a10'];
+  spawnParticle(wx, wy, colors[Math.floor(Math.random() * colors.length)], n, 2.2, {
+    gravity: -0.035, life: 70, spread: 0.5, fade: 90
+  });
 }
 
 // Opposite-element vulnerability: any enemy that deals an element is weak to
@@ -229,6 +250,10 @@ function screenPX(tx, ty) {
 
 // ─── Spawn projectiles (player actions) ───────────────────────────────────────
 function firePlayerArrow() {
+  // The bow is Grandmother's, and the player doesn't have it until she gives it
+  // to them in the prologue's last beat. Before that the shot simply doesn't
+  // happen — there is no bow to draw.
+  if (!player.hasBow) { showMsg('🏹 You have no bow.', 1200); return; }
   // If an elemental arrow is nocked AND there's at least one of that type
   // available, consume it. Otherwise fall back to a plain arrow (and reset
   // the nocked element so the radial menu doesn't keep claiming it's active).
@@ -948,7 +973,8 @@ function stepParticles(dt) {
   particles.forEach(p => {
     p.x += p.vx * step;
     p.y += p.vy * step;
-    p.vy += 0.06 * step;  // mild gravity
+    // Mild gravity by default; embers pass a negative value so they rise.
+    p.vy += (p.gravity === undefined ? 0.06 : p.gravity) * step;
     p.life -= step;
   });
   particles = particles.filter(p => p.life > 0);

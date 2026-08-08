@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hyrule Quest — Seed Preview</title>
+<style>
+  :root {
+    --ink: #e8e4d9;
+    --dim: #8b8579;
+    --bg: #16171b;
+    --panel: #1e2026;
+    --line: #2c2f37;
+    --accent: #c9a227;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  header {
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+    position: sticky; top: 0; background: var(--bg); z-index: 5;
+  }
+  h1 { font-size: 15px; margin: 0 12px 0 0; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
+  input, button, select {
+    font: inherit; background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 3px; padding: 5px 9px;
+  }
+  input[type=number] { width: 76px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
+  #status { padding: 10px 18px; color: var(--dim); border-bottom: 1px solid var(--line); }
+  #status.bad { color: #e07a5f; }
+  #grid { display: flex; flex-wrap: wrap; gap: 14px; padding: 18px; }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px; }
+  figure canvas { display: block; image-rendering: pixelated; background: #0d0e11; cursor: crosshair; }
+  figcaption { color: var(--dim); font-size: 12px; padding-top: 6px; display: flex; justify-content: space-between; gap: 10px; }
+  figcaption b { color: var(--ink); font-weight: 600; }
+  #legend { padding: 0 18px 18px; color: var(--dim); font-size: 12px; }
+  #legend span { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; }
+  #legend i { width: 11px; height: 11px; display: inline-block; border: 1px solid #0006; }
+  code { color: var(--accent); }
+  .note { padding: 18px; color: var(--dim); max-width: 70ch; }
+</style>
+</head>
+<body>
+
+<!--
+  ==========================================================================
+  SEED PREVIEW — renders generated maps with no gameplay in the way.
+
+  Open this file directly (double-click). It sits in tools/ and loads the
+  game's own generation code, so what you see is what the game builds.
+
+  SETUP: two things to wire up, both marked ADAPT below.
+    1. The <script> tags — list the game files the generator needs,
+       in the same order index.html loads them.
+    2. generateMap() — call the real generator and hand back a 2D array.
+  ==========================================================================
+-->
+
+<!-- config.js does `const canvas = document.getElementById('c')` unconditionally
+     at the very top of the file — this element MUST exist in the DOM before
+     config.js's <script> tag runs, or it throws immediately and every global
+     after it (T, MCOLS, MROWS, ...) never gets defined. Browsers parse and run
+     scripts in document order, so this has to sit above ADAPT #1, not below it. -->
+<canvas id="c" width="1" height="1" style="display:none"></canvas>
+
+<!-- ADAPT #1: load the game's generation code, in index.html's order.
+     This repo has no src/ or styles/ folder — every game file sits flat at
+     the repo root, one level up from tools/. The real overworld generator,
+     buildOverworldForRegion(), lives in world.js and picks buildForestMap /
+     buildDesertMap / buildRegionMap depending on region — so the full chain
+     up through world.js is loaded, in index.html's exact order, even though
+     only a few of these files are strictly required for tile generation. -->
+<script src="../config.js"></script>
+<script src="../elements.js"></script>
+<script src="../map-helpers.js"></script>
+<script src="../connectivity.js"></script>
+<script src="../regions.js"></script>
+<script src="../mapgen-terrain.js"></script>
+<script src="../mapgen-foliage.js"></script>
+<script src="../mapgen-caves.js"></script>
+<script src="../mapgen-village.js"></script>
+<script src="../mapgen-tower.js"></script>
+<script src="../mapgen-biomes.js"></script>
+<script src="../enemies.js"></script>
+<script src="../world.js"></script>
+
+<header>
+  <h1>Seed Preview</h1>
+  <label>seed <input id="seed" type="number" value="1"></label>
+  <label>region <select id="region"></select></label>
+  <label>count <input id="count" type="number" value="12" min="1" max="64"></label>
+  <label>px <input id="px" type="number" value="4" min="1" max="16"></label>
+  <button class="primary" id="go">Generate</button>
+  <button id="rand">Random seeds</button>
+  <button id="reroll">Next batch</button>
+</header>
+
+<div id="status">Ready.</div>
+<div id="legend"></div>
+<div id="grid"></div>
+
+<script>
+// ===========================================================================
+// ADAPT #2 — the only function you should need to edit.
+//
+// Call the game's real generator and return a 2D array: rows[y][x], where
+// each cell is a tile identifier (number or string). Whatever the generator
+// already returns, reshape it here rather than changing the game code.
+// ===========================================================================
+//
+// buildOverworldForRegion(regionIdx, seed, depth, openSides, placeDungeon) —
+// defined in world.js — is the same function createOverworldMap() calls to
+// build a real overworld map during play. It dispatches to buildForestMap /
+// buildDesertMap / buildRegionMap depending on regionIdx and already returns
+// the raw tile matrix as rows[y][x] (an MROWS-length array of MCOLS-wide
+// Uint8Array rows) — no reshaping needed.
+//
+// Two things this repo's generator does NOT support, unlike the placeholder
+// shape this replaced:
+//   - Map size isn't a parameter. MCOLS/MROWS (150x150, from config.js) are
+//     fixed constants — every map this call produces is 150x150 regardless
+//     of what's asked for.
+//   - `seed` isn't actually used for randomness. It's accepted (as the map's
+//     `id`) but every generation file drives its randomness through bare
+//     Math.random()/rnd() — see tools/lint-conventions.py's Math.random()
+//     warnings. Generating the same seed twice will NOT produce the same
+//     map. That's a real, pre-existing gap in the game's own generation
+//     code, not a bug in this wiring — the determinism check below will
+//     accurately fail until that's fixed in the generator itself.
+function generateMap(seed) {
+  const regionIdx = +$("region").value;
+  const depth = 10;   // mid-region depth — representative decoration/water density
+  const openSides = { left: true, right: true, up: true, down: true };
+  return buildOverworldForRegion(regionIdx, seed, depth, openSides, false);
+}
+
+// Helper if the generator returns a flat array instead of rows.
+function toRows(flat, width) {
+  const rows = [];
+  for (let i = 0; i < flat.length; i += width) rows.push(flat.slice(i, i + width));
+  return rows;
+}
+
+// ===========================================================================
+// Tile colors. Keys are matched loosely — a numeric tile id or a string name
+// both work. Unknown tiles get an auto-assigned color and show in the legend,
+// which is usually how you notice the generator emitting something unexpected.
+// ===========================================================================
+// Real tile ids from config.js's T enum (numeric, since maps are Uint8Array).
+// Only the ones buildOverworldForRegion can actually emit are listed —
+// village/cave/tower-only tiles (doors, furniture, boss chests, stairs, ...)
+// never appear here, so they're left for AUTO to catch if that ever changes.
+const PALETTE = {
+  [T.GRASS]: "#4a7a45", [T.TREE]: "#2f5a34", [T.WATER]: "#2f5fa8",
+  [T.PATH]: "#a8956d", [T.WALL]: "#3a3f47", [T.CHEST]: "#d08c3a",
+  [T.ROCK]: "#5a5048", [T.SAND]: "#c9b27a", [T.FLOWER]: "#e07ab0",
+  [T.DUNGEON_DOOR]: "#4a1a1a", [T.DEEP_WATER]: "#1e3f74", [T.LAVA]: "#dd4411",
+  [T.BRIDGE]: "#8a6f3f", [T.SHRINE]: "#c9a227", [T.MUSHROOM]: "#aa6688",
+  [T.FERN]: "#3a6a3a", [T.CACTUS]: "#4a7a3a", [T.DUNE]: "#d9c088",
+  [T.OASIS_WATER]: "#2f8fa8", [T.BONES]: "#c9c2ae",
+  [T.SNOW]: "#eef4f8", [T.ICE]: "#bfe6f5", [T.GLACIER]: "#9cc8e0",
+  [T.MUD]: "#5a4a2a", [T.MOUNTAIN]: "#6a6258",
+  [T.CLOUD]: "#eef2ff", [T.CLOUDWALL]: "#c8d0e8",
+  [T.STORM_GROUND]: "#556080", [T.STORM_CLOUD]: "#3a4560",
+  [T.LUMINOUS_FLOOR]: "#fff2c0", [T.LUMINOUS_CRYSTAL]: "#ffe89a",
+  [T.BLIGHT]: "#4a3a55", [T.BLIGHTED_WALL]: "#2a2038",
+  [T.SLUDGE]: "#5a6a2a", [T.POISON_WALL]: "#3a5a2a",
+  [T.MANA_FLOOR]: "#4a2a6a", [T.MANA_CRYSTAL]: "#aa66ee",
+  [T.SHALLOW_WATER]: "#4a8fc0", [T.WATERFALL]: "#88ccee", [T.CLIFF]: "#4a4038",
+  [T.PLATEAU]: "#6a5a45", [T.FLOWERING_CACTUS]: "#5a8a4a",
+  [T.MEDIUM_WATER]: "#3a7fb0", [T.WHIRLPOOL]: "#1a3f60",
+  [T.SNOW_PINE]: "#2a5a4a", [T.SNOW_DRIFT]: "#dde8ee",
+  [T.WATERFALL_DOOR]: "#5faacc", [T.SCREE]: "#8a857a",
+  [T.MOUNTAIN_SAGE]: "#7a8a5a", [T.MOSS_CLUMP]: "#5a7a4a", [T.CRYSTAL_CLUSTER]: "#aa88dd",
+  [T.CLOUDBANK]: "#dde4f5", [T.SKY_GROUND]: "#f5f7ff", [T.CLOUD_EDGE]: "#aab4d0",
+  [T.SKY_BLOOM]: "#ffccee", [T.WIND_REED]: "#c8d8a0", [T.STORM_THISTLE]: "#8866aa",
+  [T.STORM_BANK]: "#4a5578", [T.STORM_EDGE]: "#2a3050",
+  [T.VOLT_BLOOM]: "#ccff66", [T.SPARK_REED]: "#88ddcc", [T.FULGURITE]: "#ffee88",
+  [T.LUMINOUS_GLOW]: "#fff8d0", [T.RADIANT_BLOOM]: "#ffddaa", [T.GLOW_REED]: "#eeffcc",
+  [T.LUMEN_SHARD]: "#ffffe0", [T.LIGHT_PILLAR]: "#fffae0",
+  [T.GRAVE_DIRT]: "#3a3228", [T.DEAD_TREE]: "#2a2620", [T.WITHERED_SHRUB]: "#4a4038",
+  [T.CORPSE_FLOWER]: "#6a3a5a", [T.BONE_PILE]: "#aaa08a", [T.TOMBSTONE]: "#5a5a52",
+  [T.BOG]: "#3a4a2a", [T.BOG_POOL]: "#2a4a3a", [T.CATTAIL]: "#8a7a3a",
+  [T.SWAMP_FERN]: "#3a5a3a", [T.MANGROVE]: "#4a5a3a", [T.SWAMP_MUSHROOM]: "#8a6a8a",
+  [T.FALLEN_LOG]: "#5a4a3a",
+  [T.MANA_MOSS]: "#5a3a8a", [T.GIANT_BLOOM]: "#cc88ee", [T.VERDANT_FERN]: "#4a8a4a",
+  [T.GIANT_MUSHROOM]: "#aa66aa", [T.GREAT_TREE]: "#3a2a5a", [T.COLOSSAL_TREE]: "#2a1a4a",
+  [T.DESERT_SUCCULENT]: "#5a8a5a", [T.FROST_FERN]: "#aaddcc",
+  [T.MOSS_BOULDER]: "#5a6a4a", [T.DESERT_OBELISK]: "#aa9866", [T.DRIFTWOOD]: "#8a7a5a",
+  [T.ICE_SPIRE]: "#cceeff", [T.STANDING_STONE]: "#6a6a62",
+  [T.CLOUD_SPIRE]: "#eef2ff", [T.STORM_SPIRE]: "#3a3a5a",
+  [T.VOLCANIC_ROCK]: "#3a2822", [T.VOLCANIC_GROUND]: "#5a3a2a", [T.MAGMA_CRACK]: "#ff5522",
+  [T.EMBER_FLOWER]: "#ff8844", [T.SULFUR_SHRUB]: "#aa9944", [T.OBSIDIAN_SPIRE]: "#1a1210",
+  [T.SHADOW_WALL]: "#0a0812", [T.SHADOW_GROUND]: "#1a1522", [T.SHADOW_DAPPLE]: "#2a2038",
+  [T.SHADOW_RIFT]: "#4a2a6a", [T.GLOOM_BLOOM]: "#3a2a4a", [T.VOID_FROND]: "#2a2038",
+  [T.SHADOW_MONOLITH]: "#0a0812",
+  [T.STONES]: "#8a8578", [T.SEASHELL]: "#eeddc8", [T.CORAL]: "#dd7788",
+  [T.WINTER_BERRY_BUSH]: "#cc4466", [T.FROST_LILY]: "#cceeff",
+};
+const AUTO = ["#e07a5f","#81b29a","#f2cc8f","#9a8c98","#6d9dc5","#c98bb9","#8fb339","#d4a373"];
+const autoAssigned = {};
+let autoIndex = 0;
+
+function colorFor(tile) {
+  if (tile === null || tile === undefined) return "#ff00ff";
+  if (PALETTE[tile] !== undefined) return PALETTE[tile];
+  const key = String(tile).toLowerCase();
+  if (PALETTE[key] !== undefined) return PALETTE[key];
+  if (!autoAssigned[key]) {
+    autoAssigned[key] = AUTO[autoIndex % AUTO.length];
+    autoIndex++;
+  }
+  return autoAssigned[key];
+}
+
+const $ = id => document.getElementById(id);
+const status = $("status");
+
+function setStatus(msg, bad) {
+  status.textContent = msg;
+  status.className = bad ? "bad" : "";
+}
+
+function drawMap(rows, px) {
+  const h = rows.length, w = rows[0].length;
+  const canvas = document.createElement("canvas");
+  canvas.width = w * px;
+  canvas.height = h * px;
+  const ctx = canvas.getContext("2d");
+  const counts = {};
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const tile = rows[y][x];
+      const key = String(tile);
+      counts[key] = (counts[key] || 0) + 1;
+      ctx.fillStyle = colorFor(tile);
+      ctx.fillRect(x * px, y * px, px, px);
+    }
+  }
+
+  // Hover readout — tells you what tile id sits under the cursor.
+  canvas.addEventListener("mousemove", e => {
+    const r = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / px);
+    const y = Math.floor((e.clientY - r.top) / px);
+    if (rows[y] && rows[y][x] !== undefined) {
+      canvas.title = `(${x}, ${y}) = ${rows[y][x]}`;
+    }
+  });
+
+  return { canvas, counts, w, h };
+}
+
+function summarize(counts, total) {
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return top.map(([k, v]) => `${k} ${Math.round((v / total) * 100)}%`).join("  ");
+}
+
+// Reverse lookup (tile id -> name) from the game's own T enum, so the legend
+// can show "18 shrine" instead of a bare "18". Built once T is loaded.
+const TILE_NAME = {};
+for (const [name, id] of Object.entries(T)) TILE_NAME[id] = name.toLowerCase();
+
+// PALETTE covers every tile buildOverworldForRegion can emit across all 13
+// regions (~100 entries) — dumping the whole thing regardless of what a batch
+// actually generated would bury the legend. Scope it to tile ids seen in the
+// current batch instead (aggregated across every map, so switching seeds
+// keeps a stable, relevant legend).
+function renderLegend(seenCounts) {
+  const seenColors = new Set();
+  const parts = [];
+  const keys = Object.keys(seenCounts).sort((a, b) => +a - +b);
+  for (const key of keys) {
+    const color = colorFor(key);
+    if (seenColors.has(color)) continue;
+    seenColors.add(color);
+    const label = TILE_NAME[key] ? `${key} ${TILE_NAME[key]}` : key;
+    parts.push(`<span><i style="background:${color}"></i>${label}</span>`);
+  }
+  $("legend").innerHTML = parts.join("");
+}
+
+function run(seeds) {
+  const grid = $("grid");
+  grid.innerHTML = "";
+  const px = +$("px").value;
+  let ok = 0, failed = 0;
+  const started = performance.now();
+  const batchCounts = {};   // aggregated across every map, for the legend
+
+  for (const seed of seeds) {
+    try {
+      const t0 = performance.now();
+      let rows = generateMap(seed);
+      const ms = performance.now() - t0;
+
+      // isRow: real maps here are arrays of Uint8Array (map-helpers.js's makeTile
+      // uses typed arrays for fast (de)serialization — see save.js), and
+      // Array.isArray() returns false for those. Checking ArrayBuffer.isView too
+      // is what makes a genuine 2D map register as "already rows[y][x]" instead
+      // of being misdetected as flat and shredded by toRows().
+      const isRow = v => Array.isArray(v) || ArrayBuffer.isView(v);
+      if (Array.isArray(rows) && !isRow(rows[0])) rows = toRows(rows, MCOLS);
+      if (!Array.isArray(rows) || !isRow(rows[0])) {
+        throw new Error("generateMap did not return a 2D array");
+      }
+
+      const { canvas, counts } = drawMap(rows, px);
+      for (const [k, v] of Object.entries(counts)) batchCounts[k] = (batchCounts[k] || 0) + v;
+      const fig = document.createElement("figure");
+      fig.appendChild(canvas);
+      const cap = document.createElement("figcaption");
+      cap.innerHTML = `<b>seed ${seed}</b><span>${ms.toFixed(0)}ms</span>`;
+      const mix = document.createElement("figcaption");
+      mix.textContent = summarize(counts, rows.length * rows[0].length);
+      fig.appendChild(cap);
+      fig.appendChild(mix);
+      grid.appendChild(fig);
+      ok++;
+    } catch (err) {
+      failed++;
+      const fig = document.createElement("figure");
+      fig.innerHTML = `<figcaption><b>seed ${seed}</b></figcaption>
+                       <div style="padding:8px;color:#e07a5f;max-width:280px">${err.message}</div>`;
+      grid.appendChild(fig);
+      if (failed === 1) setStatus(err.message, true);
+    }
+  }
+
+  renderLegend(batchCounts);
+  if (!failed) {
+    setStatus(`${ok} map(s) in ${(performance.now() - started).toFixed(0)}ms — hover a map to read tile ids.`);
+  }
+}
+
+function seedRange(start, count) {
+  return Array.from({ length: count }, (_, i) => start + i);
+}
+
+$("go").onclick = () => run(seedRange(+$("seed").value, +$("count").value));
+$("reroll").onclick = () => {
+  $("seed").value = +$("seed").value + +$("count").value;
+  run(seedRange(+$("seed").value, +$("count").value));
+};
+$("rand").onclick = () => {
+  const count = +$("count").value;
+  run(Array.from({ length: count }, () => Math.floor(Math.random() * 1e6)));
+};
+
+// Populate the region dropdown from the game's own REGIONS table (regions.js)
+// so it stays correct if regions are added, renamed, or reordered.
+REGIONS.forEach((r, i) => {
+  const opt = document.createElement("option");
+  opt.value = i;
+  opt.textContent = `${i} · ${r.id}`;
+  $("region").appendChild(opt);
+});
+
+// Same seed twice SHOULD produce identical maps, but this repo's generator
+// doesn't actually seed its randomness (see the note above generateMap) — so
+// today this check will correctly show two DIFFERENT maps for the same seed.
+// That reflects the real game, not a bug in this tool.
+setStatus(`Ready — ${MCOLS}×${MROWS} maps, ${REGIONS.length} regions loaded.`);
+</script>
+
+<div class="note">
+  <p><b>Determinism check:</b> generate seed <code>N</code>, note the map, then generate
+  the same seed again. In a properly seeded generator these would be pixel-identical.
+  <b>In this repo today they won't be</b> — every <code>mapgen-*.js</code> file drives its
+  randomness through bare <code>Math.random()</code>/<code>rnd()</code>, and the <code>seed</code>
+  parameter these builders accept is never actually used for randomness (see
+  <code>tools/lint-conventions.py</code>'s Math.random() warnings for the full list).
+  This preview surfaces that gap accurately; it doesn't introduce it, and fixing it means
+  threading a seeded RNG through the generation files themselves, not a tools/ change.</p>
+</div>
+
+</body>
+</html>

@@ -256,7 +256,9 @@ function drawWorldMap() {
     const half = ns / 2;
     const isCurrent = n.id === wmCurrentGridId;
     const isVillage = m.type === 'village';
-    const isHouse   = m.type === 'house';
+    // Home — the lone cabin in old saves, the home village since the prologue.
+    // Both get the same slate-blue "this is where you live" tint.
+    const isHouse   = m.type === 'house' || m.type === 'homevillage';
     const visited   = !!m.visited;
 
     // Fill: region tint, dimmed for unexplored (generated but never entered).

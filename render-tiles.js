@@ -1230,6 +1230,102 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.stroke();
       ctx.restore();
       break; }
+    // ─── Ashfall ruins (prologue) ────────────────────────────────────────────
+    // Everything the Emperor left of the home village. Deliberately drab and
+    // low-contrast next to the rest of the tile set — the ruined village is the
+    // only place in the game that reads as dead, and it should.
+    case T.CHARRED_GRASS: {
+      // Burnt-out ground: soot with the odd surviving blackened tuft. Lifted a
+      // few stops off true black on purpose — the fire wash sits on top of this
+      // during Beat 4, and the player has to be able to see the road home.
+      ctx.fillStyle = '#403a34'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#2c2723'; ctx.fillRect(x + s*0.12, y + s*0.55, s*0.3, s*0.1);
+      ctx.fillStyle = '#4e4740'; ctx.fillRect(x + s*0.6,  y + s*0.22, s*0.24, s*0.09);
+      // Two brittle stalks of what used to be grass.
+      ctx.fillStyle = '#14110f';
+      ctx.fillRect(x + s*0.3,  y + s*0.34, Math.max(1, s*0.04), s*0.2);
+      ctx.fillRect(x + s*0.72, y + s*0.62, Math.max(1, s*0.04), s*0.16);
+      break; }
+    case T.SCORCHED_FLOOR: {
+      // Soot-blackened floorboards — the plank seams of T.FLOOR still legible
+      // under the char, so the ruin reads as the same room it used to be.
+      ctx.fillStyle = '#463a30'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#332a23';
+      for (let i = 1; i < 4; i++) ctx.fillRect(x, y + (s * i / 4), s, Math.max(1, s*0.03));
+      ctx.fillStyle = '#241d18'; ctx.fillRect(x + s*0.18, y + s*0.30, s*0.34, s*0.14);
+      ctx.fillStyle = '#584b3e'; ctx.fillRect(x + s*0.62, y + s*0.68, s*0.2,  s*0.08);
+      break; }
+    case T.BURNT_WALL: {
+      // A wall that survived the fire: blackened stone with the charred timber
+      // frame showing through where the render burned off.
+      ctx.fillStyle = '#231f1c'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#2e2926';
+      ctx.fillRect(x, y, s, Math.max(1, s*0.06));                 // top edge catch-light
+      ctx.fillRect(x + s*0.05, y + s*0.34, s*0.4,  s*0.16);       // exposed stone courses
+      ctx.fillRect(x + s*0.55, y + s*0.58, s*0.38, s*0.16);
+      ctx.fillStyle = '#120f0d';                                  // charred timbers
+      ctx.fillRect(x + s*0.22, y + s*0.1,  Math.max(1, s*0.07), s*0.8);
+      ctx.fillRect(x + s*0.68, y + s*0.1,  Math.max(1, s*0.07), s*0.8);
+      break; }
+    case T.RUBBLE: {
+      // Collapsed masonry and fallen timber. Solid — this is what pins the
+      // grandmother, and what forces the reroute on the run home.
+      ctx.fillStyle = '#2a2521'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#4a423a';
+      ctx.fillRect(x + s*0.08, y + s*0.52, s*0.34, s*0.28);
+      ctx.fillRect(x + s*0.46, y + s*0.36, s*0.28, s*0.24);
+      ctx.fillRect(x + s*0.62, y + s*0.66, s*0.26, s*0.18);
+      ctx.fillStyle = '#5c5249';                                  // lit upper faces
+      ctx.fillRect(x + s*0.08, y + s*0.52, s*0.34, Math.max(1, s*0.06));
+      ctx.fillRect(x + s*0.46, y + s*0.36, s*0.28, Math.max(1, s*0.06));
+      ctx.fillStyle = '#1a1512';                                  // a fallen beam across it
+      ctx.save();
+      ctx.translate(x + s*0.5, y + s*0.44);
+      ctx.rotate(-0.4);
+      ctx.fillRect(-s*0.46, -s*0.05, s*0.92, s*0.1);
+      ctx.restore();
+      break; }
+    case T.EMBER: {
+      // Wreckage still alight. Reuses the flicker/sway timing of T.TORCH so the
+      // burning village pulses in sympathy with the braziers rather than against
+      // them — but low and guttering, not a proud flame on a post.
+      const et = Date.now();
+      const eFlick = (Math.sin(et / 90 + col * 1.9 + row * 1.1) * 0.5 + 0.5);
+      const eSway  = Math.sin(et / 140 + col + row * 2) * 0.6;
+      ctx.fillStyle = '#241d18'; ctx.fillRect(x, y, s, s);
+      // Warm halo spilling onto the neighbouring tiles.
+      const eg = ctx.createRadialGradient(x + s/2, y + s*0.62, 0,
+                                          x + s/2, y + s*0.62, s * 0.8);
+      eg.addColorStop(0,   `rgba(255,140,50,${0.34 + eFlick * 0.22})`);
+      eg.addColorStop(0.6, `rgba(220,80,25,${0.12 + eFlick * 0.06})`);
+      eg.addColorStop(1,   'rgba(180,50,15,0)');
+      ctx.fillStyle = eg;
+      ctx.fillRect(x - s*0.4, y - s*0.4, s * 1.8, s * 1.8);
+      // Charred debris the fire is eating.
+      ctx.fillStyle = '#15100d';
+      ctx.fillRect(x + s*0.16, y + s*0.66, s*0.68, s*0.16);
+      ctx.fillRect(x + s*0.3,  y + s*0.54, s*0.4,  s*0.12);
+      // Glowing coal bed.
+      ctx.fillStyle = `rgba(255,110,35,${0.55 + eFlick * 0.35})`;
+      ctx.fillRect(x + s*0.24, y + s*0.6, s*0.5, s*0.08);
+      ctx.fillStyle = `rgba(255,190,90,${0.4 + eFlick * 0.4})`;
+      ctx.fillRect(x + s*0.38, y + s*0.62, s*0.2, s*0.04);
+      // A single guttering tongue of flame.
+      const eBase = y + s*0.6, eTop = y + s*0.24 - eFlick * s*0.08;
+      const ecx = x + s*0.5 + eSway * s*0.05;
+      ctx.fillStyle = `rgba(255,130,40,${0.7 + eFlick * 0.25})`;
+      ctx.beginPath();
+      ctx.moveTo(ecx, eTop);
+      ctx.bezierCurveTo(ecx + s*0.15, y + s*0.4, ecx + s*0.13, eBase, ecx, eBase);
+      ctx.bezierCurveTo(ecx - s*0.13, eBase, ecx - s*0.15, y + s*0.4, ecx, eTop);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(255,215,120,${0.55 + eFlick * 0.3})`;
+      ctx.beginPath();
+      ctx.moveTo(ecx, eTop + s*0.1);
+      ctx.bezierCurveTo(ecx + s*0.07, y + s*0.46, ecx + s*0.06, eBase, ecx, eBase);
+      ctx.bezierCurveTo(ecx - s*0.06, eBase, ecx - s*0.07, y + s*0.46, ecx, eTop + s*0.1);
+      ctx.closePath(); ctx.fill();
+      break; }
     case T.MUSHROOM:
       ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x,y,s,s);
       ctx.fillStyle = '#cc3300'; ctx.beginPath(); ctx.arc(x+s/2,y+s*0.4,s*0.28,Math.PI,0); ctx.fill();

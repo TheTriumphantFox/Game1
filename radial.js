@@ -159,6 +159,9 @@ const RADIAL_RINGS = [
   // damage badge. Each elemental arrow uses just its element symbol as its icon
   // (matching the swords ring) rather than a busy bow + element pair. ────────────
   { name: 'arrows', radius: RADIAL_RADIUS, getItems: () => {
+      // Empty until the player owns a bow — the ring renders nothing rather than
+      // advertising ammunition for a weapon they've never seen (see hasBow).
+      if (!player.hasBow) return [];
       const bowDmg = (player.bowLevel || 1) * 2 + 1;
       const items = [
         { type: 'bow_plain', icon: '➳', label: 'Plain Arrow',

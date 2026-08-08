@@ -84,8 +84,9 @@ function mapGroundTile() {
   return regionById(cm.biome).ground;
 }
 
-// Initialise a fresh world with the starter house at (0, 0). Walking south
-// out of the house creates forest [2] as a southern neighbor.
+// Initialise a fresh world with the home village at (0, 0). Walking south out
+// of the village creates forest [1] as a southern neighbor — same topology the
+// lone starter cabin had before the prologue replaced it.
 function initWorld() {
   worldMaps = [];
   worldGrid = {};
@@ -96,17 +97,45 @@ function initWorld() {
   regionDungeonPlaced = {};
   for (let i = 0; i < REGIONS.length; i++) { regionMapsVisited[i] = 0; regionDungeonPlaced[i] = false; }
   mapSequence = [0];
-  const firstMap = createStarterHouseMap(0, 0, 0);
+  const firstMap = createHomeVillageMap(0, 0, 0);
   firstMap.visited = true;
   worldMaps.push(firstMap);
   worldGrid[gridKey(0, 0)] = 0;
   currentMapId = 0;
-  placePlayerInStarterHouse(firstMap);
+  placePlayerInFamilyHome(firstMap);
 }
 
-// Stand the player one tile south of the bed, facing south, so spawning reads
-// as "just got out of bed." Coordinates mirror the room layout in
-// buildStarterHouseMap.
+// Stand the player in the middle of the family home, facing south toward the
+// door — their mother is by the hearth to the east, their father by the door,
+// their grandmother at the window. Coordinates come from HOME in
+// mapgen-prologue.js so the staging and the map can't drift apart.
+function placePlayerInFamilyHome(villageMap) {
+  player.x = HOME.spawn.x;
+  player.y = HOME.spawn.y;
+  player.renderX = player.x;
+  player.renderY = player.y;
+  player.swordDir = { x: 0, y: 1 };   // facing south, toward the door
+}
+
+function createHomeVillageMap(id, gx, gy) {
+  // A save written after the prologue rebuilds the ruin; a fresh game gets the
+  // village whole. hasFlag is safe here even mid-boot — it tolerates a player
+  // whose flags bag hasn't been populated yet.
+  const ruined = (typeof hasFlag === 'function') && hasFlag('prologue_complete');
+  return {
+    id, gx, gy,
+    name: HOME_VILLAGE_NAME,
+    type: 'homevillage', biome: 'forest',
+    map: ruined ? buildRuinedHomeVillage() : buildHomeVillageMap(),
+    enemyDefs: [],        // home is peaceful, before and after
+    openedChests: new Set(),
+    visited: false, depth: 0
+  };
+}
+
+// Retained for saves written before the home village replaced the lone starter
+// cabin: those store type 'house' for map 0, and save.js rebuilds them with
+// buildStarterHouseMap. Nothing in a fresh game calls these two any more.
 function placePlayerInStarterHouse(houseMap) {
   const HH = 16, HW = 21;
   const r1 = MROWS - 1 - HH;
@@ -734,7 +763,7 @@ function getOrCreateNeighbor(direction) {
   if (worldGrid[key] !== undefined) return worldGrid[key];
 
   let targetRegionIdx;
-  if (cur.type === 'house') {
+  if (cur.type === 'house' || cur.type === 'homevillage') {
     targetRegionIdx = 0;                             // step out → forest
   } else if (cur.type === 'village' && cur.activated) {
     targetRegionIdx = Math.min((cur.regionIdx || 0) + 1, REGIONS.length - 1);

@@ -74,6 +74,9 @@ const CACHEABLE_TILES = new Set([
   // Volcanic + shadow region foliage (static, tile-bounded — like the other cached
   // growths). Their walls/floors/dapples/landmarks/animated tiles stay procedural.
   T.EMBER_FLOWER, T.SULFUR_SHRUB, T.GLOOM_BLOOM, T.VOID_FROND,
+  // Ashfall ruins. The three static ones cache; T.EMBER is animated (it flickers
+  // like T.TORCH) and is deliberately left out, same as every other live tile.
+  T.CHARRED_GRASS, T.SCORCHED_FLOOR, T.BURNT_WALL, T.RUBBLE,
 ].filter(v => v !== undefined));
 
 // Tiles that are pure per (type, size, hash-variant): their art is static and
@@ -1428,6 +1431,179 @@ function drawFullMinimap() {
 let stormFlashLevel = 0;
 const stormFlash = { pulses: null, end: 0, next: 0, bolts: [] };
 
+// ─── Cinematic layer (cutscene.js drives these) ───────────────────────────────
+// Full-screen state that scripted beats set and render() draws. It lives here
+// rather than in cutscene.js because this file owns every full-screen draw —
+// same reasoning that keeps stormFlashLevel here rather than in whatever decides
+// it's storming.
+//
+//   fadeLevel      0..1 black curtain over everything, including the HUD
+//   letterboxLevel 0..1 how far the cinematic bars have slid in
+//   shakeMag       peak camera shake in pixels; decays over shakeMs
+//   burnLevel      0..1 orange fire wash + ember fall (Beat 4's burning village)
+let fadeLevel = 0;
+let letterboxLevel = 0;
+let shakeMag = 0, shakeMs = 0;
+let burnLevel = 0;
+let _cineLast = 0;              // Date.now() of the previous frame, for decay
+let _shakeX = 0, _shakeY = 0;   // this frame's offset, applied in render()
+
+// Decay the shake and roll this frame's offset. Called once per frame at the top
+// of render(); uses wall-clock delta because render() has no dt of its own (the
+// same reason updateStormFlash takes Date.now()).
+function updateCinematics(now) {
+  const dt = _cineLast ? Math.min(now - _cineLast, 80) : 16;
+  _cineLast = now;
+  if (shakeMs > 0) {
+    shakeMs -= dt;
+    if (shakeMs <= 0) { shakeMs = 0; shakeMag = 0; }
+  }
+  if (shakeMag > 0) {
+    // Random per frame rather than a sine — a rumble, not a wobble.
+    _shakeX = (Math.random() * 2 - 1) * shakeMag;
+    _shakeY = (Math.random() * 2 - 1) * shakeMag;
+  } else {
+    _shakeX = 0; _shakeY = 0;
+  }
+}
+
+// Orange wash + heat haze for a burning map. Same shape as drawStormFlash — a
+// composited full-screen fill — because the tile colours are baked into cached
+// sprites (see buildTileSprite) and can't be recoloured per-frame.
+function drawFireWash() {
+  if (burnLevel <= 0.001) return;
+  const a = Math.min(1, burnLevel);
+  ctx.save();
+  // A light multiply to warm the scene. Kept deliberately weak: the charred
+  // tiles underneath are already near-black, and a heavy wash on top of them
+  // makes the run home unnavigable — the player has to be able to see the road.
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = 'rgba(255,186,140,' + (0.30 * a).toFixed(3) + ')';
+  ctx.fillRect(0, 0, PW, PH);
+  // Most of the effect comes from the additive glow instead, brightest at the
+  // bottom of the screen where the fire is. Additive lifts the scene rather than
+  // crushing it, so it reads as lit by fire instead of dimmed by smoke.
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createLinearGradient(0, PH, 0, 0);
+  g.addColorStop(0,    'rgba(255,120,40,' + (0.34 * a).toFixed(3) + ')');
+  g.addColorStop(0.55, 'rgba(255,95,30,'  + (0.17 * a).toFixed(3) + ')');
+  g.addColorStop(1,    'rgba(200,60,20,'  + (0.07 * a).toFixed(3) + ')');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, PW, PH);
+  ctx.restore();
+}
+
+// ─── The Red Dragon Emperor (prologue) ────────────────────────────────────────
+// Drawn from `prologueEmperor` (cutscene.js) — a position, an altitude and a
+// scale, nothing more. He is not an entry in `enemies` and never goes through
+// enemies.js, which is the whole trick: the script's "unbeatable by design"
+// encounter needs no combat lock, because there is no creature to swing at.
+//
+// The sprite itself is the existing adult_red_dragon art (render-enemies.js),
+// reused wholesale by handing drawEnemy an enemy-shaped object rather than
+// copying two hundred lines of wing and scale drawing into a second place. The
+// `cutsceneActor` flag on it suppresses the HP bar and boss name tag.
+function drawPrologueEmperor(ts) {
+  if (typeof prologueEmperor === 'undefined' || !prologueEmperor) return;
+  const E = prologueEmperor;
+  const alt = E.alt || 0;
+  const scale = E.scale || 1;
+
+  // Ground shadow, cast where he actually is. High up it's a small soft smudge;
+  // as he drops it swells and darkens, which is what sells the descent — the
+  // player watches the shadow before they look up.
+  const gx = (E.x - camC) * ts, gy = (E.y - camR) * ts;
+  const near = Math.max(0, 1 - alt / 14);
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,' + (0.12 + near * 0.34).toFixed(3) + ')';
+  ctx.beginPath();
+  ctx.ellipse(gx, gy, ts * (1.6 + near * 2.6) * scale, ts * (0.5 + near * 0.9) * scale,
+              0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // The dragon himself, lifted up the screen by his altitude.
+  ctx.save();
+  ctx.translate(0, -alt * ts);
+  drawEnemy({
+    type: 'adult_red_dragon',
+    x: E.x, y: E.y,
+    size: 5.5 * scale,
+    hp: 1, maxHp: 1,
+    name: 'The Red Dragon Emperor',
+    element: 'fire',     // gives him the fire aura every fire-element enemy wears
+    id: 9901,            // stable id → stable idle-bob phase
+    cutsceneActor: true
+  }, ts);
+  ctx.restore();
+}
+
+// ─── Ashfall ───
+// Slow grey flakes drifting down over a burning map. Screen-anchored rather than
+// world-anchored (unlike drawDriftClouds) because ash is falling *on the camera*,
+// not sitting at a map coordinate — and it means the field survives a teleport
+// between the village and the ruined house without popping.
+//
+// Self-contained rather than routed through spawnParticle: the particle system's
+// lifetime is ~0.75s and its array is cleared on load / new game / map change,
+// neither of which suits a continuous atmospheric layer.
+let _ashFlakes = null;
+
+function drawAshfall() {
+  if (burnLevel <= 0.02) return;
+  if (!_ashFlakes) {
+    _ashFlakes = [];
+    for (let i = 0; i < 70; i++) {
+      _ashFlakes.push({
+        x: Math.random(), y: Math.random(),        // normalised to the viewport
+        vy: 0.00004 + Math.random() * 0.00009,     // fraction of screen per ms
+        sway: Math.random() * Math.PI * 2,
+        r: 0.7 + Math.random() * 1.6,
+        a: 0.25 + Math.random() * 0.45
+      });
+    }
+  }
+  const dt = 16;   // fixed step: exact flake timing is imperceptible, and this
+                   // keeps the layer off the wall-clock plumbing above
+  ctx.save();
+  ctx.globalAlpha = 1;
+  for (const f of _ashFlakes) {
+    f.y += f.vy * dt;
+    f.sway += dt * 0.0016;
+    if (f.y > 1.05) { f.y = -0.05; f.x = Math.random(); }
+    const px = (f.x + Math.sin(f.sway) * 0.012) * PW;
+    const py = f.y * PH;
+    ctx.fillStyle = 'rgba(210,205,198,' + (f.a * Math.min(1, burnLevel)).toFixed(3) + ')';
+    ctx.beginPath();
+    ctx.arc(px, py, f.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Cinematic bars. Drawn over the HUD but under the fade, so a scene can letterbox
+// without the black curtain and vice versa.
+function drawLetterbox() {
+  if (letterboxLevel <= 0.001) return;
+  const h = Math.round(PH * 0.11 * Math.min(1, letterboxLevel));
+  if (h <= 0) return;
+  ctx.save();
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, PW, h);
+  ctx.fillRect(0, PH - h, PW, h);
+  ctx.restore();
+}
+
+// The black curtain. Last thing drawn, over absolutely everything — a fade that
+// leaves the HUD floating on top isn't a fade.
+function drawFadeOverlay() {
+  if (fadeLevel <= 0.001) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, fadeLevel).toFixed(3) + ')';
+  ctx.fillRect(0, 0, PW, PH);
+  ctx.restore();
+}
+
 // A strike is 1–3 sharp pulses, each an exponential decay (amp, time-constant k),
 // spaced a few tens of ms apart — that spacing is what gives the flickery,
 // stuttering quality of real lightning rather than one clean fade.
@@ -1691,6 +1867,13 @@ function render() {
                      (mapObj.type === 'lightning' || mapObj.type === 'village');
   updateStormFlash(Date.now(), isStormMap);
 
+  // Cinematic state (shake decay, this frame's jolt offset) — see the block near
+  // updateStormFlash. The shake is applied as a canvas translate rather than by
+  // moving camC/camR, so it can't fight clampCam or leak into tile culling.
+  updateCinematics(Date.now());
+  ctx.save();
+  if (_shakeX || _shakeY) ctx.translate(_shakeX, _shakeY);
+
   // Only render the visible viewport range (+1 tile margin on each side)
   const startC = Math.floor(camC), startR = Math.floor(camR);
   const endC = Math.ceil(camC + PW/TILE_PX) + 1;
@@ -1732,6 +1915,10 @@ function render() {
   }
   drawPlayer(ts);
 
+  // The Emperor — after every ground entity, because he is in the sky above all
+  // of them, and before the canopy pass so a tree can still occlude him.
+  drawPrologueEmperor(ts);
+
   // Colossal-tree canopies — drawn AFTER the entities (drops, enemies, villagers,
   // player) so the player and enemies pass BEHIND the overhanging canopy, and after
   // the tile grid so neighbours can't overdraw the giant. The scan range is widened
@@ -1763,7 +1950,9 @@ function render() {
   // Particles
   ctx.save();
   particles.forEach(p => {
-    ctx.globalAlpha = Math.max(0, p.life / 50);
+    // p.fade is the lifetime at which a particle is fully opaque; long-lived
+    // embers set their own so they don't sit pinned at alpha 1 for a second.
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life / (p.fade || 50)));
     ctx.fillStyle = p.color;
     ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
   });
@@ -1804,6 +1993,15 @@ function render() {
   if (cloudBiome === 'lightning') drawDriftClouds(true, 1.5);
   else if (cloudBiome)            drawDriftClouds(false, 1.0);
 
+  // Burning-village wash and ashfall — over the world and its particles, under
+  // the HUD. Wash first so the ash reads as pale grey against the orange.
+  drawFireWash();
+  drawAshfall();
+
+  // End of the shaken world layer. Everything below is screen furniture and must
+  // stay nailed down while the ground rocks.
+  ctx.restore();
+
   if (viewMode === 2) drawFullMinimap();
   else if (showMinimap) drawMinimap();
 
@@ -1813,6 +2011,12 @@ function render() {
 
   // Radial inventory menu — drawn last so it's always on top
   if (typeof drawRadialMenu === 'function') drawRadialMenu();
+
+  // Cinematic bars, then the black curtain — over absolutely everything,
+  // including the HUD and the radial menu. A fade that leaves UI floating on
+  // top isn't a fade.
+  drawLetterbox();
+  drawFadeOverlay();
 }
 
 // The floating virtual stick: a base ring where the finger first landed and a
