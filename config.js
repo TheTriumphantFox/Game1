@@ -789,12 +789,13 @@ function regionIdForMap(map) {
 
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.
 function resizeCanvas() {
+  // No message-bar term any more — notifications are floating toasts (ui.js),
+  // so they overlay the canvas instead of taking a row out of it.
   const hudH  = document.getElementById('hud')?.offsetHeight        || 0;
-  const msgH  = document.getElementById('msg-bar')?.offsetHeight    || 0;
   const wepH  = document.getElementById('weapon-bar')?.offsetHeight || 0;
   const ctrlH = document.getElementById('ctrl-bar')?.offsetHeight   || 0;
   const saveH = document.getElementById('save-row')?.offsetHeight   || 0;
-  const usedH = hudH + msgH + wepH + ctrlH + saveH;
+  const usedH = hudH + wepH + ctrlH + saveH;
   canvas.width  = window.innerWidth;
   canvas.height = Math.max(window.innerHeight - usedH, 200);
   PW = canvas.width;

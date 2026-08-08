@@ -5,9 +5,12 @@
 // villagers.js can adopt it for real conversations later.
 //
 // What was here before: villagers fired a single random string from VILLAGER_CHAT
-// through showMsg() as a 5-second toast (see tryVillagerInteraction). That's still
-// there and still fine for ambient one-liners — this is the system for lines that
-// are *written*, where who is speaking and what order it comes in both matter.
+// through showMsg() as a 5-second toast (see tryVillagerInteraction). That is no
+// longer the case — every NPC conversation comes through this box now, via
+// sayNPC() at the bottom of this file, because a line the player can walk away
+// from halfway through is a line they never read. Toasts (ui.js) are now only
+// for things that happen *to* the player; this box is for someone speaking *to*
+// them, and it waits for an input either way.
 //
 // The box sits in the bottom third and does NOT black out the scene, because the
 // prologue needs the player to watch the village burn while the grandmother talks.
@@ -130,4 +133,21 @@ function closeDialogue() {
 // beats ("Beat. Silence. Then a distant roar.").
 function sayNarration(text, onDone) {
   startDialogue([{ text }], onDone);
+}
+
+// A single attributed line from an NPC the player is standing in front of.
+//
+// This is the entry point for *every* conversation outside the prologue script:
+// villager chat, the Chronicler, the Worried Parent, the escort givers, the
+// Guild Recruiter. Those all used to fire a 5-second showMsg() toast, which the
+// player could easily walk away from mid-sentence — quest directions included.
+// Routing them through the dialogue box means talking to someone freezes the
+// world and waits for Space / Enter / a click, so a line is never missed.
+//
+// `speaker` is upper-cased to match the prologue cast's convention (PG_LINES in
+// prologue.js). `onDone` fires after the line is dismissed — reward turn-ins use
+// it to toast what the player actually received, so the loot lands after the
+// speech rather than buried in the middle of it.
+function sayNPC(speaker, text, onDone) {
+  startDialogue([{ speaker: (speaker || '').toUpperCase(), text }], onDone);
 }

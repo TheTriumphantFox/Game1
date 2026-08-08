@@ -195,14 +195,19 @@ function talkGuildRecruiter(v) {
   player.guildQuests = player.guildQuests || {};
   const q = player.guildQuests[rid];
 
+  // The recruiter is an NPC standing in front of the player, so every line below
+  // goes through the dialogue box and waits for a keypress rather than flashing
+  // past as a toast — these lines carry quest directions the player needs. Reward
+  // hauls still toast, fired from the dialogue's onDone so they land after the
+  // speech instead of inside it.
+  const say = (text, then) => { if (typeof sayNPC === 'function') sayNPC('Guild Recruiter', text, then); };
+
   // Not started — offer it and spawn the quarry.
   if (!q) {
     const bossMapId = startGuildQuest(regionIdx);
     const where = (bossMapId != null && worldMaps[bossMapId] && worldMaps[bossMapId].name)
       ? worldMaps[bossMapId].name : 'the mid-reaches of this land';
-    const msg = `⚔️ Guild Recruiter: "The Sword & Shield Guild wants steel like yours. A monstrous ${creatureName} has denned at ${where} — slay it, take its head, and you're one of us."`;
-    if (typeof showMapMsg === 'function') showMapMsg(msg);
-    else if (typeof showMsg === 'function') showMsg(msg, 5000);
+    say(`The Sword & Shield Guild wants steel like yours. A monstrous ${creatureName} has denned at ${where} — slay it, take its head, and you're one of us.`);
     return;
   }
 
@@ -210,8 +215,7 @@ function talkGuildRecruiter(v) {
   if (q.status === 'active') {
     const where = (q.bossMapId != null && worldMaps[q.bossMapId] && worldMaps[q.bossMapId].name)
       ? worldMaps[q.bossMapId].name : 'this region';
-    if (typeof showMsg === 'function')
-      showMsg(`💬 Guild Recruiter: "The ${creatureName} still lives, out at ${where}. Bring me its head."`, 4000);
+    say(`The ${creatureName} still lives, out at ${where}. Bring me its head.`);
     return;
   }
 
@@ -219,11 +223,12 @@ function talkGuildRecruiter(v) {
   if (q.status === 'head') {
     q.status = 'done';
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
-    let msg;
+    let line, haul;
     if (!player.guildCard) {
       // First induction: hand over the Sword & Shield Guild membership card.
       player.guildCard = true;
-      msg = `⚔️ Guild Recruiter: "The head of the ${creatureName}! You've proven your steel — welcome to the Sword & Shield Guild. Here is your guild card, member." 🎟️ Received the Sword & Shield Guild Card!`;
+      line = `The head of the ${creatureName}! You've proven your steel — welcome to the Sword & Shield Guild. Here is your guild card, member.`;
+      haul = `🎟️ Received the Sword & Shield Guild Card!`;
     } else {
       // Already a member — a material bounty: 2 region Health Potions, 2 region
       // element-resistance Elixirs (only where the region has an element), and
@@ -236,11 +241,11 @@ function talkGuildRecruiter(v) {
         const rubyGot = addItem('rubies', 100 * regionNumberOf(rid));
         rewards.push(`💎 ${rubyGot} Rubies!`);
       }
-      msg = `⚔️ Guild Recruiter: "The head of the ${creatureName} — fine work, member. The Guild rewards its own." ` + rewards.join(' ');
+      line = `The head of the ${creatureName} — fine work, member. The Guild rewards its own.`;
+      haul = rewards.join(' ');
     }
     if (typeof updateHUD === 'function') updateHUD();
-    if (typeof showMapMsg === 'function') showMapMsg(msg);
-    else if (typeof showMsg === 'function') showMsg(msg, 6000);
+    say(line, () => { if (typeof showMapMsg === 'function') showMapMsg(haul); });
     return;
   }
 
@@ -250,16 +255,14 @@ function talkGuildRecruiter(v) {
   // Not yet offered — hand over the second commission and break the dungeon seal.
   if (!as) {
     q.artifactStatus = 'active';
-    const msg = `⚔️ Guild Recruiter: "One last charge for the Guild, member. A rare and mysterious artifact lies sealed within this land's ruined dungeon — the Guild's writ breaks the ancient seal. Bring it back to me." 🔓 The ruined dungeon's seal is broken!`;
-    if (typeof showMapMsg === 'function') showMapMsg(msg);
-    else if (typeof showMsg === 'function') showMsg(msg, 6000);
+    say(`One last charge for the Guild, member. A rare and mysterious artifact lies sealed within this land's ruined dungeon — the Guild's writ breaks the ancient seal. Bring it back to me.`,
+        () => { if (typeof showMapMsg === 'function') showMapMsg(`🔓 The ruined dungeon's seal is broken!`); });
     return;
   }
 
   // Commission taken, artifact not yet in hand — remind where.
   if (as === 'active') {
-    if (typeof showMsg === 'function')
-      showMsg(`💬 Guild Recruiter: "The mysterious artifact still lies in the deepest chest of this land's ruined dungeon. Bring it to me, member."`, 4000);
+    say(`The mysterious artifact still lies in the deepest chest of this land's ruined dungeon. Bring it to me, member.`);
     return;
   }
 
@@ -283,9 +286,9 @@ function talkGuildRecruiter(v) {
       }
     }
     if (typeof updateHUD === 'function') updateHUD();
-    const msg = `⚔️ Guild Recruiter: "The artifact — at last! The Guild is in your debt, member. Take this for your trouble." ` + rewards.join(' ');
-    if (typeof showMapMsg === 'function') showMapMsg(msg);
-    else if (typeof showMsg === 'function') showMsg(msg, 6000);
+    const haul = rewards.join(' ');
+    say(`The artifact — at last! The Guild is in your debt, member. Take this for your trouble.`,
+        () => { if (typeof showMapMsg === 'function') showMapMsg(haul); });
     return;
   }
 
@@ -453,8 +456,13 @@ function talkGuildBounties(rid, regionIdx) {
     if (b[kind] && b[kind].status === 'active') { remindGuildBounty(rid, kind); return; }
   for (const kind of GUILD_BOUNTY_ORDER)
     if (!b[kind]) { offerGuildBounty(rid, regionIdx, kind); return; }
-  if (typeof showMsg === 'function')
-    showMsg(`💬 Guild Recruiter: "Every bounty cleared, member. The Guild has no equal in you."`, 3500);
+  sayRecruiter(`Every bounty cleared, member. The Guild has no equal in you.`);
+}
+
+// The recruiter speaking, in the dialogue box — same input-required treatment as
+// talkGuildRecruiter's own lines. Shared by the three bounty handlers below.
+function sayRecruiter(text, then) {
+  if (typeof sayNPC === 'function') sayNPC('Guild Recruiter', text, then);
 }
 
 function offerGuildBounty(rid, regionIdx, kind) {
@@ -462,32 +470,31 @@ function offerGuildBounty(rid, regionIdx, kind) {
   let msg;
   if (kind === 'culling') {
     const nm = (DND_ENEMIES[info.type]) ? DND_ENEMIES[info.type].name : 'beasts';
-    msg = `⚔️ Guild Bounty — Culling the Nest: slay ${GUILD_CULL_NEED} ${nm} on a single hunt (all on one map), member.`;
+    msg = `Guild Bounty — Culling the Nest: slay ${GUILD_CULL_NEED} ${nm} on a single hunt (all on one map), member.`;
   } else {
     const where = (info.mapId != null && worldMaps[info.mapId] && worldMaps[info.mapId].name)
       ? worldMaps[info.mapId].name : 'this region';
     const cnm = (DND_ENEMIES[info.creature]) ? DND_ENEMIES[info.creature].name : 'beast';
     msg = kind === 'maneater'
-      ? `⚔️ Guild Bounty — the Man-Eater: a monstrous ${cnm} stalks ${where}. It flees the hunt from land to land — run it down, member.`
-      : `⚔️ Guild Bounty — the Board: a fierce ${cnm} has been marked at ${where}. Bring it down.`;
+      ? `Guild Bounty — the Man-Eater: a monstrous ${cnm} stalks ${where}. It flees the hunt from land to land — run it down, member.`
+      : `Guild Bounty — the Board: a fierce ${cnm} has been marked at ${where}. Bring it down.`;
   }
-  if (typeof showMapMsg === 'function') showMapMsg(msg);
-  else if (typeof showMsg === 'function') showMsg(msg, 5500);
+  sayRecruiter(msg);
 }
 
 function remindGuildBounty(rid, kind) {
   const b = player.guildQuests[rid].bounties[kind];
   let msg;
   if (kind === 'culling') {
-    msg = `💬 Recruiter: "The culling isn't finished — ${b.count || 0}/${b.need} on one hunt."`;
+    msg = `The culling isn't finished — ${b.count || 0}/${b.need} on one hunt.`;
   } else {
     const where = (b.mapId != null && worldMaps[b.mapId] && worldMaps[b.mapId].name)
       ? worldMaps[b.mapId].name : 'this region';
     msg = kind === 'maneater'
-      ? `💬 Recruiter: "The Man-Eater still roams — last tracked near ${where}."`
-      : `💬 Recruiter: "Your bounty still lives, out at ${where}."`;
+      ? `The Man-Eater still roams — last tracked near ${where}.`
+      : `Your bounty still lives, out at ${where}.`;
   }
-  if (typeof showMsg === 'function') showMsg(msg, 4000);
+  sayRecruiter(msg);
 }
 
 function rewardGuildBounty(rid, regionIdx, kind) {
@@ -508,7 +515,7 @@ function rewardGuildBounty(rid, regionIdx, kind) {
   }
   if (typeof updateHUD === 'function') updateHUD();
   const label = kind === 'maneater' ? 'the Man-Eater' : kind === 'board' ? 'the Board bounty' : 'the culling';
-  const msg = `⚔️ Recruiter: "You've done ${label}, member. The Guild pays its own." ` + rewards.join(' ');
-  if (typeof showMapMsg === 'function') showMapMsg(msg);
-  else if (typeof showMsg === 'function') showMsg(msg, 6000);
+  const haul = rewards.join(' ');
+  sayRecruiter(`You've done ${label}, member. The Guild pays its own.`,
+               () => { if (typeof showMapMsg === 'function') showMapMsg(haul); });
 }

@@ -38,43 +38,128 @@ body {
 #hud span { font-size: 13px; }
 #hearts { color: #e24b4a; letter-spacing: 1px; }
 
-/* Message bar — transient notifications */
-#msg-bar {
-  background: #080f08;
-  color: #aeda;
-  font-size: 12px;
-  padding: 2px 12px;
-  min-height: 18px;
-  border-bottom: 1px solid #1a3a1a;
-  flex-shrink: 0;
+/* ── Toast notifications ─────────────────────────────────────────────────────
+   Every transient message in the game is a toast (see showToast in ui.js).
+   Replaces the old #msg-bar strip and #map-banner overlay — one stack, one
+   dismiss rule, one place to restyle.
+
+   The stack is fixed under the HUD and click-through, so the gaps between cards
+   can't swallow a canvas tap; only the cards take pointer events, because a
+   click on a card is what dismisses it. */
+#toast-stack {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;                  /* above the canvas, below modals (z 90+) */
+  width: min(620px, 92vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
 }
 
-/* Large transient banner for map/area messages. Fixed to the viewport so it
-   floats over the canvas, centered within the top third of the screen. */
-#map-banner {
-  position: fixed;
-  top: 16%;                       /* sits inside the top third */
-  left: 50%;
-  transform: translateX(-50%) translateY(-8px);
-  z-index: 60;
-  max-width: 90vw;
-  padding: 14px 28px;
+.toast {
+  pointer-events: auto;
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 9px 14px;
   text-align: center;
-  font-size: clamp(22px, 3.4vw, 40px);
-  font-weight: 700;
-  line-height: 1.25;
-  color: #f4f8e8;
-  text-shadow: 0 2px 6px #000, 0 0 10px rgba(0,0,0,0.85);
-  background: rgba(8, 15, 8, 0.72);
-  border: 2px solid #2a5a2a;
-  border-radius: 10px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #cfe8cf;
+  background: rgba(8, 15, 8, 0.88);
+  border: 1px solid #2a5a2a;
+  border-left: 4px solid #4a8a4a;
+  border-radius: 6px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  cursor: pointer;
+  overflow: hidden;
+  max-height: 400px;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  /* max-height / margin / padding are in the transition so a dismissed toast
+     collapses its slot and the ones below slide up, instead of snapping. */
+  transition: opacity 0.22s ease, transform 0.22s ease,
+              max-height 0.25s ease, margin-bottom 0.25s ease, padding 0.25s ease;
+  /* The entrance slides but deliberately does NOT fade, and is a keyframe
+     animation rather than a JS-toggled class. Both choices are about the same
+     failure: the toast's expiry runs on setTimeout, which keeps firing while a
+     tab is backgrounded, but requestAnimationFrame does not fire there and an
+     animation's timeline does not advance either. Anything that starts a toast
+     at opacity 0 can therefore retire it having never shown a single visible
+     frame. Animating only the transform means the worst case is a toast sitting
+     10px high — readable the whole time — instead of an invisible one. */
+  animation: toast-in 0.22s ease;
 }
-#map-banner.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+@keyframes toast-in {
+  from { transform: translateY(-10px); }
+  to   { transform: translateY(0); }
+}
+.toast:hover { border-left-color: #aaff66; }
+
+/* Map / area messages — the old #map-banner, now a high-emphasis toast. */
+.toast.banner {
+  font-size: clamp(16px, 2.4vw, 26px);
+  font-weight: 700;
+  padding: 14px 22px;
+  color: #f4f8e8;
+  text-shadow: 0 2px 6px #000, 0 0 10px rgba(0, 0, 0, 0.85);
+  background: rgba(10, 20, 10, 0.9);
+  border-color: #3f7f3f;
+  border-left-width: 5px;
+  border-left-color: #aaff66;
+}
+
+/* Exit state — fades, lifts, and collapses its slot before the node is removed.
+   `animation: none` cancels the entrance outright, so a toast dismissed within
+   its first 220ms doesn't keep animating in while it's trying to leave. */
+.toast.toast-out {
+  animation: none;
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-width: 0;
+  border-bottom-width: 0;
+}
+
+/* ×N badge — an identical message that re-fires while its toast is still up
+   bumps this instead of stacking a duplicate card. */
+.toast-count {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #2a5a2a;
+  color: #dfffdf;
+  font-size: 0.85em;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* Shown only on sticky toasts (dur = 0), which sit there until dismissed —
+   without this there's nothing telling the player the message needs an input. */
+.toast-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #7fae7f;
+  text-shadow: none;
+}
+
+/* Thumbs need a bigger card and a bigger gap than a mouse pointer does. */
+@media (pointer: coarse) {
+  #toast-stack { top: 34px; }
+  .toast { padding: 11px 14px; margin-bottom: 10px; }
 }
 
 /* Game canvas fills remaining space */

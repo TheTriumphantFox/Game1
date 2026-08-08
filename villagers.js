@@ -78,10 +78,13 @@ const ESCORT_DEFS = {
     ],
     qualifies: (mo) => !!mo.sealed && mo.type !== 'village',   // dead-end maps
     count: 2,
-    offer: () => `💬 Stranded Trader: "My partner's caravan broke an axle out on a dead-end trail — the second one you come across. Bring it home and I'll open my ledger to you!"`,
-    remind: () => `💬 Stranded Trader: "Any sign of the caravan? Search the dead-end trails — it's stuck down the second one you find."`,
+    // offer/remind/done are spoken lines — bare text, no speaker prefix, because
+    // talkEscortGiver puts them in the dialogue box attributed to `giverKind`.
+    // found/grant stay plain strings: those are toasts, not speech.
+    offer: () => `My partner's caravan broke an axle out on a dead-end trail — the second one you come across. Bring it home and I'll open my ledger to you!`,
+    remind: () => `Any sign of the caravan? Search the dead-end trails — it's stuck down the second one you find.`,
     found: () => `🛒 You found the stranded caravan! It rolls home — go see the trader for your reward.`,
-    done: () => `💬 Stranded Trader: "Trade's booming again thanks to you, hero."`,
+    done: () => `Trade's booming again thanks to you, hero.`,
     grant: (rid) => {
       player.storeDiscounts = player.storeDiscounts || {};
       player.storeDiscounts[rid] = 0.15;
@@ -100,10 +103,10 @@ const ESCORT_DEFS = {
     ],
     qualifies: (mo) => mo.type === 'cave' || mo.type === 'cave_chain' || mo.type === 'sky_cave',
     count: 2,
-    offer: () => `💬 Worried Smith: "My apprentice ran off into the caves in a sulk — the second cavern you delve into. Fetch them back and your first upgrade at my forge is on the house!"`,
-    remind: () => `💬 Worried Smith: "Please — my apprentice is still down in the caves. The second one you enter."`,
+    offer: () => `My apprentice ran off into the caves in a sulk — the second cavern you delve into. Fetch them back and your first upgrade at my forge is on the house!`,
+    remind: () => `Please — my apprentice is still down in the caves. The second one you enter.`,
     found: () => `🔨 You found the runaway apprentice! They scurry home — go see the smith for your reward.`,
-    done: () => `💬 Worried Smith: "My apprentice hasn't touched the forge-bellows since. Thank you, hero."`,
+    done: () => `My apprentice hasn't touched the forge-bellows since. Thank you, hero.`,
     grant: (rid) => {
       player.smithFreeUpgrade = player.smithFreeUpgrade || {};
       player.smithFreeUpgrade[rid] = 1;
@@ -124,10 +127,10 @@ const ESCORT_DEFS = {
       typeof mo.regionIdx === 'number' && (mo.depth || 0) >= 8 &&
       typeof REGIONS !== 'undefined' && REGIONS[mo.regionIdx] && mo.type === REGIONS[mo.regionIdx].id,
     count: 2,
-    offer: () => `💬 Anxious Herbalist: "My gatherer wandered deep into the wilds and never came back — the second far-off field you reach. Find them and I'll teach you their knack for foraging!"`,
-    remind: () => `💬 Anxious Herbalist: "My gatherer is still out there, deep in the wilds — the second distant field."`,
+    offer: () => `My gatherer wandered deep into the wilds and never came back — the second far-off field you reach. Find them and I'll teach you their knack for foraging!`,
+    remind: () => `My gatherer is still out there, deep in the wilds — the second distant field.`,
     found: () => `🌿 You found the lost gatherer! They head home — go see the herbalist for your reward.`,
-    done: () => `💬 Anxious Herbalist: "My gatherer's baskets are full again. Bless you, hero."`,
+    done: () => `My gatherer's baskets are full again. Bless you, hero.`,
     grant: (rid) => {
       player.forageBonus = player.forageBonus || {};
       player.forageBonus[rid] = (player.forageBonus[rid] || 0) + 1;
@@ -441,8 +444,8 @@ function talkChronicler(v) {
   const claimed = player.chronicleMilestone || 0;
   const next = (claimed + 1) * CHRONICLE_STEP;
   if (total < next) {
-    if (typeof showMsg === 'function')
-      showMsg(`📜 Chronicler: "Your legend stands at ${total} deeds. Reach ${next} and I'll ready you for the tower."`, 4500);
+    if (typeof sayNPC === 'function')
+      sayNPC('Chronicler', `Your legend stands at ${total} deeds. Reach ${next} and I'll ready you for the tower.`);
     return;
   }
   player.chronicleMilestone = claimed + 1;
@@ -459,9 +462,12 @@ function talkChronicler(v) {
   if (typeof addItem === 'function') rewards.push(`💎 ${addItem('rubies', 100 * tier * N)} Rubies!`);
   if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
   if (typeof updateHUD === 'function') updateHUD();
-  const msg = `📜 Chronicler: "Milestone ${tier} — ${total} deeds done! Take this for the climb ahead." ` + rewards.join(' ');
-  if (typeof showMapMsg === 'function') showMapMsg(msg);
-  else if (typeof showMsg === 'function') showMsg(msg, 6000);
+  // Speech first, then the haul as a toast once the player dismisses it — so the
+  // reward list isn't competing with the line for the same read.
+  const haul = rewards.join(' ');
+  if (typeof sayNPC === 'function')
+    sayNPC('Chronicler', `Milestone ${tier} — ${total} deeds done! Take this for the climb ahead.`,
+           () => { if (typeof showMapMsg === 'function') showMapMsg(`📜 ${haul}`); });
 }
 
 // Build a Timmy (the lost child) standing on the open tile nearest a dead-end
@@ -1033,7 +1039,7 @@ function tryVillagerInteraction() {
   // An escort's lost npc: rescue them out in the field, or greet them once home.
   if (v.role === 'escort_lost') {
     if (v.lost) findEscortNpc(v);
-    else if (typeof showMsg === 'function') showMsg(`💬 ${v.kind}: "Thank you for bringing me home, hero!"`, 2500);
+    else if (typeof sayNPC === 'function') sayNPC(v.kind, `Thank you for bringing me home, hero!`);
     return true;
   }
   // Timmy: lost & scared out on a dead end, or safely home in the village.
@@ -1041,7 +1047,7 @@ function tryVillagerInteraction() {
     if (v.lost) findTimmy(v);
     else {
       const line = (VILLAGER_CHAT.Timmy || ["…"])[0];
-      if (typeof showMsg === 'function') showMsg(`💬 Timmy: "${line}"`, 2500);
+      if (typeof sayNPC === 'function') sayNPC('Timmy', line);
     }
     return true;
   }
@@ -1054,7 +1060,7 @@ function tryVillagerInteraction() {
 
   const lines = VILLAGER_CHAT[v.kind] || ["…"];
   const line = lines[Math.floor(Math.random() * lines.length)];
-  if (typeof showMsg === 'function') showMsg(`💬 ${v.kind}: "${line}"`, 2500);
+  if (typeof sayNPC === 'function') sayNPC(v.kind, line);
   return true;
 }
 
@@ -1095,16 +1101,17 @@ function talkLostParent(v) {
     player.bowLevel = (player.bowLevel || 1) + 1;   // each level = +2 bow damage
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
     if (typeof updateHUD === 'function') updateHUD();
-    const msg = `💬 Parent: "Bless you, hero — you brought my Timmy home! Take this: my late father's bow arm will serve you well." 🏹 Bow Level up — now Lv ${player.bowLevel}!`;
-    if (typeof showMapMsg === 'function') showMapMsg(msg);
-    else if (typeof showMsg === 'function') showMsg(msg, 5000);
+    const lvl = player.bowLevel;
+    if (typeof sayNPC === 'function')
+      sayNPC('Parent', `Bless you, hero — you brought my Timmy home! Take this: my late father's bow arm will serve you well.`,
+             () => { if (typeof showMapMsg === 'function') showMapMsg(`🏹 Bow Level up — now Lv ${lvl}!`); });
     return;
   }
 
   // ── Already fully done ─────────────────────────────────────────────────────
   if (q && q.status === 'done') {
-    if (typeof showMsg === 'function')
-      showMsg(`💬 Parent: "Timmy hasn't left my side since you brought him home. Thank you, hero."`, 4000);
+    if (typeof sayNPC === 'function')
+      sayNPC('Parent', `Timmy hasn't left my side since you brought him home. Thank you, hero.`);
     return;
   }
 
@@ -1114,14 +1121,14 @@ function talkLostParent(v) {
   // count; `timmyMapId` stays null until the third one is reached.
   if (!q) {
     q = player.lostSonQuests[rid] = { status: 'active', enteredDeadEnds: [], timmyMapId: null };
-    if (typeof showMsg === 'function')
-      showMsg(`💬 Parent: "Please, hero — my son Timmy wandered off! Folk saw him slip down the third dead-end trail he could find. Search the sealed paths at the edges of this land — the third one holds my boy!"`, 5000);
+    if (typeof sayNPC === 'function')
+      sayNPC('Parent', `Please, hero — my son Timmy wandered off! Folk saw him slip down the third dead-end trail he could find. Search the sealed paths at the edges of this land — the third one holds my boy!`);
     return;
   }
 
   // ── Quest active, Timmy still out there ────────────────────────────────────
-  if (typeof showMsg === 'function')
-    showMsg(`💬 Parent: "Any sign of my Timmy? Keep exploring the dead-end trails — he's waiting down the third one you find."`, 4000);
+  if (typeof sayNPC === 'function')
+    sayNPC('Parent', `Any sign of my Timmy? Keep exploring the dead-end trails — he's waiting down the third one you find.`);
 }
 
 // Reach the lost Timmy on a dead-end map. He's whisked home to stand beside his
@@ -1282,25 +1289,25 @@ function talkEscortGiver(v) {
   const rid = currentRegionId();
   player[def.key] = player[def.key] || {};
   let q = player[def.key][rid];
+  // Every branch here is the giver speaking, so it goes through the dialogue box
+  // and waits for an input. The turn-in's reward line is a toast fired once the
+  // player dismisses the thank-you.
+  const say = (text, then) => { if (typeof sayNPC === 'function') sayNPC(def.giverKind, text, then); };
   if (q && q.status === 'found') {
     q.status = 'done';
     const rewardMsg = def.grant(rid);
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
     if (typeof updateHUD === 'function') updateHUD();
-    if (typeof showMapMsg === 'function') showMapMsg(rewardMsg);
-    else if (typeof showMsg === 'function') showMsg(rewardMsg, 5000);
+    say(def.done(), () => { if (typeof showMapMsg === 'function') showMapMsg(rewardMsg); });
     return;
   }
-  if (q && q.status === 'done') {
-    if (typeof showMsg === 'function') showMsg(def.done(), 4000);
-    return;
-  }
+  if (q && q.status === 'done') { say(def.done()); return; }
   if (!q) {
     player[def.key][rid] = { status: 'active', entered: [], targetMapId: null };
-    if (typeof showMsg === 'function') showMsg(def.offer(), 5500);
+    say(def.offer());
     return;
   }
-  if (typeof showMsg === 'function') showMsg(def.remind(), 4000);
+  say(def.remind());
 }
 
 // Reach an escort's lost npc — whisk them home beside their giver.

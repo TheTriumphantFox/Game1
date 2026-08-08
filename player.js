@@ -579,42 +579,40 @@ function rollEnemyTypeDrops(e) {
 }
 
 // ─── Kill sound ───────────────────────────────────────────────────────────────
-// Every kill plays the classic Wilhelm scream. Decoded once into a Web Audio
-// buffer so playback is instant and overlaps cleanly on rapid multi-kills —
-// cloning an <audio> element re-decoded the file on each play, which is what made
-// the scream lag behind the kill. A cloned-<audio> path stays as a fallback until
-// the buffer is ready (or if Web Audio is unavailable). play() can reject before
-// the first user gesture — swallow that quietly.
-const WILHELM_SCREAM = new Audio('wilhelm-scream.wav');
-let SCREAM_CTX = null;
-let SCREAM_BUFFER = null;
-(function preloadKillSound() {
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
-  try {
-    SCREAM_CTX = new AC();
-    fetch('wilhelm-scream.wav')
-      .then(r => r.arrayBuffer())
-      .then(buf => SCREAM_CTX.decodeAudioData(buf))
-      .then(decoded => { SCREAM_BUFFER = decoded; })
-      .catch(() => {});
-  } catch (_) { SCREAM_CTX = null; }
-})();
+// Every kill plays the classic Wilhelm scream. The problem this solves is real
+// and was diagnosed correctly the first time: cloning an <audio> element
+// re-decodes the file on every play, which is what made the scream lag behind
+// the kill.
+//
+// The previous fix decoded the file once into a Web Audio buffer — but it fed
+// decodeAudioData from fetch('wilhelm-scream.wav'), and a file:// page cannot
+// fetch its own siblings. The promise rejected into an empty .catch() on every
+// real playthrough, SCREAM_BUFFER stayed null forever, and playKillSound always
+// fell through to the very cloned-<audio> path the buffer existed to replace.
+// The lag was never actually gone when the game was opened by double-clicking
+// index.html, which is how it is actually played.
+//
+// So: a fixed pool of <audio> elements instead. Media elements load by their own
+// path rather than through fetch/XHR, so this works over file:// — the existing
+// fallback already proved that. Each voice decodes once at load and is then
+// rewound and replayed, never cloned, so there is no re-decode to lag on, and a
+// round-robin across the pool lets rapid multi-kills overlap.
+const SCREAM_POOL = [];
+let _screamVoice = 0;
+for (let i = 0; i < 8; i++) {          // 8 voices — enough overlap for a crowd
+  const a = new Audio('wilhelm-scream.wav');
+  a.preload = 'auto';
+  a.volume = 0.5;
+  SCREAM_POOL.push(a);
+}
 function playKillSound() {
-  if (SCREAM_CTX && SCREAM_BUFFER) {
-    // A user gesture may be needed before audio can start; resume if suspended.
-    if (SCREAM_CTX.state === 'suspended') SCREAM_CTX.resume().catch(() => {});
-    const src = SCREAM_CTX.createBufferSource();
-    src.buffer = SCREAM_BUFFER;
-    const gain = SCREAM_CTX.createGain();
-    gain.gain.value = 0.5;
-    src.connect(gain).connect(SCREAM_CTX.destination);
-    src.start();
-    return;
-  }
-  const s = WILHELM_SCREAM.cloneNode();
-  s.volume = 0.5;
-  s.play().catch(() => {});
+  const a = SCREAM_POOL[_screamVoice];
+  _screamVoice = (_screamVoice + 1) % SCREAM_POOL.length;
+  // Rewinding throws if this voice hasn't loaded metadata yet; it just plays
+  // from wherever it is in that case, which is the start anyway.
+  try { a.currentTime = 0; } catch (_) {}
+  // play() rejects before the first user gesture — swallow that quietly.
+  a.play().catch(() => {});
 }
 
 // ─── Kill enemy ───────────────────────────────────────────────────────────────

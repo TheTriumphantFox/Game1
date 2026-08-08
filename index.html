@@ -129,6 +129,12 @@
   </div>
 </div>
 
+<!-- Toast stack — every transient notification in the game lands here (see ui.js).
+     Fixed and centered under the HUD; the container is click-through so the gaps
+     between toasts never swallow a canvas tap, and only the cards themselves take
+     the click that dismisses them. Sits below the shop/save modals (z 90+). -->
+<div id="toast-stack"></div>
+
 <!-- Main game wrapper -->
 <div id="wrap">
   <div id="hud">
@@ -138,11 +144,7 @@
     <span style="color:#88aaff">XP:<span id="xp">0</span>/<span id="xpnext">500</span></span>
     <span style="margin-left:auto;color:#8c8" id="roomName">Forest Clearing</span>
   </div>
-  <div id="msg-bar"></div>
   <canvas id="c"></canvas>
-  <!-- Large transient banner for map/area messages — overlays the top third
-       of the screen, centered. Driven by showMapMsg() in ui.js. -->
-  <div id="map-banner"></div>
   <!-- Touch action pad — a vertical stack of 3 semi-transparent buttons pinned
        to the left edge, shown only on touch devices (html.touch, set in main.js)
        in place of the keyboard weapon bar. Sword / Bow / selected-item, top to
