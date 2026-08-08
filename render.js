@@ -2005,8 +2005,8 @@ function render() {
   if (viewMode === 2) drawFullMinimap();
   else if (showMinimap) drawMinimap();
 
-  // Floating touch joystick — over the world, under the radial menu (which pauses
-  // movement, so the stick is never active while the menu is up anyway).
+  // Touch movement pad — over the world, under the radial menu (it hides itself
+  // while the menu is up anyway).
   drawTouchJoystick();
 
   // Radial inventory menu — drawn last so it's always on top
@@ -2019,13 +2019,24 @@ function render() {
   drawFadeOverlay();
 }
 
-// The floating virtual stick: a base ring where the finger first landed and a
-// knob that tracks the current drag (clamped to the leash radius). Only visible
-// while a touch is being held. State lives in main.js (touchJoystick).
+// The movement pad: a base ring anchored in the bottom-left corner of the canvas
+// with a knob that tracks the thumb (clamped to the ring edge). Always on screen
+// in touch mode, dimmed until it's being held — how far the knob sits from the
+// centre is also the walking pace, so the drawing doubles as the speed readout.
+// State and geometry live in main.js (touchJoystick / joyHome / joyPadVisible).
 function drawTouchJoystick() {
-  if (typeof touchJoystick === 'undefined' || !touchJoystick.active) return;
-  const R = 46, cx = touchJoystick.cx, cy = touchJoystick.cy;
+  if (typeof joyPadVisible !== 'function' || !joyPadVisible()) return;
+  const j = touchJoystick, h = joyHome();
+  if (j.active) drawJoystickRing(h.x, h.y, j.x, j.y, 1);
+  else          drawJoystickRing(h.x, h.y, h.x, h.y, 0.5);
+}
+
+// The stick at (cx,cy) with its knob pulled toward (fx,fy); `alpha` fades the
+// whole control so the same drawing serves both the resting and held states.
+function drawJoystickRing(cx, cy, fx, fy, alpha) {
+  const R = 46;
   ctx.save();
+  ctx.globalAlpha = alpha;
   // Base ring
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(20, 40, 20, 0.28)';
@@ -2034,7 +2045,7 @@ function drawTouchJoystick() {
   ctx.strokeStyle = 'rgba(170, 255, 120, 0.5)';
   ctx.stroke();
   // Knob — offset toward the finger, capped at the ring edge
-  let dx = touchJoystick.x - cx, dy = touchJoystick.y - cy;
+  let dx = fx - cx, dy = fy - cy;
   const d = Math.hypot(dx, dy);
   if (d > R) { dx = dx / d * R; dy = dy / d * R; }
   ctx.beginPath(); ctx.arc(cx + dx, cy + dy, 20, 0, Math.PI * 2);

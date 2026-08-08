@@ -86,6 +86,26 @@ function pgRemove(...who) {
   saveVillagersToMap(0);
 }
 
+// The prologue's tutorial prompts name keyboard keys, which is worse than
+// useless on a phone — there is no Space bar to press, and movement is the
+// on-screen pad. Route every one of them through here so touch mode simply
+// doesn't get them; the touch scheme teaches itself from the controls on screen
+// (and the title screen's hint, reworded per mode in refreshControlHints).
+//
+// On desktop they time out on their own rather than sitting there until
+// dismissed: long enough to read the keys and try them, then gone. One knob for
+// all three prompts.
+const PG_HINT_MS = 9000;
+
+// What Grandmother hands over in Beat 1, once. The player starts with nothing
+// (STARTING_ITEM_AMOUNT is 0), so this is the opening stock of Minor Healing
+// Potions — and on touch it's what the potion button is for.
+const GRAN_POTION_GIFT = 5;
+function pgKeyHint(text) {
+  if (typeof uiModeIsTouch === 'function' && uiModeIsTouch()) return;
+  showMsg(text, PG_HINT_MS);
+}
+
 // ─── Dialogue dispatch (Beat 2, and anyone spoken to out of turn) ─────────────
 // What each character says depends on which flags are set. Called from
 // tryVillagerInteraction in villagers.js.
@@ -110,26 +130,41 @@ const PG_LINES = {
       then: () => {
         setFlag('fetch_quest_active');
         showMapMsg('📜 Fetch the package from Wren at the market.');
-        showMsg('WASD / Arrows to move · Space to talk', 0);
+        pgKeyHint('WASD / Arrows to move · Space to talk');
       }
     };
   },
 
   father: () => ({ lines: [
     { speaker: 'FATHER', text: "Take the west road, it's faster. Mind the Hendricks' dog, he still doesn't like strangers." },
-  ], then: () => showMsg('Space interacts — with people, doors and whatever is in your way', 0) }),
+  ], then: () => pgKeyHint('Space interacts — with people, doors and whatever is in your way') }),
 
   grandmother: () => {
     // Beat 5 has its own staging and doesn't come through here.
     if (hasFlag('village_burning')) return null;
-    return { lines: [
-      { speaker: 'GRANDMOTHER', paren: 'not looking up',
-        text: "Bring me back something sweet, if there's any left. And don't dawdle — the sky's an odd color today." },
-      // The script's beat: she looks at the bow, and at the sky, and says nothing
-      // more. Narration rather than a line, because the point is what she doesn't
-      // say. Do not have her explain it — the whole story depends on her not.
-      { text: "She glances at the bow resting against the wall beside her, then back out the window. She doesn't explain." },
-    ] };
+    const firstTime = !hasFlag('gran_potions_given');
+    return {
+      lines: [
+        { speaker: 'GRANDMOTHER', paren: 'not looking up',
+          text: "Bring me back something sweet, if there's any left. And don't dawdle — the sky's an odd color today." },
+        // She hands over the player's entire starting stock of potions. The line
+        // is deliberately mundane — a grandmother packing off a child who skins
+        // their knees. It must not read as foresight: she does not know what is
+        // coming, and the midgame reveal depends on her never having hinted.
+        ...(firstTime ? [{ speaker: 'GRANDMOTHER',
+          text: "Take the little green ones from the shelf. You always come back scraped." }] : []),
+        // The script's beat: she looks at the bow, and at the sky, and says nothing
+        // more. Narration rather than a line, because the point is what she doesn't
+        // say. Do not have her explain it — the whole story depends on her not.
+        { text: "She glances at the bow resting against the wall beside her, then back out the window. She doesn't explain." },
+      ],
+      then: firstTime ? () => {
+        setFlag('gran_potions_given');
+        const got = addItem('potions', GRAN_POTION_GIFT);
+        showMsg(`🧪 Grandmother gives you ${got} ${regionPotionName('forest')}s.`, 4000);
+        updateHUD();
+      } : null
+    };
   },
 
   merchant: () => {
@@ -188,7 +223,7 @@ function startPrologue() {
     { letterbox: 0, ms: 400 },
     { run: () => {
         showMapMsg('🏡 Home. Your mother needs something from the market.');
-        showMsg('WASD / Arrows to move · Space to talk', 0);
+        pgKeyHint('WASD / Arrows to move · Space to talk');
       } },
   ]);
 }

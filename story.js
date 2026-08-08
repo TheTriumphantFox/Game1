@@ -27,6 +27,7 @@
 //   prologue_started      the opening cutscene has begun (Beat 1)
 //   fetch_quest_active    Mother has sent the player to the market (Beat 2)
 //   fetch_quest_complete  the errand item is in hand; objective is "Head home"
+//   gran_potions_given    Grandmother has handed over the starting potions (Beat 1)
 //   village_burning       the Emperor has struck; map 0 is charring (Beat 4)
 //   revenge_triggered     Grandmother's dying words have landed (Beat 5)
 //   prologue_complete     title card shown; the open world begins

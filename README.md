@@ -29,8 +29,23 @@ Then open http://localhost:8000.
 - **V** — open the radial inventory menu (equip elemental swords/armor/arrows, use items, open the Ledger, Character stats, and World Map)
 - **Tab** — toggle minimap
 
-Touch controls are supported: a virtual thumbstick moves the hero, on-screen
-buttons cover attacks, and tapping on/next to the hero opens the radial menu.
+Touch controls are supported:
+
+- A thumbstick anchored in the **bottom-left** corner moves the hero — the
+  further you push it, the faster he walks. Only the pad moves him; a stray tap
+  on the world can't.
+- **Sword / Bow / Potion** buttons sit in the opposite corner. The potion button
+  is the P key's counterpart and shows how many are left; bombs and every other
+  consumable live in the radial menu.
+- **Tap on/next to the hero** opens the radial menu. Other taps are contextual —
+  tap a villager or chest and the hero walks over and interacts.
+- **Double-tap the pad** cycles the view: normal → zoomed out → full-screen map.
+  A tap anywhere leaves the full-screen map.
+- Save, Load, New Game, Fullscreen and the control-scheme toggle are in the
+  radial menu's **menu** ring — the bottom button row is hidden on touch so the
+  canvas gets the height.
+- Controls inset themselves from notches and the home indicator on phones that
+  report a safe area.
 
 ### Control scheme (touch vs desktop)
 

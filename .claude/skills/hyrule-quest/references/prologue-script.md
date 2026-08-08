@@ -47,8 +47,18 @@ Player may optionally speak to Grandmother before leaving.
 > Bring me back something sweet, if there's any left. And don't dawdle — the sky's
 > an odd color today.
 
+> **GRANDMOTHER:**
+> Take the little green ones from the shelf. You always come back scraped.
+
+*(Item acquired: 5 Minor Healing Potions — the player's starting stock. Given
+once, on first speaking to her.)*
+
 *(Beat. She glances at the bow beside her, then back out the window. No further
 explanation given — just a flicker of unease.)*
+
+*(The potions are practical, not portentous. She is packing off a child who
+scrapes their knees, and that is all the line may carry — she does not know what
+is coming, and nothing here may suggest she does.)*
 
 ---
 

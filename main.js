@@ -311,48 +311,108 @@ document.addEventListener('keyup', e => { setKey(e.key, false); });
 
 // When the page loses focus or visibility, any held keys never get their
 // keyup event — drop them all so movement/bow don't keep firing on return.
-window.addEventListener('blur', () => { clearAllKeys(); if (typeof joyEnd === 'function') joyEnd(); });
+window.addEventListener('blur', () => { clearAllKeys(); dropTouchState(); });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { clearAllKeys(); if (typeof joyEnd === 'function') joyEnd(); }
+  if (document.hidden) { clearAllKeys(); dropTouchState(); }
 });
+// A touch in flight gets no touchend when the page goes away — forget the stick
+// and any pending tap so neither resumes on return.
+function dropTouchState() {
+  if (typeof joyEnd === 'function') joyEnd();
+  canvasTap = null;
+}
 
-// ─── Touch: floating joystick ───────────────────────────────────────────────
-// A drag-and-hold virtual stick. The first canvas touch drops a stick centre;
-// holding in any direction walks the hero that way continuously by pressing the
-// same arrow keys the keyboard uses (so stepPlayerMovement needs no changes). As
-// the finger wanders, the centre trails it (capped at JOY_LEASH) so the *current*
-// hold direction is always what steers — "if the hold moves, that's the new
-// direction." A dead-zone in the middle means a still finger stands still.
+// ─── Touch: the movement pad ────────────────────────────────────────────────
+// An anchored virtual stick living in the bottom-left corner of the canvas
+// (mirroring the action buttons in the bottom-right — same edge gap, see
+// --touch-gap in game.css). Movement comes from the pad and nowhere else: a
+// thumb has to land on it to steer, so the rest of the canvas is free for taps
+// (hero → menu, interactable → walk to it) and the hero can't be walked off by a
+// stray touch. The centre never moves; the knob just tracks the finger.
+//
+// Direction is fed to stepPlayerMovement as the same arrow keys the keyboard
+// uses, so nothing downstream needs to know a thumb is driving. How *far* the
+// knob is pushed sets the pace: at the dead-zone edge the hero creeps at
+// JOY_SLOW_SCALE of walk speed, at the rim he's at full speed, and it ramps
+// smoothly between (see joySpeedScale, read by stepPlayerMovement's step gate).
 // While the radial menu (drawn on the canvas) is open, canvas touches drive the
-// menu instead of movement.
-const touchJoystick = { active: false, id: null, cx: 0, cy: 0, x: 0, y: 0, startTime: 0, moved: false };
+// menu instead.
+const touchJoystick = { active: false, id: null, cx: 0, cy: 0, x: 0, y: 0, mag: 0,
+                        steered: false };
 const JOY_DEAD  = 14;   // px — below this from centre: stand still
-const JOY_LEASH = 46;   // px — max the centre trails behind the finger
-const TAP_MS    = 250;  // a canvas touch shorter than this that never left the
-                        // dead-zone is a "tap" — it fires the selected weapon
+const JOY_R     = 46;   // px — pad radius (drawTouchJoystick draws this size)
+const JOY_GAP   = 20;   // px — gap to the canvas edge; keep in sync with the
+                        // --touch-gap CSS var the action buttons use
+const JOY_SLOP  = 22;   // px — extra grab radius around the pad for fat thumbs
+const JOY_SLOW_SCALE = 0.45;  // pace just outside the dead-zone, vs full speed
+
+// Double-tapping the pad cycles the view (normal → zoomed out → full-screen
+// minimap). That used to be a double-tap on the weapon bar, which touch mode
+// hides — so both the zoomed-out view and the minimap were unreachable on a
+// phone. Only a tap that never steered counts, so it can't fire mid-walk.
+let joyLastTapMs = 0;
+const JOY_DOUBLE_MS = 320;
+
+// A touch that starts off the pad can only ever be a tap — tracked separately so
+// it survives alongside a thumb that's steering, and so a drag isn't mistaken
+// for one. { id, x, y, sx, sy } while a candidate is down, else null.
+//
+// There's deliberately no time limit. Back when a canvas hold walked the hero, a
+// tap had to be quick to be told apart from steering; movement lives on the pad
+// now, so a press off the pad has no other meaning however long it's held — and
+// holding a thumb on the hero for half a second is exactly what people do.
+let canvasTap = null;
+const TAP_SLOP = 12;    // px — drift past this and it's a drag, not a tap
+
+// Where the anchored pad lives, in canvas-local px: bottom-left corner, held
+// clear of a landscape notch and the home indicator (safeInsetLeft/Bottom,
+// resolved in resizeCanvas — both 0 on a phone without them). Touch mode hides
+// every bottom bar, so the canvas runs to the very edge of the screen and the
+// pad is what has to do the insetting.
+function joyHome() {
+  const inset = n => (typeof n === 'number' ? n : 0);
+  const left   = JOY_GAP + inset(safeInsetLeft);
+  const bottom = JOY_GAP + inset(safeInsetBottom);
+  return { x: left + JOY_R, y: canvas.height - bottom - JOY_R };
+}
+// The pad is a touch-mode control, and it hides with the action buttons so a
+// thumb can't steer under the radial menu or a modal.
+function joyPadVisible() {
+  if (typeof uiModeIsTouch !== 'function' || !uiModeIsTouch()) return false;
+  if (typeof radialMenuOpen !== 'undefined' && radialMenuOpen) return false;
+  return !gameplayTouchBlocked();
+}
+function joyInPad(x, y) {
+  const h = joyHome();
+  return Math.hypot(x - h.x, y - h.y) <= JOY_R + JOY_SLOP;
+}
 
 function joyClearKeys() {
   keys['ArrowUp'] = keys['ArrowDown'] = keys['ArrowLeft'] = keys['ArrowRight'] = false;
 }
 function joyEnd() {
+  // A hold that never left the dead-zone was a tap on the pad, not steering —
+  // remember when, so a second one lands as a double-tap.
+  if (touchJoystick.active && !touchJoystick.steered) joyLastTapMs = Date.now();
   touchJoystick.active = false;
   touchJoystick.id = null;
+  touchJoystick.mag = 0;
+  touchJoystick.steered = false;
   joyClearKeys();
 }
-// Re-anchor the centre toward the finger (leashed), then translate the offset
-// into 8-way arrow-key presses via its angle octant.
+// Translate the knob offset into 8-way arrow-key presses via its angle octant,
+// and record how far it's pushed (0…1 across the usable travel) for the pace.
 function joyUpdate(x, y) {
-  let dx = x - touchJoystick.cx, dy = y - touchJoystick.cy;
+  // Something took over mid-hold (the menu ring opened, a shop popped up) — let
+  // go of the stick rather than walking the hero around under it.
+  if (!joyPadVisible()) { joyEnd(); return; }
+  const dx = x - touchJoystick.cx, dy = y - touchJoystick.cy;
   const dist = Math.hypot(dx, dy);
-  if (dist > JOY_LEASH) {
-    touchJoystick.cx = x - dx / dist * JOY_LEASH;
-    touchJoystick.cy = y - dy / dist * JOY_LEASH;
-    dx = x - touchJoystick.cx; dy = y - touchJoystick.cy;
-  }
   touchJoystick.x = x; touchJoystick.y = y;
   joyClearKeys();
-  if (Math.hypot(dx, dy) < JOY_DEAD) return;   // dead-zone → no movement
-  touchJoystick.moved = true;                  // left the dead-zone → it's a drag, not a tap
+  if (dist < JOY_DEAD) { touchJoystick.mag = 0; return; }   // dead-zone → stand still
+  touchJoystick.mag = Math.min((dist - JOY_DEAD) / (JOY_R - JOY_DEAD), 1);
+  touchJoystick.steered = true;                // left the dead-zone: a walk, not a tap
   autoNav = null;                              // steering by hand overrides tap-to-travel
                                                // (keys are re-set just below, so no stale press)
   // Screen space: angle 0°=right, 90°=down, 180°=left, 270°=up. Each key is on
@@ -362,6 +422,15 @@ function joyUpdate(x, y) {
   if (a > 112.5 && a < 247.5) keys['ArrowLeft']  = true;
   if (a > 22.5  && a < 157.5) keys['ArrowDown']  = true;
   if (a > 202.5 && a < 337.5) keys['ArrowUp']    = true;
+}
+
+// Walk pace as a multiplier on normal speed, for whoever is driving: 1 for the
+// keyboard and for tap-to-travel (no stick held), and a push-proportional ramp
+// while a thumb is on the pad. stepPlayerMovement divides its step interval by
+// this, so terrain penalties (mud, water) still stack on top.
+function joySpeedScale() {
+  if (!touchJoystick.active || touchJoystick.mag <= 0) return 1;
+  return JOY_SLOW_SCALE + touchJoystick.mag * (1 - JOY_SLOW_SCALE);
 }
 
 // A DOM overlay (shop / portal / ledger / save modal) is capturing input, or the
@@ -386,45 +455,72 @@ canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     return;
   }
-  if (gameplayTouchBlocked() || touchJoystick.active) { return; }
+  // The full-screen minimap blocks gameplay input, which would leave a touch
+  // player trapped in it (the view control is the pad, and the pad is hidden
+  // there) — so while it's up, a tap anywhere steps the view on instead.
+  if (typeof viewMode !== 'undefined' && viewMode === 2) {
+    if (typeof cycleViewMode === 'function') cycleViewMode();
+    e.preventDefault();
+    return;
+  }
+  if (gameplayTouchBlocked()) { return; }
   const t = e.changedTouches[0];
   const rect = canvas.getBoundingClientRect();
   const x = t.clientX - rect.left, y = t.clientY - rect.top;
-  touchJoystick.active = true;
-  touchJoystick.id = t.identifier;
-  touchJoystick.cx = x; touchJoystick.cy = y;
-  touchJoystick.startTime = Date.now();
-  touchJoystick.moved = false;
-  joyUpdate(x, y);
+  // On the pad → steer. Anywhere else → a tap candidate and nothing more; the
+  // hero only ever walks from the pad.
+  if (!touchJoystick.active && joyPadVisible() && joyInPad(x, y)) {
+    const home = joyHome();
+    // Two pad taps in quick succession cycle the view rather than walking.
+    if (Date.now() - joyLastTapMs < JOY_DOUBLE_MS) {
+      joyLastTapMs = 0;
+      if (typeof cycleViewMode === 'function') cycleViewMode();
+      e.preventDefault();
+      return;
+    }
+    touchJoystick.active = true;
+    touchJoystick.id = t.identifier;
+    touchJoystick.cx = home.x;
+    touchJoystick.cy = home.y;
+    joyUpdate(x, y);
+  } else if (!canvasTap) {
+    canvasTap = { id: t.identifier, x, y, sx: x, sy: y };
+  }
   e.preventDefault();
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
-  if (!touchJoystick.active) return;
   const rect = canvas.getBoundingClientRect();
   for (const t of e.changedTouches) {
-    if (t.identifier === touchJoystick.id) {
-      joyUpdate(t.clientX - rect.left, t.clientY - rect.top);
+    const x = t.clientX - rect.left, y = t.clientY - rect.top;
+    if (touchJoystick.active && t.identifier === touchJoystick.id) {
+      joyUpdate(x, y);
       e.preventDefault();
-      break;
+    } else if (canvasTap && t.identifier === canvasTap.id) {
+      canvasTap.x = x; canvasTap.y = y;
+      // Drifted too far to still be a tap — drop it rather than firing an
+      // interaction where the finger ended up.
+      if (Math.hypot(x - canvasTap.sx, y - canvasTap.sy) > TAP_SLOP) canvasTap = null;
+      e.preventDefault();
     }
   }
 }, { passive: false });
 
 function onCanvasTouchEnd(e) {
-  if (!touchJoystick.active) return;
   for (const t of e.changedTouches) {
-    if (t.identifier === touchJoystick.id) {
-      // A quick touch that never left the dead-zone is a tap. Weapons now live on
-      // the left-side action buttons, so a canvas tap is contextual: on the hero
-      // it opens the menu; next to an interactable it talks/loots; elsewhere it's
-      // a no-op. A drag (moved) or long hold was movement, so it just ends.
-      const wasTap = !touchJoystick.moved && (Date.now() - touchJoystick.startTime) < TAP_MS;
-      const tapX = touchJoystick.x, tapY = touchJoystick.y;
+    if (touchJoystick.active && t.identifier === touchJoystick.id) {
       joyEnd();
+      e.preventDefault();
+    } else if (canvasTap && t.identifier === canvasTap.id) {
+      // A touch off the pad that stayed put is a tap, however long it was held.
+      // Weapons live on the action buttons, so it's contextual: on the hero it
+      // opens the menu; next to an interactable it talks/loots; elsewhere it's a
+      // no-op. A cancelled touch (the browser took it for a gesture) is not.
+      const wasTap = e.type !== 'touchcancel';
+      const tapX = canvasTap.x, tapY = canvasTap.y;
+      canvasTap = null;
       if (wasTap && !gameplayTouchBlocked()) handleCanvasTap(tapX, tapY);
       e.preventDefault();
-      break;
     }
   }
 }
@@ -433,7 +529,7 @@ function onCanvasTouchEnd(e) {
 // is sx = (worldCol - camC) * TILE_PX (see render.js), so it inverts cleanly.
 //   • tap on/adjacent-to the hero  → open the radial menu
 //   • tap on an interactable       → walk to it (auto-path), then talk / open / travel
-//   • tap on open ground           → nothing (movement is the joystick drag)
+//   • tap on open ground           → nothing (movement lives on the pad)
 function handleCanvasTap(x, y) {
   const ts = (typeof TILE_PX !== 'undefined' && TILE_PX) ? TILE_PX : 48;
   const wx = camC + x / ts, wy = camR + y / ts;         // tap → world tile coords
@@ -672,22 +768,30 @@ bindTap('ws-interact', () => {
   if (typeof tryChestInteraction === 'function') tryChestInteraction();
 });
 
-// ─── Touch mode: the left action pad ─────────────────────────────────────────
+// ─── Touch mode: the bottom-right action pad ─────────────────────────────────
 // Which scheme is showing is decided in config.js (html[data-ui]) and the CSS
 // hides whichever bar isn't in use. The pad's buttons are bound unconditionally
 // — they're display:none in desktop mode, and the mode can now flip mid-session,
 // so binding them behind a one-shot capability check would leave them dead.
 //
-// The left pad fires directly on tap — no select-then-tap dance. Each sets
+// The action pad fires directly on tap — no select-then-tap dance. Each sets
 // player.weapon first so the active ring (updateHUD) tracks the last button
 // used; triggerAction then runs the same cooldown / weapons-locked guards as
 // the keyboard path. (triggerAction already sets 'bow'/'item' internally, but
 // setting it here keeps the highlight correct even when a shot is on cooldown.)
 bindTap('ta-sword', () => { player.weapon = 'sword'; triggerAction('sword'); });
 bindTap('ta-bow',   () => { player.weapon = 'bow';   triggerAction('bow');   });
-bindTap('ta-item',  () => {
-  player.weapon = (typeof inventorySelectionType !== 'undefined') ? inventorySelectionType : 'bomb';
-  triggerAction('item');
+// The third button drinks a Health Potion outright — the touch answer to the P
+// key. Deliberately not routed through triggerAction: a potion is not a weapon,
+// so it still works in the villages where weapons are locked. It shares the item
+// cooldown so holding the button can't chain-drink a whole satchel, and only
+// arms that cooldown when a potion was actually drunk (usePotion no-ops at full
+// HP or empty, and says so).
+bindTap('ta-potion', () => {
+  if (bombCooldown > 0) return;
+  const before = player.potions || 0;
+  usePotion();
+  if ((player.potions || 0) < before) { bombCooldown = 600; buzz(12); }
 });
 
 // Reword every on-screen hint that assumes one input scheme, and relabel the
@@ -699,7 +803,7 @@ function refreshControlHints() {
   const titleHint = document.getElementById('title-hint');
   if (titleHint) {
     titleHint.textContent = touch
-      ? 'Drag: move · Tap hero: menu · Left buttons: attack'
+      ? 'Left pad: move · Tap hero: menu · Right buttons: attack'
       : 'WASD / Arrows: move · Z: sword · V: menu';
   }
 

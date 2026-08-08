@@ -256,11 +256,51 @@ html[data-ui="touch"] #save-row button::after {
 /* Reclaim vertical space: the keyboard-only controls hint is useless on touch. */
 html[data-ui="touch"] #ctrl-bar { display: none; }
 
+/* …and so is the save row, which cost a whole row of a phone screen to show five
+   11px buttons. All of it — Save, Load, New, Fullscreen, Controls — lives in the
+   radial menu ring on touch (see the 'menu' ring in radial.js), reached by
+   tapping the hero. Kept in the DOM rather than removed: save.js writes progress
+   text into #save-status, and setSaveStatus mirrors that to a toast here. */
+html[data-ui="touch"] #save-row { display: none; }
+
+/* ── Touch control anchors ───────────────────────────────────────────────────
+   Both thumb controls hug the bottom corners of the *canvas* with the same edge
+   gap: the movement pad (canvas-drawn — see drawTouchJoystick in render.js)
+   bottom-left, the action buttons bottom-right. The canvas stops short of the
+   viewport bottom by whatever bottom bars are showing, so resizeCanvas
+   (config.js) publishes that height here and the fixed-position buttons offset
+   by it. That offset is what keeps the two gaps visually equal. */
+/* index.html asks for viewport-fit=cover, so on a notched phone the page draws
+   *under* the notch and the home indicator. Nothing gets that space for free:
+   every edge-hugging element has to inset itself by the safe area. Held in
+   custom properties so the canvas-drawn pad can read the same numbers from JS
+   (resizeCanvas publishes them; joyHome uses the left one). */
+:root {
+  --touch-gap: 20px;
+  --bottom-bars-h: 0px;
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top:    env(safe-area-inset-top, 0px);
+}
+
+/* The HUD spans the full width, so in landscape the notch eats into its ends and
+   the status bar sits over its top. The bottom of the screen has no bar left in
+   touch mode (the save row is hidden below), so the two thumb controls inset
+   themselves against the home indicator instead — the buttons in CSS here, the
+   canvas-drawn pad from JS via safeInsetBottom. */
+html[data-ui="touch"] #hud {
+  padding-left:  calc(12px + var(--safe-left));
+  padding-right: calc(12px + var(--safe-right));
+  padding-top:   calc(5px + var(--safe-top));
+}
+
 /* ── Touch action pad ────────────────────────────────────────────────────────
    In touch mode the keyboard weapon bar is replaced by three floating buttons
-   on the left edge (Sword / Bow / Item). `data-ui` is set on <html> in
-   config.js — from device capability plus the last input actually used, or
-   from the player's forced choice. Desktop mode keeps the weapon bar. */
+   in the bottom-right corner (Sword / Bow / Item), opposite the movement pad.
+   `data-ui` is set on <html> in config.js — from device capability plus the
+   last input actually used, or from the player's forced choice. Desktop mode
+   keeps the weapon bar. */
 #touch-actions { display: none; }
 
 html[data-ui="touch"] #weapon-bar { display: none; }
@@ -268,13 +308,12 @@ html[data-ui="touch"] #weapon-bar { display: none; }
 html[data-ui="touch"] #touch-actions {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   position: fixed;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: calc(var(--touch-gap) + var(--safe-right));
+  bottom: calc(var(--bottom-bars-h, 0px) + var(--touch-gap) + var(--safe-bottom));
   z-index: 40;                 /* above the canvas, below modals (z 90+) */
-  /* The gaps between buttons must not swallow joystick drags — only the
+  /* The gaps between buttons must not swallow canvas taps — only the
      buttons themselves are interactive; the container is click-through. */
   pointer-events: none;
 }
@@ -314,4 +353,31 @@ html[data-ui="touch"] #touch-actions.hidden { display: none; }
 .touch-act:active {
   transform: scale(0.9);
   background: rgba(60, 110, 60, 0.65);
+}
+
+/* The potion button carries its stock as a badge (updateHUD writes data-count),
+   because "can I drink?" is the question you ask mid-fight and the ring is the
+   thing you're trying not to open. Position:relative on the button so the badge
+   hangs off its corner. */
+#ta-potion { position: relative; }
+#ta-potion::after {
+  content: attr(data-count);
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  min-width: 20px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: rgba(10, 20, 10, 0.9);
+  border: 1px solid rgba(170, 255, 102, 0.55);
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 18px;
+  color: #cfc;
+  text-align: center;
+}
+/* Out of potions: still tappable (it explains itself), just visibly spent. */
+#ta-potion.empty {
+  opacity: 0.45;
+  border-color: rgba(170, 255, 102, 0.25);
 }
