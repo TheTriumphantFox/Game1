@@ -249,6 +249,14 @@ document.addEventListener('keydown', e => {
     else if (e.key === '0') worldMapResetView();
     return;   // world map swallows gameplay input
   }
+  // Escape dismisses the newest toast. Sticky toasts (dur = 0) sit there until
+  // an input clears them, and a keyboard player shouldn't have to reach for the
+  // mouse to do it. Falls through when nothing is up — Escape is otherwise
+  // unbound during gameplay, only inside the overlay branches above.
+  if (e.key === 'Escape' && typeof dismissTopToast === 'function' && dismissTopToast()) {
+    e.preventDefault();
+    return;
+  }
   // 'V' toggles the radial inventory menu (works whether open or closed)
   if (e.key === 'v' || e.key === 'V') {
     e.preventDefault();
@@ -744,8 +752,18 @@ function loop(ts) {
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
-// Defer first resize so the bottom bars have measurable offsetHeight values.
-requestAnimationFrame(() => {
+// This used to be the body of a requestAnimationFrame callback, to "defer first
+// resize so the bottom bars have measurable offsetHeight values". The deferral
+// wasn't buying that: these scripts run at the end of <body> with the
+// stylesheets already applied, and reading offsetHeight forces a synchronous
+// layout, so the bars measure correctly right here.
+//
+// What the rAF *did* buy was a world that never gets built when no frame is
+// produced — rAF doesn't fire in a background tab, so loading the game into one
+// left worldMaps empty, no title screen, and every global half-initialised until
+// the tab was focused. Boot is plain code now; only the render loop, which
+// genuinely wants frames, still goes through rAF.
+function boot() {
   resizeCanvas();
   // Fill in starting inventory pieces that needed SWORD_ELEMENTS (loaded after
   // player.js). Idempotent on reload — newGame / applyLoadData re-seed too.
@@ -757,5 +775,15 @@ requestAnimationFrame(() => {
   clampCam(true);
   updateHUD();
   showTitleScreen();   // freeze on the title until New Game / Load Game is picked
+  // Re-measure once a frame has actually been painted. Belt and braces for the
+  // late-layout case the old rAF was reaching for (a bar that reflows after
+  // first paint) — but now it only corrects the canvas size, and the world is
+  // already up whether or not this ever runs.
+  requestAnimationFrame(() => { resizeCanvas(); });
   requestAnimationFrame(loop);
-});
+}
+
+// Scripts sit at the end of <body>, so the DOM is normally complete already and
+// this runs immediately; the listener is the fallback if that ever changes.
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();

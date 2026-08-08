@@ -200,31 +200,140 @@ function updateHUD() {
   }
 }
 
-// Show a transient message in the message bar. dur=0 means permanent;
-// any positive dur is currently treated as 5s for a consistent read time.
-function showMsg(t, dur = 5000) {
-  const el = document.getElementById('msg-bar');
-  el.textContent = t;
-  if (dur > 0) {
-    setTimeout(() => {
-      // Only clear if the message hasn't been overwritten in the meantime
-      if (el.textContent === t) el.textContent = '';
-    }, 5000);
-  }
+// ─── Toast notifications ─────────────────────────────────────────────────────
+// Every transient message in the game goes through here. This replaces the two
+// surfaces that used to exist side by side — the #msg-bar strip under the HUD
+// and the #map-banner overlay — with one stack of dismissible cards.
+//
+// showMsg() and showMapMsg() keep their old signatures on purpose: they are
+// called from ~180 places across 17 files, and the point of this change is the
+// presentation, not the call sites. showMapMsg() is now the high-emphasis
+// `banner` variant of the same toast rather than a separate widget.
+//
+// A toast leaves the screen when its timer runs out OR when the player clicks /
+// taps it (Escape dismisses the newest — see the gameplay keydown handler in
+// main.js). `dur = 0` means no timer at all: the toast is *sticky* and only a
+// player input clears it, which is what the boss-defeat message wants.
+//
+// Note that scripted NPC conversation deliberately does NOT come through here —
+// talking to someone opens the dialogue box (see sayNPC in dialogue.js), which
+// freezes the world and waits for a keypress. Toasts are for things that happen
+// *to* the player; the dialogue box is for someone speaking *to* them.
+
+const TOAST_MAX        = 4;      // visible at once; the oldest retires past this
+const TOAST_DEFAULT_MS = 5000;   // showMsg's read period when none is given
+const TOAST_BANNER_MS  = 6000;   // map/area messages get a beat longer
+
+// Live toasts, oldest first: { el, text, kind, count, countEl, timer }
+let _toasts = [];
+
+function _toastStack() {
+  return document.getElementById('toast-stack');
 }
 
-// Show a map/area message in the large top-third banner. Used for all
-// map-related events (entering an area, a village awakening, revealing a cave,
-// etc.). Displays for the typical read period (5s) then fades out.
-let _mapBannerTimer = null;
-function showMapMsg(t) {
-  const el = document.getElementById('map-banner');
-  if (!el) { showMsg(t); return; }   // fallback if the overlay isn't present
-  el.textContent = t;
-  el.classList.add('show');
-  if (_mapBannerTimer) clearTimeout(_mapBannerTimer);
-  _mapBannerTimer = setTimeout(() => {
-    // Only hide if this exact message is still showing (not overwritten since)
-    if (el.textContent === t) el.classList.remove('show');
-  }, 5000);
+// Raise a toast. `kind` is 'msg' (default) or 'banner'; `dur` is ms, or 0 for a
+// sticky toast that only an input removes.
+function showToast(text, { kind = 'msg', dur = TOAST_DEFAULT_MS } = {}) {
+  const stack = _toastStack();
+  if (!stack) return null;   // no host element (e.g. a tools/ harness page)
+
+  // An identical message that re-fires while its toast is still up bumps a ×N
+  // badge and restarts the timer. Without this, walking through a cluster of
+  // the same pickup buries the screen in copies of one line.
+  const dupe = _toasts.find(t => t.text === text && t.kind === kind);
+  if (dupe) {
+    dupe.count++;
+    dupe.countEl.textContent = '×' + dupe.count;
+    dupe.countEl.style.display = '';
+    _toastArm(dupe, dur);
+    return dupe;
+  }
+
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind === 'banner' ? ' banner' : '');
+
+  const body = document.createElement('span');
+  body.textContent = text;
+  el.appendChild(body);
+
+  const countEl = document.createElement('span');
+  countEl.className = 'toast-count';
+  countEl.style.display = 'none';
+  el.appendChild(countEl);
+
+  // A sticky toast has to say so — otherwise it just looks stuck.
+  if (!(dur > 0)) {
+    const hint = document.createElement('span');
+    hint.className = 'toast-hint';
+    hint.textContent = 'click or press Esc to dismiss';
+    el.appendChild(hint);
+  }
+
+  const toast = { el, text, kind, count: 1, countEl, timer: null };
+  // Clicking the card dismisses it. stopPropagation so the tap doesn't also
+  // reach the canvas underneath and kick off a tap-to-travel walk.
+  el.addEventListener('click', e => { e.stopPropagation(); dismissToast(toast); });
+
+  stack.appendChild(el);
+  _toasts.push(toast);
+  // The entrance animates itself from CSS (@keyframes toast-in) — no rAF here on
+  // purpose; see the note on .toast in game.css.
+
+  // Past the cap something has to go, so a burst of kills can't wall off the
+  // view. Retire the oldest *timed* toast first: a sticky one is waiting on an
+  // input by definition, and evicting it on a timer the player never saw would
+  // be exactly the thing sticky exists to prevent. Only when every toast is
+  // sticky does the oldest of those go — otherwise four unread ones would
+  // deadlock the stack and no further message could ever appear.
+  while (_toasts.length > TOAST_MAX) {
+    const victim = _toasts.find(t => t !== toast && t.timer) ||
+                   _toasts.find(t => t !== toast) || _toasts[0];
+    dismissToast(victim);
+  }
+
+  _toastArm(toast, dur);
+  return toast;
+}
+
+// (Re)start a toast's auto-dismiss timer. dur <= 0 leaves it sticky.
+function _toastArm(toast, dur) {
+  if (toast.timer) { clearTimeout(toast.timer); toast.timer = null; }
+  if (dur > 0) toast.timer = setTimeout(() => dismissToast(toast), dur);
+}
+
+// Fade a toast out and drop it. Safe to call twice — the second call no-ops
+// because the toast is already off the live list.
+function dismissToast(toast) {
+  if (!toast) return;
+  const i = _toasts.indexOf(toast);
+  if (i < 0) return;
+  _toasts.splice(i, 1);
+  if (toast.timer) { clearTimeout(toast.timer); toast.timer = null; }
+  toast.el.classList.add('toast-out');
+  // Matches the longest transition in .toast (0.25s) with a little slack.
+  setTimeout(() => { if (toast.el.parentNode) toast.el.parentNode.removeChild(toast.el); }, 300);
+}
+
+// Dismiss the newest toast — what Escape does during gameplay. Returns true if
+// there was one, so the key handler knows whether it consumed the press.
+function dismissTopToast() {
+  if (!_toasts.length) return false;
+  dismissToast(_toasts[_toasts.length - 1]);
+  return true;
+}
+
+function clearAllToasts() {
+  for (const t of _toasts.slice()) dismissToast(t);
+}
+
+// Show a transient message. `dur` is honoured now (the old message bar accepted
+// it and then hardcoded 5s regardless); dur = 0 is sticky until dismissed.
+function showMsg(t, dur = TOAST_DEFAULT_MS) {
+  return showToast(t, { kind: 'msg', dur });
+}
+
+// Show a map/area message — entering an area, a village awakening, revealing a
+// cave. Same stack, bigger and brighter card.
+function showMapMsg(t, dur = TOAST_BANNER_MS) {
+  return showToast(t, { kind: 'banner', dur });
 }
