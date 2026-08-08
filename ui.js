@@ -41,6 +41,8 @@ function hudEls() {
     xp: $('xp'), xpnext: $('xpnext'), roomName: $('roomName'),
     sword: $('ws-sword'), bow: $('ws-bow'), bomb: $('ws-bomb'),
     armor: $('ws-armor'), immunity: $('ws-immunity'), interact: $('ws-interact'),
+    // Touch action pad (left-edge buttons) — present only on touch devices.
+    taWrap: $('touch-actions'), taSword: $('ta-sword'), taBow: $('ta-bow'), taItem: $('ta-item'),
   };
   return _hudEls;
 }
@@ -90,6 +92,9 @@ function updateHUD() {
   // The bow slot label changes to reflect the currently nocked elemental
   // arrow (or "Bow" when none is selected / out of arrows).
   if (el.bow) {
+    // No bow, no slot. Hidden rather than greyed out: before the prologue's last
+    // beat the player has never seen a bow, so an empty slot would be a spoiler.
+    el.bow.style.display = player.hasBow ? '' : 'none';
     const ae = player.activeArrowElement;
     const stock = ae && player.arrows ? (player.arrows[ae] || 0) : 0;
     const elem = (ae && stock > 0) ? SWORD_ELEMENTS[ae] : null;
@@ -163,6 +168,34 @@ function updateHUD() {
       last.interact = hint;
       if (hint) { el.interact.textContent = hint; el.interact.style.display = ''; }
       else      { el.interact.style.display = 'none'; }
+    }
+  }
+
+  // ── Touch action pad ──────────────────────────────────────────────────────
+  // Mirror the weapon-bar state onto the three left-edge buttons: the item
+  // button shows whichever consumable is selected in the radial rings, and the
+  // active weapon's button gets the `.active` ring. The whole pad hides while
+  // the menu ring or a blocking overlay is up so a tap can't fire underneath it.
+  if (el.taWrap) {
+    const menuUp  = (typeof radialMenuOpen !== 'undefined' && radialMenuOpen) ||
+                    (typeof gameplayTouchBlocked === 'function' && gameplayTouchBlocked());
+    if (last.taHidden !== menuUp) {
+      last.taHidden = menuUp;
+      el.taWrap.classList.toggle('hidden', menuUp);
+    }
+    const sel = (typeof radialFindItem === 'function')
+      ? (radialFindItem(inventorySelectionType) || radialFindItem('bomb')) : null;
+    const itemIcon = sel ? sel.icon : '💣';
+    const w = player.weapon;
+    const sig = itemIcon + '|' + w + '|' + (player.hasBow ? 1 : 0);
+    if (last.taSig !== sig) {
+      last.taSig = sig;
+      if (el.taItem && el.taItem.textContent !== itemIcon) el.taItem.textContent = itemIcon;
+      if (el.taSword) el.taSword.classList.toggle('active', w === 'sword');
+      // The touch bow button follows the weapon bar: gone until the bow is won.
+      if (el.taBow)   el.taBow.style.display = player.hasBow ? '' : 'none';
+      if (el.taBow)   el.taBow.classList.toggle('active', w === 'bow');
+      if (el.taItem)  el.taItem.classList.toggle('active', !!sel && w === sel.type);
     }
   }
 }

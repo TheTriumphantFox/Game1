@@ -7,7 +7,9 @@ description: Project conventions, architecture rules, and story canon for Hyrule
 
 A browser-based top-down action RPG in the spirit of *Zelda: A Link to the Past*. Procedurally generated maps, fog of war, D&D 5e-derived enemies, XP and leveling, named save slots, and a coordinate registry that acts as the source of truth for world state.
 
-The whole game is opened by double-clicking `index.html`. There is no server, no build, no install step. That single fact drives most of the rules below.
+The whole game is opened by double-clicking `index.html`. There is no build and no install step. That single fact drives most of the rules below.
+
+There *is* a small local static server in the repo — `.claude/serve.ps1`, wired up as the `hyrule-quest` config in `.claude/launch.json` (localhost:8765) — but it exists only as a testing convenience. It changes nothing about the constraints: the game has to work when the file is double-clicked, so never fix a `file://` problem by telling the user to run the server.
 
 ## Before writing any code
 
@@ -21,7 +23,7 @@ If a system already exists in some form, extend it. Do not build a parallel seco
 
 ## Hard constraints
 
-These are not style preferences. Violating any of them produces a game that silently fails to load when opened from `file://`, which is the only way it ever gets run.
+These are not style preferences. Violating any of them produces a game that silently fails to load when opened from `file://`, which is how the game is actually played. A violation that happens to work under `.claude/serve.ps1` is still a violation.
 
 - **No ES module syntax.** No `import`, no `export`, no `type="module"`. Browsers block module loading over `file://` for security reasons. Everything is classic `<script>` tags sharing globals.
 - **No `fetch()`, `XMLHttpRequest`, or `import()` of local files.** Same origin restriction — a `file://` page cannot read a sibling `.json` or `.txt`. Game data lives in `.js` files that assign to a global, not in data files that get loaded at runtime.
@@ -47,11 +49,14 @@ There is no `registerEntity()`/`registerTile()`-style call anywhere in this code
 
 ## Enemies
 
-Enemies derive from D&D 5e stat blocks — AC, HP, speed, ability scores, attacks with to-hit and damage dice, and CR. Keep that vocabulary; it's what makes new enemies quick to author and encounters easy to balance by CR.
+Enemies are *inspired* by D&D 5e, but the stat block is much smaller than a tabletop one. Every `DND_ENEMIES` entry in `enemies.js` carries exactly `name, hp, spd, dmg, xp, color, size, cr`, plus `ranged`, `element`, `swims`, `boss`, `flies`, `breath`, `finalBoss` where relevant. Two things to be clear about before writing any enemy:
 
-The **corrupted template** is a modifier applied on top of a base stat block rather than a separate creature list. When the Withering Crown's blight has reached a region, its enemies get the corrupted variant. Apply it as a template so a base creature stays authored once.
+- **There is no `ac`, no attack bonus, no to-hit roll, and no ability scores anywhere in this game.** Combat is real-time contact and projectile collision, not a d20 roll. Don't add those fields or reason about them — grep for `ac:` in `enemies.js` and you'll find nothing.
+- **`cr` is a flavor/reference tag only.** It's stored on the object and never read at runtime by anything.
 
-For a new enemy, always state the CR you're targeting and how it compares to the player's expected level in the region where it spawns.
+For the actual balance math — turning a target difficulty into HP and damage numbers that play right — use the `enemy-forge` skill rather than working it out here. For a new enemy, always state the CR you're targeting and how it compares to the player's expected level in the region where it spawns.
+
+**The corrupted/blight template does not exist in code.** The Withering Crown and its blight are story canon (see `references/story-bible.md`); the only thing shipped is the necrotic region's *terrain* tiles, which are unrelated. If asked for a corrupted variant, treat it as new work and say so. The precedent to follow when it does get built is the village **"Greater"** tier — see the `tier15` branch in `makeEnemyDefs` (`enemies.js`), which applies 2× HP, 2× damage, 2× XP and 1.5× size over a base entry at spawn time rather than hand-authoring a second creature.
 
 ## Story and dialogue
 

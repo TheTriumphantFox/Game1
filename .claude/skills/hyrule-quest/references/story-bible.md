@@ -14,6 +14,10 @@ The antagonist, and the one who wears the crown. He is not a distant rumor in th
 
 ## Prologue beats
 
+The full shooting script — every line of dialogue, with trigger conditions and
+state flags — is `prologue-script.md`. Read that before writing anything the
+player hears during the opening. The summary below is the shape of it.
+
 1. **Home.** The player lives with mother, father, and grandmother. Establish all three as ordinary and alive.
 2. **The fetch quest.** A small errand in the village — dinner or a package — serving as the movement/interaction tutorial. It should feel mundane, and it should introduce villagers by name so their loss lands.
 3. **The return.** On the way home, the Red Dragon Emperor attacks. The village burns.
@@ -37,10 +41,12 @@ If a line you're drafting resolves the ambiguity in either direction, it's wrong
 
 ## World systems tied to the story
 
-- **Corruption as a map layer.** The blight renders as palette-shifted tiles over affected regions rather than a separate map. Its spread is story state, not decoration.
-- **Shrines and fog of war.** Fog-of-war reveal is tied to shrine restoration state. Restoring a shrine is a milestone with a real reward — a heart, an ability — rather than a pile of XP.
-- **Corrupted enemies.** Regions the blight has reached use the corrupted template over their base stat blocks. Encounter difficulty should track the story's geography.
-- **Story flags live in the coordinate registry.** Progress flags and triggers are registered like any other world state. Don't invent a second story-state store.
+**These are design intent, not built systems.** None of the four below exists in the code today — treat each as a specification for future work, and say plainly that it's unbuilt rather than writing as though a system is already there.
+
+- **Corruption as a map layer.** The blight should render as palette-shifted tiles over affected regions rather than a separate map, with its spread driven by story state rather than decoration. (Note: the necrotic region's existing `BLIGHT` terrain tiles are unrelated to this — they're plain biome terrain, not story state.)
+- **Shrines and fog of war.** Fog-of-war reveal should tie to shrine restoration state. Restoring a shrine is a milestone with a real reward — a heart, an ability — rather than a pile of XP.
+- **Corrupted enemies.** Regions the blight has reached should use a corrupted template over their base stat blocks, so a base creature stays authored once. When this gets built, follow the `tier15`/"Greater" multiplier pattern already in `makeEnemyDefs` (`enemies.js`).
+- ~~**Story flags.**~~ **Built** — `story.js` owns `setFlag`/`getFlag`/`hasFlag`/`clearFlag` over a single `player.flags` bag, persisted with the rest of the player. That bag is the one home for story state; don't scatter a second one beside it. Note that `world.js`'s coordinate registry is *not* that home: it tracks which generated map sits at which grid cell and has no per-entity or per-flag API.
 
 ## Tone
 

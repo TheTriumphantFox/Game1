@@ -1007,6 +1007,11 @@ function tryVillagerInteraction() {
   if (!nearby.length) return false;
   const v = nearby[0];
 
+  // Prologue cast (family, neighbours, the merchant). They carry scripted lines
+  // rather than a random VILLAGER_CHAT one-liner, and what they say depends on
+  // which beat the story is on — so the handler lives with the script, in
+  // prologue.js, and is dispatched by name off the villager.
+  if (v.pgTalk && typeof talkPrologueNpc === 'function') { talkPrologueNpc(v); return true; }
   if (v.role === 'inn'   && typeof openInnModal        === 'function') { openInnModal();        return true; }
   if (v.role === 'store' && typeof openStoreModal      === 'function') { openStoreModal();      return true; }
   if (v.role === 'herb'  && typeof openHerbalistModal  === 'function') { openHerbalistModal();  return true; }

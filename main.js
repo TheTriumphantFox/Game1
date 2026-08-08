@@ -24,7 +24,23 @@ function titleNewGame() {
   openNamePrompt(name => {
     player.heroName = name;
     startGame();
-    showMapMsg('🛏️ You awaken in your cabin. Step outside to begin your adventure.');
+    // Straight into the opening beat — no "you awaken" banner, because the
+    // prologue's first scene does the establishing itself. Note this path does
+    // NOT call resetGame: boot already built a fresh world with the home village
+    // at map 0. The in-game 🆕 New button does reset, and hooks the prologue at
+    // the end of resetGame instead.
+    if (typeof startPrologue === 'function') startPrologue();
+  });
+}
+
+// Start a new game and skip straight past the prologue, with its outcomes (the
+// bow, the flags, the ruined village) already applied. Offered on the title
+// screen for a second playthrough.
+function titleNewGameSkip() {
+  openNamePrompt(name => {
+    player.heroName = name;
+    startGame();
+    if (typeof skipPrologue === 'function') skipPrologue();
   });
 }
 
@@ -68,15 +84,23 @@ document.getElementById('name-input').addEventListener('keydown', e => {
 function update(dt) {
   // Frozen on the title screen — no world stepping until a game is chosen.
   if (!gameStarted) return;
+  // Scripted beats tick BEFORE the freeze chain below, deliberately: a cutscene
+  // step that blocks the world still needs its own timer advanced, and the
+  // dialogue typewriter still needs to type. Move these after the early return
+  // and every timed cutscene step deadlocks.
+  if (typeof stepDialogue === 'function') stepDialogue(dt);
+  if (typeof stepCutscene === 'function') stepCutscene(dt);
   // Pause the entire world while the radial inventory menu is open. Render is
   // still called every frame so the menu animates, and the HUD still refreshes
   // (so the menu's purchases / item use visually update), but every dt-based
   // state change is frozen.
-  if ((typeof radialMenuOpen !== 'undefined' && radialMenuOpen) ||
-      (typeof ledgerOpen     !== 'undefined' && ledgerOpen)     ||
-      (typeof statsPageOpen  !== 'undefined' && statsPageOpen)  ||
-      (typeof worldMapOpen   !== 'undefined' && worldMapOpen)   ||
-      (typeof victoryOpen    !== 'undefined' && victoryOpen)) {
+  if ((typeof radialMenuOpen    !== 'undefined' && radialMenuOpen)    ||
+      (typeof ledgerOpen        !== 'undefined' && ledgerOpen)        ||
+      (typeof statsPageOpen     !== 'undefined' && statsPageOpen)     ||
+      (typeof worldMapOpen      !== 'undefined' && worldMapOpen)      ||
+      (typeof victoryOpen       !== 'undefined' && victoryOpen)       ||
+      (typeof dialogueOpen      !== 'undefined' && dialogueOpen)      ||
+      (typeof cutsceneBlocking  !== 'undefined' && cutsceneBlocking)) {
     updateHUD();
     return;
   }
@@ -100,10 +124,14 @@ function update(dt) {
   }
   moveTimer += dt;
 
-  // Quick weapon switch
+  // Quick weapon switch. [2] does nothing until Grandmother's Bow is in hand.
   if (keys['1']) player.weapon = 'sword';
-  if (keys['2']) player.weapon = 'bow';
+  if (keys['2'] && player.hasBow) player.weapon = 'bow';
   if (keys['3']) player.weapon = 'bomb';
+
+  // Tap-to-travel: inject movement toward a tapped interactable, then interact.
+  // Runs before stepPlayerMovement so its keys are consumed this same frame.
+  advanceAutoNav(dt);
 
   // Movement (also handles pickup + map transitions)
   stepPlayerMovement();
@@ -117,9 +145,13 @@ function update(dt) {
   const actC = keys['c'] || keys['C'];
 
   // Weapons are sheathed inside an active village — the boss is dead, the
-  // shops are open, no swinging swords or chucking bombs in town.
+  // shops are open, no swinging swords or chucking bombs in town. Same lock
+  // covers the home village: peaceful before the fire, and during the fire the
+  // encounter is unbeatable by design, so there must be nothing to swing at and
+  // no way to try.
   const cm = currentMap();
-  const weaponsLocked = cm && cm.type === 'village' && cm.activated;
+  const weaponsLocked = !!cm && ((cm.type === 'village' && cm.activated) ||
+                                 cm.type === 'homevillage');
 
   if (actZ && attackCooldown <= 0 && !weaponsLocked) {
     attackCooldown = 280;
@@ -147,6 +179,11 @@ function update(dt) {
   stepParticles(dt);
   tickCamera(dt);   // smooth scroll toward target each frame
 
+  // Prologue beat triggers — checked against the player's position rather than
+  // fired from a tile, so there's no invisible line to walk around. No-op once
+  // the prologue is done.
+  if (typeof checkPrologueTriggers === 'function') checkPrologueTriggers();
+
   updateHUD();
 }
 
@@ -171,6 +208,15 @@ document.addEventListener('keydown', e => {
   if (namePromptOpen) {
     if (e.key === 'Escape') closeNamePrompt();
     return;   // name prompt swallows gameplay input
+  }
+  if (typeof dialogueOpen !== 'undefined' && dialogueOpen) {
+    // Space / Enter advance a scripted conversation. Nothing else gets through —
+    // in particular Escape does NOT skip, because these lines are the story.
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); advanceDialogue(); }
+    return;   // dialogue box swallows gameplay input
+  }
+  if (typeof cutsceneInputLocked !== 'undefined' && cutsceneInputLocked) {
+    return;   // a scripted beat is driving — the player isn't
   }
   if (typeof shopOpen !== 'undefined' && shopOpen) {
     if (e.key === 'Escape') closeShopModals();
@@ -239,6 +285,12 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
+  // Any manual movement/interact key cancels an in-progress tap-to-travel walk.
+  if (autoNav && typeof cancelAutoNav === 'function' &&
+      ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ',
+       'w','a','s','d','W','A','S','D'].includes(e.key)) {
+    cancelAutoNav();
+  }
   setKey(e.key, true);
   if (e.key === 'Tab') { e.preventDefault(); if (!e.repeat) showMinimap = !showMinimap; }
   // 'P' drinks one Health Potion (fires on the press itself, not while held)
@@ -293,6 +345,8 @@ function joyUpdate(x, y) {
   joyClearKeys();
   if (Math.hypot(dx, dy) < JOY_DEAD) return;   // dead-zone → no movement
   touchJoystick.moved = true;                  // left the dead-zone → it's a drag, not a tap
+  autoNav = null;                              // steering by hand overrides tap-to-travel
+                                               // (keys are re-set just below, so no stale press)
   // Screen space: angle 0°=right, 90°=down, 180°=left, 270°=up. Each key is on
   // for the 180° arc facing its way, so diagonals light two keys at once.
   const a = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
@@ -310,6 +364,8 @@ function gameplayTouchBlocked() {
          (typeof ledgerOpen !== 'undefined' && ledgerOpen) ||
          (typeof statsPageOpen !== 'undefined' && statsPageOpen) ||
          (typeof worldMapOpen !== 'undefined' && worldMapOpen) ||
+         (typeof dialogueOpen !== 'undefined' && dialogueOpen) ||
+         (typeof cutsceneInputLocked !== 'undefined' && cutsceneInputLocked) ||
          (typeof viewMode !== 'undefined' && viewMode === 2);
 }
 
@@ -351,15 +407,201 @@ function onCanvasTouchEnd(e) {
   if (!touchJoystick.active) return;
   for (const t of e.changedTouches) {
     if (t.identifier === touchJoystick.id) {
-      // A quick touch that never left the dead-zone is a tap → fire the selected
-      // weapon. A drag (moved) or long hold was movement, so it just ends.
+      // A quick touch that never left the dead-zone is a tap. Weapons now live on
+      // the left-side action buttons, so a canvas tap is contextual: on the hero
+      // it opens the menu; next to an interactable it talks/loots; elsewhere it's
+      // a no-op. A drag (moved) or long hold was movement, so it just ends.
       const wasTap = !touchJoystick.moved && (Date.now() - touchJoystick.startTime) < TAP_MS;
+      const tapX = touchJoystick.x, tapY = touchJoystick.y;
       joyEnd();
-      if (wasTap && !gameplayTouchBlocked()) activateSelectedWeapon();
+      if (wasTap && !gameplayTouchBlocked()) handleCanvasTap(tapX, tapY);
       e.preventDefault();
       break;
     }
   }
+}
+
+// Map a canvas tap (in canvas-local px) to a world action. The camera transform
+// is sx = (worldCol - camC) * TILE_PX (see render.js), so it inverts cleanly.
+//   • tap on/adjacent-to the hero  → open the radial menu
+//   • tap on an interactable       → walk to it (auto-path), then talk / open / travel
+//   • tap on open ground           → nothing (movement is the joystick drag)
+function handleCanvasTap(x, y) {
+  const ts = (typeof TILE_PX !== 'undefined' && TILE_PX) ? TILE_PX : 48;
+  const wx = camC + x / ts, wy = camR + y / ts;         // tap → world tile coords
+  cancelAutoNav();                                       // a fresh tap overrides any walk
+
+  // On (or right at) the hero → toggle the inventory / menu ring.
+  if (Math.hypot(wx - (player.x + 0.5), wy - (player.y + 0.5)) < 0.9) {
+    if (typeof toggleRadialMenu === 'function') toggleRadialMenu();
+    return;
+  }
+
+  // Tapped an interactable (villager / chest / portal-keeper)? Head for it.
+  const target = findTappedInteractable(wx, wy);
+  if (!target) return;                                   // open ground → no-op
+
+  // Already adjacent → interact right away; otherwise auto-path to an adjacent
+  // tile and fire the interaction on arrival.
+  if (target.adjacentNow()) { target.act(); return; }
+  const path = findPathToGoals(target.goals);
+  if (!path) return;                                     // no walkable route
+  autoNav = { path, i: 0, act: target.act, mapRef: currentMap(),
+              lastPos: player.x + ',' + player.y, stuckMs: 0 };
+}
+
+// ─── Tap-to-travel (auto-path) ───────────────────────────────────────────────
+// A tap on a distant villager / chest walks the hero there and then interacts.
+// We drive the existing grid movement by injecting arrow-key presses toward the
+// next path tile (so terrain speed, collision and animation all stay identical
+// to a hand-walked route); on arrival the stored interaction fires.
+let autoNav = null;   // { path:[[c,r]…], i, act, mapRef, lastPos, stuckMs } | null
+
+function cancelAutoNav() {
+  if (!autoNav) return;
+  autoNav = null;
+  if (typeof joyClearKeys === 'function') joyClearKeys();
+}
+
+// Identify a tapped interactable near world point (wx,wy). Returns a descriptor
+// with the interaction fn, an adjacency test, and the walkable goal tiles to
+// path toward — or null if nothing interactable is under/next to the tap.
+function findTappedInteractable(wx, wy) {
+  const idx = (c, r) => r * MCOLS + c;
+  const map = mapData();
+  const passable = (c, r) => {
+    if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
+    if (player.activeArmorElement === 'water' && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
+    return !isSolid(map, c, r);
+  };
+
+  // Villagers (incl. shopkeepers / Gatekeeper) — nearest one within ~1.2 tiles of
+  // the tap wins, so a fat-finger tap that lands just off the sprite still counts.
+  if (typeof villagers !== 'undefined' && villagers && villagers.length) {
+    let best = null, bestD = 1.2;
+    for (const v of villagers) {
+      const d = Math.hypot((v.x + 0.5) - wx, (v.y + 0.5) - wy);
+      if (d < bestD) { bestD = d; best = v; }
+    }
+    if (best) {
+      const goals = new Set();
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (!dc && !dr) continue;
+        const c = best.x + dc, r = best.y + dr;
+        if (passable(c, r)) goals.add(idx(c, r));
+      }
+      return {
+        goals,
+        adjacentNow: () => Math.abs(best.x - player.x) <= 1 && Math.abs(best.y - player.y) <= 1,
+        act: () => { if (typeof tryVillagerInteraction === 'function') tryVillagerInteraction(); },
+      };
+    }
+  }
+
+  // Chest tiles — check the tapped tile and its immediate neighbours (large / boss
+  // chests span 2 tiles), pick the closest chest cell to the tap.
+  const tc = Math.floor(wx), tr = Math.floor(wy);
+  let cc = -1, cr = -1, bestD = Infinity;
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    const c = tc + dc, r = tr + dr;
+    if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) continue;
+    if (!isChestTile(map[r][c])) continue;
+    const d = Math.hypot((c + 0.5) - wx, (r + 0.5) - wy);
+    if (d < bestD) { bestD = d; cc = c; cr = r; }
+  }
+  if (cc >= 0) {
+    const goals = new Set();
+    for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const c = cc + dc, r = cr + dr;
+      if (passable(c, r)) goals.add(idx(c, r));
+    }
+    return {
+      goals,
+      adjacentNow: () => Math.abs(cc - player.x) + Math.abs(cr - player.y) === 1,
+      act: () => { if (typeof tryChestInteraction === 'function') tryChestInteraction(); },
+    };
+  }
+  return null;
+}
+
+// Breadth-first search on the current map from the hero to the nearest tile in
+// `goalSet` (a Set of r*MCOLS+c cell indices). Returns the path as [c,r] steps
+// (start-exclusive, goal-inclusive), or null if no route is found within the cap.
+function findPathToGoals(goalSet) {
+  if (!goalSet || goalSet.size === 0) return null;
+  const map = mapData();
+  const N = MROWS * MCOLS;
+  const idx = (c, r) => r * MCOLS + c;
+  const canSwimMedium = player.activeArmorElement === 'water';
+  const passable = (c, r) => {
+    if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
+    if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
+    return !isSolid(map, c, r);
+  };
+  const prev = new Int32Array(N).fill(-1);
+  const seen = new Uint8Array(N);
+  const start = idx(player.x, player.y);
+  const queue = [[player.x, player.y]];
+  seen[start] = 1;
+  let head = 0, nodes = 0, goalCell = -1;
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  while (head < queue.length && nodes < 8000) {
+    const [c, r] = queue[head++]; nodes++;
+    if (goalSet.has(idx(c, r))) { goalCell = idx(c, r); break; }
+    for (const [dc, dr] of DIRS) {
+      const nc = c + dc, nr = r + dr, ni = idx(nc, nr);
+      if (nc < 0 || nr < 0 || nc >= MCOLS || nr >= MROWS) continue;
+      if (seen[ni] || !passable(nc, nr)) continue;
+      seen[ni] = 1; prev[ni] = idx(c, r);
+      queue.push([nc, nr]);
+    }
+  }
+  if (goalCell < 0) return null;
+  const path = [];
+  for (let cur = goalCell; cur !== start && cur >= 0; cur = prev[cur]) {
+    path.push([cur % MCOLS, Math.floor(cur / MCOLS)]);
+  }
+  path.reverse();
+  return path;
+}
+
+// Per-frame driver: nudge the hero one step along the planned path, or fire the
+// stored interaction once the path is spent. Called from update() ahead of
+// stepPlayerMovement so the injected keys are consumed the same frame.
+function advanceAutoNav(dt) {
+  if (!autoNav) return;
+  // The route belongs to one map — a transition invalidates it.
+  if (typeof currentMap === 'function' && autoNav.mapRef !== currentMap()) { cancelAutoNav(); return; }
+
+  // Skip any leading tiles we've already reached (a step may cover one per frame).
+  while (autoNav.i < autoNav.path.length &&
+         player.x === autoNav.path[autoNav.i][0] && player.y === autoNav.path[autoNav.i][1]) {
+    autoNav.i++;
+  }
+  // Path spent → we should be adjacent; run the interaction and stop.
+  if (autoNav.i >= autoNav.path.length) {
+    const fn = autoNav.act;
+    cancelAutoNav();
+    if (typeof fn === 'function') fn();
+    return;
+  }
+  // Give up if we've made no progress for a while (blocked by a wandering enemy,
+  // a moved villager, etc.) so the hero can't march in place forever.
+  const posKey = player.x + ',' + player.y;
+  if (posKey === autoNav.lastPos) {
+    autoNav.stuckMs += (dt || 16);
+    if (autoNav.stuckMs > 1600) { cancelAutoNav(); return; }
+  } else {
+    autoNav.lastPos = posKey; autoNav.stuckMs = 0;
+  }
+  // Press the arrow key(s) toward the next tile (BFS steps are orthogonal, so
+  // exactly one axis differs). joyClearKeys wipes last frame's injected keys.
+  if (typeof joyClearKeys === 'function') joyClearKeys();
+  const [nc, nr] = autoNav.path[autoNav.i];
+  if      (nc < player.x) keys['ArrowLeft']  = true;
+  else if (nc > player.x) keys['ArrowRight'] = true;
+  if      (nr < player.y) keys['ArrowUp']    = true;
+  else if (nr > player.y) keys['ArrowDown']  = true;
 }
 canvas.addEventListener('touchend',    onCanvasTouchEnd, { passive: false });
 canvas.addEventListener('touchcancel', onCanvasTouchEnd, { passive: false });
@@ -370,7 +612,8 @@ canvas.addEventListener('touchcancel', onCanvasTouchEnd, { passive: false });
 // events fire instantly and skip the synthetic ghost-click.
 function triggerAction(kind) {
   const cm = currentMap();
-  const weaponsLocked = cm && cm.type === 'village' && cm.activated;
+  const weaponsLocked = !!cm && ((cm.type === 'village' && cm.activated) ||
+                                 cm.type === 'homevillage');
   if (weaponsLocked) return;
   if (kind === 'sword' && attackCooldown <= 0) {
     attackCooldown = 280; doSwordSwing();
@@ -420,6 +663,36 @@ bindTap('ws-interact', () => {
   if (typeof tryVillagerInteraction === 'function' && tryVillagerInteraction()) return;
   if (typeof tryChestInteraction === 'function') tryChestInteraction();
 });
+
+// ─── Touch device: swap the keyboard weapon bar for the left action pad ───────
+// Detect a coarse pointer (phones / tablets) once and tag <html> so the CSS can
+// hide the weapon bar and show #touch-actions. On these devices the three left
+// buttons fire the sword / bow / selected item directly (same guards as the
+// keyboard path), and the keyboard hints are reworded for touch.
+const IS_TOUCH = (typeof window.matchMedia === 'function' &&
+                  window.matchMedia('(pointer: coarse)').matches) ||
+                 ('ontouchstart' in window) ||
+                 (navigator.maxTouchPoints > 0);
+
+if (IS_TOUCH) {
+  document.documentElement.classList.add('touch');
+
+  // The left pad fires directly on tap — no select-then-tap dance. Each sets
+  // player.weapon first so the active ring (updateHUD) tracks the last button
+  // used; triggerAction then runs the same cooldown / weapons-locked guards as
+  // the keyboard path. (triggerAction already sets 'bow'/'item' internally, but
+  // setting it here keeps the highlight correct even when a shot is on cooldown.)
+  bindTap('ta-sword', () => { player.weapon = 'sword'; triggerAction('sword'); });
+  bindTap('ta-bow',   () => { player.weapon = 'bow';   triggerAction('bow');   });
+  bindTap('ta-item',  () => {
+    player.weapon = (typeof inventorySelectionType !== 'undefined') ? inventorySelectionType : 'bomb';
+    triggerAction('item');
+  });
+
+  // Reword the on-screen hints that assume a keyboard.
+  const titleHint = document.getElementById('title-hint');
+  if (titleHint) titleHint.textContent = 'Drag: move · Tap hero: menu · Left buttons: attack';
+}
 
 // Double-tap the empty part of the weapon bar (not a weapon slot) to cycle the
 // three view modes: normal → zoomed-out → full-screen minimap → normal.

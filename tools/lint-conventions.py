@@ -4,7 +4,7 @@ lint-conventions.py — convention checker for Hyrule Quest.
 
 Scans the repo for the things that quietly break this project:
 constraint violations that only show up as a blank page over file://,
-world objects that skipped the coordinate registry, malformed enemy
+unseeded generation code, hardcoded world coordinates, malformed enemy
 stat blocks, and story flags wired up on only one end.
 
 Usage:
@@ -19,17 +19,14 @@ CONFIG — adjust these to match the repo, then the rest just works.
 -------------------------------------------------------------------
 """
 
-# Function/method calls that count as "registering something in the coordinate
-# registry". Hyrule Quest has NO such call anywhere in the codebase — there is
-# no registerEntity()/registerTile()-style API. `world.js`'s "world coordinate
-# registry" (worldMaps[] / worldGrid{}) only tracks which generated MAP sits at
-# which (gx, gy) grid cell; it is never called per-entity. Enemy/chest/shrine
-# positions are plain `{x, y}` written straight into generated tile arrays or
-# enemyDefs objects during procedural generation. Left empty on purpose — see
-# check_registration below, which will flag nearly everything as a result.
-# This is a known, inherent false-positive source for this repo, not a config
-# gap: there is no call to point this list at.
-REGISTRY_CALLS = []
+# NOTE: there is deliberately no "registration" check in this linter. Hyrule
+# Quest has no registerEntity()/registerTile()-style API to check for — `world.js`'s
+# "world coordinate registry" (worldMaps[] / worldGrid{}) only tracks which
+# generated MAP sits at which (gx, gy) grid cell, and is never called per-entity.
+# Enemy/chest/shrine positions are plain `{x, y}` written straight into generated
+# tile arrays or enemyDefs objects during procedural generation. A check for
+# registry calls would flag every generation file in the repo forever, so it was
+# removed rather than left permanently misconfigured.
 
 # Files that are ALLOWED to contain raw coordinate literals — the registry
 # itself, map/level data, and anything explicitly authored as data. Hyrule
@@ -92,8 +89,12 @@ def rel(root, path):
 
 
 def strip_comments(line):
-    """Crude but adequate: drop // comments so they don't trigger checks."""
-    return re.sub(r"//.*$", "", line)
+    """Crude but adequate: drop // comments so they don't trigger checks.
+
+    The (?<!:) guard matters: a plain //-strip also eats the '//' out of
+    'https://example.com', which silently disabled the external-URL check.
+    """
+    return re.sub(r"(?<!:)//.*$", "", line)
 
 
 # ---------------- checks ----------------
@@ -105,19 +106,19 @@ def check_constraints(root, path, lines):
         line = strip_comments(raw)
 
         if re.search(r"^\s*import\s+[\w{*]", line) or re.search(r"^\s*export\s+(default\s+|const\s+|function\s+|class\s+|\{)", line):
-            report(ERROR, name, i, "ES module syntax — blocked over file://", raw)
+            report(ERROR, name, i, "ES module syntax -- blocked over file://", raw)
 
         if re.search(r"\bimport\s*\(", line):
-            report(ERROR, name, i, "dynamic import() — blocked over file://", raw)
+            report(ERROR, name, i, "dynamic import() -- blocked over file://", raw)
 
         if re.search(r'type\s*=\s*["\']module["\']', line):
-            report(ERROR, name, i, 'script type="module" — blocked over file://', raw)
+            report(ERROR, name, i, 'script type="module" -- blocked over file://', raw)
 
         if re.search(r"\bfetch\s*\(|new\s+XMLHttpRequest", line):
-            report(ERROR, name, i, "network/file read — cannot read local files over file://", raw)
+            report(ERROR, name, i, "network/file read -- cannot read local files over file://", raw)
 
         if re.search(r"https?://", line) and not re.search(r"https?://(www\.)?w3\.org", line):
-            report(ERROR, name, i, "external URL — game must run offline", raw)
+            report(ERROR, name, i, "external URL -- game must run offline", raw)
 
 
 def check_coordinates(root, path, lines):
@@ -127,25 +128,17 @@ def check_coordinates(root, path, lines):
     if any(hint in lowered for hint in COORD_LITERAL_ALLOWED):
         return
 
-    pattern = re.compile(r"\b[xy]\s*[:=]\s*-?\d+\b")
+    pattern = re.compile(r"\b[xy]\s*[:=]\s*(-?\d+)\b")
     for i, raw in enumerate(lines, 1):
         line = strip_comments(raw)
-        matches = pattern.findall(line)
-        # Two or more on one line is almost certainly a placed position.
-        if len(matches) >= 2:
-            report(WARN, name, i, "hardcoded coordinate pair — should come from the registry", raw)
-
-
-def check_registration(root, path, lines):
-    """Entities that look placed in the world but never register themselves."""
-    name = rel(root, path)
-    text = "".join(lines)
-    if any(hint in name.lower() for hint in COORD_LITERAL_ALLOWED):
-        return
-
-    looks_placed = re.search(r"\bspawn\w*\s*\(|\bplace\w*\s*\(|new\s+(Entity|Enemy|Npc|NPC|Chest|Shrine|Trigger)\b", text)
-    if looks_placed and not any(call in text for call in REGISTRY_CALLS):
-        report(WARN, name, 0, "places world objects but never calls the coordinate registry")
+        values = [int(v) for v in pattern.findall(line)]
+        # Two or more on one line looks like a placed position -- except that
+        # unit direction vectors ({ x: 0, y: 1 }, the dirs[] arrays in
+        # villagers.js) share that shape and are not placements at all. They
+        # were every single hit this check produced before the magnitude test,
+        # so require at least one component of 2+ to call it a coordinate.
+        if len(values) >= 2 and any(abs(v) >= 2 for v in values):
+            report(WARN, name, i, "hardcoded coordinate pair -- should come from the registry", raw)
 
 
 def check_enemies(root, path, lines):
@@ -175,7 +168,7 @@ def check_seeding(root, path, lines):
     for i, raw in enumerate(lines, 1):
         line = strip_comments(raw)
         if "Math.random" in line:
-            report(WARN, name, i, "Math.random() in generation code — same seed must give same map", raw)
+            report(WARN, name, i, "Math.random() in generation code -- same seed must give same map", raw)
 
 
 def collect_flags(root):
@@ -184,7 +177,10 @@ def collect_flags(root):
     set_pat = re.compile(r"""(?:setFlag|flags\.set|setStoryFlag)\s*\(\s*["']([\w.]+)["']""")
     alt_set = re.compile(r"""flags\s*\[\s*["']([\w.]+)["']\s*\]\s*=""")
     read_pat = re.compile(r"""(?:getFlag|hasFlag|flags\.get|flags\.has|checkFlag)\s*\(\s*["']([\w.]+)["']""")
-    alt_read = re.compile(r"""flags\s*\[\s*["']([\w.]+)["']\s*\]\s*(?!=[^=])""")
+    # The lookahead sits directly on the ']' and swallows its own whitespace --
+    # with a \s* outside it, the regex just backtracks to zero-width and matches
+    # assignments too, counting every write as a read.
+    alt_read = re.compile(r"""flags\s*\[\s*["']([\w.]+)["']\s*\](?!\s*=[^=])""")
 
     for path in js_files(root):
         name = rel(root, path)
@@ -215,7 +211,7 @@ def check_load_order(root):
     """Script tags in index.html are the dependency graph — make sure they exist."""
     index = os.path.join(root, "index.html")
     if not os.path.isfile(index):
-        report(WARN, "index.html", 0, "not found at repo root — expected entry point")
+        report(WARN, "index.html", 0, "not found at repo root -- expected entry point")
         return
     with open(index, encoding="utf-8", errors="replace") as fh:
         html = fh.read()
@@ -243,6 +239,13 @@ def check_load_order(root):
 # ---------------- main ----------------
 
 def main():
+    # Source snippets carry box-drawing characters and em-dashes; the default
+    # Windows console codepage either mangles or raises on them.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     quiet = "--quiet" in sys.argv or "-q" in sys.argv
 
@@ -268,7 +271,6 @@ def main():
         check_constraints(root, path, lines)
         if path.endswith(".js"):
             check_coordinates(root, path, lines)
-            check_registration(root, path, lines)
             check_enemies(root, path, lines)
             check_seeding(root, path, lines)
 

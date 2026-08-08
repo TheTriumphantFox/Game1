@@ -90,6 +90,9 @@ const DEFAULT_PLAYER = {
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
+  // Grandmother's Bow — granted in the prologue's final beat, not owned at birth.
+  // Back-filled to true below for saves written before the field existed.
+  hasBow: false,
   potions: STARTING_ITEM_AMOUNT,
   // Bombs — bought at the store / found in chests; a fresh player starts with none.
   bombs: 0,
@@ -137,7 +140,9 @@ const DEFAULT_PLAYER = {
   activeArmorElement: null,
   defeatedBoss: false,
   // True once the Adult Red Dragon at the castle pinnacle has been slain.
-  wonGame: false
+  wonGame: false,
+  // Story flags — the single home for narrative state (see story.js).
+  flags: {}
 };
 
 function applyLoadData(data) {
@@ -172,6 +177,12 @@ function applyLoadData(data) {
   player.forageBonus = { ...((data.player && data.player.forageBonus) || {}) };
   player.armorUpgrades = { ...((data.player && data.player.armorUpgrades) || {}) };
   player.swordUpgrades = { ...((data.player && data.player.swordUpgrades) || {}) };
+  player.flags = { ...((data.player && data.player.flags) || {}) };
+  // Saves predating the prologue have no `hasBow` field and no flags at all, but
+  // their hero has been shooting arrows for hours. Test for *absence*, not false —
+  // a save written after the prologue shipped legitimately stores hasBow: false
+  // mid-prologue, and must not be handed a bow it hasn't earned yet.
+  if (data.player && data.player.hasBow === undefined) player.hasBow = true;
   // renderX/Y aren't meaningful values to load — they should match x/y after
   // an instant snap (clampCam(true) below will do the rest).
   player.renderX = player.x;
@@ -220,6 +231,14 @@ function applyLoadData(data) {
       : lite.type === 'dungeon' ? buildDungeonLevelMap().map
       : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
       : lite.type === 'house'   ? buildStarterHouseMap()
+      // Map 0 since the prologue. In practice this branch is a safety net —
+      // map 0 is always `visited`, so lite.mapTiles is present and decodeMap
+      // above wins, which is what preserves the exact state the player left the
+      // ruin in. It matters when tiles are somehow absent: rebuild the ruin, not
+      // the village, or a finished prologue would reload with the family home
+      // standing and everyone alive.
+      : lite.type === 'homevillage'
+          ? (hasFlag('prologue_complete') ? buildRuinedHomeVillage() : buildHomeVillageMap())
       : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth)
       : lite.type === 'fire' || lite.type === 'desert'
                                 ? buildDesertMap(lite.id, lite.depth)
@@ -287,6 +306,10 @@ function applyLoadData(data) {
 
   spawnEnemiesForMap(currentMapId);
   spawnVillagersForMap(currentMapId);
+  // Cancel any cutscene the load interrupted and restore the ambient state that
+  // isn't in the flag bag (how hard the ruin is still burning). Without this, a
+  // load from inside a scripted beat leaves the world frozen forever.
+  if (typeof restorePrologueAmbience === 'function') restorePrologueAmbience();
   clampCam(true);
   revealAround(currentMap(), player.x, player.y, 12);
   updateHUD();
@@ -564,6 +587,7 @@ function resetGame(heroName) {
     rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
     swordTimer: 0, swordDir: { x: 0, y: -1 }, invincible: 0,
     weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
+    hasBow: false,
     potions: STARTING_ITEM_AMOUNT, bombs: 0, herbals: STARTING_ITEM_AMOUNT,
     mushrooms: STARTING_ITEM_AMOUNT,
     ...trophyDefaults(),
@@ -580,7 +604,8 @@ function resetGame(heroName) {
     arrows: {}, activeArrowElement: null,
     armorElements: [], armorUpgrades: {}, activeArmorElement: null,
     defeatedBoss: false,
-    wonGame: false
+    wonGame: false,
+    flags: {}
   });
   applyStartingInventory(player);
   attackCooldown = 0; bowCooldown = 0; bombCooldown = 0;
@@ -596,5 +621,7 @@ function resetGame(heroName) {
   clampCam(true);
   updateHUD();
   document.getElementById('save-status').textContent = '';
-  showMapMsg('🛏️ You awaken in your cabin. Step outside to begin your adventure.');
+  // Same opening the title-screen New Game gets — the prologue's first beat
+  // establishes the house itself, so there's no banner to show first.
+  if (typeof startPrologue === 'function') startPrologue();
 }

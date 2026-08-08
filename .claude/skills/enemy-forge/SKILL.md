@@ -14,7 +14,9 @@ The method is D&D 5e's Challenge Rating math for the piece it's actually good at
 From `enemies.js`'s `DND_ENEMIES` table, every entry carries exactly: `name, hp, spd, dmg, xp, color, size, cr` — plus `ranged`, `element`, `swims`, `boss`, `flies`, `breath`, `finalBoss` when relevant. Two things worth knowing before doing any math:
 
 - **No `ac`, no attack bonus, no ability scores, no to-hit.** `cr` is stored as a flavor/reference tag on the object — the engine never computes or checks it at runtime.
-- **`spd` is not tabletop speed-in-feet.** It's the enemy's move/attack tick interval in **milliseconds** (`e.timer = e.spd`, reset each tick — see `stepEnemies` in `projectiles.js`). Lower `spd` means faster ticks, which means more frequent hits at the same `dmg`. Reading an enemy's real damage output means `dmg` × attack frequency (implied by `spd`), never `dmg` in isolation.
+- **`spd` is not tabletop speed-in-feet.** It's the enemy's move/attack tick interval in **milliseconds** (`e.timer = e.spd`, reset each tick — see `stepEnemies` in `projectiles.js`). Lower `spd` means faster ticks: quicker pursuit, and for melee enemies more frequent hits. Reading an enemy's real damage output means `dmg` × attack frequency, never `dmg` in isolation — but see Step 4, because the frequency is *not* simply `1/spd` for either melee or ranged enemies.
+- **Melee damage is capped by player i-frames.** A melee hit sets `player.invincible = 900` (`stepEnemies`), so no melee enemy can land hits faster than one per 900 ms no matter how low its `spd` goes. Below `spd: 900`, extra speed buys pursuit and pressure, not damage.
+- **Ranged enemies ignore `spd` entirely for damage.** They deal no contact damage at all (the melee branch is gated on `!e.ranged`) and fire on their own `shootTimer`, reset to `1800 + rand*1200` ms — about 2400 ms average, independent of `spd`. See `stepEnemyRanged` in `projectiles.js`.
 
 ## The one calibration that matters
 
@@ -57,14 +59,22 @@ Groups matter: four enemies at CR 1 are far more dangerous than one at CR 4, bec
 **Step 3 — Spend the budget on character.** Two enemies at the same CR shouldn't play the same. Trade within the HP + damage-output budget (there's no AC axis to trade against):
 
 - Lower HP, higher `dmg` → a glass cannon that punishes standing still
-- Lower `dmg`, faster `spd` (more frequent, cheaper hits) → a harasser — a second way to reach similar effective DPS without raising `dmg`
-- `ranged: true` with moderate `dmg` → controls space instead of trading hits (ranged enemies hold 5–9 tiles distance — see `stepEnemies` in `projectiles.js`)
+- Lower `dmg`, faster `spd` → a harasser. This only raises damage output down to `spd: 900`, where the player's i-frames take over; past that it's a pressure/pursuit knob, not a DPS knob
+- `ranged: true` with moderate `dmg` → controls space instead of trading hits (ranged enemies hold 5–9 tiles distance — see `stepEnemies` in `projectiles.js`). Remember this also *removes* all contact damage and puts output on the fixed ~2400 ms shoot timer, so `spd` becomes purely a repositioning stat
 - An `element` tag matching the region's theme → hooks into elemental armor/vulnerability (`elements.js`) without touching the HP/damage budget at all
 
 **Step 4 — Compute HP and effective DPS. Don't manufacture a defensive/offensive-CR average against an AC axis this game doesn't have.**
 
 - *HP target*: interpolate from the observed-ratio table at the target CR.
-- *Effective DPS*: `dmg × (1000 / spd)` — hits per second at that enemy's tick rate, times damage per hit. Compare it to a same-region, already-shipped enemy as a sanity check, since there's no confirmed absolute target yet.
+- *Effective DPS*: the formula depends on how the enemy actually delivers damage — there is no single one.
+
+| Enemy kind | Effective DPS |
+|---|---|
+| Melee | `dmg × 1000 / max(spd, 900)` — the i-frame floor, not `spd`, sets the ceiling |
+| Ranged (`ranged: true`) | `dmg × 1000 / 2400` — the average shoot timer; `spd` does not appear |
+| Dragon breath (`breath: 'fire'`) | `5 × dmg × 1000 / 2850` — a 5-projectile fan on a `2400 + rand*900` ms timer, and the whole fan can land |
+
+Both ranged rows assume the player is inside the firing range (18 tiles for a stock shot, 26 for breath) and that shots connect; treat them as an upper bound. Compare the result to a same-region, already-shipped enemy as a sanity check, since there's no confirmed absolute target yet.
 
 Show this arithmetic — it's the part the user can't easily check by eye, and what makes the number trustworthy.
 

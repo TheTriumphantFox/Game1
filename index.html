@@ -18,6 +18,7 @@
     <p id="title-tagline">A top-down adventure RPG</p>
     <button class="title-btn" onclick="titleNewGame()">🆕 New Game</button>
     <button class="title-btn" onclick="openLoadModal()">📂 Load Game</button>
+    <button class="title-btn" onclick="titleNewGameSkip()">⏭️ New Game (skip prologue)</button>
     <p id="title-hint">WASD / Arrows: move · Z: sword · V: menu</p>
   </div>
 </div>
@@ -115,6 +116,19 @@
   </div>
 </div>
 
+<!-- Dialogue box — speaker-attributed scripted conversation (see dialogue.js).
+     Deliberately NOT a .shop-overlay: it sits in the bottom third and leaves the
+     scene visible, because the prologue needs the village burning behind the
+     grandmother's last words. Click anywhere on it to advance, same as Space. -->
+<div id="dialogue-overlay" onclick="advanceDialogue()">
+  <div id="dialogue-box">
+    <div id="dialogue-speaker"></div>
+    <div id="dialogue-paren"></div>
+    <div id="dialogue-text"></div>
+    <div id="dialogue-prompt">▼</div>
+  </div>
+</div>
+
 <!-- Main game wrapper -->
 <div id="wrap">
   <div id="hud">
@@ -129,6 +143,17 @@
   <!-- Large transient banner for map/area messages — overlays the top third
        of the screen, centered. Driven by showMapMsg() in ui.js. -->
   <div id="map-banner"></div>
+  <!-- Touch action pad — a vertical stack of 3 semi-transparent buttons pinned
+       to the left edge, shown only on touch devices (html.touch, set in main.js)
+       in place of the keyboard weapon bar. Sword / Bow / selected-item, top to
+       bottom. Each fires its weapon directly; the item icon tracks the radial
+       selection (see updateHUD). Movement is the canvas joystick; a tap on the
+       hero opens the menu, a tap by an interactable talks/loots it. -->
+  <div id="touch-actions" aria-hidden="true">
+    <button class="touch-act" id="ta-sword" title="Sword">⚔️</button>
+    <button class="touch-act" id="ta-bow"   title="Bow">🏹</button>
+    <button class="touch-act" id="ta-item"  title="Item">💣</button>
+  </div>
   <div id="weapon-bar">
     <span class="weapon-slot weapon-active" id="ws-sword">⚔️ Sword [Z]</span>
     <span class="weapon-slot" id="ws-bow">🏹 Bow [X]</span>
@@ -164,12 +189,14 @@
 <script src="mapgen-foliage.js"></script>
 <script src="mapgen-caves.js"></script>
 <script src="mapgen-village.js"></script>
+<script src="mapgen-prologue.js"></script>
 <script src="mapgen-tower.js"></script>
 <script src="mapgen-biomes.js"></script>
 <script src="enemies.js"></script>
 <script src="world.js"></script>
 <script src="fog.js"></script>
 <script src="player.js"></script>
+<script src="story.js"></script>
 <script src="projectiles.js"></script>
 <script src="render-tiles.js"></script>
 <script src="render-enemies.js"></script>
@@ -188,6 +215,9 @@
 <script src="ledger.js"></script>
 <script src="stats.js"></script>
 <script src="worldmap.js"></script>
+<script src="dialogue.js"></script>
+<script src="cutscene.js"></script>
+<script src="prologue.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

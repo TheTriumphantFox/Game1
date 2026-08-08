@@ -151,12 +151,11 @@ canvas {
 }
 
 /* ── Touch tuning ───────────────────────────────────────────────────────────
-   The weapon-bar slots and save-row buttons stay their current visual size, but
-   on touch devices we grow only their *hit area* with an invisible overlay so
-   thumbs land reliably. Also suppress the tap highlight / text selection. */
+   The save-row buttons stay their current visual size, but on touch devices we
+   grow only their *hit area* with an invisible overlay so thumbs land reliably.
+   Also suppress the tap highlight / text selection. */
 .weapon-slot { cursor: pointer; }
 @media (pointer: coarse) {
-  .weapon-slot,
   #save-row button {
     position: relative;
     -webkit-tap-highlight-color: transparent;
@@ -165,7 +164,6 @@ canvas {
     touch-action: manipulation;   /* no 300ms double-tap delay */
   }
   /* Invisible padding on the touch layer — enlarges the target, not the look. */
-  .weapon-slot::after,
   #save-row button::after {
     content: '';
     position: absolute;
@@ -173,4 +171,64 @@ canvas {
   }
   /* Reclaim vertical space: the keyboard-only controls hint is useless on touch. */
   #ctrl-bar { display: none; }
+}
+
+/* ── Touch action pad ────────────────────────────────────────────────────────
+   On touch devices the keyboard weapon bar is replaced by three floating
+   buttons on the left edge (Sword / Bow / Item). The `.touch` class is set on
+   <html> in main.js from a coarse-pointer check, so this is driven by real
+   device capability, not just viewport width. Desktop keeps the weapon bar. */
+#touch-actions { display: none; }
+
+html.touch #weapon-bar { display: none; }
+
+html.touch #touch-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: fixed;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;                 /* above the canvas, below modals (z 90+) */
+  /* The gaps between buttons must not swallow joystick drags — only the
+     buttons themselves are interactive; the container is click-through. */
+  pointer-events: none;
+}
+/* Hidden while the radial menu (canvas-drawn) or a blocking overlay is up —
+   toggled from updateHUD so a stray tap can't fire a weapon under the menu. */
+html.touch #touch-actions.hidden { display: none; }
+
+.touch-act {
+  pointer-events: auto;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 2px solid rgba(170, 255, 102, 0.45);
+  background: rgba(10, 20, 10, 0.42);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
+}
+/* The button whose weapon is currently active gets a brighter ring. */
+.touch-act.active {
+  border-color: #aaff66;
+  background: rgba(40, 80, 40, 0.55);
+}
+/* Press feedback — momentary shrink + brighten. */
+.touch-act:active {
+  transform: scale(0.9);
+  background: rgba(60, 110, 60, 0.65);
 }

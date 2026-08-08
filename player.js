@@ -44,13 +44,15 @@ function addArrow(elemId, n) {
 
 // Fill in the starting weapons/arrows inventory. Called from boot and newGame.
 function applyStartingInventory(p) {
-  // A fresh player carries only a base sword and a bow with 10 plain arrows —
-  // no elemental swords, no armor, no elemental arrows.
+  // A fresh player carries only a base sword — no elemental swords, no armor, no
+  // arrows of any kind. The bow and its first ten arrows are Grandmother's, and
+  // arrive with her dying words at the end of the prologue (grantGrandmothersBow
+  // in prologue.js), so a hero who hasn't played that beat has nothing to fire.
   p.swordElements = [];
   p.swordUpgrades = {};
   p.armorElements = [];
   p.armorUpgrades = {};
-  p.arrows = { plain: 10 };
+  p.arrows = { plain: 0 };
 }
 
 // Admin "God Mode" grant, fired from the radial Menu ring (see radial.js). Hands
@@ -90,6 +92,12 @@ let player = {
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
+  // Whether the player owns a bow at all. False for a fresh hero — the bow is
+  // Grandmother's, granted in the prologue's final beat (see prologue.js), and
+  // gates firePlayerArrow / the weapon bar / the radial arrows ring until then.
+  // Saves written before this field existed are back-filled to true on load
+  // (see applyLoadData in save.js) so an established hero never loses their bow.
+  hasBow: false,
   potions: STARTING_ITEM_AMOUNT,
   // Bombs — no longer infinite. A fresh player starts with none; bombs are bought
   // at the General Store or found (5 at a time) in small chests. Placing one
@@ -186,7 +194,12 @@ let player = {
   activeArmorElement: null,
   defeatedBoss: false,
   // True once the Adult Red Dragon at the castle pinnacle has been slain.
-  wonGame: false
+  wonGame: false,
+  // Story flags — the single home for narrative state (see story.js for the
+  // setFlag/getFlag/hasFlag accessors and the list of flag names). Deliberately
+  // one bag rather than a field per beat: quest dictionaries above are keyed by
+  // region and mechanical, these are one-shot story switches.
+  flags: {}
 };
 
 // Drink one Health Potion. Heals 1d4 HP (1-4, random), clamped to maxHp.
@@ -327,6 +340,10 @@ let lastWalkInput = { mx: 0, my: 0, t: -1 };
 // snapping each tile-step.
 let camC = 0, camR = 0;
 let camTargetC = 0, camTargetR = 0;
+// Scripted camera. When a cutscene is panning somewhere the hero isn't, it sets
+// { c, r } here and tickCamera stops pinning the view to the player. Cleared by
+// a `camFollow` step or when the scene ends. Null in normal play.
+let camOverride = null;
 
 // Recompute the camera target from the player's current position.
 // Pass snap=true to also pin the actual camera to the new target (for boot,
@@ -352,6 +369,17 @@ function clampCam(snap = false) {
 // then pinned to the smoothed render position each frame (clamped at the map
 // edges), so the hero stays rock-steady on screen while the world glides by.
 function tickCamera(dt) {
+  // A cutscene owns the view — keep the hero's render position gliding (so he
+  // still animates if he's walking) but leave camC/camR where the scene put them.
+  if (camOverride) {
+    const md = (dt || 16) / lastStepMs;
+    const ap = (cur, target) =>
+      Math.abs(target - cur) <= md ? target : cur + Math.sign(target - cur) * md;
+    player.renderX = ap(player.renderX, player.x);
+    player.renderY = ap(player.renderY, player.y);
+    camC = camOverride.c; camR = camOverride.r;
+    return;
+  }
   const maxDelta = (dt || 16) / lastStepMs;   // tiles this frame at walking pace
   const approach = (cur, target) =>
     Math.abs(target - cur) <= maxDelta ? target
@@ -404,7 +432,10 @@ function respawn() {
   player.deaths = (player.deaths || 0) + 1;
   player.hp = player.maxHp;
   currentMapId = 0;
-  placePlayerInStarterHouse(worldMaps[0]);  // same spot as a fresh game: beside the bed
+  // Same spot a fresh game starts in. Old saves still have the lone cabin at
+  // map 0; anything made since the prologue has the home village there.
+  if (worldMaps[0] && worldMaps[0].type === 'house') placePlayerInStarterHouse(worldMaps[0]);
+  else placePlayerInFamilyHome(worldMaps[0]);
   player.rubies = Math.max(0, player.rubies - 10);  // small death penalty
   clampCam(true);
   spawnEnemiesForMap(0);

@@ -38,12 +38,14 @@ let _portalDests = [];
 
 function portalDestinations() {
   const dests = [];
-  // Cabin is map 0 in initWorld(); fall back to a type='house' lookup just
-  // in case the convention ever changes.
-  let cabinId = (worldMaps[0] && worldMaps[0].type === 'house') ? 0 : -1;
+  // Home is map 0 in initWorld() — the home village since the prologue shipped,
+  // the lone cabin in saves older than that. Fall back to a type lookup just in
+  // case the convention ever changes.
+  const isHome = m => m && (m.type === 'house' || m.type === 'homevillage');
+  let cabinId = isHome(worldMaps[0]) ? 0 : -1;
   if (cabinId === -1) {
     for (let i = 0; i < worldMaps.length; i++) {
-      if (worldMaps[i] && worldMaps[i].type === 'house') { cabinId = i; break; }
+      if (isHome(worldMaps[i])) { cabinId = i; break; }
     }
   }
   if (cabinId >= 0) {
@@ -195,6 +197,10 @@ function portalLandingSpot(target) {
   }
 
   // No portal found (shouldn't happen) — fall back to a sane default.
+  if (target.type === 'homevillage') {
+    // Just outside the family home's door, so arriving home reads as arriving.
+    return { x: HOME.door.x, y: HOME.door.y + 1 };
+  }
   if (target.type === 'house') {
     const HH = 16, HW = 21;
     const r1 = MROWS - 1 - HH;

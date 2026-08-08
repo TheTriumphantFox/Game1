@@ -302,7 +302,26 @@ const T = {
   // SHRINE and grants a one-time boon. SHRINE_RUNE tiles ring it as the clue: they
   // render in the required element's colour so the hero can read which strike breaks
   // the seal. Both passable; both tinted from currentMap().shrineElement.
-  SEALED_SHRINE:154, SHRINE_RUNE:155
+  SEALED_SHRINE:154, SHRINE_RUNE:155,
+
+  // ─── Ashfall (prologue) ──────────────────────────────────────────────────────
+  // What the Red Dragon Emperor leaves behind. The home village burns during the
+  // prologue's fourth beat and stays burnt — it's map 0 and the player's home
+  // base for the rest of the game — so the ruin needs real tiles rather than a
+  // render-time recolour: tile sprites are cached by tile id (see getTileSprite
+  // in render.js), and tinting existing ids would fight that cache every frame.
+  //   CHARRED_GRASS   — scorched black-grey ground where grass burned away
+  //                     (passable, the ruined twin of T.GRASS)
+  //   SCORCHED_FLOOR  — soot-blackened floorboards inside a burnt building
+  //                     (passable, the ruined twin of T.FLOOR)
+  //   BURNT_WALL      — a standing but blackened wall, timbers showing (solid)
+  //   RUBBLE          — collapsed masonry and fallen timber (solid; this is what
+  //                     pins the grandmother, and what forces the reroute during
+  //                     the run home)
+  //   EMBER           — smouldering wreckage still alight, animated like T.TORCH
+  //                     (passable — it's ambience, not a hazard; there is no
+  //                     environmental damage system in this game)
+  CHARRED_GRASS:156, SCORCHED_FLOOR:157, BURNT_WALL:158, RUBBLE:159, EMBER:160
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -346,6 +365,9 @@ const SOLID_TILES = new Set([
   // WALL they replace); the throne is a solid royal seat. Stairs, CARPET and
   // HOARD are passable and deliberately absent.
   T.BANNER, T.CASTLE_WINDOW, T.THRONE,
+  // Ashfall ruins: a wall that survived the fire still blocks, and so does a
+  // heap of what didn't. CHARRED_GRASS / SCORCHED_FLOOR / EMBER are walkable.
+  T.BURNT_WALL, T.RUBBLE,
 ].filter(v => v !== undefined));
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -508,6 +530,12 @@ const TILE_COLORS = {
   [T.CARPET]: '#8a1a20',            [T.BANNER]: '#6a1622',
   [T.CASTLE_WINDOW]: '#7ab0d8',     [T.THRONE]: '#caa64a',
   [T.HOARD]: '#e8c04a',
+  // Ashfall ruins — a burnt-out greyscale so the ruined home village reads at a
+  // glance on the minimap as the one place on the map that is dead. The EMBER
+  // is the only warm note left in it.
+  [T.CHARRED_GRASS]: '#403a34',   [T.SCORCHED_FLOOR]: '#463a30',
+  [T.BURNT_WALL]: '#231f1c',      [T.RUBBLE]: '#4a423a',
+  [T.EMBER]: '#b8501a',
 };
 
 // ─── Monster trophies ─────────────────────────────────────────────────────────

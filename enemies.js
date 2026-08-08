@@ -168,7 +168,10 @@ const ENEMY_POOLS = [
 // reachable from a map exit, so this guarantees no orphaned spawns.
 function makeEnemyDefs(depth, mapType, map) {
   // The starter house is a peaceful interior — no spawns.
-  if (mapType === 'house') return [];
+  // Home is peaceful — the lone starter cabin of older saves, and the home
+  // village that replaced it. It stays peaceful after it burns, too: the ruin is
+  // the player's base for the rest of the game, not a combat map.
+  if (mapType === 'house' || mapType === 'homevillage') return [];
 
   // Whirlpool grottos hold a fixed school of 10 swimmers; `depth` carries the
   // source region's enemy tier (see createWhirlpoolGrottoMap).

@@ -2825,6 +2825,12 @@ function drawEnemy(e, ts) {
   }
 
   // ── HP bar — pill background with gradient fill ──────────────────────
+  // A cutscene actor isn't a creature: no HP bar, no name tag, nothing that
+  // suggests it can be fought. The prologue's Red Dragon Emperor comes through
+  // here (see drawPrologueEmperor in render.js) purely to reuse this art — he is
+  // never in `enemies`, so there is nothing to target and the unwinnable
+  // encounter is unwinnable without disabling anything.
+  if (e.cutsceneActor) { ctx.restore(); return; }
   // The dormant dragon is untargetable — no HP bar, just a slumbering tag.
   if (e.dormant) {
     ctx.font = 'bold 10px monospace';
