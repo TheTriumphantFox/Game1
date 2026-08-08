@@ -38,7 +38,24 @@ const ringSelectionType = {};
 const radialMouse = { x: 0, y: 0 };
 
 // All rings share one radius so swapping rings doesn't visibly resize.
+// 150 is the size on a roomy screen; radialRadius() below shrinks it to whatever
+// actually fits, because this ring is the only route to potions, armor and the
+// atlas and a clipped slot is an unreachable one.
 const RADIAL_RADIUS = 150;
+const RADIAL_SLOT_R = 28;      // slot circle radius at full ease (see radialSlots)
+
+// The ring is centred on the hero, so the room it has is the hero's distance to
+// the nearest screen edge. On a phone held landscape the canvas is ~330px tall —
+// a fixed 150 ring plus its slots would run off the top and bottom — and the
+// same applies whenever the camera is clamped at a map edge and the hero sits
+// off-centre. Recomputed per draw: the menu pauses movement, so it can't resize
+// under the player's thumb.
+function radialRadius() {
+  const pcx = (player.renderX - camC + 0.5) * TILE_PX;
+  const pcy = (player.renderY - camR + 0.5) * TILE_PX;
+  const room = Math.min(pcx, PW - pcx, pcy, PH - pcy) - RADIAL_SLOT_R - 12;
+  return Math.max(60, Math.min(RADIAL_RADIUS, room));
+}
 
 // Passive drop items (rubies, herbals, monster trophies). They have no action —
 // they're displayed for at-a-glance inventory tracking. Kept in one table so the
@@ -121,7 +138,7 @@ function dropCatOf(type) { return DROP_CAT_OF[type] || 'material'; }
 // without us having to rebuild on every change.
 const RADIAL_RINGS = [
   // ── Swords: base sword + each owned elemental sword ──────────────────────────
-  { name: 'swords', radius: RADIAL_RADIUS, getItems: () => {
+  { name: 'swords', getItems: () => {
       const lv = player.swordLevel || 1;
       const items = [
         { type: 'sword', icon: '⚔', label: 'Sword',
@@ -158,7 +175,7 @@ const RADIAL_RINGS = [
   // bow, so the always-present Plain Arrow stands in for it; bow level shows in the
   // damage badge. Each elemental arrow uses just its element symbol as its icon
   // (matching the swords ring) rather than a busy bow + element pair. ────────────
-  { name: 'arrows', radius: RADIAL_RADIUS, getItems: () => {
+  { name: 'arrows', getItems: () => {
       // Empty until the player owns a bow — the ring renders nothing rather than
       // advertising ammunition for a weapon they've never seen (see hasBow).
       if (!player.hasBow) return [];
@@ -191,7 +208,7 @@ const RADIAL_RINGS = [
       return items;
     }},
   // ── Consumables: every consumable except arrows (Bomb + Health Potion) ───────
-  { name: 'consumables', radius: RADIAL_RADIUS, getItems: () => {
+  { name: 'consumables', getItems: () => {
       const items = [
         { type: 'bomb', icon: '💣', label: 'Bomb',
           val: () => 'x' + (player.bombs || 0),
@@ -234,7 +251,7 @@ const RADIAL_RINGS = [
   // ── Armor: base armor pad + each owned elemental armor ──────────────────────
   // The base entry just summarizes flat armor; the elemental entries are
   // equippable — picking one halves incoming damage of that element.
-  { name: 'armor', radius: RADIAL_RADIUS, getItems: () => {
+  { name: 'armor', getItems: () => {
       const items = [];
       if (player.armor && player.armor > 0) {
         items.push({ type: 'armor', icon: '🛡', label: 'Armor',
@@ -274,7 +291,7 @@ const RADIAL_RINGS = [
   // its own panel and fires on Enter/click ONLY (navigating past one must not
   // trigger it), so they're flagged `launcher` and skipped by radialAutoPick.
   // Drop a settings or character launcher in here later with no other changes. ──
-  { name: 'menu', radius: RADIAL_RADIUS, getItems: () => {
+  { name: 'menu', getItems: () => {
       const kinds = PASSIVE_DROPS.reduce(
         (n, d) => n + ((player[d.key] || 0) > 0 ? 1 : 0), 0);
       return [
@@ -295,6 +312,33 @@ const RADIAL_RINGS = [
         { type: 'god', icon: '😇', label: 'God Mode', launcher: true,
           val: () => '★',
           action: () => { if (typeof grantGodMode === 'function') grantGodMode(); } },
+        // ── The save row's buttons ────────────────────────────────────────────
+        // Touch mode hides that row to give the canvas its height back, so this
+        // ring is where those controls live on a phone. They stay in the row on
+        // desktop as well — same functions, two front doors.
+        { type: 'save', icon: '💾', label: 'Save Game', launcher: true,
+          val: () => '—',
+          action: () => { if (typeof openSaveModal === 'function') openSaveModal(); } },
+        { type: 'load', icon: '📂', label: 'Load Game', launcher: true,
+          val: () => '—',
+          action: () => { if (typeof openLoadModal === 'function') openLoadModal(); } },
+        { type: 'newgame', icon: '🆕', label: 'New Game', launcher: true,
+          val: () => '—',
+          action: () => { if (typeof newGame === 'function') newGame(); } },
+        { type: 'fullscreen', icon: '⛶', label: 'Fullscreen', launcher: true,
+          val: () => '—',
+          action: () => {
+            closeRadialMenu();   // the canvas resizes under it — don't leave the ring hanging
+            if (typeof toggleFullscreen === 'function') toggleFullscreen();
+          } },
+        // The escape hatch if auto-detection picks the wrong scheme. Also on the
+        // title screen; this is the only in-game route once the row is hidden.
+        { type: 'controls', icon: '🎮', label: 'Controls', launcher: true,
+          val: () => (typeof uiModeLabel === 'function') ? uiModeLabel() : '—',
+          action: () => {
+            closeRadialMenu();
+            if (typeof cycleUiMode === 'function') cycleUiMode();
+          } },
       ];
     }},
 ];
@@ -453,7 +497,7 @@ function radialSlots() {
   const pcy = (player.renderY - camR + 0.5) * TILE_PX;
   const ring = radialCurrentRing();
   const items = ring.getItems();
-  const r = ring.radius * ease;
+  const r = radialRadius() * ease;
   const N = items.length;
   const slots = [];
   for (let i = 0; i < N; i++) {
@@ -461,7 +505,7 @@ function radialSlots() {
     slots.push({
       x: pcx + Math.cos(angle) * r,
       y: pcy + Math.sin(angle) * r,
-      radius: 28 * ease,
+      radius: RADIAL_SLOT_R * ease,
       item: items[i],
       ring: ring.name,
       index: i,
@@ -480,16 +524,32 @@ function radialHoveredSlot() {
   return null;
 }
 
+// ─── Ghost clicks ───────────────────────────────────────────────────────────
+// A touchscreen fires a compatibility mousemove/click a beat after a quick tap.
+// That tap has already been dealt with — either by radialTouchAt, or by the
+// canvas tap that opened this menu in the first place — so the click is a
+// duplicate, and it lands wherever the finger was: empty ring space, which
+// radialOnClick reads as "close". That's why a *quick* tap on the hero looked
+// like the menu flashed open and shut while a slow press worked: browsers only
+// synthesise the click for a quick tap. Anything within GHOST_MS of real touch
+// activity on the canvas is ignored.
+let lastCanvasTouchMs = -1e9;
+const GHOST_MS = 700;
+const noteCanvasTouch = () => { lastCanvasTouchMs = Date.now(); };
+canvas.addEventListener('touchstart', noteCanvasTouch, { passive: true });
+canvas.addEventListener('touchend',   noteCanvasTouch, { passive: true });
+function radialFromGhostTouch() { return Date.now() - lastCanvasTouchMs < GHOST_MS; }
+
 // Mouse listeners — track position and resolve clicks to slot actions.
 function radialOnMouseMove(e) {
-  if (!radialMenuOpen) return;
+  if (!radialMenuOpen || radialFromGhostTouch()) return;
   const rect = canvas.getBoundingClientRect();
   radialMouse.x = e.clientX - rect.left;
   radialMouse.y = e.clientY - rect.top;
 }
 
 function radialOnClick(e) {
-  if (!radialMenuOpen) return;
+  if (!radialMenuOpen || radialFromGhostTouch()) return;
   const rect = canvas.getBoundingClientRect();
   radialMouse.x = e.clientX - rect.left;
   radialMouse.y = e.clientY - rect.top;
@@ -533,7 +593,7 @@ function radialTouchAt(clientX, clientY) {
   }
   // Tap outside the ring closes; taps near the centre are ignored so you don't
   // dismiss the menu by fumbling between the chevrons.
-  if (Math.hypot(x - pcx, y - pcy) > radialCurrentRing().radius + 50) {
+  if (Math.hypot(x - pcx, y - pcy) > radialRadius() + 50) {
     closeRadialMenu();
   }
 }
@@ -596,7 +656,7 @@ function drawRadialMenu() {
   ctx.lineWidth = 2;
   ctx.setLineDash([6, 6]);
   ctx.beginPath();
-  ctx.arc(pcx, pcy, ring.radius * ease, 0, Math.PI * 2);
+  ctx.arc(pcx, pcy, radialRadius() * ease, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
 
@@ -697,7 +757,7 @@ function drawRadialMenu() {
   // Fixed selector caret — a small marker pinned at the top that the ring spins
   // its selected item up into, signalling where the "selection" actually sits.
   if (ease > 0.2) {
-    const tipY = pcy - ring.radius * ease - 28 * ease - 4;
+    const tipY = pcy - radialRadius() * ease - RADIAL_SLOT_R * ease - 4;
     ctx.fillStyle = `rgba(255, 220, 120, ${0.9 * ease})`;
     ctx.beginPath();
     ctx.moveTo(pcx, tipY + 9);

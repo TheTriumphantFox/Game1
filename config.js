@@ -787,6 +787,19 @@ function regionIdForMap(map) {
   return REGIONS[i] ? REGIONS[i].id : 'forest';
 }
 
+// The canvas spans the full viewport, so on a notched phone its left edge is
+// under the notch and (in touch mode, where no bottom bar is left) its bottom
+// edge is under the home indicator. The bars inset themselves in CSS; anything
+// *drawn* on the canvas (the movement pad) has to read the insets instead, so
+// resizeCanvas resolves them once per layout rather than per frame. 0 everywhere
+// without a notch, and on any browser without env() support.
+let safeInsetLeft = 0, safeInsetBottom = 0;
+function cssPxVar(name) {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
 // Resize canvas to fill viewport minus HUD/bottom bars. Called once at boot and on resize.
 function resizeCanvas() {
   // No message-bar term any more — notifications are floating toasts (ui.js),
@@ -796,6 +809,12 @@ function resizeCanvas() {
   const ctrlH = document.getElementById('ctrl-bar')?.offsetHeight   || 0;
   const saveH = document.getElementById('save-row')?.offsetHeight   || 0;
   const usedH = hudH + wepH + ctrlH + saveH;
+  // How far the canvas bottom sits above the viewport bottom. The touch action
+  // buttons are position:fixed, so they need this to line up with the canvas's
+  // bottom edge — the same edge the movement pad measures its gap from.
+  document.documentElement.style.setProperty('--bottom-bars-h', (wepH + ctrlH + saveH) + 'px');
+  safeInsetLeft   = cssPxVar('--safe-left');
+  safeInsetBottom = cssPxVar('--safe-bottom');
   canvas.width  = window.innerWidth;
   canvas.height = Math.max(window.innerHeight - usedH, 200);
   PW = canvas.width;

@@ -1657,12 +1657,18 @@ function stepPlayerMovement() {
   // speed; swimming through MEDIUM_WATER is slower still — 40% of normal pace
   // (interval × 2.5). The step gate stretches to match while standing on one.
   const standTile = map[player.y][player.x];
-  const stepMs = standTile === T.DUNE         ? MOVE_MS * 2
-               : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
-               : standTile === T.MUD          ? MOVE_MS * 2
-               : standTile === T.BOG          ? MOVE_MS * 2
-               : standTile === T.MEDIUM_WATER ? MOVE_MS * 2.5
-               : MOVE_MS;
+  const terrainMs = standTile === T.DUNE         ? MOVE_MS * 2
+                  : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
+                  : standTile === T.MUD          ? MOVE_MS * 2
+                  : standTile === T.BOG          ? MOVE_MS * 2
+                  : standTile === T.MEDIUM_WATER ? MOVE_MS * 2.5
+                  : MOVE_MS;
+  // The touch pad is analog: a half-pushed knob walks at half pace. joySpeedScale
+  // (main.js) is 1 for the keyboard and for tap-to-travel, so this only stretches
+  // the gate when a thumb is actually easing the stick — on top of the terrain
+  // penalty above, never instead of it.
+  const paceScale = (typeof joySpeedScale === 'function') ? joySpeedScale() : 1;
+  const stepMs = terrainMs / paceScale;
   if (moveTimer < stepMs) return;
 
   // Carry the sub-frame remainder past the gate (capped so an idle-accumulated

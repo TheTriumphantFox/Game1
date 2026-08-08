@@ -485,10 +485,10 @@ function doSave(slotIdx) {
             new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setSaveIndex(idx);
-    document.getElementById('save-status').textContent = `✅ Saved to "${saveName}"`;
+    setSaveStatus(`✅ Saved to "${saveName}"`);
     closeModal();
   } catch (e) {
-    document.getElementById('save-status').textContent = '❌ Save failed (storage full?)';
+    setSaveStatus('❌ Save failed (storage full?)');
   }
 }
 
@@ -501,12 +501,11 @@ function doLoad(slotIdx) {
     lastCheckpoint = raw;   // dying right after loading returns to this same save
     // Dismiss the title screen if this load was launched from it (no-op mid-game).
     if (typeof startGame === 'function') startGame();
-    document.getElementById('save-status').textContent =
-      `✅ Loaded "${meta?.saveName || 'Save ' + (slotIdx+1)}"`;
+    setSaveStatus(`✅ Loaded "${meta?.saveName || 'Save ' + (slotIdx+1)}"`, { toast: false });
     showMsg(`📂 Loaded: ${currentMap().name}`, 2500);
     closeModal();
   } catch (e) {
-    document.getElementById('save-status').textContent = '❌ Load failed';
+    setSaveStatus('❌ Load failed');
   }
 }
 
@@ -517,11 +516,11 @@ function doLoadAuto() {
     applyLoadData(JSON.parse(raw));
     lastCheckpoint = raw;
     if (typeof startGame === 'function') startGame();
-    document.getElementById('save-status').textContent = '✅ Loaded auto-save';
+    setSaveStatus('✅ Loaded auto-save', { toast: false });
     showMsg(`📂 Loaded: ${currentMap().name}`, 2500);
     closeModal();
   } catch (e) {
-    document.getElementById('save-status').textContent = '❌ Load failed';
+    setSaveStatus('❌ Load failed');
   }
 }
 
@@ -535,7 +534,20 @@ function doDelete(slotIdx) {
   renderSlotList();
 }
 
+// Save/load feedback used to be the save row's status span alone. Touch mode
+// hides that row (its buttons moved into the radial menu ring), so the same text
+// also goes to a toast there — otherwise saving on a phone confirms nothing.
+// `toast: false` for the paths that already raise their own.
+function setSaveStatus(text, { toast = true } = {}) {
+  const el = document.getElementById('save-status');
+  if (el) el.textContent = text;
+  if (toast && text && typeof uiModeIsTouch === 'function' && uiModeIsTouch()) {
+    showMsg(text, 2500);
+  }
+}
+
 function openSaveModal() {
+  if (typeof closeRadialMenu === 'function') closeRadialMenu();
   modalMode = 'save';
   document.getElementById('modal-title').textContent = '💾 Save Game';
   document.getElementById('save-modal-overlay').classList.add('open');
@@ -543,6 +555,7 @@ function openSaveModal() {
 }
 
 function openLoadModal() {
+  if (typeof closeRadialMenu === 'function') closeRadialMenu();
   modalMode = 'load';
   document.getElementById('modal-title').textContent = '📂 Load Game';
   document.getElementById('save-modal-overlay').classList.add('open');
@@ -568,6 +581,7 @@ document.getElementById('modal-name-input').addEventListener('keydown', e => {
 
 // ─── New game button ──────────────────────────────────────────────────────────
 function newGame() {
+  if (typeof closeRadialMenu === 'function') closeRadialMenu();
   if (!confirm('Start a new game? Unsaved progress will be lost.')) return;
   // Ask for the hero's name first — the world reset runs once a name is chosen
   // (cancelling the prompt leaves the current game untouched).
@@ -620,7 +634,7 @@ function resetGame(heroName) {
   spawnVillagersForMap(0);
   clampCam(true);
   updateHUD();
-  document.getElementById('save-status').textContent = '';
+  setSaveStatus('', { toast: false });
   // Same opening the title-screen New Game gets — the prologue's first beat
   // establishes the house itself, so there's no banner to show first.
   if (typeof startPrologue === 'function') startPrologue();

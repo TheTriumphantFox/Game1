@@ -41,8 +41,9 @@ function hudEls() {
     xp: $('xp'), xpnext: $('xpnext'), roomName: $('roomName'),
     sword: $('ws-sword'), bow: $('ws-bow'), bomb: $('ws-bomb'),
     armor: $('ws-armor'), immunity: $('ws-immunity'), interact: $('ws-interact'),
-    // Touch action pad (left-edge buttons) — present only on touch devices.
-    taWrap: $('touch-actions'), taSword: $('ta-sword'), taBow: $('ta-bow'), taItem: $('ta-item'),
+    // Touch action pad (bottom-right buttons) — present only on touch devices.
+    taWrap: $('touch-actions'), taSword: $('ta-sword'), taBow: $('ta-bow'),
+    taPotion: $('ta-potion'),
   };
   return _hudEls;
 }
@@ -172,10 +173,9 @@ function updateHUD() {
   }
 
   // ── Touch action pad ──────────────────────────────────────────────────────
-  // Mirror the weapon-bar state onto the three left-edge buttons: the item
-  // button shows whichever consumable is selected in the radial rings, and the
-  // active weapon's button gets the `.active` ring. The whole pad hides while
-  // the menu ring or a blocking overlay is up so a tap can't fire underneath it.
+  // Mirror the weapon-bar state onto the three action buttons, and hang the
+  // potion count off the third one. The whole pad hides while the menu ring or a
+  // blocking overlay is up so a tap can't fire underneath it.
   if (el.taWrap) {
     const menuUp  = (typeof radialMenuOpen !== 'undefined' && radialMenuOpen) ||
                     (typeof gameplayTouchBlocked === 'function' && gameplayTouchBlocked());
@@ -183,19 +183,21 @@ function updateHUD() {
       last.taHidden = menuUp;
       el.taWrap.classList.toggle('hidden', menuUp);
     }
-    const sel = (typeof radialFindItem === 'function')
-      ? (radialFindItem(inventorySelectionType) || radialFindItem('bomb')) : null;
-    const itemIcon = sel ? sel.icon : '💣';
+    const potions = player.potions || 0;
     const w = player.weapon;
-    const sig = itemIcon + '|' + w + '|' + (player.hasBow ? 1 : 0);
+    const sig = potions + '|' + w + '|' + (player.hasBow ? 1 : 0);
     if (last.taSig !== sig) {
       last.taSig = sig;
-      if (el.taItem && el.taItem.textContent !== itemIcon) el.taItem.textContent = itemIcon;
       if (el.taSword) el.taSword.classList.toggle('active', w === 'sword');
       // The touch bow button follows the weapon bar: gone until the bow is won.
       if (el.taBow)   el.taBow.style.display = player.hasBow ? '' : 'none';
       if (el.taBow)   el.taBow.classList.toggle('active', w === 'bow');
-      if (el.taItem)  el.taItem.classList.toggle('active', !!sel && w === sel.type);
+      // The potion button carries its own stock count and greys out at zero —
+      // it's a quick-drink, not a weapon, so it never takes the `active` ring.
+      if (el.taPotion) {
+        el.taPotion.dataset.count = potions;
+        el.taPotion.classList.toggle('empty', potions <= 0);
+      }
     }
   }
 }

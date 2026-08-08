@@ -150,15 +150,18 @@
   </div>
   <canvas id="c"></canvas>
   <!-- Touch action pad — a vertical stack of 3 semi-transparent buttons pinned
-       to the left edge, shown only in touch mode (html[data-ui="touch"], set in
-       config.js) in place of the keyboard weapon bar. Sword / Bow / item, top to
-       bottom. Each fires its weapon directly; the item icon tracks the radial
-       selection (see updateHUD). Movement is the canvas joystick; a tap on the
-       hero opens the menu, a tap by an interactable talks/loots it. -->
+       to the bottom-right corner, shown only in touch mode (html[data-ui="touch"],
+       set in config.js) in place of the keyboard weapon bar. Sword / Bow /
+       Potion, top to bottom. The first two fire their weapon; the third drinks a
+       Health Potion (the P key's job on desktop) and shows how many are left —
+       it's the one consumable you reach for mid-fight, when opening the menu
+       ring is exactly what you can't afford. Bombs and every other consumable
+       stay in the ring. Movement is the canvas pad in the opposite corner; a tap
+       on the hero opens the menu, a tap by an interactable talks/loots it. -->
   <div id="touch-actions" aria-hidden="true">
-    <button class="touch-act" id="ta-sword" title="Sword">⚔️</button>
-    <button class="touch-act" id="ta-bow"   title="Bow">🏹</button>
-    <button class="touch-act" id="ta-item"  title="Item">💣</button>
+    <button class="touch-act" id="ta-sword"  title="Sword">⚔️</button>
+    <button class="touch-act" id="ta-bow"    title="Bow">🏹</button>
+    <button class="touch-act" id="ta-potion" title="Drink a Health Potion">🧪</button>
   </div>
   <div id="weapon-bar">
     <span class="weapon-slot weapon-active" id="ws-sword">⚔️ Sword [Z]</span>
