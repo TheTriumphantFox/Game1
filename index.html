@@ -20,6 +20,10 @@
     <button class="title-btn" onclick="openLoadModal()">📂 Load Game</button>
     <button class="title-btn" onclick="titleNewGameSkip()">⏭️ New Game (skip prologue)</button>
     <p id="title-hint">WASD / Arrows: move · Z: sword · V: menu</p>
+    <!-- Control scheme override. Cycles Auto → Touch → Desktop (cycleUiMode in
+         config.js). Offered here, before gameplay, because a player handed the
+         wrong scheme can't necessarily reach an in-game menu to fix it. -->
+    <button class="title-btn title-btn-mini" id="title-ui-mode" onclick="cycleUiMode()">🎮 Controls: Auto</button>
   </div>
 </div>
 
@@ -146,8 +150,8 @@
   </div>
   <canvas id="c"></canvas>
   <!-- Touch action pad — a vertical stack of 3 semi-transparent buttons pinned
-       to the left edge, shown only on touch devices (html.touch, set in main.js)
-       in place of the keyboard weapon bar. Sword / Bow / selected-item, top to
+       to the left edge, shown only in touch mode (html[data-ui="touch"], set in
+       config.js) in place of the keyboard weapon bar. Sword / Bow / item, top to
        bottom. Each fires its weapon directly; the item icon tracks the radial
        selection (see updateHUD). Movement is the canvas joystick; a tap on the
        hero opens the menu, a tap by an interactable talks/loots it. -->
@@ -174,6 +178,7 @@
     <button onclick="openLoadModal()">📂 Load</button>
     <button onclick="newGame()">🆕 New</button>
     <button onclick="toggleFullscreen()">⛶ Full</button>
+    <button id="ui-mode-btn" onclick="cycleUiMode()" title="Control scheme: Auto / Touch / Desktop">🎮 Auto</button>
     <span id="save-status" style="font-size:11px;color:#466"></span>
   </div>
 </div>

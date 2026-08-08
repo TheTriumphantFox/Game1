@@ -672,35 +672,46 @@ bindTap('ws-interact', () => {
   if (typeof tryChestInteraction === 'function') tryChestInteraction();
 });
 
-// ─── Touch device: swap the keyboard weapon bar for the left action pad ───────
-// Detect a coarse pointer (phones / tablets) once and tag <html> so the CSS can
-// hide the weapon bar and show #touch-actions. On these devices the three left
-// buttons fire the sword / bow / selected item directly (same guards as the
-// keyboard path), and the keyboard hints are reworded for touch.
-const IS_TOUCH = (typeof window.matchMedia === 'function' &&
-                  window.matchMedia('(pointer: coarse)').matches) ||
-                 ('ontouchstart' in window) ||
-                 (navigator.maxTouchPoints > 0);
+// ─── Touch mode: the left action pad ─────────────────────────────────────────
+// Which scheme is showing is decided in config.js (html[data-ui]) and the CSS
+// hides whichever bar isn't in use. The pad's buttons are bound unconditionally
+// — they're display:none in desktop mode, and the mode can now flip mid-session,
+// so binding them behind a one-shot capability check would leave them dead.
+//
+// The left pad fires directly on tap — no select-then-tap dance. Each sets
+// player.weapon first so the active ring (updateHUD) tracks the last button
+// used; triggerAction then runs the same cooldown / weapons-locked guards as
+// the keyboard path. (triggerAction already sets 'bow'/'item' internally, but
+// setting it here keeps the highlight correct even when a shot is on cooldown.)
+bindTap('ta-sword', () => { player.weapon = 'sword'; triggerAction('sword'); });
+bindTap('ta-bow',   () => { player.weapon = 'bow';   triggerAction('bow');   });
+bindTap('ta-item',  () => {
+  player.weapon = (typeof inventorySelectionType !== 'undefined') ? inventorySelectionType : 'bomb';
+  triggerAction('item');
+});
 
-if (IS_TOUCH) {
-  document.documentElement.classList.add('touch');
+// Reword every on-screen hint that assumes one input scheme, and relabel the
+// two 🎮 mode buttons. Called by applyUiMode/setUiMode (config.js) on every
+// change, so the text tracks a live switch instead of being baked in at boot.
+function refreshControlHints() {
+  const touch = (typeof uiModeIsTouch === 'function') ? uiModeIsTouch() : false;
 
-  // The left pad fires directly on tap — no select-then-tap dance. Each sets
-  // player.weapon first so the active ring (updateHUD) tracks the last button
-  // used; triggerAction then runs the same cooldown / weapons-locked guards as
-  // the keyboard path. (triggerAction already sets 'bow'/'item' internally, but
-  // setting it here keeps the highlight correct even when a shot is on cooldown.)
-  bindTap('ta-sword', () => { player.weapon = 'sword'; triggerAction('sword'); });
-  bindTap('ta-bow',   () => { player.weapon = 'bow';   triggerAction('bow');   });
-  bindTap('ta-item',  () => {
-    player.weapon = (typeof inventorySelectionType !== 'undefined') ? inventorySelectionType : 'bomb';
-    triggerAction('item');
-  });
-
-  // Reword the on-screen hints that assume a keyboard.
   const titleHint = document.getElementById('title-hint');
-  if (titleHint) titleHint.textContent = 'Drag: move · Tap hero: menu · Left buttons: attack';
+  if (titleHint) {
+    titleHint.textContent = touch
+      ? 'Drag: move · Tap hero: menu · Left buttons: attack'
+      : 'WASD / Arrows: move · Z: sword · V: menu';
+  }
+
+  const label = (typeof uiModeLabel === 'function') ? uiModeLabel() : '';
+  const titleBtn = document.getElementById('title-ui-mode');
+  if (titleBtn) titleBtn.textContent = '🎮 Controls: ' + label;
+  const rowBtn = document.getElementById('ui-mode-btn');
+  if (rowBtn) rowBtn.textContent = '🎮 ' + label;
 }
+// config.js set data-ui before this file loaded, so the initial apply was a
+// no-op for the hints — paint them once now that the function exists.
+refreshControlHints();
 
 // Double-tap the empty part of the weapon bar (not a weapon slot) to cycle the
 // three view modes: normal → zoomed-out → full-screen minimap → normal.

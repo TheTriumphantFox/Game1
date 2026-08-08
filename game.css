@@ -156,11 +156,11 @@ body {
   text-shadow: none;
 }
 
-/* Thumbs need a bigger card and a bigger gap than a mouse pointer does. */
-@media (pointer: coarse) {
-  #toast-stack { top: 34px; }
-  .toast { padding: 11px 14px; margin-bottom: 10px; }
-}
+/* Thumbs need a bigger card and a bigger gap than a mouse pointer does. Keyed
+   off html[data-ui] (set in config.js), not a media query, so that a player who
+   forces desktop mode on a touchscreen doesn't get touch-sized spacing. */
+html[data-ui="touch"] #toast-stack { top: 34px; }
+html[data-ui="touch"] .toast { padding: 11px 14px; margin-bottom: 10px; }
 
 /* Game canvas fills remaining space */
 canvas {
@@ -240,34 +240,32 @@ canvas {
    grow only their *hit area* with an invisible overlay so thumbs land reliably.
    Also suppress the tap highlight / text selection. */
 .weapon-slot { cursor: pointer; }
-@media (pointer: coarse) {
-  #save-row button {
-    position: relative;
-    -webkit-tap-highlight-color: transparent;
-    -webkit-user-select: none;
-    user-select: none;
-    touch-action: manipulation;   /* no 300ms double-tap delay */
-  }
-  /* Invisible padding on the touch layer — enlarges the target, not the look. */
-  #save-row button::after {
-    content: '';
-    position: absolute;
-    top: -10px; bottom: -10px; left: -6px; right: -6px;
-  }
-  /* Reclaim vertical space: the keyboard-only controls hint is useless on touch. */
-  #ctrl-bar { display: none; }
+html[data-ui="touch"] #save-row button {
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;   /* no 300ms double-tap delay */
 }
+/* Invisible padding on the touch layer — enlarges the target, not the look. */
+html[data-ui="touch"] #save-row button::after {
+  content: '';
+  position: absolute;
+  top: -10px; bottom: -10px; left: -6px; right: -6px;
+}
+/* Reclaim vertical space: the keyboard-only controls hint is useless on touch. */
+html[data-ui="touch"] #ctrl-bar { display: none; }
 
 /* ── Touch action pad ────────────────────────────────────────────────────────
-   On touch devices the keyboard weapon bar is replaced by three floating
-   buttons on the left edge (Sword / Bow / Item). The `.touch` class is set on
-   <html> in main.js from a coarse-pointer check, so this is driven by real
-   device capability, not just viewport width. Desktop keeps the weapon bar. */
+   In touch mode the keyboard weapon bar is replaced by three floating buttons
+   on the left edge (Sword / Bow / Item). `data-ui` is set on <html> in
+   config.js — from device capability plus the last input actually used, or
+   from the player's forced choice. Desktop mode keeps the weapon bar. */
 #touch-actions { display: none; }
 
-html.touch #weapon-bar { display: none; }
+html[data-ui="touch"] #weapon-bar { display: none; }
 
-html.touch #touch-actions {
+html[data-ui="touch"] #touch-actions {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -282,7 +280,7 @@ html.touch #touch-actions {
 }
 /* Hidden while the radial menu (canvas-drawn) or a blocking overlay is up —
    toggled from updateHUD so a stray tap can't fire a weapon under the menu. */
-html.touch #touch-actions.hidden { display: none; }
+html[data-ui="touch"] #touch-actions.hidden { display: none; }
 
 .touch-act {
   pointer-events: auto;

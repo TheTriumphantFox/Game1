@@ -32,6 +32,22 @@ Then open http://localhost:8000.
 Touch controls are supported: a virtual thumbstick moves the hero, on-screen
 buttons cover attacks, and tapping on/next to the hero opens the radial menu.
 
+### Control scheme (touch vs desktop)
+
+The game picks a scheme automatically and switches live — the starting guess
+comes from device capability, then it follows whichever input you actually use,
+so plugging a mouse into a tablet (or tapping the screen on a touchscreen
+laptop) swaps the UI without a reload.
+
+The 🎮 button on the title screen and in the bottom save row cycles
+**Auto → Touch → Desktop** if you want to pin one. The choice is stored per
+device (`hyrule_quest_ui_mode` in localStorage), not in your save file, so
+carrying a save to another device doesn't drag a phone's controls along with it.
+
+Everything keys off a single `data-ui` attribute on `<html>`, set in
+`config.js` — CSS should target `html[data-ui="touch"]` rather than a
+`(pointer: coarse)` media query, or a pinned mode won't be honoured.
+
 ## Project Structure
 
 All scripts live in the project root (no build tooling). `index.html` loads them
