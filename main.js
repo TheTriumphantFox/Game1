@@ -98,6 +98,7 @@ function update(dt) {
       (typeof ledgerOpen        !== 'undefined' && ledgerOpen)        ||
       (typeof statsPageOpen     !== 'undefined' && statsPageOpen)     ||
       (typeof worldMapOpen      !== 'undefined' && worldMapOpen)      ||
+      (typeof sysMenuOpen       !== 'undefined' && sysMenuOpen)       ||
       (typeof victoryOpen       !== 'undefined' && victoryOpen)       ||
       (typeof dialogueOpen      !== 'undefined' && dialogueOpen)      ||
       (typeof cutsceneBlocking  !== 'undefined' && cutsceneBlocking)) {
@@ -189,9 +190,10 @@ function update(dt) {
 
 // ─── Input ────────────────────────────────────────────────────────────────────
 // Set both the literal e.key and its case-folded variant for single-char keys.
-// This keeps movement consistent when Shift is pressed/released mid-stride:
-// browsers report keyup with the post-Shift case (e.g. 'D' if Shift was held),
-// which would otherwise leave the lower-case 'd' stuck on.
+// This keeps the letter actions (Z / X / C / V / P) consistent when Shift is
+// pressed or released while one is held: browsers report keyup with the
+// post-Shift case (e.g. 'Z' if Shift was down), which would otherwise leave the
+// lower-case 'z' stuck on. Movement is arrow-keys only and unaffected.
 function setKey(key, value) {
   keys[key] = value;
   if (typeof key === 'string' && key.length === 1) {
@@ -256,6 +258,11 @@ document.addEventListener('keydown', e => {
     else if (e.key === '0') worldMapResetView();
     return;   // world map swallows gameplay input
   }
+  if (typeof sysMenuOpen !== 'undefined' && sysMenuOpen) {
+    // Esc — or V again — closes the game menu.
+    if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeSysMenu();
+    return;   // game menu swallows gameplay input
+  }
   // Escape dismisses the newest toast. Sticky toasts (dur = 0) sit there until
   // an input clears them, and a keyboard player shouldn't have to reach for the
   // mouse to do it. Falls through when nothing is up — Escape is otherwise
@@ -302,8 +309,7 @@ document.addEventListener('keydown', e => {
   }
   // Any manual movement/interact key cancels an in-progress tap-to-travel walk.
   if (autoNav && typeof cancelAutoNav === 'function' &&
-      ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ',
-       'w','a','s','d','W','A','S','D'].includes(e.key)) {
+      ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
     cancelAutoNav();
   }
   setKey(e.key, true);
@@ -448,6 +454,7 @@ function gameplayTouchBlocked() {
          (typeof ledgerOpen !== 'undefined' && ledgerOpen) ||
          (typeof statsPageOpen !== 'undefined' && statsPageOpen) ||
          (typeof worldMapOpen !== 'undefined' && worldMapOpen) ||
+         (typeof sysMenuOpen !== 'undefined' && sysMenuOpen) ||
          (typeof dialogueOpen !== 'undefined' && dialogueOpen) ||
          (typeof cutsceneInputLocked !== 'undefined' && cutsceneInputLocked) ||
          (typeof viewMode !== 'undefined' && viewMode === 2);
@@ -811,14 +818,15 @@ function refreshControlHints() {
   if (titleHint) {
     titleHint.textContent = touch
       ? 'Left pad: move · Tap hero: menu · Right buttons: attack'
-      : 'WASD / Arrows: move · Z: sword · V: menu';
+      : 'Arrow keys: move · Z: sword · V: menu';
   }
 
   const label = (typeof uiModeLabel === 'function') ? uiModeLabel() : '';
   const titleBtn = document.getElementById('title-ui-mode');
   if (titleBtn) titleBtn.textContent = '🎮 Controls: ' + label;
-  const rowBtn = document.getElementById('ui-mode-btn');
-  if (rowBtn) rowBtn.textContent = '🎮 ' + label;
+  // The in-game copy of this button lived in the save row, which is gone — the
+  // radial MENU ring's Controls entry reads uiModeLabel() itself, so there's
+  // nothing else to repaint here.
 }
 // config.js set data-ui before this file loaded, so the initial apply was a
 // no-op for the hints — paint them once now that the function exists.

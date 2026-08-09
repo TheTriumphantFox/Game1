@@ -306,25 +306,14 @@ const RADIAL_RINGS = [
         { type: 'worldmap', icon: '🗺️', label: 'World Map', launcher: true,
           val: () => (typeof mapsVisited !== 'undefined') ? 'x' + mapsVisited : '—',
           action: () => { if (typeof openWorldMap === 'function') openWorldMap(); } },
-        // Admin "God Mode": grants full elemental swords + armor, 100 HP, 10000
-        // rubies. Flagged `launcher` so scrolling past it never fires the grant —
-        // only an explicit Enter/click/tap does.
-        { type: 'god', icon: '😇', label: 'God Mode', launcher: true,
-          val: () => '★',
-          action: () => { if (typeof grantGodMode === 'function') grantGodMode(); } },
-        // ── The save row's buttons ────────────────────────────────────────────
-        // Touch mode hides that row to give the canvas its height back, so this
-        // ring is where those controls live on a phone. They stay in the row on
-        // desktop as well — same functions, two front doors.
-        { type: 'save', icon: '💾', label: 'Save Game', launcher: true,
+        // ── Game menu ─────────────────────────────────────────────────────────
+        // Save, Load, New Game and the admin God Mode grant all live behind this
+        // one launcher now (see sysmenu.js) instead of taking four slots in the
+        // ring. The bottom save row that used to duplicate them is gone on every
+        // device, so this is the only in-game route to those commands.
+        { type: 'sysmenu', icon: '⚙️', label: 'Game Menu', launcher: true,
           val: () => '—',
-          action: () => { if (typeof openSaveModal === 'function') openSaveModal(); } },
-        { type: 'load', icon: '📂', label: 'Load Game', launcher: true,
-          val: () => '—',
-          action: () => { if (typeof openLoadModal === 'function') openLoadModal(); } },
-        { type: 'newgame', icon: '🆕', label: 'New Game', launcher: true,
-          val: () => '—',
-          action: () => { if (typeof newGame === 'function') newGame(); } },
+          action: () => { if (typeof openSysMenu === 'function') openSysMenu(); } },
         { type: 'fullscreen', icon: '⛶', label: 'Fullscreen', launcher: true,
           val: () => '—',
           action: () => {

@@ -1639,10 +1639,10 @@ function tryCaveTransition() {
 function stepPlayerMovement() {
   if (whirlpoolChurnMs > 0) return;   // caught in the vortex — can't swim free
   let mx = 0, my = 0;
-  if      (keys['ArrowLeft']  || keys['a'] || keys['A']) mx = -1;
-  else if (keys['ArrowRight'] || keys['d'] || keys['D']) mx = 1;
-  if      (keys['ArrowUp']    || keys['w'] || keys['W']) my = -1;
-  else if (keys['ArrowDown']  || keys['s'] || keys['S']) my = 1;
+  if      (keys['ArrowLeft'])  mx = -1;
+  else if (keys['ArrowRight']) mx = 1;
+  if      (keys['ArrowUp'])    my = -1;
+  else if (keys['ArrowDown'])  my = 1;
   const map = mapData();
   if (mx || my) {
     // Remember the live walking input for the ice slide below.

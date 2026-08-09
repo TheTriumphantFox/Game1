@@ -197,8 +197,7 @@ function drawPlayer(ts) {
   const P_SHIELD = '#5e7a49', P_TREE = '#dbe2e6';
 
   // Subtle walking bob — only oscillates when a movement key is held
-  const moving = !!(keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown']||
-                    keys['a']||keys['A']||keys['d']||keys['D']||keys['w']||keys['W']||keys['s']||keys['S']);
+  const moving = !!(keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown']);
   // Unrounded: snapping the bob to whole pixels jerked the sprite ±1px at each
   // sine crossing, which read as frame jitter on top of the tile glide.
   const walkBob = moving ? Math.sin(Date.now() / 110) : 0;
