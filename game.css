@@ -211,57 +211,15 @@ canvas {
   flex-shrink: 0;
 }
 
-#save-row {
-  background: #0a0a0a;
-  padding: 4px 12px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  border-top: 1px solid #1a3a1a;
-  flex-shrink: 0;
-}
-#save-row button {
-  background: #1a2a1a;
-  border: 1px solid #3a6a3a;
-  color: #8c8;
-  padding: 2px 8px;
-  cursor: pointer;
-  font-size: 11px;
-  font-family: monospace;
-  border-radius: 3px;
-}
-#save-row button:hover {
-  background: #254a25;
-}
-
-/* ── Touch tuning ───────────────────────────────────────────────────────────
-   The save-row buttons stay their current visual size, but on touch devices we
-   grow only their *hit area* with an invisible overlay so thumbs land reliably.
-   Also suppress the tap highlight / text selection. */
+/* ── Touch tuning ─────────────────────────────────────────────────────────── */
 .weapon-slot { cursor: pointer; }
-html[data-ui="touch"] #save-row button {
-  position: relative;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-user-select: none;
-  user-select: none;
-  touch-action: manipulation;   /* no 300ms double-tap delay */
-}
-/* Invisible padding on the touch layer — enlarges the target, not the look. */
-html[data-ui="touch"] #save-row button::after {
-  content: '';
-  position: absolute;
-  top: -10px; bottom: -10px; left: -6px; right: -6px;
-}
 /* Reclaim vertical space: the keyboard-only controls hint is useless on touch. */
 html[data-ui="touch"] #ctrl-bar { display: none; }
 
-/* …and so is the save row, which cost a whole row of a phone screen to show five
-   11px buttons. All of it — Save, Load, New, Fullscreen, Controls — lives in the
-   radial menu ring on touch (see the 'menu' ring in radial.js), reached by
-   tapping the hero. Kept in the DOM rather than removed: save.js writes progress
-   text into #save-status, and setSaveStatus mirrors that to a toast here. */
-html[data-ui="touch"] #save-row { display: none; }
+/* The save row (Save / Load / New / Fullscreen / Controls) used to sit below the
+   controls hint and was hidden here on touch, where it cost a whole row of a
+   phone screen for five 11px buttons. It's gone on every device now — all five
+   live in the radial menu's MENU ring (see radial.js and sysmenu.js). */
 
 /* ── Touch control anchors ───────────────────────────────────────────────────
    Both thumb controls hug the bottom corners of the *canvas* with the same edge
@@ -286,7 +244,7 @@ html[data-ui="touch"] #save-row { display: none; }
 
 /* The HUD spans the full width, so in landscape the notch eats into its ends and
    the status bar sits over its top. The bottom of the screen has no bar left in
-   touch mode (the save row is hidden below), so the two thumb controls inset
+   touch mode (the controls hint is hidden below), so the two thumb controls inset
    themselves against the home indicator instead — the buttons in CSS here, the
    canvas-drawn pad from JS via safeInsetBottom. */
 html[data-ui="touch"] #hud {

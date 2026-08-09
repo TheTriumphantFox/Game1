@@ -204,7 +204,7 @@ const PG_LINES = {
       then: () => {
         setFlag('fetch_quest_active');
         showMapMsg('📜 Fetch the package from Wren at the market.');
-        pgKeyHint('WASD / Arrows to move · Space to talk');
+        pgKeyHint('Arrow keys to move · Space to talk');
       }
     };
   },
@@ -372,7 +372,7 @@ function startPrologue() {
     { letterbox: 0, ms: 400 },
     { run: () => {
         showMapMsg('🏡 Home. Your mother needs something from the market.');
-        pgKeyHint('WASD / Arrows to move · Space to talk');
+        pgKeyHint('Arrow keys to move · Space to talk');
       } },
   ]);
 }

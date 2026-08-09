@@ -548,16 +548,13 @@ function doDelete(slotIdx) {
   renderSlotList();
 }
 
-// Save/load feedback used to be the save row's status span alone. Touch mode
-// hides that row (its buttons moved into the radial menu ring), so the same text
-// also goes to a toast there — otherwise saving on a phone confirms nothing.
+// Save/load feedback. This used to write into the save row's status span, with a
+// toast as the touch-mode stand-in once that row was hidden there. The row is
+// gone on every device now (its buttons live in the radial MENU ring), so the
+// toast is the only channel left and always fires.
 // `toast: false` for the paths that already raise their own.
 function setSaveStatus(text, { toast = true } = {}) {
-  const el = document.getElementById('save-status');
-  if (el) el.textContent = text;
-  if (toast && text && typeof uiModeIsTouch === 'function' && uiModeIsTouch()) {
-    showMsg(text, 2500);
-  }
+  if (toast && text && typeof showMsg === 'function') showMsg(text, 2500);
 }
 
 function openSaveModal() {

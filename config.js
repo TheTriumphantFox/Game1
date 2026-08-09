@@ -807,12 +807,11 @@ function resizeCanvas() {
   const hudH  = document.getElementById('hud')?.offsetHeight        || 0;
   const wepH  = document.getElementById('weapon-bar')?.offsetHeight || 0;
   const ctrlH = document.getElementById('ctrl-bar')?.offsetHeight   || 0;
-  const saveH = document.getElementById('save-row')?.offsetHeight   || 0;
-  const usedH = hudH + wepH + ctrlH + saveH;
+  const usedH = hudH + wepH + ctrlH;
   // How far the canvas bottom sits above the viewport bottom. The touch action
   // buttons are position:fixed, so they need this to line up with the canvas's
   // bottom edge — the same edge the movement pad measures its gap from.
-  document.documentElement.style.setProperty('--bottom-bars-h', (wepH + ctrlH + saveH) + 'px');
+  document.documentElement.style.setProperty('--bottom-bars-h', (wepH + ctrlH) + 'px');
   safeInsetLeft   = cssPxVar('--safe-left');
   safeInsetBottom = cssPxVar('--safe-bottom');
   canvas.width  = window.innerWidth;
@@ -885,7 +884,7 @@ const STORAGE_MIGRATION_KEY = 'the_rpg_game_migrated_keys';
 
 // ─── UI mode: touch pad vs keyboard weapon bar ──────────────────────────────
 // Single source of truth for which control scheme is showing. Everything else
-// (game.css, the title hint, the save-row button) keys off the `data-ui`
+// (game.css, the title hint, the radial ring's Controls entry) keys off the `data-ui`
 // attribute this section writes onto <html> — never off a media query, so a
 // player who forces a mode gets it applied consistently.
 //
@@ -947,7 +946,7 @@ function setUiMode(mode) {
   if (typeof refreshControlHints === 'function') refreshControlHints();
 }
 
-// Cycled by the 🎮 buttons on the title screen and in the save row.
+// Cycled by the 🎮 button on the title screen and the radial ring's Controls entry.
 function cycleUiMode() {
   setUiMode(uiModePref === 'auto' ? 'touch' : uiModePref === 'touch' ? 'desktop' : 'auto');
   if (typeof buzz === 'function') buzz(8);

@@ -19,7 +19,7 @@
     <button class="title-btn" onclick="titleNewGame()">🆕 New Game</button>
     <button class="title-btn" onclick="openLoadModal()">📂 Load Game</button>
     <button class="title-btn" onclick="titleNewGameSkip()">⏭️ New Game (skip prologue)</button>
-    <p id="title-hint">WASD / Arrows: move · Z: sword · V: menu</p>
+    <p id="title-hint">Arrow keys: move · Z: sword · V: menu</p>
     <!-- Control scheme override. Cycles Auto → Touch → Desktop (cycleUiMode in
          config.js). Offered here, before gameplay, because a player handed the
          wrong scheme can't necessarily reach an in-game menu to fix it. -->
@@ -101,6 +101,12 @@
     <button class="shop-close" onclick="closeWorldMap()">✕ Close</button>
   </div>
 </div>
+<!-- Game menu — Save / Load / New Game / God Mode behind one radial launcher.
+     Sits BEFORE the save modal in the DOM so that modal (same z-index) paints on
+     top if the two ever overlap. -->
+<div id="sysmenu-modal-overlay" class="shop-overlay">
+  <div id="sysmenu-modal" class="shop-modal"></div>
+</div>
 <!-- Collector quest modal — the chest-house villager's trophy-gathering quest -->
 <div id="quest-modal-overlay" class="shop-overlay">
   <div id="quest-modal" class="shop-modal"></div>
@@ -173,16 +179,14 @@
     <span class="weapon-slot" id="ws-interact" style="display:none"></span>
     <span style="margin-left:auto;color:#557">Tab: Minimap · 2-tap bar: View</span>
   </div>
+  <!-- The save row that used to sit here (Save / Load / New / Fullscreen /
+       Controls) is gone — every one of those lives in the radial menu's MENU
+       ring now (V, or tap the hero on touch): the first three behind the ⚙️ Game
+       Menu launcher, Fullscreen and Controls as their own entries. Its status
+       span went with it, so save/load feedback is a toast on every device (see
+       setSaveStatus in save.js). -->
   <div id="ctrl-bar">
-    <span>WASD/Arrows: Move</span><span>Shift: Strafe</span><span>V: Menu</span>
-  </div>
-  <div id="save-row">
-    <button onclick="openSaveModal()">💾 Save</button>
-    <button onclick="openLoadModal()">📂 Load</button>
-    <button onclick="newGame()">🆕 New</button>
-    <button onclick="toggleFullscreen()">⛶ Full</button>
-    <button id="ui-mode-btn" onclick="cycleUiMode()" title="Control scheme: Auto / Touch / Desktop">🎮 Auto</button>
-    <span id="save-status" style="font-size:11px;color:#466"></span>
+    <span>Arrows: Move</span><span>Shift: Strafe</span><span>V: Menu</span>
   </div>
 </div>
 
@@ -225,6 +229,7 @@
 <script src="ledger.js"></script>
 <script src="stats.js"></script>
 <script src="worldmap.js"></script>
+<script src="sysmenu.js"></script>
 <script src="dialogue.js"></script>
 <script src="cutscene.js"></script>
 <script src="prologue.js"></script>

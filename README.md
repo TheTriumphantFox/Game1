@@ -20,7 +20,7 @@ Then open http://localhost:8000.
 
 ## Controls
 
-- **WASD / Arrows** — move
+- **Arrow keys** — move
 - **Z** or **Space** — sword attack (Space also interacts: open an adjacent chest, or talk to a villager / shop in town when there's something to interact with)
 - **X** — bow
 - **C** — bomb
@@ -42,8 +42,7 @@ Touch controls are supported:
 - **Double-tap the pad** cycles the view: normal → zoomed out → full-screen map.
   A tap anywhere leaves the full-screen map.
 - Save, Load, New Game, Fullscreen and the control-scheme toggle are in the
-  radial menu's **menu** ring — the bottom button row is hidden on touch so the
-  canvas gets the height.
+  radial menu's **menu** ring — the first three behind its ⚙️ Game Menu window.
 - Controls inset themselves from notches and the home indicator on phones that
   report a safe area.
 
@@ -54,7 +53,7 @@ comes from device capability, then it follows whichever input you actually use,
 so plugging a mouse into a tablet (or tapping the screen on a touchscreen
 laptop) swaps the UI without a reload.
 
-The 🎮 button on the title screen and in the bottom save row cycles
+The 🎮 button on the title screen and the radial menu's **Controls** entry cycle
 **Auto → Touch → Desktop** if you want to pin one. The choice is stored per
 device (`the_rpg_game_ui_mode` in localStorage), not in your save file, so
 carrying a save to another device doesn't drag a phone's controls along with it.
@@ -102,6 +101,7 @@ portal.js            # Cave / portal transitions
 ledger.js            # Completionist's drop Ledger
 stats.js             # Character stats page
 worldmap.js          # Zoomable world-map atlas page
+sysmenu.js           # ⚙️ Game Menu window — Save / Load / New Game / God Mode
 main.js              # Game loop, init, input
 ```
 
