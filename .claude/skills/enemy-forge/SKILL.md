@@ -1,6 +1,6 @@
 ---
 name: enemy-forge
-description: Design balanced enemies for Hyrule Quest by working backwards from a target difficulty using D&D 5e Challenge Rating math for HP and damage-per-round — this game has no AC or attack-bonus/to-hit stat, so the CR table's defensive/offensive-adjustment machinery doesn't apply, only its HP and DPR columns do — then emitting a stat block in the project's existing shape. Use this skill whenever the user wants a new enemy, monster, boss, or corrupted/template variant, asks whether an existing enemy is too hard or too easy, wants to rebalance a fight, asks what CR something should be for a given player level, or describes an encounter they want to feel a certain way. Trigger even when the user just describes a creature without saying "balance" or "CR" — the whole point is that they shouldn't have to do the math themselves.
+description: Design balanced enemies for The RPG Game by working backwards from a target difficulty using D&D 5e Challenge Rating math for HP and damage-per-round — this game has no AC or attack-bonus/to-hit stat, so the CR table's defensive/offensive-adjustment machinery doesn't apply, only its HP and DPR columns do — then emitting a stat block in the project's existing shape. Use this skill whenever the user wants a new enemy, monster, boss, or corrupted/template variant, asks whether an existing enemy is too hard or too easy, wants to rebalance a fight, asks what CR something should be for a given player level, or describes an encounter they want to feel a certain way. Trigger even when the user just describes a creature without saying "balance" or "CR" — the whole point is that they shouldn't have to do the math themselves.
 ---
 
 # Enemy Forge
@@ -20,7 +20,7 @@ From `enemies.js`'s `DND_ENEMIES` table, every entry carries exactly: `name, hp,
 
 ## The one calibration that matters
 
-5e's CR table assumes a party of four adventurers. Hyrule Quest is one player in real-time action combat with no AC/to-hit axis at all — the raw table numbers are wildly too tanky pasted in unchanged, and half the table (AC, attack bonus) has nothing to map onto in the first place.
+5e's CR table assumes a party of four adventurers. The RPG Game is one player in real-time action combat with no AC/to-hit axis at all — the raw table numbers are wildly too tanky pasted in unchanged, and half the table (AC, attack bonus) has nothing to map onto in the first place.
 
 So **never import the table's HP or damage values directly, and never derive a scale from the numbers alone — anchor it to enemies the user has actually confirmed play right.**
 
@@ -82,7 +82,7 @@ Show this arithmetic — it's the part the user can't easily check by eye, and w
 
 ## Corrupted / template variants
 
-**There is no blight/corrupted system in the code yet.** The Withering Crown and the blight are `hyrule-quest`'s `story-bible.md` canon — design intent, not a built system. If the user asks for a corrupted variant, treat it as new work, not an extension of something that already exists; don't imply otherwise.
+**There is no blight/corrupted system in the code yet.** The Withering Crown and the blight are `the-rpg-game`'s `story-bible.md` canon — design intent, not a built system. If the user asks for a corrupted variant, treat it as new work, not an extension of something that already exists; don't imply otherwise.
 
 The precedent that *does* already exist for "a modifier applied over a base stat block instead of a second hand-authored creature" is the village **"Greater"** tier — see the `tier15` branch in `makeEnemyDefs` (`enemies.js`): 2× HP, 2× damage, 2× XP, 1.5× size, name prefixed "Greater", applied at spawn time from the same base entry. When the corrupted system does get built, follow that same multiplier-over-base pattern rather than hand-authoring corrupted variants as separate `DND_ENEMIES` entries — that's exactly the authoring drift the existing "Greater" precedent avoids.
 

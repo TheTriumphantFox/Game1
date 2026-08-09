@@ -1,4 +1,4 @@
-# Hyrule Quest — Story Bible
+# The RPG Game — Story Bible
 
 Canon reference. Read before writing dialogue, NPCs, quest text, item flavor, or story triggers.
 

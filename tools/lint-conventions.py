@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-lint-conventions.py — convention checker for Hyrule Quest.
+lint-conventions.py — convention checker for The RPG Game.
 
 Scans the repo for the things that quietly break this project:
 constraint violations that only show up as a blank page over file://,
@@ -19,8 +19,8 @@ CONFIG — adjust these to match the repo, then the rest just works.
 -------------------------------------------------------------------
 """
 
-# NOTE: there is deliberately no "registration" check in this linter. Hyrule
-# Quest has no registerEntity()/registerTile()-style API to check for — `world.js`'s
+# NOTE: there is deliberately no "registration" check in this linter. The RPG
+# Game has no registerEntity()/registerTile()-style API to check for — `world.js`'s
 # "world coordinate registry" (worldMaps[] / worldGrid{}) only tracks which
 # generated MAP sits at which (gx, gy) grid cell, and is never called per-entity.
 # Enemy/chest/shrine positions are plain `{x, y}` written straight into generated
@@ -29,8 +29,8 @@ CONFIG — adjust these to match the repo, then the rest just works.
 # removed rather than left permanently misconfigured.
 
 # Files that are ALLOWED to contain raw coordinate literals — the registry
-# itself, map/level data, and anything explicitly authored as data. Hyrule
-# Quest has no separate mapdata/levels/spawns files — world placement is
+# itself, map/level data, and anything explicitly authored as data. The RPG
+# Game has no separate mapdata/levels/spawns files — world placement is
 # computed inline inside the generation code itself, so those files are the
 # real equivalent here.
 COORD_LITERAL_ALLOWED = [

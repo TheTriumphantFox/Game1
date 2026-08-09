@@ -17,7 +17,7 @@
 // still creates forest [1] as the southern neighbour, so world topology is
 // unchanged — see initWorld / getOrCreateNeighbor in world.js.
 //
-// Script: .claude/skills/hyrule-quest/references/prologue-script.md
+// Script: .claude/skills/the-rpg-game/references/prologue-script.md
 
 // The village's name. The script never names it; change it here and nowhere else.
 // (Note this is unrelated to REGIONS[0].villageName, 'Village of the Lost' —

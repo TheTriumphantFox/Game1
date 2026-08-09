@@ -840,6 +840,49 @@ function buzz(pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) { /* ignore */ }
 }
 
+// ─── localStorage key migration: hyrule_quest_* → the_rpg_game_* ────────────
+// The game was renamed to "The RPG Game" and the storage keys were renamed to
+// match. Anyone who played before the rename has saves, an autosave, and a UI
+// mode pref sitting under the old prefix, so carry them across once on the
+// first load afterwards. This lives in config.js because it is the first
+// script loaded — save.js and the UI-mode block below then only ever see the
+// new keys, and neither needs to know the old ones existed.
+//
+// Two deliberate choices:
+//   - Keys are COPIED, not moved. The pre-rename standalone build
+//     (`the_rpg_game.html`, one folder up) still reads the old keys, so leaving
+//     them means going back to it doesn't show an empty save list.
+//   - The marker key makes this one-shot. Without it, deleting a save in the
+//     renamed game would be undone by the next reload re-copying it.
+const STORAGE_MIGRATION_KEY = 'the_rpg_game_migrated_keys';
+
+(function migrateLegacyStorageKeys() {
+  const OLD_PREFIX = 'hyrule_quest_';
+  const NEW_PREFIX = 'the_rpg_game_';
+  try {
+    if (localStorage.getItem(STORAGE_MIGRATION_KEY)) return;
+    // Snapshot the key names before writing anything — localStorage.key(i)
+    // walks a live list, and inserting during the loop shifts the indices.
+    const oldKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(OLD_PREFIX) === 0) oldKeys.push(k);
+    }
+    for (const k of oldKeys) {
+      const target = NEW_PREFIX + k.slice(OLD_PREFIX.length);
+      // Never clobber a new-key value: a second migration pass (marker cleared,
+      // storage wiped by hand) must not overwrite real post-rename progress.
+      if (localStorage.getItem(target) === null) {
+        localStorage.setItem(target, localStorage.getItem(k));
+      }
+    }
+    localStorage.setItem(STORAGE_MIGRATION_KEY, '1');
+  } catch (e) {
+    // Storage disabled or full. The game still runs; the marker stays unset so
+    // the copy is retried on the next load rather than being silently skipped.
+  }
+})();
+
 // ─── UI mode: touch pad vs keyboard weapon bar ──────────────────────────────
 // Single source of truth for which control scheme is showing. Everything else
 // (game.css, the title hint, the save-row button) keys off the `data-ui`
@@ -854,7 +897,7 @@ function buzz(pattern) {
 // This lives here rather than main.js because config.js loads first, so the
 // attribute is set before the first paint and there's no flash of the wrong UI.
 
-const UI_MODE_KEY = 'hyrule_quest_ui_mode';
+const UI_MODE_KEY = 'the_rpg_game_ui_mode';
 
 // Capability sniff, used only as the *starting* guess for 'auto'. Note the
 // `any-pointer: fine` term: a touchscreen laptop and an iPad with a trackpad
