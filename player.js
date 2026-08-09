@@ -59,13 +59,18 @@ function applyStartingInventory(p) {
 // the player every elemental sword and armor at max upgrade (level 6), 100 HP,
 // and 10000 rubies — the old god-start, on demand.
 function grantGodMode() {
-  const ids = Object.keys(SWORD_ELEMENTS);
-  player.swordElements = ids.slice();
+  // Swords get everything, capstone included — Dragonbane is a sword.
+  const swordIds = Object.keys(SWORD_ELEMENTS);
+  player.swordElements = swordIds.slice();
   player.swordUpgrades = {};
-  for (const id of ids) player.swordUpgrades[id] = 6;
-  player.armorElements = ids.slice();
+  for (const id of swordIds) player.swordUpgrades[id] = 6;
+  // Armor gets the 12 regional elements only. Dragonbane armor is not a thing:
+  // no enemy attacks with that element, so a granted set would sit in the radial
+  // ring at Lv6 advertising a resistance that can never once apply.
+  const armorIds = REGION_ELEMENT_IDS;
+  player.armorElements = armorIds.slice();
   player.armorUpgrades = {};
-  for (const id of ids) player.armorUpgrades[id] = 6;
+  for (const id of armorIds) player.armorUpgrades[id] = 6;
   player.maxHp = 100;
   player.hp = 100;
   player.rubies = 10000;

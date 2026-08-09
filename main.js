@@ -205,6 +205,13 @@ function clearAllKeys() {
 }
 
 document.addEventListener('keydown', e => {
+  // Nothing reaches the world before a game is chosen. update() early-returns on
+  // this same flag, which freezes world *stepping* — but these handlers act on
+  // the keypress directly and fire regardless: under the opaque title overlay,
+  // SPACE looted the map-0 chest, V opened the radial menu, P drank a potion,
+  // Tab toggled the minimap. The name prompt runs before the game starts and
+  // owns its own input (it's on the input element, which stops propagation).
+  if (!gameStarted && !namePromptOpen) return;
   if (namePromptOpen) {
     if (e.key === 'Escape') closeNamePrompt();
     return;   // name prompt swallows gameplay input
