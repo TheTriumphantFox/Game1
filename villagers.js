@@ -604,6 +604,15 @@ function spawnVillagersForMap(mid) {
   }
   if (rm.type === 'village' && rm.activated) {
     villagers = generateVillagers(rm);
+  } else if (rm.type === 'homevillage' && rm.activated) {
+    // Elderbrook gets the four shopkeepers and nothing else. The rest of a
+    // village's population — 20 wanderers, the Collector, the Taxidermist and
+    // the other quest-givers — is generateVillagers' business, and a crowd of
+    // them here would walk straight through the middle of every prologue beat.
+    // The village's own cast is staged by name in prologue.js and appended after
+    // this runs. (The ruin never reaches this branch: the fire clears
+    // `activated` — see hvCloseShops.)
+    villagers = placeShopkeepers(rm);
   } else {
     villagers = [];
   }
@@ -676,17 +685,42 @@ function drawVillager(v, ts) {
   const s = ts * v.size;
   const ox = (ts - s) / 2, oy = (ts - s) / 2;
   const phase = (v.id || 0) * 1.3;
-  const bob = Math.sin(Date.now() / 220 + phase) * 1.2;
+  // `pgFallen` is the pose only — deliberately separate from `pgDying`, which is
+  // the dialogue state (see talkPrologueNpc in prologue.js). Grandmother is
+  // pinned under a beam in Beat 5 and lies down without being routed to last
+  // words, so the two must not be the same flag.
+  //
+  // Everything below draws the same upright villager it always did; a transform
+  // lays them over. The pose costs one rotation rather than a second sprite.
+  const fallen = !!v.pgFallen;
+  const bob = fallen ? 0 : Math.sin(Date.now() / 220 + phase) * 1.2;
   const px = sx + ox, py = sy + oy + bob;
   const cx = sx + ts / 2;
 
   ctx.save();
 
-  // Shadow at feet — anchored to the un-bobbed position.
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  // Shadow at feet — anchored to the un-bobbed position. A body on the ground
+  // pools a longer, softer one; drawn before the rotation so it stays flat.
+  ctx.fillStyle = fallen ? 'rgba(0, 0, 0, 0.28)' : 'rgba(0, 0, 0, 0.35)';
   ctx.beginPath();
-  ctx.ellipse(sx + ts / 2, sy + ts * 0.93, ts * 0.26 * v.size, ts * 0.06 * v.size, 0, 0, Math.PI * 2);
+  if (fallen) {
+    ctx.ellipse(cx, sy + ts * 0.86, ts * 0.44 * v.size, ts * 0.12 * v.size, 0, 0, Math.PI * 2);
+  } else {
+    ctx.ellipse(sx + ts / 2, sy + ts * 0.93, ts * 0.26 * v.size, ts * 0.06 * v.size, 0, 0, Math.PI * 2);
+  }
   ctx.fill();
+
+  // Lay them down: rotate the whole sprite about the feet. The direction
+  // alternates by id so a street of the fallen doesn't look stamped from one
+  // template, and the angle stops short of flat — a perfect horizontal reads
+  // like a dropped sprite, a few degrees off reads like a person.
+  if (fallen) {
+    const pivotX = cx, pivotY = sy + ts * 0.90;
+    ctx.translate(pivotX, pivotY);
+    ctx.rotate(((v.id || 0) % 2 ? 1 : -1) * Math.PI * 0.46);
+    ctx.translate(-pivotX, -pivotY);
+    ctx.globalAlpha = 0.92;
+  }
 
   // Boots (under the robe hem)
   ctx.fillStyle = '#3a1c08';
@@ -735,21 +769,36 @@ function drawVillager(v, ts) {
   // A small fringe across the brow so the hair doesn't look like a perfect dome
   ctx.fillRect(px + s * 0.34, py + s * 0.22, s * 0.32, s * 0.04);
 
-  // Eyes
-  ctx.fillStyle = '#000';
-  ctx.fillRect(px + s * 0.39, py + s * 0.29, s * 0.06, s * 0.04);
-  ctx.fillRect(px + s * 0.55, py + s * 0.29, s * 0.06, s * 0.04);
-  // Eye glint
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(px + s * 0.41, py + s * 0.30, s * 0.015, s * 0.015);
-  ctx.fillRect(px + s * 0.57, py + s * 0.30, s * 0.015, s * 0.015);
-  // Smile
-  ctx.strokeStyle = '#5a2010';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(px + s * 0.43, py + s * 0.38);
-  ctx.quadraticCurveTo(cx, py + s * 0.41, px + s * 0.57, py + s * 0.38);
-  ctx.stroke();
+  if (fallen) {
+    // Eyes closed to a thin line, no glint, and the mouth goes slack. A villager
+    // lying in the ash still wearing the idle smile is the one thing that would
+    // wreck the pose.
+    ctx.fillStyle = '#000';
+    ctx.fillRect(px + s * 0.36, py + s * 0.31, s * 0.11, s * 0.018);
+    ctx.fillRect(px + s * 0.53, py + s * 0.31, s * 0.11, s * 0.018);
+    ctx.strokeStyle = '#5a2010';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + s * 0.45, py + s * 0.39);
+    ctx.lineTo(px + s * 0.56, py + s * 0.39);
+    ctx.stroke();
+  } else {
+    // Eyes
+    ctx.fillStyle = '#000';
+    ctx.fillRect(px + s * 0.39, py + s * 0.29, s * 0.06, s * 0.04);
+    ctx.fillRect(px + s * 0.55, py + s * 0.29, s * 0.06, s * 0.04);
+    // Eye glint
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(px + s * 0.41, py + s * 0.30, s * 0.015, s * 0.015);
+    ctx.fillRect(px + s * 0.57, py + s * 0.30, s * 0.015, s * 0.015);
+    // Smile
+    ctx.strokeStyle = '#5a2010';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + s * 0.43, py + s * 0.38);
+    ctx.quadraticCurveTo(cx, py + s * 0.41, px + s * 0.57, py + s * 0.38);
+    ctx.stroke();
+  }
 
   // The Gatekeeper wears a deep hood and cradles a glowing portal-orb instead
   // of a shopkeeper's apron, marking them as the gate's warden.
@@ -1009,6 +1058,9 @@ function tryVillagerInteraction() {
   // Prefer the keepers when ties happen (they should always win adjacency).
   const nearby = villagers
     .filter(v => Math.abs(v.x - player.x) <= 1 && Math.abs(v.y - player.y) <= 1)
+    // The dead are scenery. They keep their place on the map and their pose, but
+    // pressing space beside one does nothing at all — no line, no prompt.
+    .filter(v => !v.pgDead)
     .sort((a, b) => (b.role ? 1 : 0) - (a.role ? 1 : 0));
   if (!nearby.length) return false;
   const v = nearby[0];

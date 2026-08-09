@@ -78,11 +78,75 @@ function pgFind(who) {
   return villagers.find(v => v.pgTalk === who) || null;
 }
 
-// Remove cast members from the world. Used when the fire takes them: the script
-// is explicit that the parents' fate is "implied, not shown", so they simply
-// aren't there any more.
+// Remove cast members from the world outright.
 function pgRemove(...who) {
   villagers = villagers.filter(v => !who.includes(v.pgTalk));
+  saveVillagersToMap(0);
+}
+
+// Leave the fire's victims standing where they are instead of deleting them.
+// Beat 4 used to call pgRemove here — the script's "implied, not shown" — but a
+// village the player can still walk back through, and still be spoken to in, is
+// a harder thing to leave behind. They hold their marks; talking to one spends
+// its last words, and saying them is what takes it (see talkPrologueNpc).
+// Anyone the player never reaches is cleared when the prologue closes.
+function pgWound(...who) {
+  for (const v of villagers) {
+    if (!who.includes(v.pgTalk)) continue;
+    v.pgDying = true;    // routes them to their last words (talkPrologueNpc)
+    v.pgFallen = true;   // and lays them on the ground (drawVillager)
+  }
+  saveVillagersToMap(0);
+}
+
+// Move a cast member to a new mark, keeping their render position in step so they
+// don't slide across the map from wherever they were standing.
+function pgMoveTo(who, spot) {
+  const v = pgFind(who);
+  if (!v || !spot) return;
+  v.x = spot.x; v.y = spot.y;
+  v.renderX = v.x; v.renderY = v.y;
+}
+
+// Turn one of the dying into a body. It keeps its pose and its place on the map
+// and stops being someone the player can talk to. `pgTalk` goes with `pgDying`,
+// which matters more than it looks: `village_burning` is cleared at the end of
+// the prologue, so a corpse that kept its talk key would fall straight back
+// through to its cheerful Beat 1 line.
+function pgLayToRest(v) {
+  if (!v) return;
+  delete v.pgTalk;
+  delete v.pgDying;
+  v.pgFallen = true;   // stays on the ground (drawVillager)
+  v.pgDead   = true;   // and out of reach (tryVillagerInteraction)
+}
+
+// Everyone still dying when the prologue ends is laid down where they fell, and
+// stays there for the rest of the game. Elderbrook is never rebuilt and never
+// repopulated; leaving the bodies in the ash is the difference between a village
+// that was destroyed and one that was merely emptied.
+function pgLayOutTheDead() {
+  for (const v of villagers) if (v.pgDying) pgLayToRest(v);
+  saveVillagersToMap(0);
+}
+
+// The four shopkeepers of the market row, by the role key they carry.
+const PG_SHOP_ROLES = ['inn', 'store', 'herb', 'smith'];
+
+// Shut the market row when the fire takes it. The keepers stay standing with
+// everyone else, but as people rather than shopfronts: dropping `role` closes
+// the modal they'd otherwise open, and the pgTalk key routes them to their last
+// words instead (tryVillagerInteraction checks pgTalk first). The map's shop
+// bookkeeping goes either way, so the ruin is never a trading post again.
+function pgCloseShops() {
+  for (const v of villagers) {
+    if (!PG_SHOP_ROLES.includes(v.role)) continue;
+    v.pgTalk = 'shop_' + v.role;
+    delete v.role;
+    v.pgDying = true;    // last words instead of a shop counter
+    v.pgFallen = true;   // and down in the ash with everyone else
+  }
+  hvCloseShops(worldMaps[0]);
   saveVillagersToMap(0);
 }
 
@@ -110,6 +174,16 @@ function pgKeyHint(text) {
 // What each character says depends on which flags are set. Called from
 // tryVillagerInteraction in villagers.js.
 function talkPrologueNpc(v) {
+  // The dying come first, so a wounded NPC never falls back to their cheerful
+  // Beat 2 line. Saying the last words is what takes them: the dialogue's
+  // completion callback is what removes them from the world.
+  if (v.pgDying) {
+    const last = PG_LAST_WORDS[v.pgTalk];
+    const rest = () => { pgLayToRest(v); saveVillagersToMap(0); };
+    if (!last) { rest(); return; }
+    startDialogue(last, rest);
+    return;
+  }
   const lines = PG_LINES[v.pgTalk];
   if (!lines) return;
   const said = lines();
@@ -204,6 +278,81 @@ const PG_LINES = {
   ] }),
 };
 
+// ─── Last words (Beat 4, after the strike) ────────────────────────────────────
+// One conversation each, for anyone the player thinks to go back for. Plain line
+// arrays rather than PG_LINES' flag-branching functions: there is only one state
+// left to be in, and each of these is only ever read once — talking to someone
+// here removes them.
+//
+// Register, per the story bible: grounded and specific, quiet rather than epic.
+// Most of these call back to that character's Beat 2 line, because the gap
+// between the two is the whole point and nobody here has a speech in them.
+//
+// Old Hendricks is the one to be careful with. He is the only other villager who
+// remembers what Grandmother remembers, and he must NOT close the gap her dying
+// words leave open — the midgame reveal depends on the player having been told
+// something incomplete. He gets as far as saying there is something, and no
+// further. Do not finish his sentence for him in a later edit.
+const PG_LAST_WORDS = {
+  mother: [
+    { speaker: 'MOTHER', paren: 'barely above a whisper',
+      text: "The package. You set it by the hearth, like I asked. You did that." },
+    { text: "She doesn't ask where anyone else is. You think she already knows." },
+  ],
+
+  father: [
+    { speaker: 'FATHER', text: "Told you the west road was faster. Should have sent you that way this morning too." },
+    { speaker: 'FATHER', paren: 'his hand closing on your sleeve',
+      text: "Your grandmother's still in the house. Go on. Don't argue with me, not this once." },
+  ],
+
+  grandmother: null,   // Beat 5 stages hers; she is never spoken to out here.
+
+  merchant: [
+    { speaker: 'WREN', text: "Last one. I did tell you it was the last one." },
+    { speaker: 'WREN', paren: 'looking past you, up the road toward your house',
+      text: "Go on. Get it home while it's warm." },
+  ],
+
+  child: [
+    { speaker: 'NETTIE', text: "I did it. The whole square, not one crack. And you weren't even watching." },
+    { text: "She wants you to say you saw it. So you tell her you saw it." },
+  ],
+
+  friend: [
+    { speaker: 'BRAM', text: "Running this village by winter. That's what I said, wasn't it." },
+    { speaker: 'BRAM', paren: 'trying for the laugh and not finding it',
+      text: "Get out of here. Someone has to." },
+  ],
+
+  elder: [
+    { speaker: 'OLD HENDRICKS', text: "Your grandmother. Is she—" },
+    { speaker: 'OLD HENDRICKS', paren: 'giving up on the question',
+      text: "There's a thing she should have told you. Years back. I said so at the time and she knows I said it." },
+    { text: "He looks like a man working up to the rest of it. He doesn't get there." },
+  ],
+
+  watcher: [
+    { speaker: 'SELLA', text: "A storm that couldn't decide. That's what I said. That's what I said." },
+  ],
+
+  // The market row. Shorter — the player may have done no more than buy arrows
+  // from these four, and a stranger's death shouldn't be given a bigger speech
+  // than Nettie's.
+  shop_inn: [
+    { speaker: 'INNKEEPER', text: "Beds all turned down upstairs. Nobody's coming in now." },
+  ],
+  shop_store: [
+    { speaker: 'SHOPKEEPER', text: "Take what you need off the shelves. Don't— don't stand there counting it out." },
+  ],
+  shop_herb: [
+    { speaker: 'HERBALIST', text: "I've a remedy for most things that come through that door. Not for this one." },
+  ],
+  shop_smith: [
+    { speaker: 'BLACKSMITH', text: "That blade of yours. Keep an edge on it. Promise me that much and go." },
+  ],
+};
+
 // ─── Beat 1 — The House ───────────────────────────────────────────────────────
 // Entry point for a new game. Everything after this is driven by the player.
 function startPrologue() {
@@ -289,10 +438,22 @@ function playAshfallBeat() {
     { emperorFly: { x: C.x, y: C.y - 30, alt: 28, scale: 0.6 }, ms: 2400 },
     { emperor: null },
 
-    // The neighbours are gone. Wren is the one the player is most likely to have
-    // spoken to, so she is the one left standing — the script's "one NPC seen for
-    // the last time here, no dialogue, just a visual beat".
-    { run: () => pgRemove('child', 'friend', 'elder', 'watcher', 'mother', 'father') },
+    // The village is dying, but it's still standing there to be walked through.
+    // Everyone the player met in Beat 2 keeps their mark, and each has one thing
+    // left to say to anyone who goes back for them (PG_LAST_WORDS). The run home
+    // is still the objective — none of this is required, and a player who runs
+    // straight for the house reaches the same ruin either way.
+    { run: () => {
+        // The parents are out of the house by now, on the road, coming the other
+        // way. Staged here rather than left on their Beat 1 marks so Beat 5's
+        // "No sign of your mother or your father" stays true of the room, and so
+        // the player passes them on the run home instead of finding them
+        // standing in the middle of Grandmother's scene.
+        pgMoveTo('mother', HOME.motherFellAt);
+        pgMoveTo('father', HOME.fatherFellAt);
+        pgWound('child', 'friend', 'elder', 'watcher', 'mother', 'father', 'merchant');
+      } },
+    { run: () => pgCloseShops() },
     { camFollow: true },
     { letterbox: 0, ms: 400 },
     { banner: '🔥 Get home.' },
@@ -315,15 +476,22 @@ function pgEmberBurst(at, n) {
 function playWhatsLeftBeat() {
   playCutscene([
     { letterbox: 1, ms: 500 },
-    // Lay the fallen timber and move Grandmother under it. Wren doesn't follow
-    // the player inside.
+    // Lay the fallen timber and move Grandmother under it. Anyone still dying out
+    // in the village is left where they are for the length of this scene — they're
+    // outside and this is indoors — and cleared when it ends (pgClearDead). The
+    // window for going back for them was the run home, which is the point: the
+    // player chooses between the people behind them and the house ahead.
     { tiles: m => hvPinGrandmother(m) },
     { run: () => {
-        pgRemove('merchant');
         const g = pgFind('grandmother');
         if (g) {
           g.x = HOME.dyingAt.x; g.y = HOME.dyingAt.y;
           g.renderX = g.x; g.renderY = g.y;
+          // Pinned under the beam, so she lies down with everyone else. pgFallen
+          // and not pgDying: the pose is all she takes from that state — this
+          // scene owns her dialogue, and pgDying would route her to last words
+          // she doesn't have and delete her mid-beat.
+          g.pgFallen = true;
           saveVillagersToMap(0);
         }
       } },
@@ -370,7 +538,10 @@ function playWhatsLeftBeat() {
     { wait: 2600 },
     { run: () => {
         grantGrandmothersBow();
-        pgRemove('grandmother');
+        // She stays where she fell, like everyone else. Removing her here would
+        // have the room tidy itself while the player is still standing in it.
+        pgLayToRest(pgFind('grandmother'));
+        saveVillagersToMap(0);
       } },
     { say: [{ text: "Grandmother's Bow — hers, and her mother's before that. Press [X] to draw it." }] },
     { run: () => setFlag('revenge_triggered') },
@@ -385,6 +556,9 @@ function playWhatsLeftBeat() {
     { wait: 2600 },
     { fade: 0, ms: 1600 },
     { run: () => setFlag('prologue_complete') },
+    // Whoever the player didn't get back to dies where they lie. Spoken to or
+    // not, everyone stays visible from here on — the ruin keeps its dead.
+    { run: () => pgLayOutTheDead() },
     // The fire is out. Clearing this keeps a played run's flag bag identical to
     // a skipped one (see skipPrologue) — if the two diverge, anything that later
     // reads story state behaves differently depending on how the player got here.
@@ -433,16 +607,30 @@ function skipPrologue() {
   setFlag('prologue_complete');
   clearFlag('village_burning');
   grantGrandmothersBow();
-  // Rebuild map 0 as the finished ruin and clear the cast out of it.
+  // Rebuild map 0 as the finished ruin — and leave the same dead in it that a
+  // played run does. Rather than a second copy of that logic, run the real
+  // sequence: stand everyone up on the village while it's still standing, let
+  // the fire take them, then lay the bodies out. Order matters — the keepers
+  // only spawn while the market row is open, so pgCloseShops comes after them.
   const home = worldMaps[0];
-  if (home && home.type === 'homevillage') {
-    home.map = buildRuinedHomeVillage();
-    home.savedVillagers = null;
-  }
   currentMapId = 0;
   villagers = [];
+  if (home && home.type === 'homevillage') {
+    home.savedVillagers = null;
+    spawnVillagersForMap(0);      // the portal Gatekeeper + the four keepers
+    spawnPrologueCast();          // the family, the neighbours, Wren
+    pgMoveTo('mother', HOME.motherFellAt);
+    pgMoveTo('father', HOME.fatherFellAt);
+    pgMoveTo('grandmother', HOME.dyingAt);
+    pgWound('child', 'friend', 'elder', 'watcher', 'mother', 'father', 'merchant');
+    pgCloseShops();               // also clears the map's shop bookkeeping
+    pgLayToRest(pgFind('grandmother'));
+    pgLayOutTheDead();
+    home.map = buildRuinedHomeVillage();
+  } else {
+    spawnVillagersForMap(0);      // legacy map 0 (the old starter cabin)
+  }
   placePlayerInFamilyHome(home);
-  spawnVillagersForMap(0);      // re-places the portal Gatekeeper
   burnLevel = 0.25;
   minimapDirty = true;
   revealAround(currentMap(), player.x, player.y, 12);

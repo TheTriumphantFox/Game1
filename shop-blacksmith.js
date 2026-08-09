@@ -540,7 +540,11 @@ function dragonbaneCost() {
 function dragonbaneRow() {
   const owns = (player.swordElements || []).includes('dragonbane');
   const cm = (typeof currentMap === 'function') ? currentMap() : null;
-  const atFinalSmith = !!(cm && cm.castleExitDir);
+  // The castle-gate village's smith forges it — and so does Elderbrook's, whose
+  // market row replicates that village's offerings wholesale. The Guild gate
+  // below is unchanged, so this adds a second counter to forge it at, not a
+  // second way to earn it.
+  const atFinalSmith = !!(cm && (cm.castleExitDir || (cm.type === 'homevillage' && cm.activated)));
   if (!owns && !atFinalSmith) return '';
   const elem = SWORD_ELEMENTS.dragonbane;
   if (owns) {
