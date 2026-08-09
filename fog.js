@@ -8,8 +8,20 @@ function ensureFog(mapObj) {
   }
 }
 
+// Elderbrook is exempt. It's the player's own village — they know every house
+// on it before the game opens — so it's never fogged, whole or ruined (both
+// states are type 'homevillage'; see createHomeVillageMap in world.js).
+// Answered here rather than by pre-filling a revealed fog array (the idiom an
+// activated village and the throne hall use) because this also covers saves
+// written back when the village still had partial fog stored: those restore
+// their old fog byte-for-byte in save.js, and the save format is unchanged.
+function isFoglessMap(mapObj) {
+  return mapObj.type === 'homevillage';
+}
+
 // Reveal a circular area around (cx, cy). Called whenever the player moves.
 function revealAround(mapObj, cx, cy, radius) {
+  if (isFoglessMap(mapObj)) return;   // nothing to reveal — see isFoglessMap
   ensureFog(mapObj);
   const r2 = radius * radius;
   // The player re-reveals the same disc every step, so only the thin crescent of
@@ -38,6 +50,7 @@ function revealAround(mapObj, cx, cy, radius) {
 }
 
 function isFoggy(mapObj, c, r) {
+  if (isFoglessMap(mapObj)) return false;
   if (!mapObj.fog) return true;
   return mapObj.fog[r * MCOLS + c] === 0;
 }

@@ -24,6 +24,47 @@
 // that's the forest region's *boss* village, generated much later.)
 const HOME_VILLAGE_NAME = 'Elderbrook';
 
+// ─── The market row ───────────────────────────────────────────────────────────
+// Elderbrook trades at the world's LAST region's rates. Its four shops are
+// stocked and priced exactly like the final village's — the same ore, the same
+// element, the same forge tolls — because a market this small is only worth
+// walking into if it sells what the endgame sells. storeRegion (shop-general.js)
+// routes all four shops through this, which is the single point every price,
+// recipe and stock list in the game already hangs off.
+//
+// This applies to the village standing. The fire takes the market row with
+// everything else (hvCharTile turns each shop door to rubble, and hvCloseShops
+// drops the bookkeeping), so the ruin the player comes home to for the rest of
+// the game has no shops in it.
+function homeVillageShopRegionIdx() {
+  return (typeof REGIONS !== 'undefined') ? REGIONS.length - 1 : 0;
+}
+
+// The shop bookkeeping a standing Elderbrook carries on its map object: the four
+// door positions a keeper stands behind, plus the `activated` flag every other
+// village raises when its shops open (see activateVillage in mapgen-village.js).
+// Same field names and same {r, c} door shape, so villagers.js and save.js read
+// this village exactly as they read any other.
+function homeVillageShopFields() {
+  const at = t => ({ r: HOME.shops[t].door.y, c: HOME.shops[t].door.x });
+  return {
+    activated: true,
+    innDoor:   at('inn'),
+    storeDoor: at('store'),
+    herbDoor:  at('herb'),
+    smithDoor: at('smith'),
+  };
+}
+
+// Shut the market row for good. Called when the fire takes the village: without
+// it, `activated` and the door coordinates would survive on the map object and
+// spawnVillagersForMap would stand four merchants back up in the ash.
+function hvCloseShops(mapObj) {
+  if (!mapObj) return;
+  mapObj.activated = false;
+  mapObj.innDoor = mapObj.storeDoor = mapObj.herbDoor = mapObj.smithDoor = undefined;
+}
+
 // ─── Landmark coordinates ─────────────────────────────────────────────────────
 // Every position the prologue script needs, named once. prologue.js reads these
 // rather than carrying magic numbers, so moving a building moves the scene with
@@ -44,6 +85,15 @@ const HOME = {
   // her bow ends up on ("just out of her reach").
   dyingAt:   { x: 80, y: 52 },
   bowAt:     { x: 78, y: 52 },
+  // Where Mother and Father are found after the strike. They start Beat 1 inside
+  // the house, but they cannot still be standing in it when the player gets home:
+  // Beat 5's narration is "No sign of your mother or your father", and the room
+  // belongs to Grandmother's scene. So the fire puts them out on the road, coming
+  // the other way — they went looking for the player. Both marks sit inside the
+  // band hvClearRouteHome keeps walkable (cols 74–76), so neither can end up
+  // stranded behind rubble.
+  motherFellAt: { x: 76, y: 71 },
+  fatherFellAt: { x: 74, y: 66 },
 
   // ── The village ──
   center:    { x: 75, y: 78 },   // cobbled square, where the Emperor descends
@@ -57,6 +107,27 @@ const HOME = {
   elderAt:   { x: 88, y: 72 },
   // Where the "do you feel that?" villager is standing when the sky changes.
   watcherAt: { x: 79, y: 82 },
+
+  // ── The market row ──
+  // One house per trade, ringing the square. Same hvHouse shape as the
+  // neighbours' homes — only the door tile differs. `door` is where hvHouse puts
+  // it, (r1 + h, c1 + ⌊w/2⌋), named here so the map object and the keepers can
+  // read the position without re-deriving it.
+  //
+  // Every rect is clear of what gets laid after the buildings: the north–south
+  // spine (cols 75–76), the west road (rows 78–79), the market spur and pad, the
+  // plaza, and the Hendricks' fence line (col 55, rows 73–84). Each door also has
+  // walkable ground directly south of it, which is the side a door opens onto.
+  //
+  // They are also clear of every mark the cast stands on above — the inn sits at
+  // col 90 rather than 88 precisely because Old Hendricks' mark is (88, 72), and
+  // a building laid over a villager leaves them standing inside its wall.
+  shops: {
+    inn:   { r1: 64,  c1: 90, w: 14, h: 10, door: { x: 97, y: 74  } },   // NE of the square
+    store: { r1: 62,  c1: 44, w: 14, h: 10, door: { x: 51, y: 72  } },   // west, above the gate
+    herb:  { r1: 84,  c1: 88, w: 14, h: 10, door: { x: 95, y: 94  } },   // SE of the square
+    smith: { r1: 104, c1: 44, w: 14, h: 10, door: { x: 51, y: 114 } },   // south-west, off the road
+  },
 };
 
 // The village clearing — everything outside this is forest border.
@@ -94,6 +165,20 @@ function buildHomeVillageMap() {
     { r1: 52, c1: 92, w: 14, h: 10 },   // east
   ];
   for (const h of neighbours) hvHouse(m, h.r1, h.c1, h.w, h.h);
+
+  // ── The market row ──
+  // Built exactly like the homes, then the door tile is swapped for the trade's
+  // own. That door tile is the whole of a shop as far as the rest of the game is
+  // concerned: placeShopkeepers (villagers.js) stands a keeper behind a counter
+  // just inside it, and stepping up to them opens the modal.
+  const SHOP_DOOR_TILE = {
+    inn: T.INN_DOOR, store: T.STORE_DOOR, herb: T.HERB_DOOR, smith: T.SMITH_DOOR,
+  };
+  for (const trade in HOME.shops) {
+    const s = HOME.shops[trade];
+    hvHouse(m, s.r1, s.c1, s.w, s.h);
+    m[s.door.y][s.door.x] = SHOP_DOOR_TILE[trade];
+  }
 
   // ── The family home ──
   // Built last of the buildings so nothing overwrites it, and furnished by hand
@@ -237,7 +322,13 @@ function hvCharTile(t) {
     case T.BED:
     case T.TABLE:
     case T.CHAIR:
-    case T.DOOR:         return T.RUBBLE;
+    case T.DOOR:
+    // The market row burns like any other door. Elderbrook is never rebuilt, so
+    // there is no path back from this — the ruin trades in nothing.
+    case T.INN_DOOR:
+    case T.STORE_DOOR:
+    case T.HERB_DOOR:
+    case T.SMITH_DOOR:   return T.RUBBLE;
     // Torches, fireplaces, chests, the window and the pillars of the Hendricks'
     // fence are left as they are: a hearth in a burnt house still reads as a
     // hearth, and turning the chest to rubble would eat the player's belongings.

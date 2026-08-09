@@ -122,7 +122,7 @@ function createHomeVillageMap(id, gx, gy) {
   // village whole. hasFlag is safe here even mid-boot — it tolerates a player
   // whose flags bag hasn't been populated yet.
   const ruined = (typeof hasFlag === 'function') && hasFlag('prologue_complete');
-  return {
+  const obj = {
     id, gx, gy,
     name: HOME_VILLAGE_NAME,
     type: 'homevillage', biome: 'forest',
@@ -131,6 +131,11 @@ function createHomeVillageMap(id, gx, gy) {
     openedChests: new Set(),
     visited: false, depth: 0
   };
+  // The market row opens with the village and dies with it — a standing
+  // Elderbrook carries the same shop fields an activated village does, and the
+  // ruin carries none (see homeVillageShopFields / hvCloseShops).
+  if (!ruined) Object.assign(obj, homeVillageShopFields());
+  return obj;
 }
 
 // Retained for saves written before the home village replaced the lone starter

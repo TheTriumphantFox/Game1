@@ -136,6 +136,16 @@ const REGION_FORAGE = {
 // `regionIdx`; fall back to the biome string, then to forest.
 function storeRegion() {
   const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  // Elderbrook is the one exception. Its market row trades at the world's last
+  // region's rates rather than its own forest biome, so every price, recipe,
+  // stock list and forge toll below resolves as it would in the final village.
+  // Gated on `activated` so the burnt-out ruin — which has no shops at all — is
+  // never treated as a trading post. See homeVillageShopRegionIdx.
+  if (cm && cm.type === 'homevillage' && cm.activated &&
+      typeof homeVillageShopRegionIdx === 'function') {
+    const hvIdx = homeVillageShopRegionIdx();
+    return { idx: hvIdx, region: (typeof REGIONS !== 'undefined' ? REGIONS[hvIdx] : null) };
+  }
   let idx = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx : -1;
   if (idx < 0 && cm && typeof REGIONS !== 'undefined') {
     idx = REGIONS.findIndex(r => r.id === cm.biome);

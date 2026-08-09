@@ -1,4 +1,10 @@
-param([int]$Port = 8765, [string]$Root = "$PSScriptRoot\..")
+param([int]$Port = 0, [string]$Root = "$PSScriptRoot\..")
+
+# Port precedence: -Port flag, then $env:PORT (how the preview harness assigns a
+# free port so two sessions can serve the repo at once), then the old default.
+if (-not $Port) {
+  if ($env:PORT) { $Port = [int]$env:PORT } else { $Port = 8765 }
+}
 
 $Root = (Resolve-Path $Root).Path
 $prefix = "http://localhost:$Port/"
