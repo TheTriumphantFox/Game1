@@ -277,7 +277,12 @@ function makeGrottoEnemyDefs(sourceTier, map) {
 // ─── Cave rosters ───────────────────────────────────────────────────────────────
 // The subset of each region's tier that would believably lair underground —
 // warren beasts & spiders, burrowers, oozy crawlers, undead in crypts, underdark
-// aberrations. Indexed by enemyTier, parallel to ENEMY_POOLS. A waterfall cave is
+// aberrations. Indexed by enemyTier, parallel to ENEMY_POOLS — one row per region,
+// in the same order, and adding a region means adding a row HERE too. When this
+// table was short, makeCaveEnemyDefs silently clamped instead of failing: volcanic
+// caves drew from the air row and shadow caves from mana, and the row comments read
+// correctly the whole time because they name the intended region, not the index.
+// A waterfall cave is
 // populated from the *originating region's* tier, so reusing existing enemies
 // means their art, trophy drops, and (for ranged types) the 50% arrow-bundle
 // drop all carry over unchanged — no new enemy art or loot tables required.
@@ -287,12 +292,14 @@ const CAVE_POOLS = [
   ['kuo_toa', 'sahuagin', 'merrow'],                                  //  2 Water — flooded caverns
   ['ice_mephit', 'yeti', 'white_dragon'],                             //  3 Ice — glacier caves
   ['ankheg', 'bulette', 'gargoyle', 'earth_elemental', 'stone_giant'],//  4 Earth — burrows
-  ['harpy', 'manticore'],                                             //  5 Air — cliff caves
-  ['will_o_wisp', 'behir', 'blue_wyrmling'],                          //  6 Lightning — deep caverns
-  ['couatl', 'deva', 'ki_rin'],                                       //  7 Luminous — crystal grottos
-  ['skeleton', 'zombie', 'ghost', 'wraith', 'vampire'],              //  8 Necrotic — crypts
-  ['carrion_crawler', 'otyugh', 'troll', 'purple_worm'],             //  9 Poison — fetid tunnels
-  ['nothic', 'mind_flayer', 'beholder'],                             // 10 Mana — underdark
+  ['magmin', 'fire_snake', 'azer', 'red_wyrmling'],                   //  5 Volcanic — magma chambers
+  ['harpy', 'manticore'],                                             //  6 Air — cliff caves
+  ['will_o_wisp', 'behir', 'blue_wyrmling'],                          //  7 Lightning — deep caverns
+  ['couatl', 'deva', 'ki_rin'],                                       //  8 Luminous — crystal grottos
+  ['skeleton', 'zombie', 'ghost', 'wraith', 'vampire'],              //  9 Necrotic — crypts
+  ['carrion_crawler', 'otyugh', 'troll', 'purple_worm'],             // 10 Poison — fetid tunnels
+  ['nothic', 'mind_flayer', 'beholder'],                             // 11 Mana — underdark
+  ['shade', 'shadow_mastiff', 'bodak', 'shadow_demon'],              // 12 Shadow — lightless deeps
 ];
 
 // Build the enemy spawn list for a waterfall cave chamber. `sourceTier` is the

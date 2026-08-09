@@ -307,6 +307,17 @@ function applyLoadData(data) {
     worldMaps.forEach(m => { worldGrid[gridKey(m.gx, m.gy)] = m.id; });
   }
 
+  // A truncated or hand-edited save can name a currentMapId that worldMapsLite
+  // never supplied. Every frame calls currentMap() before anything else, so an
+  // unresolvable id doesn't fail here — it throws in the render loop, one frame
+  // after the load reports success. Fall back to map 0, which always exists.
+  if (!worldMaps[currentMapId]) {
+    currentMapId = 0;
+    player.x = EXIT_COL; player.y = EXIT_ROW;
+    player.renderX = player.x; player.renderY = player.y;
+    showMsg('⚠️ Save pointed at a missing map — returned home.', 4000);
+  }
+
   spawnEnemiesForMap(currentMapId);
   spawnVillagersForMap(currentMapId);
   // Cancel any cutscene the load interrupted and restore the ambient state that
@@ -630,6 +641,16 @@ function resetGame(heroName) {
   enemies = []; projectiles = []; particles = []; damageNumbers = []; drops = [];
   villagers = [];
   minimapCanvases = {}; minimapDirty = true;
+  // Drop the death-reload payload and the rolling autosave along with it.
+  // reloadLastSave() falls back to `lastCheckpoint` and then to AUTOSAVE_KEY,
+  // and neither belongs to this hero — without this, dying before the new game
+  // reaches its first checkpoint (village clear / first tower floor) restores
+  // the PREVIOUS game outright: old hero, old inventory, old maps.
+  // The load modal's auto-save row is gated on the key existing, so the stale
+  // `idx.auto` metadata left behind stays hidden and is overwritten wholesale
+  // by the next autoSave().
+  lastCheckpoint = null;
+  try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* storage unavailable — nothing to clear */ }
 
   initWorld();
   revealAround(currentMap(), player.x, player.y, 12);
