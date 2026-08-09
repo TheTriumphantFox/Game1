@@ -32,7 +32,7 @@
 //   revenge_triggered     Grandmother's dying words have landed (Beat 5)
 //   prologue_complete     title card shown; the open world begins
 //
-// See .claude/skills/hyrule-quest/references/prologue-script.md for the beats
+// See .claude/skills/the-rpg-game/references/prologue-script.md for the beats
 // these correspond to.
 
 // Set a flag. Defaults to true because nearly every use is "this happened".

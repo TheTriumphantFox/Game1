@@ -56,7 +56,7 @@ laptop) swaps the UI without a reload.
 
 The 🎮 button on the title screen and in the bottom save row cycles
 **Auto → Touch → Desktop** if you want to pin one. The choice is stored per
-device (`hyrule_quest_ui_mode` in localStorage), not in your save file, so
+device (`the_rpg_game_ui_mode` in localStorage), not in your save file, so
 carrying a save to another device doesn't drag a phone's controls along with it.
 
 Everything keys off a single `data-ui` attribute on `<html>`, set in

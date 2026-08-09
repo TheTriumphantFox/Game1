@@ -1,19 +1,22 @@
 // ─── Save / load: named slot system ───────────────────────────────────────────
-// Stores each save under `hyrule_quest_slot_N` in localStorage, plus a
-// metadata index (`hyrule_quest_index`) with slot names and timestamps.
+// Stores each save under `the_rpg_game_slot_N` in localStorage, plus a
+// metadata index (`the_rpg_game_index`) with slot names and timestamps.
+// Saves written before the game was renamed live under a `hyrule_quest_`
+// prefix; config.js copies them onto these keys on first load, so nothing here
+// has to know about the old names.
 
-const SAVE_KEY_PREFIX = 'hyrule_quest_slot_';
+const SAVE_KEY_PREFIX = 'the_rpg_game_slot_';
 const MAX_SLOTS = 6;
 
 let modalMode = null;        // 'save' | 'load'
 let pendingSlot = null;      // slot index currently being named
 
 function getSaveIndex() {
-  const raw = localStorage.getItem('hyrule_quest_index');
+  const raw = localStorage.getItem('the_rpg_game_index');
   return raw ? JSON.parse(raw) : {};
 }
 function setSaveIndex(idx) {
-  localStorage.setItem('hyrule_quest_index', JSON.stringify(idx));
+  localStorage.setItem('the_rpg_game_index', JSON.stringify(idx));
 }
 
 // Serialize everything needed to restore the world.
@@ -321,7 +324,7 @@ function applyLoadData(data) {
 // of the 6 named slots. `lastCheckpoint` holds the most recent save payload of
 // ANY kind — manual save, auto-save, or the save just loaded — and is what a
 // death reload restores from.
-const AUTOSAVE_KEY = 'hyrule_quest_autosave';
+const AUTOSAVE_KEY = 'the_rpg_game_autosave';
 let lastCheckpoint = null;
 
 function autoSave(label) {

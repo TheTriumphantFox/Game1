@@ -191,7 +191,7 @@ up for her, or she gestures for them to take it — implementation choice.
 *(State flag set: `revenge_triggered` — affects future dialogue options, possibly a
 passive damage/rage mechanic against Emperor-aligned enemies)*
 
-**[SCREEN FADES. TITLE CARD: HYRULE QUEST]**
+**[SCREEN FADES. TITLE CARD: THE RPG GAME]**
 
 ---
 

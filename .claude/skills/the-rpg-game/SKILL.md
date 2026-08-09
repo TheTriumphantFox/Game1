@@ -1,15 +1,15 @@
 ---
-name: hyrule-quest
-description: Project conventions, architecture rules, and story canon for Hyrule Quest, a browser-based top-down RPG that runs from the local filesystem with no build step. Use this skill for ANY work in this repo — adding or editing enemies, maps, items, quests, dialogue, save/load, fog of war, XP and leveling, UI, or refactors — and also whenever the user asks about game balance, story beats, the Withering Crown plotline, the Red Dragon Emperor, or what a system currently does. Consult it before writing code here, not after, because this project has hard constraints (no bundler, no ES module imports, no network calls) that ordinary web-app instincts will violate.
+name: the-rpg-game
+description: Project conventions, architecture rules, and story canon for The RPG Game, a browser-based top-down RPG that runs from the local filesystem with no build step. Use this skill for ANY work in this repo — adding or editing enemies, maps, items, quests, dialogue, save/load, fog of war, XP and leveling, UI, or refactors — and also whenever the user asks about game balance, story beats, the Withering Crown plotline, the Red Dragon Emperor, or what a system currently does. Consult it before writing code here, not after, because this project has hard constraints (no bundler, no ES module imports, no network calls) that ordinary web-app instincts will violate.
 ---
 
-# Hyrule Quest
+# The RPG Game
 
 A browser-based top-down action RPG in the spirit of *Zelda: A Link to the Past*. Procedurally generated maps, fog of war, D&D 5e-derived enemies, XP and leveling, named save slots, and a coordinate registry that acts as the source of truth for world state.
 
 The whole game is opened by double-clicking `index.html`. There is no build and no install step. That single fact drives most of the rules below.
 
-There *is* a small local static server in the repo — `.claude/serve.ps1`, wired up as the `hyrule-quest` config in `.claude/launch.json` (localhost:8765) — but it exists only as a testing convenience. It changes nothing about the constraints: the game has to work when the file is double-clicked, so never fix a `file://` problem by telling the user to run the server.
+There *is* a small local static server in the repo — `.claude/serve.ps1`, wired up as the `the-rpg-game` config in `.claude/launch.json` (localhost:8765) — but it exists only as a testing convenience. It changes nothing about the constraints: the game has to work when the file is double-clicked, so never fix a `file://` problem by telling the user to run the server.
 
 ## Before writing any code
 
@@ -43,7 +43,7 @@ There is no `registerEntity()`/`registerTile()`-style call anywhere in this code
 
 **Match the existing shape.** Before adding an enemy, item, map feature, or save field, read two or three existing examples and follow their shape exactly — same property names, same ordering, same construction pattern (e.g. how neighboring `create*Map()` functions build and push a map object, or how neighboring `DND_ENEMIES` entries are shaped). Consistency here matters more than any individual improvement, because the systems read each other's data.
 
-**Save compatibility.** Named save slots are a shipped feature and there are real saves in them. When adding a field to save state, default it sensibly when it's absent so an older save still loads. Never change the persistence mechanism or the slot format without flagging it first and saying explicitly that existing saves will break.
+**Save compatibility.** Named save slots are a shipped feature and there are real saves in them. When adding a field to save state, default it sensibly when it's absent so an older save still loads. Never change the persistence mechanism or the slot format without flagging it first and saying explicitly that existing saves will break. The storage keys are `the_rpg_game_slot_N` / `_index` / `_autosave` / `_ui_mode`; pre-rename saves used a `hyrule_quest_` prefix and are copied across by the one-shot migration at the top of the UI-mode section in `config.js`. Leave that migration in place — removing it strands the saves of anyone who hasn't opened the game since the rename.
 
 **Procedural generation is supposed to be reproducible — it currently is not.** Every `mapgen-*.js` file (and `world.js`) accepts a `seed` parameter but never actually threads it into randomness; generation runs on bare, unseeded `Math.random()`/`rnd()` throughout (confirmed via `tools/lint-conventions.py`, which flags this everywhere, and reproducible in `tools/seed-preview.html` — generating the same seed twice yields different maps). This is a real, pre-existing gap, not a hypothetical rule. Don't make it worse: no *new* bare `Math.random()` in generation paths. If you're the one fixing it, that means threading an actual seeded PRNG through every generation file that currently ignores `seed` — not just changing one call site and calling it done.
 

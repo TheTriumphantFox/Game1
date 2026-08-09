@@ -1,6 +1,6 @@
 # Challenge Rating Reference
 
-Derived from the D&D 5e monster-creation guidelines. Use these as the *baseline* to scale from — see the calibration step in SKILL.md. These assume tabletop party-of-four combat, which Hyrule Quest is not.
+Derived from the D&D 5e monster-creation guidelines. Use these as the *baseline* to scale from — see the calibration step in SKILL.md. These assume tabletop party-of-four combat, which The RPG Game is not.
 
 ## Monster statistics by CR
 
@@ -55,7 +55,7 @@ For damage per round, average the first three rounds of what the enemy realistic
 - Damage per round 22 → that's the CR 3 row → offensive CR 3. Attack bonus +2 is 2 below the CR 3 row's expected +4 → −1 → **offensive CR 2**.
 - Final: (2 + 2) ÷ 2 = **CR 2**. On target.
 
-Then apply the project's HP scaling ratio before writing the actual stat block — the 80 HP above is a tabletop figure, not a Hyrule Quest one.
+Then apply the project's HP scaling ratio before writing the actual stat block — the 80 HP above is a tabletop figure, not a The RPG Game figure.
 
 ## Group encounters
 

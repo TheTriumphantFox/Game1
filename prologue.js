@@ -1,6 +1,6 @@
 // ─── Prologue: "Ashfall" ──────────────────────────────────────────────────────
 // The five opening beats, as data. Every line here is verbatim from
-// .claude/skills/hyrule-quest/references/prologue-script.md — that file is the
+// .claude/skills/the-rpg-game/references/prologue-script.md — that file is the
 // script, this one is the staging. If a line needs to change, change it there
 // first and copy it across, so the writing and the build can't drift.
 //
@@ -551,7 +551,7 @@ function playWhatsLeftBeat() {
     { run: () => {
         burnLevel = 0.25;      // the fire burns down but the ruin keeps smouldering
         letterboxLevel = 0;
-        showMapMsg('⚔️  H Y R U L E   Q U E S T');
+        showMapMsg('⚔️  T H E   R P G   G A M E');
       } },
     { wait: 2600 },
     { fade: 0, ms: 1600 },
