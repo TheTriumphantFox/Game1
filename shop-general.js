@@ -143,7 +143,12 @@ function storeRegion() {
   // never treated as a trading post. See homeVillageShopRegionIdx.
   if (cm && cm.type === 'homevillage' && cm.activated &&
       typeof homeVillageShopRegionIdx === 'function') {
-    const hvIdx = homeVillageShopRegionIdx();
+    // …until the fire. What survives Ashfall trades at forest rates, not the
+    // endgame's: the market row's stock and its prices burned with the village,
+    // and the three who are left are scraping by. This is also what drops the
+    // herbalist to the plain 1d4 brew — HERBALIST_RECIPES has no 'forest' entry,
+    // so renderHerbalistContents falls through to renderForestHerbalist.
+    const hvIdx = cm.shopsRuined ? 0 : homeVillageShopRegionIdx();
     return { idx: hvIdx, region: (typeof REGIONS !== 'undefined' ? REGIONS[hvIdx] : null) };
   }
   let idx = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx : -1;
@@ -197,7 +202,19 @@ function renderStoreContents() {
     ? region.id.charAt(0).toUpperCase() + region.id.slice(1)
     : 'Forest';
 
-  const buyRows = STORE_ITEMS.map(it => {
+  // The ruined shopkeeper has nothing left to sell. His entire stock went up with
+  // the village, but he will still buy from the player — so the shelves come out
+  // of the modal and the sell list below stays exactly as it is.
+  const cmNow = (typeof currentMap === 'function') ? currentMap() : null;
+  const strippedShelves = !!(cmNow && cmNow.shopsRuined);
+
+  const buyRows = strippedShelves ? `
+      <div class="shop-row">
+        <div class="shop-item">
+          <div class="shop-item-meta">The shelves are bare and scorched. There is nothing left to sell you.</div>
+        </div>
+      </div>
+    ` : STORE_ITEMS.map(it => {
     const cost = discountedCost(it.cost);
     const broke = player.rubies < cost;
     const owned = it.canBuy ? !it.canBuy() : false;

@@ -131,6 +131,10 @@ function createHomeVillageMap(id, gx, gy) {
     openedChests: new Set(),
     visited: false, depth: 0
   };
+  // The household chest lost its lock in the fire and has stood open ever since
+  // (pgBurnChestOpen, prologue.js). A ruin rebuilt from scratch has to remember
+  // that, or the one chest in the game with a story attached reappears shut.
+  if (ruined) obj.openedChests.add(`${HOME.chest.x},${HOME.chest.y}`);
   // The market row opens with the village and dies with it — a standing
   // Elderbrook carries the same shop fields an activated village does, and the
   // ruin carries none (see homeVillageShopFields / hvCloseShops).
@@ -289,6 +293,7 @@ function getOrCreateActiveRegionVillage(regionIdx) {
   const obj = worldMaps[id];
   // Dev: force-clear the village so it has a portal and no monsters.
   if (!obj.activated) activateVillage(obj);
+  else if (typeof installVillageShrineEntrance === 'function') installVillageShrineEntrance(obj);
   obj.savedEnemies = [];   // monster-free on (re)entry
   return id;
 }
@@ -618,7 +623,8 @@ function sealRegion(regionIdx) {
   }
   // Seed this region's lone sealed elemental shrine (#10) now that the region's
   // maps exist and are bounded.
-  seedRegionShrine(regionIdx);
+  // Stage 9 shrines now live in each activated village. The old random
+  // overworld seal generator remains below solely for tolerant legacy loads.
 }
 
 // ─── Sealed elemental shrine (#10) ────────────────────────────────────────────

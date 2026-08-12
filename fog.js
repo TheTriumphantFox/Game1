@@ -19,6 +19,34 @@ function isFoglessMap(mapObj) {
   return mapObj.type === 'homevillage';
 }
 
+// How far ordinary walking sees. 12 tiles everywhere, 14 in a region whose
+// shrine has been solved — stage 8's fog half of the shrine payoff. Vantage
+// points (peaks, towers, the 14/16-tile reveals in player.js) are a different
+// thing entirely and are left as the literals they are: they describe what can
+// be seen from up there, not how clear the air is.
+const WALK_REVEAL_RADIUS = 12;
+const WALK_REVEAL_CLEANSED = 14;
+
+function walkRevealRadius(mapObj) {
+  if (typeof isRegionCleansed !== 'function' || typeof mapRegionIndex !== 'function') {
+    return WALK_REVEAL_RADIUS;
+  }
+  // The necrotic pall eats sight until the hero is carrying the Ember Lantern
+  // (abilities.js). It beats the cleansing bonus: a region can be clean of the
+  // blight and still be the region where nothing carries light.
+  if (typeof necroticSightPenalty === 'function' && necroticSightPenalty(mapObj)) {
+    return NECROTIC_REVEAL;
+  }
+  return isRegionCleansed(mapRegionIndex(mapObj)) ? WALK_REVEAL_CLEANSED : WALK_REVEAL_RADIUS;
+}
+
+// Reveal what walking reveals. Every "the hero moved / arrived" call site goes
+// through here rather than passing 12 itself, so the cleansing bonus applies
+// everywhere at once and there is one place to change if it ever moves again.
+function revealWalk(mapObj, cx, cy) {
+  revealAround(mapObj, cx, cy, walkRevealRadius(mapObj));
+}
+
 // Reveal a circular area around (cx, cy). Called whenever the player moves.
 function revealAround(mapObj, cx, cy, radius) {
   if (isFoglessMap(mapObj)) return;   // nothing to reveal — see isFoglessMap

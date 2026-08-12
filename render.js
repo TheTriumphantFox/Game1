@@ -377,7 +377,7 @@ function drawPlayer(ts) {
   }
 
   // ── Round tree-emblem shield (idle only; hidden during swing/away) ──
-  if (facing !== 'up' && player.swordTimer <= 0) {
+  if (facing !== 'up' && player.swordTimer <= 0 && player.punchTimer <= 0) {
     const cxs = flipX ? sx + s*0.80 : sx + s*0.20;   // shield centre
     const cys = sy + s*0.62 + bob;
     const rr  = s*0.20;
@@ -495,6 +495,23 @@ function drawPlayer(ts) {
       ctx.fillStyle = '#fff';
       ctx.fillRect(ex + (facing === 'right' ? s*0.05 : 0), sy + s*0.30 + bob, s*0.02, s*0.02);
     }
+  }
+
+  // ── Punch (a jab, not an arc) ────────────────────────
+  // The pre-weapon action (see doPunch). Deliberately a different shape from the
+  // sword: a fist thrusts straight out one tile and comes back, so there's no
+  // mistaking the two, and no blade is ever drawn before the player owns one.
+  if (player.punchTimer > 0) {
+    const phase = 1 - Math.max(0, Math.min(1, player.punchTimer / 150));   // 0 → 1
+    // Out on the first half, back on the second.
+    const reach = Math.sin(phase * Math.PI) * s * 0.55;
+    const cx = sx + s / 2 + sd.x * reach;
+    const cy = sy + s / 2 + bob + sd.y * reach;
+    const rr = s * 0.13;
+    ctx.fillStyle = P_SKIN_D;
+    ctx.beginPath(); ctx.arc(cx, cy, rr * 1.15, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = P_SKIN;
+    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
   }
 
   // ── Sword swing (animated arc) ────────────────────────
@@ -1502,6 +1519,125 @@ function drawFireWash() {
 // reused wholesale by handing drawEnemy an enemy-shaped object rather than
 // copying two hundred lines of wing and scale drawing into a second place. The
 // `cutsceneActor` flag on it suppresses the HP bar and boss name tag.
+// ─── Beat 3: birds and wind ───────────────────────────────────────────────────
+// The flock that goes up off the rooftops when the light changes. Each bird is
+// two stroked wing-strokes in a V, which at this tile size reads as a bird far
+// better than any body would; `alt` lifts it off its own ground shadow so the
+// flock visibly climbs away rather than sliding across the roofs.
+function drawPrologueBirds(ts) {
+  if (typeof prologueBirds === 'undefined' || !prologueBirds.length) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const b of prologueBirds) {
+    const fade = Math.max(0, Math.min(1, b.life / 700));
+    const sx = (b.x - camC) * ts;
+    const sy = (b.y - camR) * ts - b.alt * ts;
+    // Wingbeat: the V opens and closes. Fast, because small birds do.
+    const beat = Math.sin(Date.now() / 70 + b.flap);
+    const span = ts * 0.20;
+    const lift = beat * ts * 0.11;
+    ctx.strokeStyle = `rgba(28,24,20,${(0.75 * fade).toFixed(3)})`;
+    ctx.lineWidth = Math.max(1, ts * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(sx - span, sy - lift);
+    ctx.quadraticCurveTo(sx - span * 0.4, sy + lift * 0.5, sx, sy);
+    ctx.quadraticCurveTo(sx + span * 0.4, sy + lift * 0.5, sx + span, sy - lift);
+    ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+  ctx.restore();
+}
+
+// The wind picking up. Streaks blowing west to east across the whole viewport,
+// density and opacity driven by prologueWind (0 = still, 1 = full). Drawn in
+// screen space rather than world space: it is weather, not something standing on
+// a tile, and it should not slide when the camera pans.
+function drawPrologueWind(ts) {
+  if (typeof prologueWind === 'undefined' || prologueWind <= 0.01) return;
+  const w = prologueWind;
+  const now = Date.now();
+  ctx.save();
+  ctx.strokeStyle = `rgba(232,238,246,${(0.16 * w).toFixed(3)})`;
+  ctx.lineWidth = Math.max(1, ts * 0.03);
+  ctx.lineCap = 'round';
+  const count = Math.round(46 * w);
+  for (let i = 0; i < count; i++) {
+    // Deterministic lanes, scrolled by time — no per-frame randomness, so the
+    // streaks flow instead of flickering.
+    const lane = (i * 97) % PH;
+    const speed = 0.55 + ((i * 37) % 40) / 100;
+    const len = ts * (0.7 + ((i * 53) % 60) / 60);
+    let x = ((now * speed * 0.35) + i * 173) % (PW + 240) - 120;
+    const y = lane + Math.sin(now / 700 + i) * ts * 0.12;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + len, y + ts * 0.06);
+    ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+  ctx.restore();
+}
+
+// ─── Beat 4: the dragon's breath ──────────────────────────────────────────────
+// A wall of flame that leaves the Emperor and crosses the whole screen. Drawn as
+// an expanding ring clipped to a forward arc rather than as a fixed-width beam,
+// because it has to read as coming FROM him from wherever the camera happens to
+// be sitting — the player is somewhere in the village, not on a fixed mark.
+//
+// Three layers: an outer body of deep orange, a hotter core inside it, and a
+// leading edge of near-white where the fire is actually eating the ground. The
+// whole thing fades out over the last third of its life so it thins into smoke
+// rather than snapping off.
+function drawPrologueBreath(ts) {
+  if (typeof prologueBreath === 'undefined' || !prologueBreath) return;
+  const B = prologueBreath;
+  const t = Math.max(0, Math.min(1, B.t / B.ms));
+  // Ease out: it leaves him fast and slows as it spreads.
+  const eased = 1 - Math.pow(1 - t, 2.2);
+  const ox = (B.x - camC) * ts, oy = (B.y - camR) * ts;
+  // Far enough to clear the diagonal of any viewport.
+  const maxR = Math.hypot(PW, PH) * 1.15;
+  const r = eased * maxR;
+  const fade = t < 0.66 ? 1 : 1 - (t - 0.66) / 0.34;
+  if (r <= 1 || fade <= 0) return;
+
+  ctx.save();
+  const band = Math.max(ts * 1.4, maxR * 0.16);
+  // Outer body.
+  const grad = ctx.createRadialGradient(ox, oy, Math.max(0, r - band), ox, oy, r);
+  grad.addColorStop(0.00, `rgba(150,30,0,0)`);
+  grad.addColorStop(0.45, `rgba(214,74,12,${(0.42 * fade).toFixed(3)})`);
+  grad.addColorStop(0.80, `rgba(255,140,36,${(0.62 * fade).toFixed(3)})`);
+  grad.addColorStop(0.97, `rgba(255,226,150,${(0.80 * fade).toFixed(3)})`);
+  grad.addColorStop(1.00, `rgba(255,255,230,0)`);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(ox, oy, r, 0, Math.PI * 2);
+  ctx.arc(ox, oy, Math.max(0, r - band), 0, Math.PI * 2, true);
+  ctx.fill();
+
+  // Leading edge — a bright, ragged rim. The wobble is a function of angle and
+  // elapsed time, so it churns without any per-frame randomness.
+  ctx.strokeStyle = `rgba(255,244,214,${(0.55 * fade).toFixed(3)})`;
+  ctx.lineWidth = Math.max(2, ts * 0.14);
+  ctx.beginPath();
+  for (let a = 0; a <= Math.PI * 2 + 0.001; a += Math.PI / 48) {
+    const wob = 1 + Math.sin(a * 7 + B.t / 90) * 0.020 + Math.sin(a * 13 - B.t / 140) * 0.012;
+    const rx = ox + Math.cos(a) * r * wob;
+    const ry = oy + Math.sin(a) * r * wob;
+    if (a === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+  }
+  ctx.stroke();
+
+  // A wash of heat over everything the front has already passed, so the ground
+  // behind the fire is lit rather than untouched.
+  ctx.fillStyle = `rgba(190,60,10,${(0.16 * fade).toFixed(3)})`;
+  ctx.beginPath();
+  ctx.arc(ox, oy, Math.max(0, r - band * 0.9), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawPrologueEmperor(ts) {
   if (typeof prologueEmperor === 'undefined' || !prologueEmperor) return;
   const E = prologueEmperor;
@@ -1892,6 +2028,14 @@ function render() {
     }
   }
 
+  // The blight, laid over the finished tile pass (corruption.js). Here rather
+  // than inside drawTile because it is a property of the *place*, not of any
+  // tile type — it has to shift grass, sand and cobble alike, and it must not
+  // poison the tile sprite cache, which is keyed on tile type alone.
+  if (typeof drawCorruptionOverlay === 'function') {
+    drawCorruptionOverlay(ts, startC, startR, endC, endR);
+  }
+
   // Whirlpool suction overlays — after the tile pass so the churn spills over
   // the surrounding 3×3 of water instead of being overdrawn by neighbors.
   const whirlpools = mapFeatureTiles(mapObj, T.WHIRLPOOL, '_whirlpools');
@@ -1899,6 +2043,8 @@ function render() {
     const mc = whirlpools[i], mr = whirlpools[i + 1];
     if (mc >= startC && mc <= endC && mr >= startR && mr <= endR) drawWhirlpoolSuction(mc, mr, ts);
   }
+
+  if (typeof drawShrineOverlays === 'function') drawShrineOverlays(ts);
 
   drawFog();
   drops.forEach(d => { if (!isFoggy(mapObj, d.x, d.y)) drawDrop(d, ts); });
@@ -1913,6 +2059,25 @@ function render() {
     });
   }
   drawPlayer(ts);
+
+  // The Emperor's crown, rolling to the hero's feet and then lying there. After
+  // the entities because it comes to rest against the player's boot and has to
+  // be seen doing it (see rollEmperorCrown, tower.js).
+  if (typeof drawEmperorCrown === 'function') drawEmperorCrown(ts);
+
+  // Where the errand is pointing. After the entities so a villager standing on
+  // the spot can't paint over their own marker.
+  if (typeof drawPrologueObjective === 'function') drawPrologueObjective(ts);
+
+  // Beat 3's ambient shift. Wind blows across everything at ground level; the
+  // birds are above the rooftops, so both sit above the entities and below the
+  // Emperor, who is higher than either.
+  if (typeof drawPrologueWind === 'function') drawPrologueWind(ts);
+  if (typeof drawPrologueBirds === 'function') drawPrologueBirds(ts);
+
+  // The breath sweeps over the ground and everyone standing on it, but under the
+  // Emperor himself — it is coming out of him.
+  if (typeof drawPrologueBreath === 'function') drawPrologueBreath(ts);
 
   // The Emperor — after every ground entity, because he is in the sky above all
   // of them, and before the canopy pass so a tree can still occlude him.

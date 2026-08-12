@@ -86,7 +86,7 @@ function renderHerbalistContents() {
 
   document.getElementById('herb-modal').innerHTML = `
     <h2>🌿 Herbalist's Hut</h2>
-    <div class="shop-greeting">The ${name} remedies are my craft, traveler — what'll it be?</div>
+    <div class="shop-greeting">The ${name} remedies are my craft, traveler. What'll it be?</div>
     <div class="shop-rubies">You have: ${have}</div>
     <div class="shop-row">
       <div class="shop-item">
@@ -274,7 +274,7 @@ function renderCollectorContents() {
   if (q.status === 'done') {
     document.getElementById('quest-modal').innerHTML = `
       <h2>📜 The Collector</h2>
-      <div class="shop-greeting">My shelves are full thanks to you, hero — the ${regionName} reaches hold no more secrets for me.</div>
+      <div class="shop-greeting">My shelves are full thanks to you, hero. The ${regionName} reaches hold no more secrets for me.</div>
       <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
     `;
     return;
@@ -365,7 +365,7 @@ function renderTaxidermistContents() {
   if (q.status === 'done') {
     document.getElementById('quest-modal').innerHTML = `
       <h2>🦌 The Taxidermist</h2>
-      <div class="shop-greeting">The ${regionName} trophy wall is complete — my mounts will draw the beasts out for you now.</div>
+      <div class="shop-greeting">The ${regionName} trophy wall is complete. My mounts will draw the beasts out for you now.</div>
       <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
     `;
     return;
@@ -387,7 +387,7 @@ function renderTaxidermistContents() {
   const ready = taxidermistReady(regionIdx);
   document.getElementById('quest-modal').innerHTML = `
     <h2>🦌 The Taxidermist</h2>
-    <div class="shop-greeting">Bring me <b>one</b> of every beast in the ${regionName} reaches and I'll mount a trophy wall — the scent draws more prey. <b>Reward: permanent +1 ${regionName} trophy drops.</b></div>
+    <div class="shop-greeting">Bring me <b>one</b> of every beast in the ${regionName} reaches and I'll mount a trophy wall. The scent draws more prey. <b>Reward: permanent +1 ${regionName} trophy drops.</b></div>
     ${rows}
     <div class="shop-row">
       <div class="shop-item">
@@ -457,7 +457,7 @@ function renderAlchemistContents() {
   if (!o.target) {
     document.getElementById('quest-modal').innerHTML = `
       <h2>⚗️ The Alchemist</h2>
-      <div class="shop-greeting">No reagents catch my eye here just now — come back with more spoils.</div>
+      <div class="shop-greeting">No reagents catch my eye here just now. Come back with more spoils.</div>
       <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>`;
     return;
   }
@@ -467,7 +467,7 @@ function renderAlchemistContents() {
   const ready = have >= ALCHEMIST_QTY;
   document.getElementById('quest-modal').innerHTML = `
     <h2>⚗️ The Alchemist</h2>
-    <div class="shop-greeting">I need reagents in bulk. Bring me <b>${ALCHEMIST_QTY}</b> ${meta.label} and I'll pay well — the more orders you fill in a row, the sweeter the price.</div>
+    <div class="shop-greeting">I need reagents in bulk. Bring me <b>${ALCHEMIST_QTY}</b> ${meta.label} and I'll pay well. The more orders you fill in a row, the sweeter the price.</div>
     <div class="shop-rubies">Reward: 💰 <b>${reward}</b> &nbsp;·&nbsp; Streak: <b>${o.streak || 0}</b></div>
     <div class="shop-row">
       <div class="shop-item">

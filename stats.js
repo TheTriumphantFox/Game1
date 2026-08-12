@@ -173,6 +173,13 @@ function renderStatsContents() {
   };
   const swordArsenal = gearChips(p.swordElements, swordUpgradeLevel, p.activeSwordElement);
   const armorArsenal = gearChips(p.armorElements, armorUpgradeLevel, p.activeArmorElement);
+  const unlockedAbilities = SHRINE_REWARDS.filter(r =>
+    r.kind === 'ability' && p.abilities && p.abilities[r.key]);
+  const abilityArsenal = unlockedAbilities.length
+    ? `<div class="stats-chips">${unlockedAbilities.map(r =>
+        `<span class="stats-chip" style="--chip:#9f7bd8">${r.icon} ${r.label} <b>Unlocked</b></span>`
+      ).join('')}</div>`
+    : `<div class="stats-empty">No shrine abilities unlocked yet.</div>`;
 
   document.getElementById('stats-modal').innerHTML = `
     <h2>🧍 Character</h2>
@@ -195,6 +202,8 @@ function renderStatsContents() {
       ${swordArsenal}
       <div class="stats-group-title" style="margin-top:10px">🛡 Elemental Armor</div>
       ${armorArsenal}
+      <div class="stats-group-title" style="margin-top:10px">✦ Shrine Abilities</div>
+      ${abilityArsenal}
     </div>
     <button class="shop-close" onclick="closeStatsPage()">✕ Close</button>
   `;

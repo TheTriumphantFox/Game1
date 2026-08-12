@@ -42,12 +42,34 @@ function addArrow(elemId, n) {
   return player.arrows[elemId] - before;
 }
 
+// ─── Shrine abilities ─────────────────────────────────────────────────────────
+// The five permanent powers won from the ability shrines. Accessors rather than
+// raw `player.abilities[id]` reads for the same reason story.js wraps the flag
+// bag: the field can be missing entirely on a save mid-load, and every caller
+// would otherwise need its own guard. The ids are listed on `abilities` in the
+// player literal below; shrines.js is what grants them.
+const ABILITY_IDS = ['frostGrip', 'updraftGlide', 'emberLantern', 'arcaneSight', 'shadowStep'];
+
+function hasAbility(id) {
+  return !!(player.abilities && player.abilities[id]);
+}
+
+// Grant one. Returns false if it was already owned, so a caller can tell a fresh
+// award from a repeat and stay silent on the repeat.
+function grantAbility(id) {
+  if (!player.abilities) player.abilities = {};
+  if (player.abilities[id]) return false;
+  player.abilities[id] = true;
+  return true;
+}
+
 // Fill in the starting weapons/arrows inventory. Called from boot and newGame.
 function applyStartingInventory(p) {
-  // A fresh player carries only a base sword — no elemental swords, no armor, no
-  // arrows of any kind. The bow and its first ten arrows are Grandmother's, and
-  // arrive with her dying words at the end of the prologue (grantGrandmothersBow
-  // in prologue.js), so a hero who hasn't played that beat has nothing to fire.
+  // A fresh player carries nothing that can be swung or fired — no sword, no
+  // elemental swords, no armor, no arrows of any kind. Both first weapons are
+  // Grandmother's and arrive together with her dying words at the end of the
+  // prologue (grantGrandmothersWeapons in prologue.js), so a hero who hasn't
+  // played that beat has only their fists (see doPunch in projectiles.js).
   p.swordElements = [];
   p.swordUpgrades = {};
   p.armorElements = [];
@@ -94,6 +116,11 @@ let player = {
   tempHp: 0,
   rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
+  // Punch swing animation clock, the fists' twin of swordTimer. Separate rather
+  // than shared so the render can tell the two apart: swordTimer drives the
+  // blade arc, punchTimer the jab (see drawPlayer in render.js). A pre-weapon
+  // hero only ever sets this one.
+  punchTimer: 0,
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
@@ -103,6 +130,14 @@ let player = {
   // Saves written before this field existed are back-filled to true on load
   // (see applyLoadData in save.js) so an established hero never loses their bow.
   hasBow: false,
+  // Whether the player owns a sword at all. Same story as hasBow, and granted in
+  // the same breath: Grandmother's Sword is what's in the chest she tells the
+  // player to open, so both weapons arrive together in Beat 5. Until then the
+  // hero is unarmed — the sword slot, its radial ring, the [1] quick-switch and
+  // the swing itself are all gated on this, and [Z] throws a punch instead (see
+  // doPunch in projectiles.js). Back-filled on load for older saves, but on a
+  // narrower test than hasBow: see applyLoadData in save.js for why.
+  hasSword: false,
   potions: STARTING_ITEM_AMOUNT,
   // Bombs — no longer infinite. A fresh player starts with none; bombs are bought
   // at the General Store or found (5 at a time) in small chests. Placing one
@@ -147,12 +182,19 @@ let player = {
   // Sword & Shield Guild membership card — granted on the first guild induction
   // (subsequent regions reward potions/elixirs/rubies instead). See guild.js.
   guildCard: false,
-  // Per-region Sealed Shrine quests (see seedRegionShrine / tryUnsealShrine in
-  // world.js), keyed by region id → { mapId, requiredElement, status:'sealed'|'done',
-  // x, y }. One shrine seeded per region when its village is cleared; struck with a
-  // matching elemental sword/arrow it awakens (a reusable heal shrine) and grants a
-  // one-time +2 Max HP.
+  // Stage 9 shrine quest authority. Old sealed-shrine records are upgraded on
+  // load to { version:2, status, villageMapId, shrineMapId, rewardClaimed,
+  // legacyCompleted }; new progression writes only that schema.
   shrineQuests: {},
+  // Permanent abilities won from Ice, Air, Necrotic, Mana, and Shadow. What each
+  // one does out in the world lives in abilities.js.
+  abilities: { frostGrip:false, updraftGlide:false, emberLantern:false,
+               arcaneSight:false, shadowStep:false },
+  // Which of the two ACTIVE abilities (Updraft Glide, Shadow Step) is on the [F]
+  // key and the touch ability button. The three passives are always on and never
+  // occupy it. Validated on read (equippedAbility, abilities.js), so a stale id
+  // from an older save reads as nothing equipped.
+  equippedAbility: null,
   // Per-region Taxidermist quests (see openTaxidermistModal in shop-herbalist.js),
   // keyed by region id → { status:'active'|'done' }. Turning in one of every region
   // trophy grants a permanent +1 to that region's trophy drops (trophyDropBonus).
@@ -254,7 +296,7 @@ function totalQuestsDone(p) {
   n += doneCount(p.caravanQuests);
   n += doneCount(p.apprenticeQuests);
   n += doneCount(p.gathererQuests);
-  n += doneCount(p.shrineQuests);
+  n += Object.values(p.shrineQuests || {}).filter(q => q && q.status === 'solved').length;
   for (const rid in (p.guildQuests || {})) {
     const q = p.guildQuests[rid];
     if (!q) continue;
@@ -702,7 +744,11 @@ function killEnemy(e) {
     // rewards were removed by request. The flag is still set so saves / future
     // progression checks can tell a boss has been cleared.
     player.defeatedBoss = true;
-    showMsg(`🏆 THE ${e.name} IS DEFEATED!`, 0);
+    // Every boss but the last one gets a victory toast. The Emperor's death is a
+    // scene (playEmperorDeath, tower.js) and a trophy card thrown across his
+    // dying words would be the game applauding in the middle of the sentence
+    // that explains what the player just did.
+    if (!e.finalBoss) showMsg(`🏆 THE ${e.name} IS DEFEATED!`, 0);
   } else if (e.guildBoss) {
     showMsg(`🗡️ ${e.name} falls! Take its head to the Guild recruiter.`, 3500);
   } else if (e.bounty) {
@@ -745,6 +791,10 @@ function killEnemy(e) {
         currentRegionIdx = nextIdx;
         const nextRegion = REGIONS[nextIdx];
         showMapMsg(`🏘️ The village awakens! Beyond its gates: the ${nextRegion.id} region.`);
+        // The blight travels with the frontier: a region that has just opened is
+        // a region the crown has just reached (corruption.js). Its own shrine,
+        // in the village the hero is about to clear, is how it gets pushed back.
+        if (typeof advanceCorruption === 'function') advanceCorruption(nextIdx);
       } else {
         showMapMsg('🏘️ The village awakens! To the castle — the realm’s last evil waits at its pinnacle.');
       }
@@ -759,16 +809,34 @@ function killEnemy(e) {
   if (cm && cm.type === 'castle_tower' && cm.floorIdx === 14) {
     const dragon = enemies.find(en => en.finalBoss);
     if (dragon && dragon.dormant && enemies.every(en => en.dead || en.finalBoss)) {
-      dragon.dormant = false;
-      const dsp = screenPX(dragon.x, dragon.y);
-      spawnParticle(dsp.x, dsp.y, '#ff6622', 24, 6);
-      spawnParticle(dsp.x, dsp.y, '#ffd24a', 16, 4);
-      showMapMsg('🐉 The gold shifts and slides — the ADULT RED DRAGON WAKES!');
+      // Stage 10: the guardians are down, so the Emperor speaks before he moves.
+      // playEmperorIntro (tower.js) is what wakes him now — except on a reload
+      // that has already seen it, where he is simply awake and the scene does
+      // not replay (boss_intro_seen).
+      if (typeof playEmperorIntro === 'function' && !hasFlag('boss_intro_seen')) {
+        playEmperorIntro(dragon);
+      } else {
+        dragon.dormant = false;
+        if (typeof nameTheEmperor === 'function') nameTheEmperor(dragon);
+        const dsp = screenPX(dragon.x, dragon.y);
+        spawnParticle(dsp.x, dsp.y, '#ff6622', 24, 6);
+        spawnParticle(dsp.x, dsp.y, '#ffd24a', 16, 4);
+        showMapMsg('🐉 THE RED DRAGON EMPEROR RISES');
+      }
     }
     if (e.finalBoss) {
-      player.wonGame = true;
-      if (typeof placeTowerHoardChest === 'function') placeTowerHoardChest(cm);
-      if (typeof showVictoryScreen === 'function') showVictoryScreen();
+      // Winning waits for the monologue. wonGame, the hoard chest and the
+      // victory overlay are all set at the end of playEmperorDeath (tower.js),
+      // because a victory banner across the reveal would be the game
+      // congratulating the player in the middle of the sentence that explains
+      // what they just did.
+      if (typeof playEmperorDeath === 'function') {
+        playEmperorDeath(e, cm);
+      } else {
+        player.wonGame = true;
+        if (typeof placeTowerHoardChest === 'function') placeTowerHoardChest(cm);
+        if (typeof showVictoryScreen === 'function') showVictoryScreen();
+      }
     }
   }
   // ─── Castle floors 1–13: unsealing the stair up ────────────────────────────
@@ -843,6 +911,10 @@ function tryTransition() {
       if (nm.regionIdx === 1) desertsVisited = regionMapsVisited[1];
     }
   }
+  // Stamp this map's ability secret, if it qualifies for one (abilities.js).
+  // Before the spawns so a chest placed in an alcove is already there when the
+  // roster is built, and idempotent — a re-entry never adds a second.
+  if (typeof ensureAbilitySecret === 'function') ensureAbilitySecret(nm);
   spawnEnemiesForMap(nextId);
   spawnVillagersForMap(nextId);
 
@@ -891,7 +963,7 @@ function tryTransition() {
   transitionCooldown = 400;
   minimapDirty = true;
   clampCam(true);   // snap on map transition (instant teleport)
-  revealAround(nm, player.x, player.y, 12);
+  revealWalk(nm, player.x, player.y);
   // (Map-name announcements removed — the current area name still lives in the
   // HUD's roomName span. Notable map events use showMapMsg instead.)
 }
@@ -933,7 +1005,33 @@ function grantRegionElixirs(regionId, n) {
 
 // ─── Chest / shrine pickup ────────────────────────────────────────────────────
 // Called when player steps onto a CHEST or SHRINE tile.
+// The one chest in the game that isn't a loot chest. It stands in the family
+// home holding Grandmother's Sword, it has no key in sight, and Beat 5 is what
+// opens it — so it must never roll the small-chest table, and must never be
+// consumed by an idle SPACE on the way out the door in Beat 1.
+//
+// Identified by position on map 0 rather than by a tile of its own: a whole tile
+// type for a single chest would need art, a minimap colour and a burn rule, and
+// this needs none of those — it looks like a chest because it is one.
+function isHomeStoryChest(c, r) {
+  return currentMapId === 0 &&
+         typeof HOME !== 'undefined' &&
+         c === HOME.chest.x && r === HOME.chest.y;
+}
+
 function handlePickup(bnx, bny, map) {
+  // Story chest first, before the generic branch can claim it and mark it opened.
+  if (map[bny][bnx] === T.CHEST && isHomeStoryChest(bnx, bny)) {
+    // After Beat 5 it has already given up what was in it — she told the player
+    // to take it, and grantGrandmothersWeapons did. Before that it is shut.
+    if (hasFlag('revenge_triggered')) {
+      currentMap().openedChests.add(`${bnx},${bny}`);   // renders open from here on
+      showMsg('📦 Empty. You are carrying what was in it.', 2200);
+    } else {
+      showMsg('🔒 The chest is locked, and there is no key in sight.', 2200);
+    }
+    return;
+  }
   if (map[bny][bnx] === T.CHEST && !currentMap().openedChests.has(`${bnx},${bny}`)) {
     currentMap().openedChests.add(`${bnx},${bny}`);
     // Small-chest loot is tuned to the region the chest sits in (see
@@ -1161,6 +1259,10 @@ function tryChestInteraction() {
     if (!isChestTile(map[r][c])) continue;
     const before = cm.openedChests.size;
     handlePickup(c, r, map);
+    // The locked home chest never grows openedChests, but it did answer the
+    // keypress — swallow it anyway, or SPACE reports "locked" and then throws a
+    // punch at the furniture in the same frame.
+    if (isHomeStoryChest(c, r)) return true;
     if (cm.openedChests.size > before) return true;   // a closed chest just opened
   }
   return false;
@@ -1191,6 +1293,13 @@ function chestOpenedKey(t, c, r) {
 function interactionHint() {
   const cm = currentMap();
   if (!cm) return null;
+  // Nothing to advertise while a scripted beat is holding the keys: SPACE is
+  // being swallowed, so every prompt this returns is a button that does nothing.
+  // Beat 5 is where it showed: the scene parks the hero beside the household
+  // chest, and the HUD offered "🔒 Locked" over the top of a narration line
+  // describing that same lock as burned through. Beat 4's run home is unaffected
+  // — `control: true` clears this flag while the player is driving.
+  if (typeof cutsceneInputLocked !== 'undefined' && cutsceneInputLocked) return null;
 
   // 0. Lost Timmy standing on a dead-end map (villagers exist off-village here).
   if (typeof villagers !== 'undefined' && villagers && villagers.length) {
@@ -1209,6 +1318,11 @@ function interactionHint() {
       .filter(v => Math.abs(v.x - player.x) <= 1 && Math.abs(v.y - player.y) <= 1)
       .sort((a, b) => (b.role ? 1 : 0) - (a.role ? 1 : 0))[0];
     if (near) {
+      // While the errand is live Wren is the package, not the shop counter.
+      if (near.pgTalk === 'merchant' && typeof hasFlag === 'function' &&
+          hasFlag('fetch_quest_active') && !hasFlag('fetch_quest_complete')) {
+        return '📦 Package [Space]';
+      }
       if (near.role === 'store')  return '🛒 Shop [Space]';
       if (near.role === 'inn')    return '🛏️ Inn [Space]';
       if (near.role === 'herb')   return '🌿 Herbalist [Space]';
@@ -1217,6 +1331,13 @@ function interactionHint() {
       if (near.role === 'portal') return '🌀 Travel [Space]';
       return '💬 Talk [Space]';
     }
+  }
+  // Hendricks' dog, blocking the gate. An enemy rather than a villager, so it
+  // needs its own prompt (see tryDogInteraction in prologue.js).
+  if (typeof enemies !== 'undefined' && enemies) {
+    const dog = enemies.find(e => !e.dead && e.dormant && e.type === 'hendricks_dog' &&
+                                  Math.abs(e.x - player.x) <= 1 && Math.abs(e.y - player.y) <= 1);
+    if (dog) return '🐕 Calm the dog [Space]';
   }
 
   // 2. Open an adjacent closed chest (facing tile first, then orthogonal).
@@ -1230,6 +1351,10 @@ function interactionHint() {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) continue;
     const t = map[r][c];
     if (!isChestTile(t)) continue;
+    // The home chest advertises what it actually is. Promising "Open" on a chest
+    // that answers "locked" every time is the kind of small lie that reads as a
+    // bug rather than as story.
+    if (isHomeStoryChest(c, r) && !hasFlag('revenge_triggered')) return '🔒 Locked [Space]';
     const key = chestOpenedKey(t, c, r);
     if (key && !cm.openedChests.has(key)) return '📦 Open [Space]';
   }
@@ -1384,7 +1509,7 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 12);
+    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('🌬️ The wind sets you gently back down.');
     return true;
   }
@@ -1453,7 +1578,7 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 12);
+    revealWalk(currentMap(), player.x, player.y);
     showMapMsg(dest.type === 'castle_tower'
       ? `🏰 You wind back down — Floor ${dest.floorIdx}/14.`
       : '🏘️ You step out of the castle, back into the village.');
@@ -1521,7 +1646,7 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 12);
+    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('✨ The portal returns you to the surface.');
     return true;
   }
@@ -1570,7 +1695,7 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 12);
+    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('🕳️ You emerge back from the cave.');
     return true;
   }
@@ -1627,7 +1752,7 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 12);
+    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('🏛️ You emerge from the ruined dungeon.');
     return true;
   }
@@ -1651,7 +1776,13 @@ function stepPlayerMovement() {
     // Slippery ice: standing on an ICE sheet keeps the released walk input
     // active for an extra ICE_SLIDE_MS, so the hero keeps gliding for a couple
     // of beats after you let go instead of halting on a dime.
+    //
+    // Unless the hero has Frost Grip (the Ice shrine's reward, abilities.js),
+    // which is precisely the ability to stop where you meant to. Checked here
+    // rather than acted on from outside, because the slide is one branch in the
+    // middle of the movement step.
     if (map[player.y][player.x] === T.ICE && lastWalkInput.t >= 0 &&
+        !(typeof frostGripHolds === 'function' && frostGripHolds()) &&
         Date.now() - lastWalkInput.t <= ICE_SLIDE_MS) {
       mx = lastWalkInput.mx; my = lastWalkInput.my;
     }
@@ -1696,6 +1827,8 @@ function stepPlayerMovement() {
   const canSwimMedium = player.activeArmorElement === 'water';
   const blocked = (c, r) => {
     if (enemyAt(c, r)) return true;
+    if (typeof shrinePrepareMove === 'function' &&
+        !shrinePrepareMove(currentMap(), player.x, player.y, c, r)) return true;
     if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return false;
     return isSolid(map, c, r);
   };
@@ -1747,10 +1880,12 @@ function stepPlayerMovement() {
       spawnParticle(sp.x, sp.y + TILE_PX * 0.3, '#bfe6f4', 5, 2);
     }
     player.x = tx; player.y = ty;
+    if (typeof onShrinePlayerStep === 'function') onShrinePlayerStep();
   }
   clampCam();
-  revealAround(currentMap(), player.x, player.y, 12);
-  if (!tryPortalInteraction() && !tryCaveTransition()) tryTransition();
+  revealWalk(currentMap(), player.x, player.y);
+  if (!(typeof tryShrineTransition === 'function' && tryShrineTransition()) &&
+      !tryPortalInteraction() && !tryCaveTransition()) tryTransition();
 }
 
 // ─── Whirlpool suction ────────────────────────────────────────────────────────
@@ -1861,7 +1996,7 @@ function exitWhirlpoolGrotto(cm) {
   transitionCooldown = 600;
   minimapDirty = true;
   clampCam(true);
-  revealAround(currentMap(), player.x, player.y, 12);
+  revealWalk(currentMap(), player.x, player.y);
   showMapMsg('🌊 The whirlpool spits you back out!');
 }
 

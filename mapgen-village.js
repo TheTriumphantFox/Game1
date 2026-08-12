@@ -13,10 +13,13 @@ function activateVillage(mapObj) {
   // Reserve the NW inner-ring house for the fast-travel portal so it never gets
   // a stationary shopkeeper. Its door is excluded from the shop pool below.
   const pl = villagePortalLayout();
+  const sl = villageShrineLayout();
   const doors = [];
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.DOOR && !(r === pl.doorR && c === pl.doorC)) doors.push({ r, c });
+      if (m[r][c] === T.DOOR &&
+          !(r === pl.doorR && c === pl.doorC) &&
+          !(r === sl.doorR && c === sl.doorC)) doors.push({ r, c });
   if (doors.length < 4) return false;
   // Shuffle (Fisher–Yates) and pick the first four for inn + store + herbalist
   // + blacksmith.
@@ -38,6 +41,7 @@ function activateVillage(mapObj) {
   mapObj.storeDoor = doors[1];
   mapObj.herbDoor = doors[2];
   mapObj.smithDoor = doors[3];
+  if (typeof installVillageShrineEntrance === 'function') installVillageShrineEntrance(mapObj);
   // Rename so the HUD reflects the change
   if (!/Active/.test(mapObj.name)) mapObj.name = mapObj.name + ' (Active)';
   // Reveal the whole village so the player can find the new doors immediately.
@@ -860,5 +864,17 @@ function villagePortalLayout() {
     portalC: WEST_COL + Math.floor(hw / 2),
     doorR:   NORTH_ROW + hh,
     doorC:   WEST_COL + Math.floor(hw / 2),
+  };
+}
+
+// The northeast inner-ring house is reserved for its regional shrine. Its
+// south-facing door is never eligible for a shop conversion.
+function villageShrineLayout() {
+  const NORTH_ROW = 49, EAST_COL = 91, HW = 17, HH = 13;
+  return {
+    doorR: NORTH_ROW + HH - 1,
+    doorC: EAST_COL + Math.floor(HW / 2),
+    returnR: NORTH_ROW + HH,
+    returnC: EAST_COL + Math.floor(HW / 2),
   };
 }

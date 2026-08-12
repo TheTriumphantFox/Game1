@@ -45,6 +45,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
     ctx.fillStyle = TILE_COLORS[t] || '#111';
     ctx.fillRect(x, y, s, s);
   }
+  if (typeof drawShrineTile === 'function' && drawShrineTile(col,row,t,x,y,s)) return;
 
   switch (t) {
     case T.GRASS:
@@ -1254,6 +1255,53 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       for (let i = 1; i < 4; i++) ctx.fillRect(x, y + (s * i / 4), s, Math.max(1, s*0.03));
       ctx.fillStyle = '#241d18'; ctx.fillRect(x + s*0.18, y + s*0.30, s*0.34, s*0.14);
       ctx.fillStyle = '#584b3e'; ctx.fillRect(x + s*0.62, y + s*0.68, s*0.2,  s*0.08);
+      break; }
+    // A hidden rune mark paints the map's own ground and then, only for a hero
+    // with Arcane Sight, the glyphs on top of it (abilities.js). Delegated
+    // rather than inlined because what it draws underneath depends on the
+    // region, which this switch has no view of.
+    case T.RUNE_MARK:
+      if (typeof drawRuneMark === 'function') drawRuneMark(col, row, x, y, s);
+      break;
+    case T.GRAN_BOW: {
+      // Grandmother's Bow, lying where the script says it is. Painted over its own
+      // floor rather than on the shared base fill, because TILE_COLORS[GRAN_BOW] is
+      // the bow's own yew colour (the minimap wants that) and would otherwise flood
+      // the tile. Which floor depends on whether the fire has been through: boards
+      // in Beat 1, the same boards scorched from Beat 4 on.
+      const gbBurnt = (typeof hasFlag === 'function') && hasFlag('village_burning');
+      if (gbBurnt) {
+        ctx.fillStyle = '#463a30'; ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = '#332a23';
+        for (let i = 1; i < 4; i++) ctx.fillRect(x, y + (s * i / 4), s, Math.max(1, s*0.03));
+      } else {
+        ctx.fillStyle = '#9a7550'; ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = '#8a6540'; ctx.fillRect(x, y, s, 2); ctx.fillRect(x, y, 2, s);
+        ctx.fillStyle = '#aa8560'; ctx.fillRect(x + s - 2, y, 2, s);
+      }
+      // The stave: a shallow arc of pale yew running corner to corner.
+      ctx.strokeStyle = '#c9a25e';
+      ctx.lineWidth = Math.max(2, s * 0.09);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.22, y + s*0.16);
+      ctx.quadraticCurveTo(x + s*0.86, y + s*0.5, x + s*0.22, y + s*0.84);
+      ctx.stroke();
+      // Grip wrap at the belly of the stave.
+      ctx.strokeStyle = '#6b4a28';
+      ctx.lineWidth = Math.max(2, s * 0.10);
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.60, y + s*0.42);
+      ctx.lineTo(x + s*0.60, y + s*0.58);
+      ctx.stroke();
+      // The string, drawn taut between the two tips.
+      ctx.strokeStyle = 'rgba(240,232,208,0.85)';
+      ctx.lineWidth = Math.max(1, s * 0.035);
+      ctx.beginPath();
+      ctx.moveTo(x + s*0.22, y + s*0.16);
+      ctx.lineTo(x + s*0.22, y + s*0.84);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
       break; }
     case T.BURNT_WALL: {
       // A wall that survived the fire: blackened stone with the charred timber

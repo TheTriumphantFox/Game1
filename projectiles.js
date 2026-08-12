@@ -374,6 +374,7 @@ function doSwordSwing() {
     const tr = ctr + dr, tc = ctc + dc;
     if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
     const tile = map[tr][tc];
+    if (typeof tryShrineStrike === 'function' && tryShrineStrike(tc, tr, player.activeSwordElement || null)) continue;
     // A sealed shrine in the swing zone: the strike tries to break its seal with
     // the equipped elemental sword (see tryUnsealShrine in world.js). Handled here,
     // never cut like foliage.
@@ -432,6 +433,54 @@ function doSwordSwing() {
   }
 }
 
+// ─── Punch (the pre-weapon action) ────────────────────────────────────────────
+// What [Z] does before Grandmother's Sword exists. It is not a weapon and is not
+// meant to become one: the prologue needs the player to have *something* to press
+// so Beat 2's dog encounter can teach the action button, and that is the whole of
+// its job. It deals exactly 1 damage, and only to Hendricks' dog. Nothing else in
+// the game, story or otherwise, can be harmed by it.
+//
+// Enforced by target rather than by context (a "prologue only" check) on purpose:
+// the rule in the design notes is about what a fist can hurt, not about where the
+// player is standing, so a fist that stays harmless is one fewer thing to reason
+// about if the punch ever survives past the prologue.
+//
+// The dog is spawned by stage 4 and does not exist yet. It must carry this key —
+// see PUNCHABLE_ENEMY below — or the punch will bounce off it like everything else.
+const PUNCHABLE_ENEMY = 'hendricks_dog';
+const PUNCH_DAMAGE = 1;
+
+function doPunch() {
+  if (typeof buzz === 'function') buzz(10);
+  player.punchTimer = 150;
+  const tx = player.x + player.swordDir.x;
+  const ty = player.y + player.swordDir.y;
+  const sp = screenPX(tx, ty);
+  spawnParticle(sp.x, sp.y, '#e8c8a8', 3, 2);
+
+  // A single tile in front, not the sword's 3x3 — a fist has no reach.
+  let connected = false;
+  for (const e of enemies) {
+    if (e.dead || e.dormant) continue;
+    if (Math.round(e.x) !== Math.round(tx) || Math.round(e.y) !== Math.round(ty)) continue;
+    connected = true;
+    if (e.type !== PUNCHABLE_ENEMY) {
+      // Everything else shrugs it off. Said out loud rather than silently doing
+      // nothing, so the player learns the fist is not the answer here.
+      if (typeof showMsg === 'function') showMsg('👊 Your fist does nothing.', 1200);
+      continue;
+    }
+    e.hp -= PUNCH_DAMAGE;
+    damageNumbers.push({ entity: e, val: PUNCH_DAMAGE, color: '#ff4444', life: 1000, rise: 0 });
+    // Deliberately no killEnemy call: the dog cannot be killed. It breaks off and
+    // runs at 1 HP, which is stage 4's business — this only ever takes it down to
+    // that point. Clamping here as well means a stray extra hit can't drop it to 0
+    // even if that flee check is late.
+    if (e.hp < 1) e.hp = 1;
+  }
+  if (!connected && typeof showMsg === 'function') showMsg('👊 You swing at nothing.', 900);
+}
+
 // ─── Enemy AI step ────────────────────────────────────────────────────────────
 // Per-enemy movement timer; ranged enemies keep distance, melee enemies pursue.
 function stepEnemies(dt, map) {
@@ -450,6 +499,11 @@ function stepEnemies(dt, map) {
 
   for (const e of enemies) {
     if (e.dead || e.dormant) continue;      // the dormant dragon sleeps
+    // Staggered: reeling, and neither moving nor attacking until it passes. Set
+    // by the Emperor's 15% threshold (tower.js) and general enough for anything
+    // else that ever needs to be stopped without being made dormant — dormant
+    // is a sleeping enemy, this is an interrupted one.
+    if (e.staggerT > 0) { e.staggerT -= dt; continue; }
     e.timer -= dt;
     if (e.timer > 0) continue;
     e.timer = e.spd;
@@ -633,6 +687,8 @@ function stepProjectiles(dt, map) {
 
     p.tx += p.vx * step; p.ty += p.vy * step;
     const pc = Math.floor(p.tx), pr = Math.floor(p.ty);
+    if (p.type === 'arrow' && typeof tryShrineStrike === 'function' &&
+        tryShrineStrike(pc, pr, p.element || null)) { p.life = -999; return; }
     // Arrows and spells fly over the medium-water shelf even though it's
     // solid to walkers; everything else solid (incl. deep water) stops them.
     // Dragon breath (`overWalls`) crosses every solid tile, so it needs its

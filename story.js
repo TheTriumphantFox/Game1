@@ -32,6 +32,33 @@
 //   revenge_triggered     Grandmother's dying words have landed (Beat 5)
 //   prologue_complete     title card shown; the open world begins
 //
+// Declared here, set by the beats/systems that own them (see the stage they
+// belong to in main-quest-implementation-todo.md). Listed now so the whole flag
+// vocabulary is in one place rather than appearing a stage at a time:
+//
+//   Beat 2 — Hendricks' dog (stage 4)
+//   dog_blocking          the dog is at the gate as the pre-package obstacle
+//   dog_resolved          the encounter is over by any route; Beat 3 may now fire
+//   dog_fled              …specifically because it was punched down to 1 HP
+//   dog_outrun            …specifically because the player outran it instead
+//
+//   Midgame fortune tellers (stage 8) — one per telling, in progression order
+//   fortune_water         the crown predates the dragon
+//   fortune_volcanic      the Emperor began human and wanted more time
+//   fortune_luminous      a ruling house vanished during the takeover
+//   fortune_mana          Elderbrook's oldest records were deliberately erased
+//
+//   Corruption spread (stage 8)
+//   corruption_level      NOT a boolean — the highest region index the blight has
+//                         reached. Read with getFlag, not hasFlag (0 is falsy and
+//                         is a real value: the forest has been reached).
+//
+//   Final boss (stage 10) — one-shots, so no line ever replays on a reload
+//   boss_intro_seen       the pre-fight throne-room cutscene has played
+//   boss_line_50          the 50% HP line has fired
+//   boss_line_15          the 15% HP stagger and flicker have fired
+//   boss_monologue_done   the dying monologue finished; wonGame may now be set
+//
 // See .claude/skills/the-rpg-game/references/prologue-script.md for the beats
 // these correspond to.
 

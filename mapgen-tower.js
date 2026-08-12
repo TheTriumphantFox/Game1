@@ -410,5 +410,49 @@ function buildTowerFloorMap(floorIdx) {
   // Treasure through the wings.
   placeCaveChests(m, rnd(1, 3), 13, 13, 136, 136, T.FLOOR);
 
+  // The late-tower Shadow Step vault (stage 9). Stamped AFTER towerSealUnreachable
+  // on purpose: it is a chest sealed inside two tiles of wall, which is exactly
+  // the kind of pocket that pass exists to fill in, and it must survive.
+  towerShadowVault(m, floorIdx);
+
   return { map: m, entryLand: { x: dn.lc, y: dn.lr }, deeperLand: { x: up.lc, y: up.lr } };
+}
+
+// A walled vault on the tower's upper floors, reachable only by stepping through
+// its wall (Shadow Step, abilities.js — the Shadow shrine is tier 12, so a hero
+// this far up the tower has had every chance to earn it). Floor 12 and up, one
+// per floor, at a fixed offset from the floor's centre so it is the same room on
+// every climb rather than something to hunt for.
+//
+// Additive and enclosed: a 3×3 of solid wall with a chest in the middle, laid on
+// ground that was already solid or already floor. It cannot cut a route, because
+// it only ever seals a pocket it also fills.
+// It is hollowed OUT of masonry that is already solid, never stamped over open
+// floor: a 5×5 of wall carved down to a 3×3 chamber. Written that way so it is
+// impossible for the vault to sever a corridor the seal pass already blessed —
+// it only ever removes wall, and the wall it removes is walled back in.
+const TOWER_VAULT_FLOOR = 12;
+function towerShadowVault(m, floorIdx) {
+  if (floorIdx < TOWER_VAULT_FLOOR) return;
+  const allSolid = (r, c) => {
+    for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
+      const t = m[r + dr] && m[r + dr][c + dc];
+      if (t === undefined || !SOLID_TILES.has(t)) return false;
+    }
+    return true;
+  };
+  // Fixed scan order from the middle of the floor outward, so every climb finds
+  // the vault in the same masonry rather than somewhere new each time.
+  let spot = null;
+  for (let r = 20; r < MROWS - 20 && !spot; r++) {
+    for (let c = 20; c < MCOLS - 20; c++) {
+      if (allSolid(r, c)) { spot = { r, c }; break; }
+    }
+  }
+  if (!spot) return;
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) m[spot.r + dr][spot.c + dc] = T.FLOOR;
+  }
+  m[spot.r][spot.c] = T.LARGE_CHEST;
+  m[spot.r][spot.c + 1] = T.LARGE_CHEST_R;
 }

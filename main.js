@@ -90,6 +90,10 @@ function update(dt) {
   // and every timed cutscene step deadlocks.
   if (typeof stepDialogue === 'function') stepDialogue(dt);
   if (typeof stepCutscene === 'function') stepCutscene(dt);
+  // The Emperor's crown rolling to the hero's feet (tower.js) — up here with
+  // them for the same reason: it rolls during a `wait` step of the death scene,
+  // and everything below the freeze chain is stopped while that step runs.
+  if (typeof stepEmperorCrown === 'function') stepEmperorCrown(dt);
   // Pause the entire world while the radial inventory menu is open. Render is
   // still called every frame so the menu animates, and the HUD still refreshes
   // (so the menu's purchases / item use visually update), but every dt-based
@@ -112,6 +116,7 @@ function update(dt) {
   if (bombCooldown         > 0) bombCooldown         -= dt;
   if (transitionCooldown   > 0) transitionCooldown   -= dt;
   if (player.swordTimer    > 0) player.swordTimer    -= dt;
+  if (player.punchTimer    > 0) player.punchTimer    -= dt;
   // Elixir elemental immunity counts down; clear it (and notify) when it lapses.
   if (player.immunityTimer > 0) {
     player.immunityTimer -= dt;
@@ -124,9 +129,15 @@ function update(dt) {
     }
   }
   moveTimer += dt;
+  if (typeof updateShrinePuzzle === 'function') updateShrinePuzzle(dt);
+  if (typeof stepAbilityCooldown === 'function') stepAbilityCooldown(dt);
+  // The Emperor's HP thresholds (tower.js). Watched per frame rather than hooked
+  // into the eight places that subtract enemy HP. After the freeze chain on
+  // purpose: while the 50% line's box is still up, the 15% line waits its turn.
+  if (typeof stepFinalBoss === 'function') stepFinalBoss(dt);
 
   // Quick weapon switch. [2] does nothing until Grandmother's Bow is in hand.
-  if (keys['1']) player.weapon = 'sword';
+  if (keys['1'] && player.hasSword) player.weapon = 'sword';
   if (keys['2'] && player.hasBow) player.weapon = 'bow';
   if (keys['3']) player.weapon = 'bomb';
 
@@ -154,9 +165,25 @@ function update(dt) {
   const weaponsLocked = !!cm && ((cm.type === 'village' && cm.activated) ||
                                  cm.type === 'homevillage');
 
-  if (actZ && attackCooldown <= 0 && !weaponsLocked) {
-    attackCooldown = 280;
-    doSwordSwing();
+  // [Z] is the sword once there is one, and a punch until then. The punch is
+  // deliberately NOT behind weaponsLocked: that lock covers the home village, and
+  // the home village is where Beat 2's dog encounter teaches this very button. It
+  // is safe to leave open because the punch can only ever harm the dog (see
+  // doPunch) — there is nothing in a peaceful town for it to break.
+  // The one exception to the punch's exemption: while the village is burning,
+  // the encounter is unbeatable by design and there must be nothing to swing at
+  // and no way to try. Beat 2's dog is long resolved by then, so nothing is lost.
+  const burningNow = typeof hasFlag === 'function' && hasFlag('village_burning');
+  if (actZ && attackCooldown <= 0) {
+    if (!player.hasSword) {
+      if (!burningNow) {
+        attackCooldown = 280;
+        doPunch();
+      }
+    } else if (!weaponsLocked) {
+      attackCooldown = 280;
+      doSwordSwing();
+    }
   }
   if (actX && bowCooldown <= 0 && !weaponsLocked) {
     bowCooldown = 350;
@@ -183,6 +210,11 @@ function update(dt) {
   // Prologue beat triggers — checked against the player's position rather than
   // fired from a tile, so there's no invisible line to walk around. No-op once
   // the prologue is done.
+  // The dog's phase change and its two exits, before the beat check below — so a
+  // chase that ends this frame lets Beat 3 fire on the same frame.
+  if (typeof stepPrologueDog === 'function') stepPrologueDog(dt);
+  // Beat 3's birds and wind.
+  if (typeof stepPrologueAmbience === 'function') stepPrologueAmbience(dt);
   if (typeof checkPrologueTriggers === 'function') checkPrologueTriggers();
 
   updateHUD();
@@ -302,6 +334,23 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       return;
     }
+    // Hendricks' dog, while it is still sitting in the gate. It is an enemy, not
+    // a villager, so it needs its own line here.
+    if (typeof tryDogInteraction === 'function' && tryDogInteraction()) {
+      e.preventDefault();
+      return;
+    }
+    if (typeof tryShrineInteraction === 'function' && tryShrineInteraction()) {
+      e.preventDefault();
+      return;
+    }
+    // A hidden rune mark under or beside the hero (abilities.js). Before chests
+    // and after everything else: it is a no-op without Arcane Sight, and a rune
+    // trail is laid on open ground where nothing else competes for the press.
+    if (typeof tryRuneMarkInteraction === 'function' && tryRuneMarkInteraction()) {
+      e.preventDefault();
+      return;
+    }
     if (typeof tryChestInteraction === 'function' && tryChestInteraction()) {
       e.preventDefault();
       return;
@@ -316,6 +365,13 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Tab') { e.preventDefault(); if (!e.repeat) showMinimap = !showMinimap; }
   // 'P' drinks one Health Potion (fires on the press itself, not while held)
   if (e.key === 'p' || e.key === 'P') { e.preventDefault(); if (!e.repeat) usePotion(); }
+  // 'F' uses the equipped shrine ability — Updraft Glide or Shadow Step
+  // (abilities.js). On the press, never on the repeat: both of them move the
+  // hero, and holding the key should not walk them across a lake.
+  if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    if (!e.repeat && typeof useEquippedAbility === 'function') useEquippedAbility();
+  }
   if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
     e.preventDefault();
   }
@@ -590,6 +646,7 @@ function findTappedInteractable(wx, wy) {
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
     if (player.activeArmorElement === 'water' && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
+    if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);
   };
 
@@ -614,6 +671,11 @@ function findTappedInteractable(wx, wy) {
         act: () => { if (typeof tryVillagerInteraction === 'function') tryVillagerInteraction(); },
       };
     }
+  }
+
+  if (typeof findTappedShrineInteractable === 'function') {
+    const shrineTarget = findTappedShrineInteractable(wx, wy, passable, idx);
+    if (shrineTarget) return shrineTarget;
   }
 
   // Chest tiles — check the tapped tile and its immediate neighbours (large / boss
@@ -654,6 +716,7 @@ function findPathToGoals(goalSet) {
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
     if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
+    if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);
   };
   const prev = new Int32Array(N).fill(-1);
@@ -732,6 +795,15 @@ function triggerAction(kind) {
   const cm = currentMap();
   const weaponsLocked = !!cm && ((cm.type === 'village' && cm.activated) ||
                                  cm.type === 'homevillage');
+  // The punch is exempt from the town lock for the same reason as the keyboard
+  // path in update() — Beat 2 teaches it inside the home village, and it can't
+  // hurt anything but the dog. Checked before the lock, not after.
+  if (kind === 'sword' && !player.hasSword) {
+    const burning = typeof hasFlag === 'function' && hasFlag('village_burning');
+    if (!burning && attackCooldown <= 0) { attackCooldown = 280; doPunch(); }
+    updateHUD();
+    return;
+  }
   if (weaponsLocked) return;
   if (kind === 'sword' && attackCooldown <= 0) {
     attackCooldown = 280; doSwordSwing();
@@ -779,6 +851,9 @@ bindTap('ws-bomb',  e => weaponSlotTap('item',  e));
 bindTap('ws-menu',  () => { if (typeof toggleRadialMenu === 'function') toggleRadialMenu(); });
 bindTap('ws-interact', () => {
   if (typeof tryVillagerInteraction === 'function' && tryVillagerInteraction()) return;
+  if (typeof tryDogInteraction === 'function' && tryDogInteraction()) return;
+  if (typeof tryShrineInteraction === 'function' && tryShrineInteraction()) return;
+  if (typeof tryRuneMarkInteraction === 'function' && tryRuneMarkInteraction()) return;
   if (typeof tryChestInteraction === 'function') tryChestInteraction();
 });
 
@@ -807,6 +882,12 @@ bindTap('ta-potion', () => {
   usePotion();
   if ((player.potions || 0) < before) { bombCooldown = 600; buzz(12); }
 });
+// The fourth button is the touch half of [F]: the equipped shrine ability. Bound
+// unconditionally like the rest of the pad; updateHUD is what shows and hides it,
+// because until the Air shrine falls there is nothing for it to do.
+bindTap('ta-ability', () => {
+  if (typeof useEquippedAbility === 'function') useEquippedAbility();
+});
 
 // Reword every on-screen hint that assumes one input scheme, and relabel the
 // two 🎮 mode buttons. Called by applyUiMode/setUiMode (config.js) on every
@@ -816,9 +897,14 @@ function refreshControlHints() {
 
   const titleHint = document.getElementById('title-hint');
   if (titleHint) {
+    // The desktop hint names the [Z] action, so it has to say what [Z] actually
+    // does right now. A hero who hasn't reached Beat 5 has no sword, and naming
+    // one on the title screen would promise a weapon the prologue spends its
+    // whole length withholding.
+    const melee = player.hasSword ? 'sword' : 'punch';
     titleHint.textContent = touch
       ? 'Left pad: move · Tap hero: menu · Right buttons: attack'
-      : 'Arrow keys: move · Z: sword · V: menu';
+      : `Arrow keys: move · Z: ${melee} · V: menu`;
   }
 
   const label = (typeof uiModeLabel === 'function') ? uiModeLabel() : '';
@@ -899,7 +985,7 @@ function boot() {
   // player.js). Idempotent on reload — newGame / applyLoadData re-seed too.
   applyStartingInventory(player);
   initWorld();
-  revealAround(currentMap(), player.x, player.y, 12);
+  revealWalk(currentMap(), player.x, player.y);
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
   clampCam(true);

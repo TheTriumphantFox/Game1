@@ -88,7 +88,7 @@ function renderPortalContents() {
   }).join('');
   document.getElementById('portal-modal').innerHTML = `
     <h2>🌀 Portal Gate</h2>
-    <div class="shop-greeting">The Gatekeeper minds the gate — ${PORTAL_TOLL} rubies per trip.</div>
+    <div class="shop-greeting">The Gatekeeper minds the gate. ${PORTAL_TOLL} rubies per trip.</div>
     <div class="shop-rubies">You have: 💰 <b>${player.rubies}</b></div>
     ${rows}
     <button class="shop-close" onclick="closePortalModal()">✕ Cancel</button>
@@ -105,7 +105,7 @@ function portalSelect(i) {
   // destination (village rows would otherwise build a map on demand).
   if (d.mapId !== currentMapId && (player.rubies || 0) < PORTAL_TOLL) {
     if (typeof showMsg === 'function') {
-      showMsg(`🌀 Gatekeeper: "The toll is ${PORTAL_TOLL} rubies — come back when you can pay."`, 2800);
+      showMsg(`🌀 Gatekeeper: "The toll is ${PORTAL_TOLL} rubies. Come back when you can pay."`, 2800);
     }
     return;
   }
@@ -130,7 +130,7 @@ function portalTravelTo(mapId) {
   // if the player can't pay so they can still cancel.
   if ((player.rubies || 0) < PORTAL_TOLL) {
     if (typeof showMsg === 'function') {
-      showMsg(`🌀 Gatekeeper: "The toll is ${PORTAL_TOLL} rubies — come back when you can pay."`, 2800);
+      showMsg(`🌀 Gatekeeper: "The toll is ${PORTAL_TOLL} rubies. Come back when you can pay."`, 2800);
     }
     return;
   }
@@ -152,7 +152,7 @@ function portalTravelTo(mapId) {
   target.visited = true;
   if (typeof spawnEnemiesForMap   === 'function') spawnEnemiesForMap(mapId);
   if (typeof spawnVillagersForMap === 'function') spawnVillagersForMap(mapId);
-  if (typeof revealAround === 'function') revealAround(target, player.x, player.y, 12);
+  if (typeof revealWalk === 'function') revealWalk(target, player.x, player.y);
   if (typeof clampCam     === 'function') clampCam(true);
   if (typeof minimapDirty !== 'undefined') minimapDirty = true;
 
