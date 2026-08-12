@@ -107,7 +107,7 @@ function _csBeginStep(s) {
     if (s.teleport.mapId !== undefined) currentMapId = s.teleport.mapId;
     player.x = s.teleport.x; player.y = s.teleport.y;
     player.renderX = player.x; player.renderY = player.y;
-    if (typeof revealAround === 'function') revealAround(currentMap(), player.x, player.y, 12);
+    if (typeof revealWalk === 'function') revealWalk(currentMap(), player.x, player.y);
     camOverride = null;   // a jump cut takes the camera with it
     clampCam(true);
     minimapDirty = true;

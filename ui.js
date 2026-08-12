@@ -43,7 +43,7 @@ function hudEls() {
     armor: $('ws-armor'), immunity: $('ws-immunity'), interact: $('ws-interact'),
     // Touch action pad (bottom-right buttons) — present only on touch devices.
     taWrap: $('touch-actions'), taSword: $('ta-sword'), taBow: $('ta-bow'),
-    taPotion: $('ta-potion'),
+    taPotion: $('ta-potion'), taAbility: $('ta-ability'),
   };
   return _hudEls;
 }
@@ -82,10 +82,16 @@ function updateHUD() {
     const se = player.activeSwordElement;
     const elem = se ? SWORD_ELEMENTS[se] : null;
     const active = player.weapon === 'sword';
-    const sig = (elem ? se : '') + '|' + active;
+    // Before Grandmother's Sword, the slot advertises the fists instead. Unlike
+    // the bow slot below it isn't hidden outright: [Z] still does something, and
+    // Beat 2's dog encounter exists specifically to teach that button, so it
+    // needs a visible control. Naming it "Punch" gives nothing away — the sword
+    // is never mentioned until she tells the player to open the chest.
+    const sig = (elem ? se : '') + '|' + active + '|' + (player.hasSword ? 1 : 0);
     if (last.sword !== sig) {
       last.sword = sig;
-      if (elem) el.sword.innerHTML = `⚔️${elemIconHTML(elem, 14)} ${elem.label} Sword [Z]`;
+      if (!player.hasSword)  el.sword.textContent = '👊 Punch [Z]';
+      else if (elem) el.sword.innerHTML = `⚔️${elemIconHTML(elem, 14)} ${elem.label} Sword [Z]`;
       else      el.sword.textContent = '⚔️ Sword [Z]';
       el.sword.className = 'weapon-slot' + (active ? ' weapon-active' : '');
     }
@@ -185,10 +191,21 @@ function updateHUD() {
     }
     const potions = player.potions || 0;
     const w = player.weapon;
-    const sig = potions + '|' + w + '|' + (player.hasBow ? 1 : 0);
+    // The equipped shrine ability, if there is one (abilities.js). Part of the
+    // signature so the fourth button appears the moment the Air shrine pays out.
+    const abil = (typeof equippedAbility === 'function') ? equippedAbility() : null;
+    const sig = potions + '|' + w + '|' + (player.hasBow ? 1 : 0) + '|' + (player.hasSword ? 1 : 0) +
+                '|' + (abil || '');
     if (last.taSig !== sig) {
       last.taSig = sig;
-      if (el.taSword) el.taSword.classList.toggle('active', w === 'sword');
+      if (el.taSword) {
+        // Same swap as the weapon bar: the melee button is a fist until the sword
+        // is won. It stays on screen (it's the button Beat 2 teaches) rather than
+        // hiding the way the bow button does.
+        el.taSword.textContent = player.hasSword ? '⚔️' : '👊';
+        el.taSword.title = player.hasSword ? 'Sword' : 'Punch';
+        el.taSword.classList.toggle('active', w === 'sword');
+      }
       // The touch bow button follows the weapon bar: gone until the bow is won.
       if (el.taBow)   el.taBow.style.display = player.hasBow ? '' : 'none';
       if (el.taBow)   el.taBow.classList.toggle('active', w === 'bow');
@@ -197,6 +214,22 @@ function updateHUD() {
       if (el.taPotion) {
         el.taPotion.dataset.count = potions;
         el.taPotion.classList.toggle('empty', potions <= 0);
+      }
+      // The ability button only exists once one of the two active abilities is
+      // owned, and wears whichever is equipped. Nothing equipped but one owned
+      // still shows it — tapping then says how to equip, which is more useful
+      // than a button that quietly isn't there.
+      if (el.taAbility) {
+        const owned = (typeof ACTIVE_ABILITIES !== 'undefined')
+          ? ACTIVE_ABILITIES.filter(a => typeof hasAbility === 'function' && hasAbility(a)) : [];
+        el.taAbility.style.display = owned.length ? '' : 'none';
+        if (owned.length) {
+          const icons = (typeof ABILITY_ICONS !== 'undefined') ? ABILITY_ICONS : {};
+          const names = (typeof ABILITY_LABELS !== 'undefined') ? ABILITY_LABELS : {};
+          el.taAbility.textContent = abil ? (icons[abil] || '✦') : '✦';
+          el.taAbility.title = abil ? names[abil] : 'No ability equipped';
+          el.taAbility.classList.toggle('empty', !abil);
+        }
       }
     }
   }

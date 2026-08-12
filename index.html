@@ -19,7 +19,7 @@
     <button class="title-btn" onclick="titleNewGame()">🆕 New Game</button>
     <button class="title-btn" onclick="openLoadModal()">📂 Load Game</button>
     <button class="title-btn" onclick="titleNewGameSkip()">⏭️ New Game (skip prologue)</button>
-    <p id="title-hint">Arrow keys: move · Z: sword · V: menu</p>
+    <p id="title-hint">Arrow keys: move · Z: punch · V: menu</p>
     <!-- Control scheme override. Cycles Auto → Touch → Desktop (cycleUiMode in
          config.js). Offered here, before gameplay, because a player handed the
          wrong scheme can't necessarily reach an in-game menu to fix it. -->
@@ -168,6 +168,10 @@
     <button class="touch-act" id="ta-sword"  title="Sword">⚔️</button>
     <button class="touch-act" id="ta-bow"    title="Bow">🏹</button>
     <button class="touch-act" id="ta-potion" title="Drink a Health Potion">🧪</button>
+    <!-- The equipped shrine ability ([F] on desktop). Hidden until the hero owns
+         an active one — Updraft Glide or Shadow Step — so the pad stays three
+         buttons for most of the game. Its glyph is whichever is equipped. -->
+    <button class="touch-act" id="ta-ability" title="Use ability" style="display:none">🜁</button>
   </div>
   <div id="weapon-bar">
     <span class="weapon-slot weapon-active" id="ws-sword">⚔️ Sword [Z]</span>
@@ -208,6 +212,9 @@
 <script src="mapgen-biomes.js"></script>
 <script src="enemies.js"></script>
 <script src="world.js"></script>
+<script src="shrines.js"></script>
+<script src="corruption.js"></script>
+<script src="abilities.js"></script>
 <script src="fog.js"></script>
 <script src="player.js"></script>
 <script src="story.js"></script>

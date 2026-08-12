@@ -321,7 +321,36 @@ const T = {
   //   EMBER           — smouldering wreckage still alight, animated like T.TORCH
   //                     (passable — it's ambience, not a hazard; there is no
   //                     environmental damage system in this game)
-  CHARRED_GRASS:156, SCORCHED_FLOOR:157, BURNT_WALL:158, RUBBLE:159, EMBER:160
+  CHARRED_GRASS:156, SCORCHED_FLOOR:157, BURNT_WALL:158, RUBBLE:159, EMBER:160,
+
+  // Stage 9 village shrine dungeons. Kept below 256 so maps remain Uint8Array.
+  SHRINE_WALL:161, SHRINE_FLOOR:162, SHRINE_DOOR:163, SHRINE_EXIT:164,
+  SHRINE_GATE:165, SHRINE_REWARD:166, SHRINE_SWITCH:167, SHRINE_TOGGLE:168,
+  SHRINE_PLATE:169, SHRINE_RESET:170, SHRINE_BRAZIER:171,
+  SHRINE_WATER:172, SHRINE_PLATFORM:173, SHRINE_CRACKED:174,
+  SHRINE_LAVA:175, SHRINE_WIND:176, SHRINE_CONDUIT:177,
+  SHRINE_MIRROR:178, SHRINE_EMITTER:179, SHRINE_RECEIVER:180,
+  SHRINE_DARKNESS:181, SHRINE_GAS:182, SHRINE_VALVE:183,
+  SHRINE_PUZZLE_RUNE:184, SHRINE_SHIFT:185, SHRINE_PRISM:186,
+
+  // ─── Grandmother's Bow, as a prop ────────────────────────────────────────────
+  // The bow the script keeps pointing at. Beat 1 describes it resting against the
+  // wall beside her, and Beat 5 has it lying just beyond her reach — both are
+  // things the player is supposed to SEE, so it needs to be on the map rather
+  // than only in the narration. A tile rather than a villager accessory because
+  // it outlives her: after the fire it is an object on the floor of a ruin, and
+  // it has to survive the burn pass (hvCharTile leaves it alone) and then vanish
+  // when it's picked up. Passable — Beat 5 walks the player onto it.
+  GRAN_BOW:187,
+
+  // ─── Hidden rune mark (stage 9, Arcane Sight) ────────────────────────────────
+  // A passable ground tile that draws as the map's own ground until the hero has
+  // Arcane Sight, and as a ring of glyphs afterwards. Trails of five lead to a
+  // cache the hero has been walking over for hours (see placeRuneTrail and
+  // drawRuneMark in abilities.js). Deliberately NOT solid and deliberately not
+  // in CACHEABLE_TILES — how it draws depends on player state, which a cache
+  // keyed on tile type alone cannot express.
+  RUNE_MARK:188
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -368,6 +397,11 @@ const SOLID_TILES = new Set([
   // Ashfall ruins: a wall that survived the fire still blocks, and so does a
   // heap of what didn't. CHARRED_GRASS / SCORCHED_FLOOR / EMBER are walkable.
   T.BURNT_WALL, T.RUBBLE,
+  // Shrine fixtures. Gates are replaced with floor when solved; dynamic blocks
+  // and paired Shadow-layer walls are checked by shrines.js.
+  T.SHRINE_WALL, T.SHRINE_GATE, T.SHRINE_CRACKED,
+  T.SHRINE_REWARD, T.SHRINE_RESET, T.SHRINE_BRAZIER, T.SHRINE_VALVE,
+  T.SHRINE_MIRROR, T.SHRINE_EMITTER, T.SHRINE_RECEIVER, T.SHRINE_PRISM,
 ].filter(v => v !== undefined));
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
@@ -382,6 +416,25 @@ const TILE_COLORS = {
   // Sealed shrine + its clue runes — a dim runed grey on the minimap (the live
   // render tints them by the map's required element; see render-tiles.js).
   [T.SEALED_SHRINE]: '#4a4658', [T.SHRINE_RUNE]: '#3a3850',
+  // Grandmother's Bow on the floor — pale yew against the boards, and still
+  // readable once those boards are scorched black.
+  [T.GRAN_BOW]: '#c9a25e',
+  // The minimap shows a rune mark as plain ground, the same lie the tile itself
+  // tells until Arcane Sight. Grass green: the trails are laid on open ground.
+  [T.RUNE_MARK]: '#3a7a3a',
+  [T.SHRINE_WALL]: '#25243a', [T.SHRINE_FLOOR]: '#56536e',
+  [T.SHRINE_DOOR]: '#7d62b0', [T.SHRINE_EXIT]: '#70d6c7',
+  [T.SHRINE_GATE]: '#373246', [T.SHRINE_REWARD]: '#d5a62d',
+  [T.SHRINE_SWITCH]: '#8ac6d1', [T.SHRINE_TOGGLE]: '#68a8d8',
+  [T.SHRINE_PLATE]: '#a98e68', [T.SHRINE_RESET]: '#8a6ab0',
+  [T.SHRINE_BRAZIER]: '#9b4e25', [T.SHRINE_WATER]: '#214f83',
+  [T.SHRINE_PLATFORM]: '#9c774c', [T.SHRINE_CRACKED]: '#5f5660',
+  [T.SHRINE_LAVA]: '#d44116', [T.SHRINE_WIND]: '#bfe6ef',
+  [T.SHRINE_CONDUIT]: '#50607e', [T.SHRINE_MIRROR]: '#d8ecf2',
+  [T.SHRINE_EMITTER]: '#ffd868', [T.SHRINE_RECEIVER]: '#8d815e',
+  [T.SHRINE_DARKNESS]: '#100d20', [T.SHRINE_GAS]: '#628c45',
+  [T.SHRINE_VALVE]: '#8b8f88', [T.SHRINE_SHIFT]: '#8661b7',
+  [T.SHRINE_PUZZLE_RUNE]: '#9a64c8', [T.SHRINE_PRISM]: '#e8d9ff',
   [T.CAVE_ENTRANCE]: '#0a0a0a', [T.CAVE_EXIT]: '#332266',
   [T.CHEST_EXIT]: '#f0c860',
   [T.LARGE_CHEST]: '#cc8800', [T.CAVE_FLOOR]: '#3a2a1a',

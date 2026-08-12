@@ -139,6 +139,11 @@ function dropCatOf(type) { return DROP_CAT_OF[type] || 'material'; }
 const RADIAL_RINGS = [
   // ── Swords: base sword + each owned elemental sword ──────────────────────────
   { name: 'swords', getItems: () => {
+      // Empty until Grandmother's Sword is in hand, exactly like the arrows ring
+      // below: a hero who has never seen a sword shouldn't find one listed in
+      // their own menu. The ring auto-skips when it has no items (see the
+      // getItems().length checks in radialOpen / radialCycleRing).
+      if (!player.hasSword) return [];
       const lv = player.swordLevel || 1;
       const items = [
         { type: 'sword', icon: '⚔', label: 'Sword',
@@ -291,6 +296,27 @@ const RADIAL_RINGS = [
   // its own panel and fires on Enter/click ONLY (navigating past one must not
   // trigger it), so they're flagged `launcher` and skipped by radialAutoPick.
   // Drop a settings or character launcher in here later with no other changes. ──
+  // ── Abilities: the five shrine rewards ───────────────────────────────────────
+  // The three passives are listed but not selectable — they are always on, and
+  // an entry that equips nothing has to say so rather than looking broken. The
+  // two actives share the [F] key and the touch ability button, so picking one
+  // here is what decides which of them that button is (abilities.js).
+  { name: 'abilities', getItems: () => {
+      const owned = player.abilities || {};
+      return SHRINE_REWARDS.filter(r => r.kind === 'ability' && owned[r.key]).map(r => {
+        const active = (typeof abilityIsActive === 'function') && abilityIsActive(r.key);
+        return {
+          type: 'ability_' + r.key,
+          icon: r.icon,
+          label: r.label,
+          val: () => active
+            ? (player.equippedAbility === r.key ? 'Equipped [F]' : 'Equip')
+            : 'Passive',
+          action: active ? (() => setEquippedAbility(r.key)) : null,
+          isActive: () => active && player.equippedAbility === r.key,
+        };
+      });
+    }},
   { name: 'menu', getItems: () => {
       const kinds = PASSIVE_DROPS.reduce(
         (n, d) => n + ((player[d.key] || 0) > 0 ? 1 : 0), 0);

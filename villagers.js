@@ -32,7 +32,7 @@ const VILLAGER_CHAT = {
               "Sit a while and rest, young one."],
   Child:     ["You're a real hero!",
               "I want a sword like yours when I grow up!",
-              "Tag — you're it!"],
+              "Tag, you're it!"],
   Hunter:    ["I track wolves in the eastern woods.",
               "Keep an arrow nocked out there.",
               "These boots have walked a thousand miles."],
@@ -49,12 +49,15 @@ const VILLAGER_CHAT = {
   Shopkeeper:["Greetings, hero! Browse my wares."],
   Herbalist: ["Bring me mushrooms and herbs for a remedy."],
   Blacksmith:["Need armor? I forge the finest in the land."],
-  Collector: ["I'm cataloguing the spoils of this region — talk to me for a commission."],
+  Collector: ["I'm cataloguing the spoils of this region. Talk to me for a commission."],
   Parent:    ["Have you seen my boy? Please, find my Timmy!"],
   Timmy:     ["Thank you for finding me! I'll never wander off again."],
-  Taxidermist:["I mount the beasts of this land — bring me one of each and I'll teach the hunt."],
+  Taxidermist:["I mount the beasts of this land. Bring me one of each and I'll teach the hunt."],
   Alchemist: ["Fresh reagents! I pay handsomely for trophies in bulk."],
   Chronicler:["I chronicle every hero's deeds. Complete your quests and I'll ready you for the tower."],
+  // The fortune teller's own lines are scripted (see FORTUNE_TELLERS); this is
+  // only what she says once her telling is spent.
+  'Fortune Teller':["The cards have nothing further for you. Not yet."],
 };
 
 // ─── Escort quests (#7 Lost Caravan, #8 Runaway Apprentice, #9 Missing Gatherer) ──
@@ -81,8 +84,8 @@ const ESCORT_DEFS = {
     // offer/remind/done are spoken lines — bare text, no speaker prefix, because
     // talkEscortGiver puts them in the dialogue box attributed to `giverKind`.
     // found/grant stay plain strings: those are toasts, not speech.
-    offer: () => `My partner's caravan broke an axle out on a dead-end trail — the second one you come across. Bring it home and I'll open my ledger to you!`,
-    remind: () => `Any sign of the caravan? Search the dead-end trails — it's stuck down the second one you find.`,
+    offer: () => `My partner's caravan broke an axle out on a dead-end trail, the second one you come across. Bring it home and I'll open my ledger to you!`,
+    remind: () => `Any sign of the caravan? Search the dead-end trails. It's stuck down the second one you find.`,
     found: () => `🛒 You found the stranded caravan! It rolls home — go see the trader for your reward.`,
     done: () => `Trade's booming again thanks to you, hero.`,
     grant: (rid) => {
@@ -103,8 +106,8 @@ const ESCORT_DEFS = {
     ],
     qualifies: (mo) => mo.type === 'cave' || mo.type === 'cave_chain' || mo.type === 'sky_cave',
     count: 2,
-    offer: () => `My apprentice ran off into the caves in a sulk — the second cavern you delve into. Fetch them back and your first upgrade at my forge is on the house!`,
-    remind: () => `Please — my apprentice is still down in the caves. The second one you enter.`,
+    offer: () => `My apprentice ran off into the caves in a sulk, the second cavern you delve into. Fetch them back and your first upgrade at my forge is on the house!`,
+    remind: () => `Please. My apprentice is still down in the caves. The second one you enter.`,
     found: () => `🔨 You found the runaway apprentice! They scurry home — go see the smith for your reward.`,
     done: () => `My apprentice hasn't touched the forge-bellows since. Thank you, hero.`,
     grant: (rid) => {
@@ -127,8 +130,8 @@ const ESCORT_DEFS = {
       typeof mo.regionIdx === 'number' && (mo.depth || 0) >= 8 &&
       typeof REGIONS !== 'undefined' && REGIONS[mo.regionIdx] && mo.type === REGIONS[mo.regionIdx].id,
     count: 2,
-    offer: () => `My gatherer wandered deep into the wilds and never came back — the second far-off field you reach. Find them and I'll teach you their knack for foraging!`,
-    remind: () => `My gatherer is still out there, deep in the wilds — the second distant field.`,
+    offer: () => `My gatherer wandered deep into the wilds and never came back, the second far-off field you reach. Find them and I'll teach you their knack for foraging!`,
+    remind: () => `My gatherer is still out there, deep in the wilds, the second distant field.`,
     found: () => `🌿 You found the lost gatherer! They head home — go see the herbalist for your reward.`,
     done: () => `My gatherer's baskets are full again. Bless you, hero.`,
     grant: (rid) => {
@@ -166,6 +169,7 @@ function generateVillagers(mapObj) {
   placeAlchemist(mapObj, list);
   placeEscortGivers(mapObj, list);
   placeChronicler(mapObj, list);
+  placeFortuneTeller(mapObj, list);
   let nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
   const m = mapObj.map;
   const count = 20;
@@ -466,8 +470,165 @@ function talkChronicler(v) {
   // reward list isn't competing with the line for the same read.
   const haul = rewards.join(' ');
   if (typeof sayNPC === 'function')
-    sayNPC('Chronicler', `Milestone ${tier} — ${total} deeds done! Take this for the climb ahead.`,
+    sayNPC('Chronicler', `Milestone ${tier}: ${total} deeds done! Take this for the climb ahead.`,
            () => { if (typeof showMapMsg === 'function') showMapMsg(`📜 ${haul}`); });
+}
+
+// ─── Fortune tellers (stage 8) ────────────────────────────────────────────────
+// Four of them, in four villages, each holding one fragment of the truth about
+// the crown. They exist because Grandmother's dying words are deliberately
+// incomplete (Beat 5, prologue.js): the midgame has to hand the player enough to
+// keep pulling without ever closing the gap the final scene pays off.
+//
+// What each of them is allowed to say is the whole design, so it is written out
+// here rather than being left to whoever edits the lines next:
+//
+//   MAY say   the crown is older than the dragon; the Emperor started out human
+//             and wanted more time; a ruling house disappeared when he took
+//             power; the hero's own village has no records older than the road.
+//   MAY NOT   name that house, connect it to Grandmother, say what Elderbrook
+//             did, mention the wizard or the potion, or so much as imply that
+//             the dragon at the top of the tower is the Emperor. Every one of
+//             those is the final-boss scene's to spend (stage 10), and a line
+//             here that pre-empts one turns that scene into a recap.
+//
+// Each fragment is one-time and persists as a story flag (story.js). They are
+// gated in progression order: a teller further along the road will not read for
+// a hero who has skipped an earlier one, and says where to go instead. She is
+// not consumed by that, so nothing is missable — the villages stay reachable by
+// portal, and the reading is still waiting when the hero comes back.
+const FORTUNE_TELLERS = [
+  {
+    regionIdx: 2, flag: 'fortune_water',
+    lines: [
+      { text: "She turns a card face up without looking at it, then looks at you instead." },
+      { speaker: 'FORTUNE TELLER',
+        text: "You want to know about the crown. Everyone who comes this far does. Here is the part nobody wants: it is older than he is." },
+      { speaker: 'FORTUNE TELLER',
+        text: "There was a crown long before there was a dragon to wear it. Whatever sits on that head, it was made for a different one." },
+    ],
+  },
+  {
+    regionIdx: 5, flag: 'fortune_volcanic',
+    lines: [
+      { text: "She reads the smoke coming off the vents rather than your hand." },
+      { speaker: 'FORTUNE TELLER',
+        text: "He was a man. Start there, because everyone forgets it. Two arms, one life, the same as yours." },
+      { speaker: 'FORTUNE TELLER',
+        text: "And a man who already has everything wants only one thing after that. More of it. More time. I cannot tell you what he did to get it. I can tell you it worked." },
+    ],
+  },
+  {
+    regionIdx: 8, flag: 'fortune_luminous',
+    lines: [
+      { text: "The light in here comes from the walls. It does not flatter what she lays out." },
+      { speaker: 'FORTUNE TELLER',
+        text: "Somebody ruled before him. A whole house of somebodies. I can see the shape of them and not one name." },
+      { speaker: 'FORTUNE TELLER',
+        text: "Not beaten. Not driven out. Gone inside a season, the way a word goes when you stop saying it. Somebody wanted that." },
+    ],
+  },
+  {
+    regionIdx: 11, flag: 'fortune_mana',
+    lines: [
+      { text: "She does not deal anything. She has been waiting for you with her hands folded." },
+      { speaker: 'FORTUNE TELLER',
+        text: "Every village on this road keeps its records. Births, harvests, quarrels over fences. Yours keeps them too." },
+      { speaker: 'FORTUNE TELLER',
+        text: "Only nothing in yours is older than the road itself. That is not decay, child. Decay is untidy. Somebody went through it and cut, and left the edges straight." },
+    ],
+  },
+];
+
+function fortuneTellerFor(regionIdx) {
+  return FORTUNE_TELLERS.find(f => f.regionIdx === regionIdx) || null;
+}
+
+// Stand her up in a village that was already awake before this stage existed.
+// generateVillagers only runs on a village's first activation, and after that
+// the population is restored from `savedVillagers` — so without this, a save
+// that had already cleared Tideborn Refuge would never see a fortune teller in
+// it. Idempotent and mirrors ensureGuildRecruiter (guild.js), which exists for
+// exactly the same reason.
+function ensureFortuneTeller(mapObj) {
+  if (!mapObj || mapObj.type !== 'village' || !mapObj.activated) return;
+  if (typeof villagers === 'undefined') return;
+  const regionIdx = (typeof mapObj.regionIdx === 'number')
+    ? mapObj.regionIdx
+    : REGIONS.findIndex(r => r.id === mapObj.biome);
+  if (!fortuneTellerFor(regionIdx)) return;
+  if (villagers.some(v => v.role === 'fortune')) return;
+  const before = villagers.length;
+  placeFortuneTeller(mapObj, villagers);
+  if (villagers.length > before) mapObj.savedVillagers = villagers.map(v => ({ ...v }));
+}
+
+// Stand a stationary Fortune Teller in the four villages that have one. Same
+// candidate-spot shape as the Taxidermist and the Alchemist above; she takes the
+// south flank of the plaza, away from the Parent (north) and the keepers.
+function placeFortuneTeller(mapObj, list) {
+  const regionIdx = (typeof mapObj.regionIdx === 'number')
+    ? mapObj.regionIdx
+    : (typeof REGIONS !== 'undefined' ? REGIONS.findIndex(r => r.id === mapObj.biome) : -1);
+  if (!fortuneTellerFor(regionIdx)) return;
+  const m = mapObj.map;
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  const cands = [
+    { x: midC - 4, y: midR + 6 }, { x: midC + 4, y: midR + 6 },
+    { x: midC - 6, y: midR + 4 }, { x: midC + 6, y: midR + 4 },
+    { x: midC - 4, y: midR + 8 }, { x: midC + 4, y: midR + 8 },
+    { x: midC - 8, y: midR + 6 }, { x: midC + 8, y: midR + 6 },
+  ];
+  let spot = null;
+  for (const s of cands) {
+    if (s.x < 2 || s.y < 2 || s.x >= MCOLS - 2 || s.y >= MROWS - 2) continue;
+    if (isSolid(m, s.x, s.y)) continue;
+    if (isVillagerOffLimits(m[s.y][s.x])) continue;
+    if (list.some(v => v.x === s.x && v.y === s.y)) continue;
+    spot = s; break;
+  }
+  if (!spot) return;
+  const nextId = list.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+  list.push({
+    id: nextId,
+    kind: 'Fortune Teller', role: 'fortune',
+    robe: '#5a2a6a', hair: '#d8c070', skin: '#d8b890',
+    size: 1,
+    x: spot.x, y: spot.y, renderX: spot.x, renderY: spot.y,
+    stationary: true,
+    dir: { x: 0, y: 1 },
+    timer: 0, stepMs: 9999,
+  });
+}
+
+// Talk to her. Three outcomes: her own reading, a spent line once it has been
+// given, or a redirect when an earlier reading is still outstanding.
+function talkFortuneTeller(v) {
+  const regionIdx = (typeof currentMap === 'function') ? mapRegionIndex(currentMap()) : -1;
+  const def = fortuneTellerFor(regionIdx);
+  if (!def) { if (typeof sayNPC === 'function') sayNPC(v.kind, VILLAGER_CHAT['Fortune Teller'][0]); return; }
+  if (typeof hasFlag === 'function' && hasFlag(def.flag)) {
+    if (typeof sayNPC === 'function') sayNPC(v.kind, VILLAGER_CHAT['Fortune Teller'][0]);
+    return;
+  }
+  // In order. The first fragment still unheard, if it isn't this one, is where
+  // the hero has to go — and she names the village so it isn't a guessing game.
+  const outstanding = FORTUNE_TELLERS.find(f => f !== def && f.regionIdx < def.regionIdx &&
+                                                !(typeof hasFlag === 'function' && hasFlag(f.flag)));
+  if (outstanding) {
+    const where = (typeof REGIONS !== 'undefined' && REGIONS[outstanding.regionIdx])
+      ? REGIONS[outstanding.regionIdx].villageName : 'a village behind you';
+    if (typeof sayNPC === 'function') {
+      sayNPC(v.kind, `Your thread starts further back than this. There is a woman at ${where} who holds the end of it. Bring me what she tells you and I will read the rest.`);
+    }
+    return;
+  }
+  if (typeof startDialogue === 'function') {
+    startDialogue(def.lines, () => {
+      setFlag(def.flag);
+      if (typeof autoSave === 'function') autoSave();
+    });
+  }
 }
 
 // Build a Timmy (the lost child) standing on the open tile nearest a dead-end
@@ -600,6 +761,7 @@ function spawnVillagersForMap(mid) {
     if (typeof ensureGuildRecruiter === 'function') ensureGuildRecruiter(rm);
     ensureTimmyOnDeadEnd(rm);
     ensureEscortTargets(rm);
+    ensureFortuneTeller(rm);
     return;
   }
   if (rm.type === 'village' && rm.activated) {
@@ -782,6 +944,25 @@ function drawVillager(v, ts) {
     ctx.moveTo(px + s * 0.45, py + s * 0.39);
     ctx.lineTo(px + s * 0.56, py + s * 0.39);
     ctx.stroke();
+  } else if (v.lookUp) {
+    // Beat 3: heads go back and the square stops. Villagers are drawn
+    // front-facing in every other state, so `dir` alone would show nothing —
+    // the tilt has to be in the face itself. The head reads as tipped back by
+    // pushing the hair down over the brow, lifting the eyes into the top of the
+    // face, and opening the mouth. See pgVillagersLookUp in prologue.js.
+    ctx.fillStyle = v.hair;
+    ctx.fillRect(px + s * 0.31, py + s * 0.24, s * 0.38, s * 0.05);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(px + s * 0.39, py + s * 0.31, s * 0.06, s * 0.03);
+    ctx.fillRect(px + s * 0.55, py + s * 0.31, s * 0.06, s * 0.03);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(px + s * 0.41, py + s * 0.313, s * 0.015, s * 0.012);
+    ctx.fillRect(px + s * 0.57, py + s * 0.313, s * 0.015, s * 0.012);
+    // Open mouth — the difference between watching the sky and enjoying it.
+    ctx.fillStyle = '#5a2010';
+    ctx.beginPath();
+    ctx.ellipse(cx, py + s * 0.395, s * 0.045, s * 0.055, 0, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     // Eyes
     ctx.fillStyle = '#000';
@@ -1069,7 +1250,9 @@ function tryVillagerInteraction() {
   // rather than a random VILLAGER_CHAT one-liner, and what they say depends on
   // which beat the story is on — so the handler lives with the script, in
   // prologue.js, and is dispatched by name off the villager.
-  if (v.pgTalk && typeof talkPrologueNpc === 'function') { talkPrologueNpc(v); return true; }
+  // Wren carries both a pgTalk key and role:'store', so a declined prologue line
+  // has to fall through to the shop rather than eat the keypress.
+  if (v.pgTalk && typeof talkPrologueNpc === 'function' && talkPrologueNpc(v)) return true;
   if (v.role === 'inn'   && typeof openInnModal        === 'function') { openInnModal();        return true; }
   if (v.role === 'store' && typeof openStoreModal      === 'function') { openStoreModal();      return true; }
   if (v.role === 'herb'  && typeof openHerbalistModal  === 'function') { openHerbalistModal();  return true; }
@@ -1082,6 +1265,8 @@ function tryVillagerInteraction() {
   if (v.role === 'alchemist' && typeof openAlchemistModal === 'function') { openAlchemistModal(); return true; }
   // The Chronicler pays out Completionist's Ledger milestones (final village).
   if (v.role === 'completionist') { talkChronicler(v); return true; }
+  // The Fortune Teller reads one fragment of the crown's history (stage 8).
+  if (v.role === 'fortune') { talkFortuneTeller(v); return true; }
   // The Worried Parent hands out (and closes) the "Find Timmy" quest.
   if (v.role === 'lostson')   { talkLostParent(v);  return true; }
   // The Guild Recruiter inducts the hero into the Sword & Shield Guild.
@@ -1155,7 +1340,7 @@ function talkLostParent(v) {
     if (typeof updateHUD === 'function') updateHUD();
     const lvl = player.bowLevel;
     if (typeof sayNPC === 'function')
-      sayNPC('Parent', `Bless you, hero — you brought my Timmy home! Take this: my late father's bow arm will serve you well.`,
+      sayNPC('Parent', `Bless you, hero. You brought my Timmy home! Take this: my late father's bow arm will serve you well.`,
              () => { if (typeof showMapMsg === 'function') showMapMsg(`🏹 Bow Level up — now Lv ${lvl}!`); });
     return;
   }
@@ -1174,13 +1359,13 @@ function talkLostParent(v) {
   if (!q) {
     q = player.lostSonQuests[rid] = { status: 'active', enteredDeadEnds: [], timmyMapId: null };
     if (typeof sayNPC === 'function')
-      sayNPC('Parent', `Please, hero — my son Timmy wandered off! Folk saw him slip down the third dead-end trail he could find. Search the sealed paths at the edges of this land — the third one holds my boy!`);
+      sayNPC('Parent', `Please, hero. My son Timmy wandered off! Folk saw him slip down the third dead-end trail he could find. Search the sealed paths at the edges of this land. The third one holds my boy!`);
     return;
   }
 
   // ── Quest active, Timmy still out there ────────────────────────────────────
   if (typeof sayNPC === 'function')
-    sayNPC('Parent', `Any sign of my Timmy? Keep exploring the dead-end trails — he's waiting down the third one you find.`);
+    sayNPC('Parent', `Any sign of my Timmy? Keep exploring the dead-end trails. He's waiting down the third one you find.`);
 }
 
 // Reach the lost Timmy on a dead-end map. He's whisked home to stand beside his

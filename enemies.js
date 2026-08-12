@@ -24,6 +24,17 @@ const DND_ENEMIES = {
   giant_spider:   { name: 'Giant Spider',        hp: 24,  spd: 500,  dmg: 3,  xp: 450,   color: '#4a3a55', size: 0.8,  ranged: true, cr: 1, element: 'poison' },
   owlbear:        { name: 'Owlbear',             hp: 28,  spd: 550,  dmg: 3,  xp: 450,   color: '#8a6622', size: 0.95, cr: 3 },
 
+  // ── Prologue only · Hendricks' dog ──
+  // Not part of any tier or pool, and never rolled by makeEnemyDefs — the
+  // prologue places this one by hand (see spawnPrologueDog in prologue.js) and it
+  // is the only creature in Elderbrook. The numbers come from the script rather
+  // than from CR math: 3 HP, 1 damage, and the player's punch does 1, so it takes
+  // exactly two hits to break its nerve. It cannot be killed (doPunch clamps it
+  // at 1 HP and never calls killEnemy) and it awards no XP, because it is a
+  // frightened animal in a tutorial, not a kill. `cr` is a flavour tag only and
+  // is never read at runtime, so 0 is honest here.
+  hendricks_dog:  { name: "Hendricks' Dog",      hp: 3,   spd: 380,  dmg: 1,  xp: 0,     color: '#9a7b46', size: 0.55, cr: 0 },
+
   // ── Tier 1 · Fire / Desert — flame cultists, hounds & elementals of fire. ──
   cultist:        { name: 'Cultist',             hp: 24,  spd: 600,  dmg: 4,  xp: 200,   color: '#884488', size: 0.75, ranged: true, cr: '1/8', element: 'fire' },
   magma_mephit:   { name: 'Magma Mephit',        hp: 28,  spd: 600,  dmg: 4,  xp: 200,   color: '#cc4422', size: 0.6,  ranged: true, cr: '1/2', element: 'fire' },
@@ -421,6 +432,15 @@ function spawnEnemiesForMap(mid) {
         shootTimer: Math.random() * 1500 + 500
       };
     });
+  }
+  // Bring the roster into line with the blight (corruption.js). Both branches
+  // above need it and neither can do it for itself: a fresh spawn has never seen
+  // the template, and a restored one carries whatever it was saved with, which
+  // is wrong the moment the hero cleanses the region and walks back in. Doing it
+  // here, once, is also what keeps the template out of the saved shape of an
+  // enemy — `corrupted` is a derived field that happens to persist.
+  if (typeof syncEnemyListCorruption === 'function') {
+    syncEnemyListCorruption(enemies, isMapCorrupted(rm));
   }
   projectiles = [];
   particles = [];

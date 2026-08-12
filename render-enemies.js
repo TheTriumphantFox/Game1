@@ -38,6 +38,14 @@ function drawEnemy(e, ts) {
     drawElementFX(cx, cy, ts * 0.6 * e.size, e.element, 0.55, (e.id || 0) * 0.37);
   }
 
+  // ── Blight aura (behind the sprite, over the elemental one) ──────────
+  // The corrupted template's only visual tell — it deliberately does not change
+  // the creature's size, because "bigger" already means Greater. A blighted
+  // elemental creature wears both auras (see corruption.js).
+  if (e.corrupted && typeof drawCorruptedEnemyAura === 'function') {
+    drawCorruptedEnemyAura(e, cx, cy, ts * 0.52 * e.size);
+  }
+
   // ── Per-type sprite (uses px/py which include the bob offset) ────────
   switch (e.type) {
     case 'goblin': {
@@ -124,6 +132,126 @@ function drawEnemy(e, ts) {
       ctx.moveTo(px + s*0.10, py + s*0.48);
       ctx.lineTo(px - s*0.04, py + s*0.34);
       ctx.stroke();
+      break;
+    }
+    case 'hendricks_dog': {
+      // Old Hendricks' dog. Deliberately not a small wolf: floppy ears, a collar,
+      // cream socks and a stubby muzzle, so it reads as somebody's animal rather
+      // than as the prologue's first monster. It is the one creature in the game
+      // that cannot be killed, and it should look like it doesn't deserve to be.
+      //
+      // The pose carries its state, because the two phases of the encounter want
+      // opposite body language: planted and growling while it blocks the gate
+      // (dormant), running flat out once it is chasing.
+      const dGrowl = !!e.dormant;
+      // Face the player. Everything below is drawn right-facing and mirrored about
+      // the sprite's centre line when it needs to look the other way — the dog sits
+      // in a gap the player walks up to, so having its back turned looked wrong.
+      const dFaceLeft = (typeof player !== 'undefined') && player.x < e.x;
+      ctx.save();
+      if (dFaceLeft) { ctx.translate(cx * 2, 0); ctx.scale(-1, 1); }
+
+      const FUR      = '#9a7b46';
+      const FUR_LIT  = '#b8955e';
+      const FUR_DARK = '#6d5430';
+      const SOCK     = '#e2cda6';
+
+      // Legs, in two pairs — rear under the haunches, front under the chest, so
+      // the four of them read as a dog's stance instead of four posts. The stride
+      // stays small enough that a leg never walks out from under the body.
+      const dStride = dGrowl ? 0 : (Math.sin(Date.now() / 110 + phase) * s * 0.055);
+      ctx.fillStyle = FUR_DARK;
+      ctx.fillRect(px + s*0.21 - dStride, py + s*0.70, s*0.10, s*0.22);   // rear far
+      ctx.fillRect(px + s*0.57 + dStride, py + s*0.70, s*0.10, s*0.22);   // front far
+      ctx.fillStyle = SOCK;
+      ctx.fillRect(px + s*0.21 - dStride, py + s*0.86, s*0.10, s*0.06);
+      ctx.fillRect(px + s*0.57 + dStride, py + s*0.86, s*0.10, s*0.06);
+
+      // Tail: down and stiff while growling, up and streaming while running.
+      ctx.strokeStyle = FUR_DARK;
+      ctx.lineWidth = Math.max(2, s * 0.09);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.18, py + s*0.52);
+      if (dGrowl) ctx.quadraticCurveTo(px + s*0.04, py + s*0.62, px + s*0.02, py + s*0.80);
+      else        ctx.quadraticCurveTo(px - s*0.02, py + s*0.44, px + s*0.04, py + s*0.26);
+      ctx.stroke();
+
+      // Body — a low slung barrel, dipped at the shoulders when it is growling.
+      const dCrouch = dGrowl ? s*0.04 : 0;
+      ctx.fillStyle = FUR;
+      ctx.beginPath();
+      ctx.ellipse(px + s*0.46, py + s*0.60 + dCrouch, s*0.30, s*0.19, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = FUR_LIT;   // lit along the spine
+      ctx.beginPath();
+      ctx.ellipse(px + s*0.44, py + s*0.53 + dCrouch, s*0.26, s*0.10, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // The near pair, in front of the barrel. Same two groupings as the far pair,
+      // offset the opposite way so the gait alternates.
+      ctx.fillStyle = FUR;
+      ctx.fillRect(px + s*0.30 + dStride, py + s*0.70 + dCrouch, s*0.11, s*0.22 - dCrouch);
+      ctx.fillRect(px + s*0.66 - dStride, py + s*0.70 + dCrouch, s*0.11, s*0.22 - dCrouch);
+      ctx.fillStyle = SOCK;
+      ctx.fillRect(px + s*0.30 + dStride, py + s*0.86, s*0.11, s*0.06);
+      ctx.fillRect(px + s*0.66 - dStride, py + s*0.86, s*0.11, s*0.06);
+
+      // Head, carried low and forward in the growl.
+      const dHeadX = px + s*0.76, dHeadY = py + s*0.42 + dCrouch * 1.6;
+      ctx.fillStyle = FUR;
+      ctx.beginPath(); ctx.arc(dHeadX, dHeadY, s*0.20, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = FUR_LIT;
+      ctx.beginPath(); ctx.arc(dHeadX - s*0.03, dHeadY - s*0.05, s*0.15, 0, Math.PI*2); ctx.fill();
+
+      // Floppy ear hanging down the near cheek — the single clearest "dog, not
+      // wolf" cue, so it gets a full rounded lobe rather than a triangle.
+      ctx.fillStyle = FUR_DARK;
+      ctx.beginPath();
+      ctx.ellipse(dHeadX - s*0.15, dHeadY + s*0.02, s*0.08, s*0.15, -0.25, 0, Math.PI*2);
+      ctx.fill();
+
+      // Muzzle + nose.
+      ctx.fillStyle = SOCK;
+      ctx.beginPath();
+      ctx.ellipse(dHeadX + s*0.16, dHeadY + s*0.07, s*0.12, s*0.08, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#241a12';
+      ctx.beginPath(); ctx.arc(dHeadX + s*0.27, dHeadY + s*0.05, s*0.045, 0, Math.PI*2); ctx.fill();
+
+      // Bared teeth while it is growling — small, and only in that pose.
+      if (dGrowl) {
+        ctx.fillStyle = '#fffaf0';
+        ctx.fillRect(dHeadX + s*0.14, dHeadY + s*0.12, s*0.10, s*0.035);
+        ctx.fillStyle = '#241a12';
+        ctx.fillRect(dHeadX + s*0.17, dHeadY + s*0.12, s*0.012, s*0.035);
+      }
+
+      // Eye — a worried little dot with a catchlight.
+      ctx.fillStyle = '#241a12';
+      ctx.beginPath(); ctx.arc(dHeadX + s*0.05, dHeadY - s*0.04, s*0.04, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(dHeadX + s*0.065, dHeadY - s*0.055, s*0.015, 0, Math.PI*2); ctx.fill();
+      // Raised brow. Costs four pixels and does most of the "nervous, not vicious".
+      ctx.strokeStyle = FUR_DARK;
+      ctx.lineWidth = Math.max(1, s*0.025);
+      ctx.beginPath();
+      ctx.moveTo(dHeadX - s*0.01, dHeadY - s*0.12);
+      ctx.lineTo(dHeadX + s*0.10, dHeadY - s*0.10);
+      ctx.stroke();
+
+      // Hendricks' collar. It belongs to someone, and that is the whole point.
+      ctx.strokeStyle = '#a33a2e';
+      ctx.lineWidth = Math.max(2, s*0.07);
+      ctx.beginPath();
+      ctx.moveTo(dHeadX - s*0.16, dHeadY + s*0.16);
+      ctx.lineTo(dHeadX - s*0.06, dHeadY + s*0.21);
+      ctx.stroke();
+      ctx.fillStyle = '#e8c24a';   // brass tag
+      ctx.beginPath(); ctx.arc(dHeadX - s*0.10, dHeadY + s*0.24, s*0.035, 0, Math.PI*2); ctx.fill();
+
+      ctx.lineCap = 'butt';
+      ctx.restore();
       break;
     }
     case 'skeleton': {
@@ -2822,6 +2950,14 @@ function drawEnemy(e, ts) {
       ctx.beginPath(); ctx.arc(px + s*0.40, py + s*0.46, s*0.03, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(px + s*0.60, py + s*0.46, s*0.03, 0, Math.PI*2); ctx.fill();
     }
+  }
+
+  // ── The Emperor's almost-human flicker ───────────────────────────────
+  // Over the sprite, not behind it: the point of the beat is that something
+  // else shows THROUGH him for a moment. Only ever set on the final boss, and
+  // only for the length of the 15% stagger (stepFinalBoss, tower.js).
+  if (e.humanFlickerT > 0 && typeof drawEmperorFlicker === 'function') {
+    drawEmperorFlicker(e, cx, cy, s);
   }
 
   // ── HP bar — pill background with gradient fill ──────────────────────

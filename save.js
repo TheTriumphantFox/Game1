@@ -62,15 +62,26 @@ function buildSaveData() {
       // village's castle-gate side.
       floorIdx: m.floorIdx,
       castleExitDir: m.castleExitDir,
+      // Which ability secret this map was stamped with, or null if it was
+      // examined and didn't qualify (abilities.js). Persisted so the stamping
+      // pass knows it has already run here — the terrain it laid is in mapTiles
+      // already, and a second pass would hollow a second alcove.
+      abilitySecret: m.abilitySecret,
       // Sealed-shrine required element (set on the one overworld map per region
       // that hosts the shrine; used to tint the shrine + its clue runes).
       shrineElement: m.shrineElement,
+      shrineDoor: m.shrineDoor ? { ...m.shrineDoor } : undefined,
+      shrineState: m.shrineState ? shrineClone(m.shrineState) : undefined,
       // Whirlpool grotto linkage — set on source maps that opened a grotto,
       // plus the cleared-chest flag on the grotto itself.
       grottoLinks: m.grottoLinks ? { ...m.grottoLinks } : undefined,
       grottoChestPlaced: m.grottoChestPlaced || undefined,
       // Village activation state
       activated: m.activated || false,
+      // Elderbrook after Ashfall: the market row still trades, but on the ruin's
+      // terms (bare shelves, forest prices). Without this the reloaded village
+      // goes back to selling the endgame's stock out of a burnt-out shop.
+      shopsRuined: m.shopsRuined || undefined,
       innDoor: m.innDoor || undefined,
       storeDoor: m.storeDoor || undefined,
       herbDoor: m.herbDoor || undefined,
@@ -90,12 +101,17 @@ const DEFAULT_PLAYER = {
   hp: 12, maxHp: 12, tempHp: 0,
   rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
+  // Punch swing clock — the fists' twin of swordTimer (see player.js).
+  punchTimer: 0,
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
   // Grandmother's Bow — granted in the prologue's final beat, not owned at birth.
   // Back-filled to true below for saves written before the field existed.
   hasBow: false,
+  // Grandmother's Sword — granted alongside the bow in that same beat. Also
+  // back-filled below, but on a narrower test than hasBow.
+  hasSword: false,
   potions: STARTING_ITEM_AMOUNT,
   // Bombs — bought at the store / found in chests; a fresh player starts with none.
   bombs: 0,
@@ -116,8 +132,13 @@ const DEFAULT_PLAYER = {
   lostSonQuests: {},
   // Per-region Sword & Shield Guild quests, keyed by region id (see guild.js).
   guildQuests: {},
-  // Per-region Sealed Shrine quests, keyed by region id (see world.js).
+  // Version-2 village shrine quests; legacy sealed records upgrade on load.
   shrineQuests: {},
+  // Permanent shrine abilities, keyed by ability id (see ABILITY_IDS, player.js).
+  abilities: { frostGrip:false, updraftGlide:false, emberLantern:false,
+               arcaneSight:false, shadowStep:false },
+  // The active ability on [F] / the touch ability button (abilities.js).
+  equippedAbility: null,
   // Per-region Taxidermist quests + earned trophy-drop bonuses (shop-herbalist.js).
   taxidermistQuests: {},
   trophyDropBonus: {},
@@ -148,6 +169,18 @@ const DEFAULT_PLAYER = {
   flags: {}
 };
 
+// ─── Legacy sealed-shrine migration ──────────────────────────────────────────
+// The overworld "sealed elemental shrine" (one per region, seeded at region-seal
+// time, broken by striking it with a matching elemental sword or arrow for a
+// one-time +2 Max HP) has been replaced by the shrine dungeons in shrines.js.
+// Migration preserves every old +2 Max HP award, marks legacyCompleted, and
+// exposes the new deterministic puzzle as available and unclaimed. Old sealed
+// tiles become ordinary reusable healing shrines and their clue runes safely
+// return to local ground. The operation is idempotent.
+function migrateLegacyShrines() {
+  if (typeof migrateShrineSystemAfterLoad === 'function') migrateShrineSystemAfterLoad();
+}
+
 function applyLoadData(data) {
   // Apply defaults first, then overlay saved values. This ensures fields
   // missing from older saves (e.g. armor) reset to their default rather than
@@ -168,7 +201,10 @@ function applyLoadData(data) {
   player.collectorQuests = { ...((data.player && data.player.collectorQuests) || {}) };
   player.lostSonQuests = { ...((data.player && data.player.lostSonQuests) || {}) };
   player.guildQuests = { ...((data.player && data.player.guildQuests) || {}) };
-  player.shrineQuests = { ...((data.player && data.player.shrineQuests) || {}) };
+  player.shrineQuests = shrineClone((data.player && data.player.shrineQuests) || {});
+  delete player.shrines;
+  player.abilities = Object.assign({}, SHRINE_ABILITY_DEFAULTS,
+    shrineClone((data.player && data.player.abilities) || {}));
   player.taxidermistQuests = { ...((data.player && data.player.taxidermistQuests) || {}) };
   player.trophyDropBonus = { ...((data.player && data.player.trophyDropBonus) || {}) };
   player.alchemistOrders = { ...((data.player && data.player.alchemistOrders) || {}) };
@@ -186,6 +222,21 @@ function applyLoadData(data) {
   // a save written after the prologue shipped legitimately stores hasBow: false
   // mid-prologue, and must not be handed a bow it hasn't earned yet.
   if (data.player && data.player.hasBow === undefined) player.hasBow = true;
+  // The same problem for the sword, but it can't use the same test. EVERY hero
+  // written before this field existed owned a sword — it was in the starting kit
+  // — so "absent" doesn't distinguish a veteran from someone three minutes into
+  // the prologue. Absence means "old save"; what to do about it depends on where
+  // that save is:
+  //   • prologue finished, or a save so old it predates the prologue entirely
+  //     (no flags bag) → a real hero mid-adventure. Keep the sword.
+  //   • prologue still running → the beat that hands the sword over hasn't played
+  //     yet, and the new rule is that those beats are fought unarmed. Take it,
+  //     and Beat 5 gives it back a few minutes later.
+  if (data.player && data.player.hasSword === undefined) {
+    const sp = data.player;
+    const predatesPrologue = !sp.flags;
+    player.hasSword = predatesPrologue || !!sp.flags.prologue_complete;
+  }
   // renderX/Y aren't meaningful values to load — they should match x/y after
   // an instant snap (clampCam(true) below will do the rest).
   player.renderX = player.x;
@@ -233,6 +284,7 @@ function applyLoadData(data) {
       : lite.type === 'castle_tower' ? buildTowerFloorMap(lite.floorIdx || 1).map
       : lite.type === 'dungeon' ? buildDungeonLevelMap().map
       : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
+      : lite.type === 'shrine' ? buildShrineInterior(regionIdx).map
       : lite.type === 'house'   ? buildStarterHouseMap()
       // Map 0 since the prologue. In practice this branch is a safety net —
       // map 0 is always `visited`, so lite.mapTiles is present and decodeMap
@@ -263,10 +315,11 @@ function applyLoadData(data) {
       id: lite.id, gx: lite.gx || 0, gy: lite.gy || 0,
       name: lite.name, type: lite.type, biome: region.id, regionIdx, depth: lite.depth,
       map: md,
-      enemyDefs: (lite.type === 'castle_tower' && (lite.floorIdx || 1) >= 14)
+      enemyDefs: lite.type === 'shrine' ? []
+        : (lite.type === 'castle_tower' && (lite.floorIdx || 1) >= 14)
         ? makeTowerFinaleDefs(md)
         : makeEnemyDefs(lite.depth, enemyType, md),
-      openedChests: new Set(lite.openedChests),
+      openedChests: new Set(lite.openedChests || []),
       visited: lite.visited,
       savedEnemies: lite.savedEnemies || null,
       savedVillagers: lite.savedVillagers || null
@@ -286,20 +339,28 @@ function applyLoadData(data) {
     if (lite.sourceTier != null) obj.sourceTier = lite.sourceTier;
     if (lite.chainDepth != null) obj.chainDepth = lite.chainDepth;
     if (lite.chainLen != null) obj.chainLen = lite.chainLen;
-    if (lite.entryLand) obj.entryLand = lite.entryLand;
+    if (lite.entryLand) obj.entryLand = { ...lite.entryLand };
+    else if (lite.type === 'shrine') obj.entryLand = { x:SHRINE_ENTRY_X, y:SHRINE_ENTRY_Y };
     if (lite.deeperLand) obj.deeperLand = lite.deeperLand;
     if (lite.floorIdx != null) obj.floorIdx = lite.floorIdx;
     if (lite.castleExitDir) obj.castleExitDir = lite.castleExitDir;
+    if (lite.abilitySecret !== undefined) obj.abilitySecret = lite.abilitySecret;
     if (lite.shrineElement) obj.shrineElement = lite.shrineElement;
+    if (lite.shrineDoor) obj.shrineDoor = { ...lite.shrineDoor };
+    if (lite.shrineState) obj.shrineState = shrineClone(lite.shrineState);
+    else if (lite.type === 'shrine') obj.shrineState = buildShrineInterior(regionIdx).state;
     if (lite.grottoLinks) obj.grottoLinks = { ...lite.grottoLinks };
     if (lite.grottoChestPlaced) obj.grottoChestPlaced = true;
     if (lite.activated) obj.activated = true;
+    if (lite.shopsRuined) obj.shopsRuined = true;
     if (lite.innDoor)   obj.innDoor   = { ...lite.innDoor };
     if (lite.storeDoor) obj.storeDoor = { ...lite.storeDoor };
     if (lite.herbDoor)  obj.herbDoor  = { ...lite.herbDoor };
     if (lite.smithDoor) obj.smithDoor = { ...lite.smithDoor };
     return obj;
   });
+
+  migrateLegacyShrines();
 
   // Older saves predate worldGrid — rebuild from gx/gy
   if (!data.worldGrid) {
@@ -325,7 +386,7 @@ function applyLoadData(data) {
   // load from inside a scripted beat leaves the world frozen forever.
   if (typeof restorePrologueAmbience === 'function') restorePrologueAmbience();
   clampCam(true);
-  revealAround(currentMap(), player.x, player.y, 12);
+  revealWalk(currentMap(), player.x, player.y);
   updateHUD();
 }
 
@@ -610,16 +671,24 @@ function resetGame(heroName) {
     x: EXIT_COL, y: EXIT_ROW,
     hp: 12, maxHp: 12, tempHp: 0,
     rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
-    swordTimer: 0, swordDir: { x: 0, y: -1 }, invincible: 0,
+    swordTimer: 0, swordDir: { x: 0, y: -1 }, punchTimer: 0, invincible: 0,
     weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
-    hasBow: false,
+    // Both of Grandmother's weapons are re-locked for the new hero. hasSword has
+    // to be named explicitly: Object.assign only overwrites the keys it lists, so
+    // leaving it out would let a finished hero's sword survive into the next New
+    // Game and start the prologue armed.
+    hasBow: false, hasSword: false,
     potions: STARTING_ITEM_AMOUNT, bombs: 0, herbals: STARTING_ITEM_AMOUNT,
     mushrooms: STARTING_ITEM_AMOUNT,
     ...trophyDefaults(),
     bonemeal: 0,
     grimsilver: 0, emberbrass: 0, glimmerspar: 0, wyrmgold: 0, eclipsium: 0,
     regionPotions: {}, elixirs: {}, collectorQuests: {}, lostSonQuests: {}, guildQuests: {},
-    shrineQuests: {}, taxidermistQuests: {}, trophyDropBonus: {}, alchemistOrders: {},
+    shrineQuests: {},
+    abilities: { frostGrip:false, updraftGlide:false, emberLantern:false,
+                 arcaneSight:false, shadowStep:false },
+    equippedAbility: null,
+    taxidermistQuests: {}, trophyDropBonus: {}, alchemistOrders: {},
     caravanQuests: {}, apprenticeQuests: {}, gathererQuests: {},
     storeDiscounts: {}, smithFreeUpgrade: {}, forageBonus: {},
     chronicleMilestone: 0,
@@ -650,7 +719,7 @@ function resetGame(heroName) {
   try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* storage unavailable — nothing to clear */ }
 
   initWorld();
-  revealAround(currentMap(), player.x, player.y, 12);
+  revealWalk(currentMap(), player.x, player.y);
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
   clampCam(true);
