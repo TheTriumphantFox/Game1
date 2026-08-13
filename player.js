@@ -1827,6 +1827,7 @@ function stepPlayerMovement() {
   const canSwimMedium = player.activeArmorElement === 'water';
   const blocked = (c, r) => {
     if (enemyAt(c, r)) return true;
+    if (typeof villagerAt === 'function' && villagerAt(c, r)) return true;
     if (typeof shrinePrepareMove === 'function' &&
         !shrinePrepareMove(currentMap(), player.x, player.y, c, r)) return true;
     if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return false;

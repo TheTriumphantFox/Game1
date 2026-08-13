@@ -1989,6 +1989,215 @@ function mapBigLandmarkTiles(mapObj) {
   return list;
 }
 
+// Forest houses keep their walkable interiors on the outdoor map. Find each
+// rectangular shell from its south-facing door so a roof can be drawn as a
+// separate foreground layer without changing collision or save data. This also
+// recognises Elderbrook's older, larger homes and already-generated save maps.
+const FOREST_ROOF_DOOR_TILES = new Set([
+  T.DOOR, T.INN_DOOR, T.STORE_DOOR, T.HERB_DOOR, T.SMITH_DOOR, T.SHRINE_DOOR,
+].filter(t => t !== undefined));
+
+function mapForestHouseRoofs(mapObj) {
+  if (mapObj._forestHouseRoofs) return mapObj._forestHouseRoofs;
+  const m = mapObj.map;
+  const wall = t => t === T.WALL || t === T.CASTLE_WINDOW;
+  const roofs = [];
+  const seen = new Set();
+  for (let r = 1; r < MROWS - 1; r++) {
+    for (let c = 1; c < MCOLS - 1; c++) {
+      if (!FOREST_ROOF_DOOR_TILES.has(m[r][c])) continue;
+      let c1 = c - 1, c2 = c + 1;
+      while (c1 >= 0 && wall(m[r][c1])) c1--;
+      while (c2 < MCOLS && wall(m[r][c2])) c2++;
+      c1++; c2--;
+      if (c2 - c1 < 5 || c2 - c1 > 24) continue;
+      let r1 = r;
+      while (r1 > 0 && wall(m[r1 - 1][c1])) r1--;
+      if (r - r1 < 4 || r - r1 > 20) continue;
+      // Reject accidental wall runs: a house has a mostly intact north wall and
+      // an intact east side matching the west side used to find its top.
+      let northWall = 0;
+      for (let x = c1; x <= c2; x++) if (wall(m[r1][x])) northWall++;
+      if (northWall < (c2 - c1 + 1) * 0.7 || !wall(m[r1][c2])) continue;
+      const key = `${c1},${r1},${c2},${r}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      roofs.push({ c1, r1, c2, r2:r, doorC:c });
+    }
+  }
+  mapObj._forestHouseRoofs = roofs;
+  return roofs;
+}
+
+function forestShopSignStyle(doorTile) {
+  if (doorTile === T.INN_DOOR) return {
+    board:'#7c322f', trim:'#e0b65a', ink:'#fff0bd', symbol:'mug',
+  };
+  if (doorTile === T.STORE_DOOR) return {
+    board:'#315c42', trim:'#d6b45b', ink:'#fff0bd', symbol:'parcel',
+  };
+  if (doorTile === T.HERB_DOOR) return {
+    board:'#406332', trim:'#c7d276', ink:'#f1f3c9', symbol:'leaf',
+  };
+  if (doorTile === T.SMITH_DOOR) return {
+    board:'#4b4542', trim:'#df803d', ink:'#ffe0ae', symbol:'hammer',
+  };
+  return null;
+}
+
+// Painted boards hang beneath the front gable, where they remain readable even
+// while the roof hides the shop interior. Simple geometric emblems keep each
+// trade recognisable without relying on emoji or platform-specific fonts.
+function drawForestShopSign(doorTile, centreX, bottom, ts) {
+  const style = forestShopSignStyle(doorTile);
+  if (!style) return;
+
+  const boardW = ts * 1.24;
+  const boardH = ts * 0.92;
+  const boardX = centreX - boardW / 2;
+  const boardY = bottom + ts * 0.28;
+  const chainInset = boardW * 0.22;
+
+  // Two iron hooks make the board look physically attached to the eave.
+  ctx.strokeStyle = '#292421';
+  ctx.lineWidth = Math.max(1.5, ts * 0.065);
+  ctx.beginPath();
+  ctx.moveTo(boardX + chainInset, bottom - ts * 0.02);
+  ctx.lineTo(boardX + chainInset, boardY + ts * 0.04);
+  ctx.moveTo(boardX + boardW - chainInset, bottom - ts * 0.02);
+  ctx.lineTo(boardX + boardW - chainInset, boardY + ts * 0.04);
+  ctx.stroke();
+  ctx.fillStyle = '#181310';
+  ctx.beginPath(); ctx.arc(boardX + chainInset, boardY + ts * 0.07, ts * 0.07, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(boardX + boardW - chainInset, boardY + ts * 0.07, ts * 0.07, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = 'rgba(16,9,5,0.48)';
+  ctx.fillRect(boardX + ts * 0.10, boardY + ts * 0.11, boardW, boardH);
+  ctx.fillStyle = style.trim;
+  ctx.fillRect(boardX - ts * 0.07, boardY - ts * 0.07, boardW + ts * 0.14, boardH + ts * 0.14);
+  ctx.fillStyle = '#322018';
+  ctx.fillRect(boardX, boardY, boardW, boardH);
+  ctx.fillStyle = style.board;
+  ctx.fillRect(boardX + ts * 0.08, boardY + ts * 0.08, boardW - ts * 0.16, boardH - ts * 0.16);
+
+  const iconX = boardX + boardW * 0.50;
+  const iconY = boardY + boardH * 0.50;
+  ctx.strokeStyle = style.ink;
+  ctx.fillStyle = style.ink;
+  ctx.lineWidth = Math.max(1.25, ts * 0.055);
+  if (style.symbol === 'mug') {
+    ctx.strokeRect(iconX - ts * 0.22, iconY - ts * 0.21, ts * 0.36, ts * 0.41);
+    ctx.beginPath(); ctx.arc(iconX + ts * 0.16, iconY - ts * 0.01, ts * 0.15, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(iconX - ts * 0.15, iconY - ts * 0.29); ctx.lineTo(iconX - ts * 0.08, iconY - ts * 0.40); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(iconX + ts * 0.01, iconY - ts * 0.29); ctx.lineTo(iconX + ts * 0.08, iconY - ts * 0.40); ctx.stroke();
+  } else if (style.symbol === 'parcel') {
+    ctx.strokeRect(iconX - ts * 0.25, iconY - ts * 0.21, ts * 0.50, ts * 0.42);
+    ctx.beginPath(); ctx.moveTo(iconX, iconY - ts * 0.21); ctx.lineTo(iconX, iconY + ts * 0.21); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(iconX - ts * 0.25, iconY - ts * 0.04); ctx.lineTo(iconX + ts * 0.25, iconY - ts * 0.04); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(iconX - ts * 0.15, iconY - ts * 0.31); ctx.lineTo(iconX, iconY - ts * 0.21); ctx.lineTo(iconX + ts * 0.15, iconY - ts * 0.31); ctx.stroke();
+  } else if (style.symbol === 'leaf') {
+    ctx.beginPath();
+    ctx.ellipse(iconX, iconY - ts * 0.04, ts * 0.29, ts * 0.16, -0.65, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(iconX - ts * 0.22, iconY + ts * 0.24); ctx.lineTo(iconX + ts * 0.18, iconY - ts * 0.20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(iconX - ts * 0.04, iconY + ts * 0.04); ctx.lineTo(iconX - ts * 0.22, iconY - ts * 0.05); ctx.stroke();
+  } else {
+    ctx.save();
+    ctx.translate(iconX, iconY);
+    ctx.rotate(-0.62);
+    ctx.fillRect(-ts * 0.045, -ts * 0.06, ts * 0.09, ts * 0.42);
+    ctx.fillRect(-ts * 0.23, -ts * 0.21, ts * 0.46, ts * 0.15);
+    ctx.restore();
+  }
+}
+
+function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
+  if (!mapObj || mapObj.biome !== 'forest' ||
+      (mapObj.type !== 'village' && mapObj.type !== 'homevillage')) return;
+  // Once the Ashfall begins, Elderbrook's intact roofs are gone; the charred
+  // wall and rubble tiles beneath become the visible ruined architecture.
+  if (mapObj.type === 'homevillage' && typeof hasFlag === 'function' &&
+      (hasFlag('village_burning') || hasFlag('prologue_complete'))) return;
+
+  for (const h of mapForestHouseRoofs(mapObj)) {
+    if (h.c2 < startC - 1 || h.c1 > endC + 1 || h.r2 < startR - 1 || h.r1 > endR + 1) continue;
+    if (isFoggy(mapObj, h.doorC, h.r2)) continue;
+    // Crossing the doorway counts as entering: the whole roof vanishes at once
+    // and exposes walls, floor, furniture, villagers, and the hero underneath.
+    if (player.x >= h.c1 && player.x <= h.c2 && player.y >= h.r1 && player.y <= h.r2) continue;
+
+    const left = (h.c1 - camC - 0.28) * ts;
+    const top = (h.r1 - camR - 0.45) * ts;
+    const right = (h.c2 + 1 - camC + 0.28) * ts;
+    const bottom = (h.r2 + 1 - camR + 0.20) * ts;
+    const width = right - left, height = bottom - top;
+    const ridgeY = top + height * 0.43;
+    const centreX = (h.doorC + 0.5 - camC) * ts;
+    const seed = (h.c1 * 37 + h.r1 * 61) >>> 0;
+
+    ctx.save();
+    // Deep eave shadow makes the roof read as a raised structure rather than a
+    // recoloured patch of ground.
+    ctx.fillStyle = 'rgba(18,10,5,0.48)';
+    ctx.fillRect(left + ts * 0.14, top + ts * 0.28, width, height);
+
+    // North and south roof planes, with clipped corners and a bright ridge.
+    ctx.beginPath();
+    ctx.moveTo(left + ts * 0.22, top);
+    ctx.lineTo(right - ts * 0.22, top);
+    ctx.lineTo(right, ridgeY);
+    ctx.lineTo(left, ridgeY);
+    ctx.closePath();
+    ctx.fillStyle = seed % 3 === 0 ? '#6f3525' : '#743a28'; ctx.fill();
+    ctx.strokeStyle = '#3a1d17'; ctx.lineWidth = Math.max(1.5, ts * 0.07); ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(left, ridgeY);
+    ctx.lineTo(right, ridgeY);
+    ctx.lineTo(right - ts * 0.18, bottom);
+    ctx.lineTo(left + ts * 0.18, bottom);
+    ctx.closePath();
+    ctx.fillStyle = seed % 2 ? '#914d31' : '#88452e'; ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#c27a4a'; ctx.lineWidth = Math.max(1, ts * 0.08);
+    ctx.beginPath(); ctx.moveTo(left + ts * 0.05, ridgeY); ctx.lineTo(right - ts * 0.05, ridgeY); ctx.stroke();
+
+    // Layered shingle courses break up the large planes at every zoom level.
+    ctx.strokeStyle = 'rgba(48,20,15,0.55)'; ctx.lineWidth = Math.max(1, ts * 0.035);
+    for (let y = ridgeY + ts * 0.48; y < bottom - ts * 0.18; y += ts * 0.52) {
+      ctx.beginPath(); ctx.moveTo(left + ts * 0.20, y); ctx.lineTo(right - ts * 0.20, y); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(224,132,78,0.28)';
+    for (let y = top + ts * 0.38; y < ridgeY - ts * 0.12; y += ts * 0.52) {
+      ctx.beginPath(); ctx.moveTo(left + ts * 0.22, y); ctx.lineTo(right - ts * 0.22, y); ctx.stroke();
+    }
+
+    // A front gable over the south-facing door gives each footprint a clear
+    // cottage silhouette. Its little timber brace points to the entrance.
+    const gableHalf = Math.min(ts * 1.45, width * 0.22);
+    ctx.beginPath();
+    ctx.moveTo(centreX, ridgeY - ts * 0.10);
+    ctx.lineTo(centreX + gableHalf, bottom + ts * 0.12);
+    ctx.lineTo(centreX - gableHalf, bottom + ts * 0.12);
+    ctx.closePath();
+    ctx.fillStyle = '#7c3828'; ctx.fill(); ctx.strokeStyle = '#3a1d17'; ctx.stroke();
+    ctx.strokeStyle = '#c78452'; ctx.lineWidth = Math.max(1.5, ts * 0.06);
+    ctx.beginPath(); ctx.moveTo(centreX, ridgeY + ts * 0.05); ctx.lineTo(centreX, bottom - ts * 0.08); ctx.stroke();
+
+    // Chimney and a restrained patch of moss tie the cottages to the forest.
+    const chimneyX = right - ts * (1.35 + (seed % 3) * 0.18);
+    ctx.fillStyle = '#59473f'; ctx.fillRect(chimneyX, top + ts * 0.55, ts * 0.55, ts * 0.82);
+    ctx.fillStyle = '#2f2522'; ctx.fillRect(chimneyX - ts * 0.08, top + ts * 0.48, ts * 0.71, ts * 0.18);
+    ctx.fillStyle = 'rgba(73,105,49,0.64)';
+    ctx.beginPath(); ctx.ellipse(left + width * 0.24, ridgeY - ts * 0.18,
+      ts * 0.72, ts * 0.26, -0.15, 0, Math.PI * 2); ctx.fill();
+
+    // Read the live door tile instead of caching it with the footprint. Forest
+    // villages assign their four shop types after the base map is generated.
+    drawForestShopSign(mapObj.map[h.r2][h.doorC], centreX, bottom, ts);
+    ctx.restore();
+  }
+}
+
 function render() {
   ensureSpriteCacheSize();   // drop cached sprites if the tile size changed
   ctx.clearRect(0, 0, PW, PH);
@@ -2059,6 +2268,10 @@ function render() {
     });
   }
   drawPlayer(ts);
+
+  // Intact forest roofs are a foreground layer: they hide indoor activity from
+  // outside, then disappear for the one cottage the player has entered.
+  drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR);
 
   // The Emperor's crown, rolling to the hero's feet and then lying there. After
   // the entities because it comes to rest against the player's boot and has to

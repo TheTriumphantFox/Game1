@@ -12,8 +12,8 @@ function activateVillage(mapObj) {
   const m = mapObj.map;
   // Reserve the NW inner-ring house for the fast-travel portal so it never gets
   // a stationary shopkeeper. Its door is excluded from the shop pool below.
-  const pl = villagePortalLayout();
-  const sl = villageShrineLayout();
+  const pl = villagePortalLayout(mapObj.biome, m);
+  const sl = villageShrineLayout(mapObj.biome, m);
   const doors = [];
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
@@ -240,9 +240,8 @@ function floodWaterVillage(m) {
 
 // ─── Desert village map ─────────────────────────────────────────────────────
 // ─── Village map ──────────────────────────────────────────────────────────────
-// Fixed layout used as the boss arena at the end of a region. 18 houses around
-// a central fountain plaza. `biome` selects the palette: 'forest' (trees +
-// grass + flowers) or 'desert' (cacti + sand + bones).
+// Fixed boss-village layouts around a central fountain plaza. The forest has
+// its own dense cottage plan; later regions retain the broad elemental layout.
 function buildVillageMap(biome, exits = { left: true, right: true, up: true, down: true }) {
   // Resolve the region's palette. `biome` is a region id ('forest', 'fire',
   // 'water', ...). Legacy 'desert' callers map to 'fire'. `exits` selects which
@@ -300,7 +299,7 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
     // ── Furnishings ──────────────────────────────────────────────────
     // Bed in the upper-left corner (south of the NW torch)
     m[r1 + 2][c1 + 2] = T.BED;
-    m[r1 + 3][c1 + 2] = T.BED;
+    if (h >= 8) m[r1 + 3][c1 + 2] = T.BED;
     // Fireplace against the upper-right corner (south of the NE torch)
     m[r1 + 2][c1 + w - 2] = T.FIREPLACE;
     // Table near the centre of the room
@@ -312,7 +311,8 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
     m[tr][tc + 2] = T.CHAIR;
   }
 
-  // 18 houses with uniform spacing.
+  // House layouts. Forest cottages are 9x7 tiles (including walls); later
+  // elemental villages keep their established 17x13 houses.
   //
   //   • House dimensions: 17 cols wide × 13 rows tall (hw=16, hh=12 inclusive).
   //   • Inner ring (8) wraps the fountain with a 7-tile gap between adjacent
@@ -321,8 +321,10 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
   //     each carry 4 houses; the two side houses sit at col 10 / col 123,
   //     kept 2 tiles in from the border-wall ring on each side.
   //
-  const hw = 16, hh = 12;
-  const HOUSE_W = hw + 1, HOUSE_H = hh + 1;     // 17, 13
+  const compactForest = regionId === 'forest';
+  const hw = compactForest ? 8 : 16;
+  const hh = compactForest ? 6 : 12;
+  const HOUSE_W = hw + 1, HOUSE_H = hh + 1;
   // Inner ring — rows 49 / 69 / 89, cols 43 / 67 / 91. Adjacent pairs sit
   // exactly 7 grass tiles apart; every house ends up ≥10 tiles from the
   // fountain colonnade.
@@ -350,7 +352,7 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
   const OUTER_COLS       = [10, 47, 86, 123];  // edge cols 2 tiles in from the wall
   const OUTER_SIDE_ROWS  = [48, 82];           // 21-tile vertical gap on side cols
   const OUTER_SIDE_COLS  = [10, 123];          // side cols, 2 tiles in from the wall
-  const housePlacements = [
+  const elementalHousePlacements = [
     // ── Inner ring (4 corners only) ──────────────────────────────────
     // The cardinal N/S/E/W positions are intentionally left empty so the
     // four exit corridors (row 75 west↔east, col 75 north↔south) reach
@@ -364,6 +366,20 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
     ...OUTER_COLS.map(hc => ({ hr: OUTER_BOTTOM_ROW, hc })),
     ...OUTER_SIDE_ROWS.flatMap(hr => OUTER_SIDE_COLS.map(hc => ({ hr, hc }))),
   ];
+  // Forest-only redraw: forty compact cottages arranged as eight close-knit
+  // streets. The central axes remain open for the four gates and the fountain,
+  // while the side lanes make the village feel inhabited all the way through.
+  const forestHousePlacements = [
+    ...[14, 34, 54, 87, 107, 127].map(hc => ({ hr: 16, hc })),
+    ...[20, 38, 56, 85, 103, 121].map(hc => ({ hr: 34, hc })),
+    ...[40, 52, 89, 101].map(hc => ({ hr: 52, hc })),
+    ...[14, 27, 114, 127].map(hc => ({ hr: 66, hc })),
+    ...[14, 27, 114, 127].map(hc => ({ hr: 80, hc })),
+    ...[40, 52, 89, 101].map(hc => ({ hr: 91, hc })),
+    ...[20, 38, 56, 85, 103, 121].map(hc => ({ hr: 108, hc })),
+    ...[14, 34, 54, 87, 107, 127].map(hc => ({ hr: 126, hc })),
+  ];
+  const housePlacements = compactForest ? forestHousePlacements : elementalHousePlacements;
   housePlacements.forEach(({ hr, hc }) => house(hr, hc, hw, hh));
   const chestHouse = housePlacements.length
     ? housePlacements[Math.floor(Math.random() * housePlacements.length)]
@@ -851,7 +867,24 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
 // mirror buildVillageMap's house grid so activateVillage can reserve that
 // house (keep it shopkeeper-free) and stamp the portal once the village is
 // cleared.
-function villagePortalLayout() {
+function villageUsesCompactForestLayout(biome, map) {
+  if (biome !== 'forest') return false;
+  if (!map) return true;
+  const t = map[58] && map[58][56];
+  return t === T.DOOR || t === T.INN_DOOR || t === T.STORE_DOOR ||
+         t === T.HERB_DOOR || t === T.SMITH_DOOR || t === T.SHRINE_DOOR;
+}
+
+function villagePortalLayout(biome, map) {
+  if (villageUsesCompactForestLayout(biome, map)) {
+    const r1 = 52, c1 = 52, w = 8, h = 6;
+    return {
+      portalR: r1 + 4,
+      portalC: c1 + Math.floor(w / 2),
+      doorR:   r1 + h,
+      doorC:   c1 + Math.floor(w / 2),
+    };
+  }
   const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
   const hw = 16, hh = 12;
   const HOUSE_W = hw + 1;
@@ -869,7 +902,16 @@ function villagePortalLayout() {
 
 // The northeast inner-ring house is reserved for its regional shrine. Its
 // south-facing door is never eligible for a shop conversion.
-function villageShrineLayout() {
+function villageShrineLayout(biome, map) {
+  if (villageUsesCompactForestLayout(biome, map)) {
+    const r1 = 52, c1 = 89, w = 8, h = 6;
+    return {
+      doorR: r1 + h,
+      doorC: c1 + Math.floor(w / 2),
+      returnR: r1 + h + 1,
+      returnC: c1 + Math.floor(w / 2),
+    };
+  }
   const NORTH_ROW = 49, EAST_COL = 91, HW = 17, HH = 13;
   return {
     doorR: NORTH_ROW + HH - 1,

@@ -66,8 +66,8 @@ function installVillageShrineEntrance(mapObj) {
   const regionIdx = Number.isInteger(mapObj.regionIdx)
     ? mapObj.regionIdx : REGIONS.findIndex(r => r.id === mapObj.biome);
   if (regionIdx < 0 || !REGIONS[regionIdx]) return false;
-  const sl = villageShrineLayout();
-  const pl = villagePortalLayout();
+  const sl = villageShrineLayout(mapObj.biome, mapObj.map);
+  const pl = villagePortalLayout(mapObj.biome, mapObj.map);
   // Older activated villages may already have assigned this house to a shop.
   // Move that shop to the first free ordinary house door before stamping the
   // shrine so its keeper and metadata remain valid.
@@ -299,7 +299,7 @@ function tryShrineTransition() {
     const q = shrineQuest(cm.regionIdx);
     if (!q) return false;
     if (q.shrineMapId == null || !worldMaps[q.shrineMapId]) {
-      const sl = villageShrineLayout();
+      const sl = villageShrineLayout(cm.biome, cm.map);
       q.shrineMapId = createShrineMap(cm.id, sl.returnC, sl.returnR, cm.regionIdx);
     }
     enterShrineMap(q.shrineMapId);
@@ -722,7 +722,7 @@ function devEnterShrine(regionIdx) {
   if (!village) { console.warn('No village available for shrine',regionIdx); return false; }
   if (!village.activated) activateVillage(village);
   else installVillageShrineEntrance(village);
-  const q=shrineQuest(regionIdx), sl=villageShrineLayout();
+  const q=shrineQuest(regionIdx), sl=villageShrineLayout(village.biome, village.map);
   if (q.shrineMapId==null || !worldMaps[q.shrineMapId])
     q.shrineMapId=createShrineMap(village.id,sl.returnC,sl.returnR,regionIdx);
   enterShrineMap(q.shrineMapId); return true;

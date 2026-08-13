@@ -37,6 +37,7 @@ function buildSaveData() {
     worldMapsLite: worldMaps.map(m => ({
       id: m.id, gx: m.gx, gy: m.gy,
       name: m.name, type: m.type, biome: m.biome, regionIdx: m.regionIdx, depth: m.depth,
+      homeLayoutVersion: m.homeLayoutVersion,
       openedChests: Array.from(m.openedChests),
       visited: m.visited,
       savedEnemies: m.savedEnemies || null,
@@ -275,7 +276,14 @@ function applyLoadData(data) {
       : Math.max(0, REGIONS.findIndex(r => r.id === biome));
     const region = REGIONS[regionIdx] || REGIONS[0];
 
-    const md = lite.mapTiles
+    // Visited maps normally trust their encoded tiles. Elderbrook is versioned
+    // separately so a layout redesign can replace those tiles once without
+    // invalidating or rewriting the player's other maps.
+    const migrateHomeLayout = lite.type === 'homevillage' &&
+      lite.homeLayoutVersion !== HOME_LAYOUT_VERSION;
+    const homeRuined = hasFlag('prologue_complete') || hasFlag('village_burning');
+
+    const md = lite.mapTiles && !migrateHomeLayout
       ? decodeMap(lite.mapTiles)
       : lite.type === 'village' ? buildVillageMap(region.id)
       : lite.type === 'cave'    ? buildCaveMap()
@@ -286,14 +294,11 @@ function applyLoadData(data) {
       : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
       : lite.type === 'shrine' ? buildShrineInterior(regionIdx).map
       : lite.type === 'house'   ? buildStarterHouseMap()
-      // Map 0 since the prologue. In practice this branch is a safety net —
-      // map 0 is always `visited`, so lite.mapTiles is present and decodeMap
-      // above wins, which is what preserves the exact state the player left the
-      // ruin in. It matters when tiles are somehow absent: rebuild the ruin, not
-      // the village, or a finished prologue would reload with the family home
-      // standing and everyone alive.
+      // Map 0 since the prologue. Current-layout saves decode their exact tiles;
+      // missing tiles and older layout versions rebuild the correct standing or
+      // ruined Elderbrook from story flags.
       : lite.type === 'homevillage'
-          ? (hasFlag('prologue_complete') ? buildRuinedHomeVillage() : buildHomeVillageMap())
+          ? (homeRuined ? buildRuinedHomeVillage() : buildHomeVillageMap())
       : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth)
       : lite.type === 'fire' || lite.type === 'desert'
                                 ? buildDesertMap(lite.id, lite.depth)
@@ -314,6 +319,8 @@ function applyLoadData(data) {
     const obj = {
       id: lite.id, gx: lite.gx || 0, gy: lite.gy || 0,
       name: lite.name, type: lite.type, biome: region.id, regionIdx, depth: lite.depth,
+      homeLayoutVersion: lite.type === 'homevillage'
+        ? HOME_LAYOUT_VERSION : lite.homeLayoutVersion,
       map: md,
       enemyDefs: lite.type === 'shrine' ? []
         : (lite.type === 'castle_tower' && (lite.floorIdx || 1) >= 14)
@@ -322,8 +329,14 @@ function applyLoadData(data) {
       openedChests: new Set(lite.openedChests || []),
       visited: lite.visited,
       savedEnemies: lite.savedEnemies || null,
-      savedVillagers: lite.savedVillagers || null
+      savedVillagers: migrateHomeLayout
+        ? migrateHomeVillageVillagers(lite.savedVillagers, homeRuined)
+        : (lite.savedVillagers || null),
+      _homeLayoutMigrated: migrateHomeLayout,
     };
+    if (migrateHomeLayout && homeRuined) {
+      obj.openedChests.add(`${HOME.chest.x},${HOME.chest.y}`);
+    }
     if (lite.fog) obj.fog = new Uint8Array(lite.fog);
     if (lite.returnMapId != null) {
       obj.returnMapId = lite.returnMapId;
@@ -351,12 +364,20 @@ function applyLoadData(data) {
     else if (lite.type === 'shrine') obj.shrineState = buildShrineInterior(regionIdx).state;
     if (lite.grottoLinks) obj.grottoLinks = { ...lite.grottoLinks };
     if (lite.grottoChestPlaced) obj.grottoChestPlaced = true;
-    if (lite.activated) obj.activated = true;
-    if (lite.shopsRuined) obj.shopsRuined = true;
-    if (lite.innDoor)   obj.innDoor   = { ...lite.innDoor };
-    if (lite.storeDoor) obj.storeDoor = { ...lite.storeDoor };
-    if (lite.herbDoor)  obj.herbDoor  = { ...lite.herbDoor };
-    if (lite.smithDoor) obj.smithDoor = { ...lite.smithDoor };
+    if (migrateHomeLayout) {
+      Object.assign(obj, homeVillageShopFields());
+      if (homeRuined) hvRuinShops(obj);
+      // A restored villager list bypasses placeShopkeepers during map entry, so
+      // stamp the compact shop counters now as part of the tile migration.
+      if (typeof placeShopkeepers === 'function') placeShopkeepers(obj);
+    } else {
+      if (lite.activated) obj.activated = true;
+      if (lite.shopsRuined) obj.shopsRuined = true;
+      if (lite.innDoor)   obj.innDoor   = { ...lite.innDoor };
+      if (lite.storeDoor) obj.storeDoor = { ...lite.storeDoor };
+      if (lite.herbDoor)  obj.herbDoor  = { ...lite.herbDoor };
+      if (lite.smithDoor) obj.smithDoor = { ...lite.smithDoor };
+    }
     return obj;
   });
 
@@ -378,6 +399,17 @@ function applyLoadData(data) {
     player.renderX = player.x; player.renderY = player.y;
     showMsg('⚠️ Save pointed at a missing map — returned home.', 4000);
   }
+
+  // A player standing on an old Elderbrook footprint may now be inside a wall,
+  // fountain, or roof. Move them once to a story-safe landmark; flags still
+  // preserve exactly which prologue beat or post-game state they were in.
+  const loadedMap = worldMaps[currentMapId];
+  if (loadedMap && loadedMap._homeLayoutMigrated) {
+    const at = hasFlag('prologue_started') ? HOME.center : HOME.spawn;
+    player.x = at.x; player.y = at.y;
+    player.renderX = player.x; player.renderY = player.y;
+  }
+  for (const m of worldMaps) delete m._homeLayoutMigrated;
 
   spawnEnemiesForMap(currentMapId);
   spawnVillagersForMap(currentMapId);

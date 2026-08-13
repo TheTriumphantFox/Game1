@@ -145,6 +145,13 @@ const ESCORT_DEFS = {
 // Live list for the current map (mirrors `enemies`).
 let villagers = [];
 
+// Dynamic counterpart to isSolid(): villagers are moving occupants rather than
+// map tiles, so collision checks query the live list. `except` lets a villager
+// test a destination without colliding with itself on a no-op movement tick.
+function villagerAt(c, r, except) {
+  return villagers.some(v => v !== except && v.x === c && v.y === r);
+}
+
 // Tiles villagers refuse to step onto even though they're "passable" — keeps
 // them from clogging shop doors or sitting on a chest.
 function isVillagerOffLimits(tileId) {
@@ -824,8 +831,9 @@ function stepVillagers(dt, map) {
     const nx = v.x + v.dir.x, ny = v.y + v.dir.y;
     const inBounds = nx >= 0 && nx < MCOLS && ny >= 0 && ny < MROWS;
     const tile = inBounds ? map[ny][nx] : null;
-    const otherV = villagers.some(o => o !== v && o.x === nx && o.y === ny);
-    const blocked = !inBounds || isSolid(map, nx, ny) || otherV ||
+    const otherV = villagerAt(nx, ny, v);
+    const onPlayer = nx === player.x && ny === player.y;
+    const blocked = !inBounds || isSolid(map, nx, ny) || otherV || onPlayer ||
                     isVillagerOffLimits(tile);
 
     if (!blocked) {
