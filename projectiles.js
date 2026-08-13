@@ -544,6 +544,7 @@ function stepEnemies(dt, map) {
     const selfHere = (nx === e.x && ny === e.y) ? 1 : 0;
     const otherEnemy = ((occ.get(nkey) || 0) - selfHere) > 0;
     const onPlayer = (nx === player.x && ny === player.y);
+    const onVillager = typeof villagerAt === 'function' && villagerAt(nx, ny);
     // Fliers (the dragon) soar over every solid tile — walls, pillars, lava —
     // gated only by an explicit in-bounds clamp (isSolid returns true out of
     // bounds AND the border ring is solid, so without this a flier could never
@@ -552,7 +553,7 @@ function stepEnemies(dt, map) {
     const blocked = e.flies
       ? !inBounds
       : (isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny)));
-    if (!blocked && !otherEnemy && !onPlayer) {
+    if (!blocked && !otherEnemy && !onPlayer && !onVillager) {
       const okey = tkey(e.x, e.y);
       occ.set(okey, (occ.get(okey) || 0) - 1);
       e.x = nx; e.y = ny;

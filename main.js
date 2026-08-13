@@ -645,6 +645,7 @@ function findTappedInteractable(wx, wy) {
   const map = mapData();
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
+    if (typeof villagerAt === 'function' && villagerAt(c, r)) return false;
     if (player.activeArmorElement === 'water' && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
     if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);
@@ -715,6 +716,7 @@ function findPathToGoals(goalSet) {
   const canSwimMedium = player.activeArmorElement === 'water';
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
+    if (typeof villagerAt === 'function' && villagerAt(c, r)) return false;
     if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
     if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);

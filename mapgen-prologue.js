@@ -23,6 +23,7 @@
 // (Note this is unrelated to REGIONS[0].villageName, 'Village of the Lost' —
 // that's the forest region's *boss* village, generated much later.)
 const HOME_VILLAGE_NAME = 'Elderbrook';
+const HOME_LAYOUT_VERSION = 2;
 
 // ─── The market row ───────────────────────────────────────────────────────────
 // Elderbrook trades at the world's LAST region's rates. Its four shops are
@@ -80,30 +81,32 @@ function hvRuinShops(mapObj) {
 // rather than carrying magic numbers, so moving a building moves the scene with
 // it. All are [col, row] in the standard 150×150 grid.
 const HOME = {
-  // ── The family home (a house, walls included, in the village's north-east) ──
-  house: { r1: 48, c1: 66, w: 20, h: 14 },   // walls span rows 48–62, cols 66–86
-  door:      { x: 76, y: 62 },   // south-facing door in the house's south wall
-  hearth:    { x: 82, y: 50 },   // FIREPLACE — Mother stands beside it
-  window:    { x: 72, y: 48 },   // CASTLE_WINDOW set into the north wall
+  // ── The family home ──
+  // The same compact 9×7 footprint as the forest-village cottages. Its interior
+  // is arranged by hand because it still has to stage the whole opening scene.
+  house: { r1: 46, c1: 71, w: 8, h: 6 },   // walls span rows 46–52, cols 71–79
+  door:      { x: 75, y: 52 },   // south-facing door in the house's south wall
+  hearth:    { x: 78, y: 49 },   // FIREPLACE — Mother stands beside it
+  window:    { x: 72, y: 46 },   // CASTLE_WINDOW set into the north wall
   // Where each family member stands in Beat 1.
-  motherAt:      { x: 81, y: 51 },
-  fatherAt:      { x: 76, y: 60 },   // "near the door"
-  grandmotherAt: { x: 72, y: 50 },   // "seated by the window"
+  motherAt:      { x: 77, y: 49 },
+  fatherAt:      { x: 74, y: 51 },   // near the door, without blocking it
+  grandmotherAt: { x: 72, y: 49 },   // seated beneath the window
   // Where the player spawns — mid-room, facing south toward the door.
-  spawn:     { x: 76, y: 55 },
+  spawn:     { x: 75, y: 50 },
   // The household chest, against the south-west wall inside the house. Named
   // rather than left as an inline offset because it is story furniture now: it
   // holds Grandmother's Sword, it is locked until Beat 5, and handlePickup has to
   // recognise it to keep generic chest loot out of it (see isHomeStoryChest).
-  chest:     { x: 68, y: 60 },
+  chest:     { x: 73, y: 51 },
   // Where the bow rests in Beat 1 — against the north wall, beside her chair, on
   // the far side from the window she keeps looking out of. Beat 4's fire moves it
   // to `bowAt` (hvPinGrandmother), which is the "just out of her reach" tile.
-  bowRestAt: { x: 71, y: 49 },
+  bowRestAt: { x: 73, y: 48 },
   // Where the grandmother lies in Beat 5, pinned near the hearth, and the tile
   // her bow ends up on ("just out of her reach").
-  dyingAt:   { x: 80, y: 52 },
-  bowAt:     { x: 78, y: 52 },
+  dyingAt:   { x: 76, y: 49 },
+  bowAt:     { x: 74, y: 49 },
   // Where Mother and Father are found after the strike. They start Beat 1 inside
   // the house, but they cannot still be standing in it when the player gets home:
   // Beat 5's narration is "No sign of your mother or your father", and the room
@@ -116,8 +119,8 @@ const HOME = {
 
   // ── The village ──
   center:    { x: 75, y: 78 },   // cobbled square, where the Emperor descends
-  market:    { x: 66, y: 88 },   // the stall itself — a counter of TABLE tiles
-  merchantAt:{ x: 66, y: 87 },   // Wren, standing behind her counter
+  market:    { x: 66, y: 91 },   // the stall itself — a counter of TABLE tiles
+  merchantAt:{ x: 66, y: 90 },   // Wren, standing behind her counter
   gate:      { x: 55, y: 78 },   // the Hendricks' gate on the west road
   // The dog. It stands in the northern of the gate's two road tiles, which puts
   // it squarely on the way to the shopkeeper: the errand runs west along the road
@@ -133,24 +136,24 @@ const HOME = {
   //
   // The footprint is boxed in on every side and the clearances are tight, so if
   // this ever moves, re-check all four: the west road (rows 78-79) above it, the
-  // market pad (rows 86-90, cols 63-69) below it, the Hendricks' fence (col 55,
+  // market pad (rows 89-93, cols 63-69) below it, the Hendricks' fence (col 55,
   // rows 73-84) to the west, and the market spur (col 66) to the east.
   mill:      { r1: 81, c1: 56, w: 9, h: 4, door: { x: 60, y: 85 } },
   // Idle spots for the flavour villagers introduced in Beat 2. Named because
   // Beat 4 needs to know where to have them flee from.
-  childAt:   { x: 84, y: 84 },
+  childAt:   { x: 87, y: 85 },
   friendAt:  { x: 62, y: 70 },
   elderAt:   { x: 88, y: 72 },
   // Where the "do you feel that?" villager is standing when the sky changes.
-  watcherAt: { x: 79, y: 82 },
+  watcherAt: { x: 87, y: 80 },
   // Rooftops the birds go up off in Beat 3 — one per building, at roughly the
   // centre of each roof. Here rather than in prologue.js for the same reason
   // every other landmark is: move a building and its birds move with it.
   // Family home, the four neighbours, the inn, the store, and the mill.
   roosts: [
-    { x: 76, y: 55 }, { x: 53, y: 55 }, { x: 55, y: 97 },
-    { x: 91, y: 101 }, { x: 99, y: 57 }, { x: 97, y: 69 },
-    { x: 51, y: 67 }, { x: 60, y: 83 },
+    { x: 75, y: 49 }, { x: 51, y: 50 }, { x: 63, y: 50 },
+    { x: 87, y: 50 }, { x: 100, y: 50 }, { x: 98, y: 63 },
+    { x: 55, y: 63 }, { x: 60, y: 83 },
   ],
 
   // ── The market row ──
@@ -159,33 +162,106 @@ const HOME = {
   // it, (r1 + h, c1 + ⌊w/2⌋), named here so the map object and the keepers can
   // read the position without re-deriving it.
   //
-  // Every rect is clear of what gets laid after the buildings: the north–south
-  // spine (cols 75–76), the west road (rows 78–79), the market spur and pad, the
-  // plaza, and the Hendricks' fence line (col 55, rows 73–84). Each door also has
-  // walkable ground directly south of it, which is the side a door opens onto.
-  //
-  // They are also clear of every mark the cast stands on above — the inn sits at
-  // col 90 rather than 88 precisely because Old Hendricks' mark is (88, 72), and
-  // a building laid over a villager leaves them standing inside its wall.
+  // Every compact footprint clears the north–south spine, west road, Four
+  // Springs, market pad, and Hendricks' fence. Each door has walkable ground
+  // immediately south of it and every scripted villager mark remains outdoors.
   shops: {
-    inn:   { r1: 64,  c1: 90, w: 14, h: 10, door: { x: 97, y: 74  } },   // NE of the square
-    store: { r1: 62,  c1: 44, w: 14, h: 10, door: { x: 51, y: 72  } },   // west, above the gate
-    herb:  { r1: 84,  c1: 88, w: 14, h: 10, door: { x: 95, y: 94  } },   // SE of the square
-    smith: { r1: 104, c1: 44, w: 14, h: 10, door: { x: 51, y: 114 } },   // south-west, off the road
+    inn:   { r1: 60, c1: 94, w: 8, h: 6, door: { x: 98, y: 66 } },   // NE of the square
+    store: { r1: 60, c1: 51, w: 8, h: 6, door: { x: 55, y: 66 } },   // west, above the gate
+    herb:  { r1: 88, c1: 94, w: 8, h: 6, door: { x: 98, y: 94 } },   // SE of the square
+    smith: { r1: 88, c1: 48, w: 8, h: 6, door: { x: 52, y: 94 } },   // south-west
   },
 };
 
+// Re-anchor people saved on an older Elderbrook layout. The map itself is
+// rebuilt on load (save.js); this keeps the cast, surviving merchants, and their
+// story state while moving their feet to the redesigned buildings.
+function migrateHomeVillageVillagers(saved, ruined) {
+  if (!saved || !saved.length) return null;
+  const castMarks = {
+    mother: ruined ? HOME.motherFellAt : HOME.motherAt,
+    father: ruined ? HOME.fatherFellAt : HOME.fatherAt,
+    grandmother: ruined ? HOME.dyingAt : HOME.grandmotherAt,
+    child: HOME.childAt,
+    friend: HOME.friendAt,
+    elder: HOME.elderAt,
+    watcher: HOME.watcherAt,
+  };
+  const shopDoors = {
+    inn:HOME.shops.inn.door, store:HOME.shops.store.door,
+    herb:HOME.shops.herb.door, smith:HOME.shops.smith.door,
+  };
+  const moved = [];
+  for (const original of saved) {
+    // The portal moved inside the compact family cottage. Dropping its keeper
+    // lets ensurePortalKeeper place a fresh one beside the live portal tile.
+    if (original.role === 'portal') continue;
+    if (ruined && original.role === 'smith') continue;
+    const v = { ...original };
+    const door = shopDoors[v.role];
+    const mark = door ? { x:door.x, y:door.y - 2 } : castMarks[v.pgTalk];
+    if (mark) {
+      v.x = mark.x; v.y = mark.y;
+      v.renderX = mark.x; v.renderY = mark.y;
+    }
+    moved.push(v);
+  }
+  return moved.length ? moved : null;
+}
+
 // The village clearing — everything outside this is forest border.
 const HV_R1 = 40, HV_C1 = 44, HV_R2 = 118, HV_C2 = 108;
+
+// Elderbrook's ceremonial heart: four spring-fed basins around a broad open
+// cross. The empty centre is deliberate — villagers can gather there, roads
+// meet there, and the Ashfall scene still has a clear landing and escape route.
+function hvGrandSquare(m) {
+  const cx = HOME.center.x, cy = HOME.center.y;
+
+  // A clipped-corner stone plaza feels circular without needing a curved tile.
+  for (let dr = -10; dr <= 10; dr++) {
+    for (let dc = -10; dc <= 10; dc++) {
+      if (Math.abs(dr) + Math.abs(dc) > 16) continue;
+      m[cy + dr][cx + dc] = (Math.abs(dr) <= 7 && Math.abs(dc) <= 7)
+        ? T.MARBLE : T.COBBLESTONE;
+    }
+  }
+
+  // The Four Springs. Wide axial aisles divide the basins, so the square stays
+  // navigable even now that water, pillars, statues, and torches are solid.
+  const basins = [
+    { r:cy - 8, c:cx - 8 }, { r:cy - 8, c:cx + 4 },
+    { r:cy + 4, c:cx - 8 }, { r:cy + 4, c:cx + 4 },
+  ];
+  for (const b of basins) {
+    setRect(m, b.r, b.c, b.r + 4, b.c + 4, T.FOUNTAIN_WATER);
+    m[b.r + 2][b.c + 2] = T.FOUNTAIN_SPOUT;
+  }
+
+  // Statue-and-column corners give the open square a civic silhouette from a
+  // distance while leaving both road axes completely unobstructed.
+  // The south-west statue sits one tile farther out so the market spur can run
+  // cleanly along the plaza's west edge.
+  for (const [dc, dr] of [[-9,-9],[9,-9],[-10,9],[9,9]]) {
+    m[cy + dr][cx + dc] = T.STATUE;
+  }
+  for (const [dc, dr] of [[-6,-10],[6,-10],[-10,-6],[10,-6],
+                           [-10,6],[10,6],[-6,10],[6,10]]) {
+    m[cy + dr][cx + dc] = T.PILLAR;
+  }
+  for (const [dc, dr] of [[-3,-3],[3,-3],[-3,3],[3,3]]) {
+    m[cy + dr][cx + dc] = T.TORCH;
+  }
+}
 
 // ─── The village, before ──────────────────────────────────────────────────────
 function buildHomeVillageMap() {
   const m = makeTile(MROWS, MCOLS, T.TREE);
 
-  // The clearing: grass, with a cobbled square at its heart.
+  // The clearing starts as grass. Roads go down first; the Four Springs is
+  // stamped over their central ends so dirt approaches become polished stone
+  // as soon as they enter the ceremonial square.
   setRect(m, HV_R1, HV_C1, HV_R2, HV_C2, T.GRASS);
-  setRect(m, HOME.center.y - 6, HOME.center.x - 8,
-             HOME.center.y + 6, HOME.center.x + 8, T.COBBLESTONE);
 
   // Roads. A north–south spine from the family home down to the south gate (the
   // route the player runs in Beat 4), and a west road out to the Hendricks' gate
@@ -205,15 +281,23 @@ function buildHomeVillageMap() {
   setCol(m, HOME.mill.door.x, HOME.mill.door.y + 1, HOME.market.y, T.PATH);
   setRow(m, HOME.market.y, HOME.mill.door.x, HOME.market.x, T.PATH);
 
+  hvGrandSquare(m);
+
   // ── Neighbours' houses ──
-  // Small hamlet, not the eighteen-house boss village: enough homes that losing
-  // them means something, few enough that the player can take it in at once.
-  // Shape and furnishing follow the house() helper in mapgen-village.js.
+  // Compact 9×7 cottages form close streets around the clearing. Their footprint
+  // matches the forest-village redesign, and the extra homes make Elderbrook
+  // feel inhabited without returning to oversized, empty interiors.
   const neighbours = [
-    { r1: 50, c1: 46, w: 14, h: 10 },   // west of the family home
-    { r1: 92, c1: 48, w: 14, h: 10 },   // south-west
-    { r1: 96, c1: 84, w: 14, h: 10 },   // south-east
-    { r1: 52, c1: 92, w: 14, h: 10 },   // east
+    { r1: 47,  c1: 47, w: 8, h: 6 },
+    { r1: 47,  c1: 59, w: 8, h: 6 },
+    { r1: 47,  c1: 83, w: 8, h: 6 },
+    { r1: 47,  c1: 96, w: 8, h: 6 },
+    { r1: 72,  c1: 44, w: 8, h: 6 },
+    { r1: 72,  c1: 99, w: 8, h: 6 },
+    { r1: 100, c1: 60, w: 8, h: 6 },
+    { r1: 100, c1: 82, w: 8, h: 6 },
+    { r1: 108, c1: 45, w: 8, h: 6 },
+    { r1: 108, c1: 96, w: 8, h: 6 },
   ];
   for (const h of neighbours) hvHouse(m, h.r1, h.c1, h.w, h.h);
 
@@ -262,12 +346,13 @@ function buildHomeVillageMap() {
   m[HOME.hearth.y][HOME.hearth.x] = T.FIREPLACE;
   m[H.r1 + 1][H.c1 + 1]   = T.TORCH;
   m[H.r1 + 1][hc2 - 1]    = T.TORCH;
-  // Two beds along the west wall, a table with chairs in the middle.
-  m[H.r1 + 2][H.c1 + 2] = T.BED;
-  m[H.r1 + 3][H.c1 + 2] = T.BED;
-  m[H.r1 + 6][H.c1 + 9] = T.TABLE;
-  m[H.r1 + 6][H.c1 + 7] = T.CHAIR;
-  m[H.r1 + 6][H.c1 + 11] = T.CHAIR;
+  // Compact furnishings: beds along the west wall and a small dining setting
+  // against the north side, leaving a clear aisle from spawn to the door.
+  m[H.r1 + 4][H.c1 + 1] = T.BED;
+  m[H.r1 + 5][H.c1 + 1] = T.BED;
+  m[H.r1 + 2][H.c1 + 5] = T.TABLE;
+  m[H.r1 + 2][H.c1 + 4] = T.CHAIR;
+  m[H.r1 + 2][H.c1 + 6] = T.CHAIR;
   // The household chest, tucked in the south-west corner. Story furniture: it
   // holds Grandmother's Sword and stays locked until Beat 5, and it is exempt
   // from the generic small-chest loot table (see handlePickup in player.js).
@@ -281,7 +366,7 @@ function buildHomeVillageMap() {
   // the world opens up. A Gatekeeper spawns beside it (ensurePortalKeeper in
   // villagers.js); talk to them to open the destinations menu. It survives the
   // fire: hvCharTile leaves T.PORTAL alone, deliberately.
-  m[hr2 - 2][hc2 - 2] = T.PORTAL;
+  m[hr2 - 1][hc2 - 1] = T.PORTAL;
 
   // ── The market stall ──
   // Open-sided: a cobbled pad with a counter, not a building. The merchant

@@ -126,6 +126,7 @@ function createHomeVillageMap(id, gx, gy) {
     id, gx, gy,
     name: HOME_VILLAGE_NAME,
     type: 'homevillage', biome: 'forest',
+    homeLayoutVersion: HOME_LAYOUT_VERSION,
     map: ruined ? buildRuinedHomeVillage() : buildHomeVillageMap(),
     enemyDefs: [],        // home is peaceful, before and after
     openedChests: new Set(),

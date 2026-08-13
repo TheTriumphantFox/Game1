@@ -369,6 +369,9 @@ const SOLID_TILES = new Set([
   T.TREE, T.WATER, T.WALL, T.ROCK, T.CAVE_WALL,
   T.DEEP_WATER, T.MEDIUM_WATER, T.WHIRLPOOL,
   T.LAVA, T.PILLAR, T.STATUE,
+  // Interior fixtures occupy their tile. They still draw as before, but actors
+  // now have to walk around beds, seating, tables, and standing torches.
+  T.TORCH, T.TABLE, T.CHAIR, T.BED,
   T.FOUNTAIN_WATER, T.FOUNTAIN_SPOUT,
   T.CACTUS, T.OASIS_WATER,
   T.WATERFALL, T.CLIFF, T.PLATEAU,

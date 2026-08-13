@@ -17,9 +17,10 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
 
   // Can the player walk on this tile? The movement-blocking set is SOLID_TILES
   // (config.js), the same source isSolid() uses. Chests aren't in SOLID_TILES, so
-  // they read as passable here — intentional: the player triggers them by stepping
-  // onto them, and we don't want them sealed. (Shrines, torches, doors, floors etc.
-  // are likewise not solid, so they're passable too.)
+  // they read as passable here so treasure stays a connectivity target instead
+  // of being sealed away. Runtime movement still blocks chests via isChestTile().
+  // Shrines, doors, and floors are likewise passable;
+  // furniture and standing torches now block the flood.
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= W || r >= H) return false;
     return !SOLID_TILES.has(m[r][c]);
@@ -38,7 +39,7 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
   // preserveFloor=true is used for village maps where house interiors (FLOOR)
   // are intentionally walled off but contain doors/chests.
   const isInteresting = (t) =>
-    t === T.CHEST || t === T.SHRINE || t === T.TORCH ||
+    t === T.CHEST || t === T.SHRINE ||
     t === T.DUNGEON_DOOR || t === T.DOOR ||
     t === T.LARGE_CHEST || t === T.LARGE_CHEST_R ||
     t === T.BOSS_CHEST_TL || t === T.BOSS_CHEST_TR ||
