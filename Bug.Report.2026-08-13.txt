@@ -1,0 +1,686 @@
+Bug Report — The RPG Game
+Generated: 2026-08-13 (local)
+
+Scope:   Game1/ — 45 files, ~33,500 lines of vanilla ES, no build step, no dependencies.
+Method:  Full read of the core layers (boot, input, player, save, world, fog,
+         connectivity, projectiles, UI, shops); targeted reads elsewhere; cross-file
+         global-collision analysis; the project's own tools/lint-conventions.py; and
+         live verification against a running instance on localhost:8765.
+
+Every item tagged [VERIFIED] was reproduced against the running game. Items tagged
+[BY INSPECTION] are read from source and not yet exercised at runtime.
+
+SUPERSEDES: Bug.Report.txt (2026-08-05). All five items in that report are fixed and
+it can be retired:
+  - projectile frame-rate dependence  -> fixed, projectiles.js:619 scales by dt
+  - particle frame-rate dependence    -> fixed, projectiles.js:1029 scales by dt
+  - arrow multi-hit on a shared tile  -> fixed, explicit break at projectiles.js:740
+  - New Game not clearing inventory   -> fixed, save.js:699-741 (sellableDefaults +
+                                         drops/projectiles/particles cleared)
+  - README outdated                   -> fixed, matches current structure
+
+Companion document: AUDIT.md (same directory) — the same findings with the positive
+findings, performance measurements and architectural notes included.
+
+
+=======================================================================
+SEVERITY INDEX
+=======================================================================
+
+Status as of 2026-08-13, second pass. FIXED items were re-verified against a running
+instance after the change; see "FIX LOG" at the end of this report.
+
+  H1  Save/load destroys sealed dead-end maps; region seal breaks      [FIXED]
+  H2  Completed save exceeds localStorage; autosave fails silently     [PARTIAL]
+        - autosave now reports the failure                             [FIXED]
+        - fog bit-packing (the size half)                              [OPEN — needs sign-off]
+  H3  Save/Load modal does not block input or freeze the world         [FIXED]
+
+  M1  Shop / portal modals do not freeze the world                     [FIXED]
+  M2  Hero name injected into innerHTML unescaped                      [FIXED]
+
+  L1  Damage numbers survive map transitions                           [FIXED]
+  L2  DEFAULT_PLAYER object fields shared by reference                 [FIXED]
+  L3  Duplicate overlay click listeners in shop-core.js                [FIXED]
+  L4  Map generation non-deterministic; `seed` accepted and ignored    [OPEN — see PLANNED WORK]
+  L5  SKILL.md dependency graph is stale — 9 of 43 scripts missing     [OPEN]
+
+  Plus: PLANNED WORK — transition to seed-based generation (addresses L4, and is the
+  enabler for the permanent fix to H2). See the dedicated section below.
+
+
+=======================================================================
+HIGH
+=======================================================================
+
+-----------------------------------------------------------------------
+H1: Save/load destroys sealed dead-end maps, breaking the region seal
+-----------------------------------------------------------------------
+[VERIFIED]
+
+Reproduction (gameplay):
+  1. Clear a region's village so sealRegion() runs and stamps dead-end neighbours
+     on every unused border in that region.
+  2. Save to a named slot.
+  3. Load that slot.
+  4. Walk into any dead-end map you had not personally entered before saving.
+
+Reproduction (console, faster):
+  1. const id = createSealedNeighbor(currentMapId, 'left');
+  2. Note worldMaps[id].sealed, its open borders (mapEdgeOpen), and that it holds a
+     LARGE_CHEST (the Hero's Cache).
+  3. applyLoadData(JSON.parse(JSON.stringify(buildSaveData())));
+  4. Re-inspect worldMaps[id].
+
+Actual (measured on the round-trip above):
+                       before save        after load
+    open sides         right only         ALL FOUR
+    sealed flag        true               absent
+    Hero's Cache       1 LARGE_CHEST      0 (downgraded to a plain CHEST)
+    terrain            —                  completely regenerated, unrelated map
+
+Expected: a dead-end returns from a load with exactly one open border (facing its
+source map), its `sealed` flag intact, its Hero's Cache intact, and identical terrain.
+
+Location / causes — three separate defects compound here:
+  1. save.js:46   `mapTiles: m.visited ? encodeMap(m.map) : null`. sealRegion creates
+                  dead-ends with `visited: false` (world.js:585), so their tiles are
+                  never written to the save at all.
+  2. save.js:305  the rebuild path calls
+                  `buildRegionMap(lite.id, lite.depth, undefined, region)` — openSides
+                  is `undefined`, and mapgen-biomes.js:637 defaults that to
+                  `{left:true, right:true, up:true, down:true}`.
+  3. save.js:37-89 the `worldMapsLite` projection has no `sealed` field, so the flag
+                  is silently dropped.
+
+Impact:
+  - The core "clearing a village seals the region" mechanic unravels after any
+    save/load. A four-exit dead-end lets the player walk back out into a region they
+    already sealed and left, generating fresh maps behind the seal.
+  - Border symmetry breaks. The neighbouring map's tiles ARE stored, so the
+    regenerated dead-end opens toward a neighbour with no opening back — exactly the
+    one-way doorway reconcileOpenSides (world.js:60-69) exists to prevent. That
+    reconcile runs only at creation time, never on load.
+  - The Hero's Cache — the reward for taking the dead-end detour — is silently
+    downgraded to an ordinary chest.
+  - Three other systems read the dropped `sealed` flag and change behaviour without it:
+      player.js:905     sealed maps are excluded from regionMapsVisited. After a load
+                        they count, inflating progress toward the 21-map village trigger.
+      guild.js:143,333  Guild Quarry and bounty elites filter on `!mm.sealed`. After a
+                        load, quest targets can spawn on dead-end maps.
+      abilities.js:296  ability secrets are deliberately not stamped on sealed maps.
+                        After a load they become eligible.
+  - Scale: only maps the player personally entered are stored by tile. Dead-ends are
+    created without being entered, so this affects most of them across all 13 regions.
+
+Recommended fix (does NOT require the seed work — do this now):
+  - Add `sealed` and the four resolved open-side booleans to the worldMapsLite
+    projection in buildSaveData().
+  - Pass those open sides into the rebuild call at save.js:305 instead of `undefined`.
+  - Re-run reconcileOpenSides() after rebuilding any map from a builder, so a
+    regenerated map can never open toward a neighbour that does not open back.
+  - Either store `mapTiles` for sealed maps regardless of `visited`, or move the
+    Hero's Cache upgrade (world.js:565-579) into the rebuild path so it is reapplied.
+
+
+-----------------------------------------------------------------------
+H2: A completed save exceeds localStorage, and the autosave fails silently
+-----------------------------------------------------------------------
+[VERIFIED]
+
+Reproduction (measurement):
+  1. ensureFog(currentMap()); revealAround(currentMap(), 75, 75, 60);
+  2. JSON.stringify(encodeMap(currentMap().map)).length      -> 30,002 chars
+  3. JSON.stringify(Array.from(currentMap().fog)).length     -> 45,001 chars
+
+Actual: fog serializes via `Array.from()` into a JSON array of 22,500 numbers —
+45,001 characters per map, or 1.5x the size of the entire base64 tile map, to carry
+one bit of information per tile.
+
+  per visited map:  30,002 (tiles) + 45,001 (fog) = 75,003 chars
+  x 232 maps (the figure the save UI itself advertises, save.js:491 and :522):
+                    ~16.6 MB per slot, of which ~10 MB is fog
+  and six named slots plus the rolling autosave share one origin quota.
+
+Measured ceiling in the Chromium used for testing: 48.5 MB — so one completed save
+fits there, but two do not. The README documents touch/phone support as a first-class
+target; iOS Safari's ~5 MB per-origin cap is a hard wall reached at roughly map 68
+of 232.
+
+CAVEAT on that 48.5 MB figure: it was measured over http://localhost:8765 (the
+.claude/serve.ps1 test server). The game is actually played by double-clicking
+index.html, and file:// pages get a different, generally more restrictive storage
+bucket. The per-map costs above are origin-independent and stand as measured; the
+ceiling should be re-measured under file:// before anyone concludes there is headroom.
+
+Expected: a completed save comfortably inside a 5 MB budget, and any save failure
+surfaced to the player.
+
+Location:
+  save.js:45   `fog: m.fog ? Array.from(m.fog) : null`
+  save.js:450  `catch (e) { /* storage full — skip the autosave silently */ }`
+
+Impact — the failure mode is the serious half. Verified by stubbing
+Storage.prototype.setItem to throw QuotaExceededError:
+  - doSave   reports it: "Save failed (storage full?)"     (save.js:598)  — correct.
+  - autoSave shows NOTHING, and leaves `lastCheckpoint` pointing at the previous
+    payload. Since respawn() restores from lastCheckpoint (player.js:472), the player
+    keeps clearing villages and tower floors while their death-restore point silently
+    stops advancing. The only cue is the ABSENCE of the "Auto-saved" toast they
+    normally see on every checkpoint.
+
+Recommended fixes — two independent changes:
+  1. IMMEDIATE, one line: make autoSave's catch report the failure (a toast at minimum;
+     a persistent HUD warning is better, because a checkpoint that has quietly stopped
+     advancing is the kind of bug players only discover by losing hours).
+  2. Bit-pack fog and base64 it: 22,500 bits -> 2,813 bytes -> ~3,752 chars, a ~12x
+     reduction that takes the projected save from ~16.6 MB to ~7.2 MB on its own. Fog
+     is large contiguous runs, so RLE would do better still.
+  See the PLANNED WORK section for how seeding takes this the rest of the way down.
+
+
+-----------------------------------------------------------------------
+H3: The Save/Load modal neither freezes the world nor captures input
+-----------------------------------------------------------------------
+[VERIFIED]
+
+Reproduction:
+  1. Start a game.
+  2. Press V -> select the MENU ring -> "Game Menu" (gear) -> "Save Game".
+  3. Click an empty slot to reveal the name field.
+  4. Try to type a save name containing a space, e.g. "My Save".
+
+Actual, with the name field focused:
+    Space              preventDefault() fires — THE SPACE IS NEVER TYPED
+    v                  opens the radial menu ON TOP of the save modal
+    ArrowUp/ArrowDown  swallowed; also steps the hero
+    z                  swings the sword
+    p                  drinks a health potion
+    Tab                toggles the minimap
+  and the world keeps running underneath: with the modal open, a single update(16)
+  moved the hero. Since stepPlayerMovement ends in tryTransition() (player.js:1888),
+  the player can walk off the map edge while the save dialog is up.
+
+Expected: the save/load modal behaves like every other overlay — world frozen,
+gameplay keys inert, and the name field accepting ordinary text.
+
+Location:
+  main.js:101-111  the update() freeze chain lists radialMenuOpen, ledgerOpen,
+                   statsPageOpen, worldMapOpen, sysMenuOpen, victoryOpen,
+                   dialogueOpen, cutsceneBlocking — but has no term for `modalMode`.
+  main.js:241-378  the keydown handler has a branch for every one of those overlays
+                   and none for this one.
+  save.js:681-684  the modal-name-input keydown listener does not stopPropagation.
+                   Contrast main.js:78-82, where the hero-name input does exactly that
+                   and is consequently correct.
+
+Impact: every player hits this the first time they name a save. Save names cannot
+contain spaces; typing a name that happens to include the game's hotkey letters fires
+those actions; and the hero can be killed, moved, or walked onto another map while the
+dialog is open.
+
+Recommended fix:
+  - Add `modalMode` (or an explicit saveModalOpen flag) to both the update() freeze
+    chain and the keydown overlay chain.
+  - Add e.stopPropagation() to the modal-name-input listener, matching name-input.
+
+
+=======================================================================
+MEDIUM
+=======================================================================
+
+-----------------------------------------------------------------------
+M1: Shop and portal modals do not freeze the world
+-----------------------------------------------------------------------
+[VERIFIED]
+
+Reproduction:
+  1. Enter a cleared (activated) village.
+  2. Hold an arrow key and press Space next to a shopkeeper to open their shop
+     (villagers.js:1264-1265 — shops open by talking, not by stepping on a door).
+  3. Keep holding the arrow key.
+
+Actual: the hero keeps walking underneath the open shop modal. Verified directly —
+one update(16) with shopOpen true moved the hero.
+
+Expected: the world is frozen while a shop is open, as it is for the ledger, stats
+page, world map and game menu.
+
+Location: same root cause as H3. shopOpen and portalOpen gate keyboard input
+(main.js:262, :271) and canvas touches (main.js:507-517), but neither appears in the
+update() freeze chain at main.js:101-111.
+
+Impact: mostly masked today, because shops only open in cleared villages where nothing
+is alive to hurt the player. But the hero still walks, villagers still step, and
+tryTransition() can still fire — so it is possible to leave the map with a shop modal
+still on screen. It is also why closeShopModals has to force-clear the whole `keys`
+object at shop-core.js:60; that workaround is treating the symptom.
+
+Recommended fix: add shopOpen and portalOpen to the update() freeze chain, then remove
+the defensive key-clearing at shop-core.js:60 once it is no longer load-bearing.
+
+
+-----------------------------------------------------------------------
+M2: Hero name is interpolated into innerHTML unescaped
+-----------------------------------------------------------------------
+[VERIFIED]
+
+Reproduction:
+  1. Start a New Game.
+  2. Name the hero:  <img src=x onerror="alert(1)">
+  3. Press V -> MENU ring -> "Character".
+
+Actual: the markup is parsed and the script executes. Confirmed at runtime — the
+injected element is created and its onerror handler runs.
+
+Expected: the name renders as literal text, exactly as it already does everywhere else.
+
+Location: stats.js:189
+    <div class="stats-name">${p.heroName || 'The Hero'}</div>
+
+Impact: this is self-inflicted in a local single-player game, so the security risk is
+low. The practical bug is broader: an entirely innocent name containing <, & or a
+quote renders wrong or breaks the Character panel's layout.
+
+Recommended fix: escape the value, or build that node with textContent — which is what
+every other surface showing the name already does correctly (save.js:486, :515, :521).
+
+
+=======================================================================
+LOW
+=======================================================================
+
+-----------------------------------------------------------------------
+L1: Damage numbers survive map transitions
+-----------------------------------------------------------------------
+[VERIFIED]
+
+Reproduction:
+  1. Hit an enemy standing near a map edge.
+  2. Immediately walk through the edge to the neighbouring map.
+
+Actual: the floating damage number keeps rendering for up to ~1.1s on the NEW map, at
+the old enemy's tile coordinates.
+
+Location: enemies.js:445-447 — spawnEnemiesForMap clears projectiles, particles and
+drops on a map change, but not damageNumbers. Entries hold a live `entity` reference
+(projectiles.js:715), so they stay anchored to an enemy that is no longer on the map.
+
+Impact: cosmetic only.
+
+Recommended fix: add `damageNumbers = [];` alongside the other three clears.
+
+
+-----------------------------------------------------------------------
+L2: DEFAULT_PLAYER's object-valued fields are shared by reference
+-----------------------------------------------------------------------
+[VERIFIED — latent, not currently reachable]
+
+Reproduction (console):
+    Object.assign({}, DEFAULT_PLAYER, {}).arrows === DEFAULT_PLAYER.arrows   // true
+
+Location: save.js:191 does
+    Object.assign(player, sellableDefaults(), DEFAULT_PLAYER, data.player)
+then defensively re-clones regionPotions, elixirs, collectorQuests, armorUpgrades,
+swordUpgrades and others — but NOT swordElements, armorElements, arrows or swordDir
+(declared at save.js:158-164).
+
+Impact: those four are mutated in place elsewhere (shop-blacksmith.js:448 and :473,
+player.js:41), so loading a save missing any of them would let the blacksmith
+permanently pollute DEFAULT_PLAYER for the rest of the session. Not currently
+reachable — every save written by the current code contains all four — so this is
+latent. Worth closing anyway, since the surrounding code already established the
+cloning pattern and the omission looks like an oversight rather than a decision.
+
+Recommended fix: clone those four alongside the others.
+
+
+-----------------------------------------------------------------------
+L3: Duplicate overlay click listeners in shop-core.js
+-----------------------------------------------------------------------
+[BY INSPECTION]
+
+Location: shop-core.js:64-75 registers the same outside-click handler twice — once
+inside a DOMContentLoaded callback, once immediately as a "fallback for when the script
+loads after DOMContentLoaded already fired". Classic (non-deferred) scripts at the end
+of <body> run BEFORE DOMContentLoaded, so both always register.
+
+Impact: harmless in practice — closeShopModals is idempotent — but the fallback is dead
+weight and the doubled handler is misleading to read.
+
+Recommended fix: keep only the immediate registration and delete the DOMContentLoaded
+wrapper.
+
+
+-----------------------------------------------------------------------
+L4: Map generation is non-deterministic; `seed` is accepted and ignored
+-----------------------------------------------------------------------
+[VERIFIED]
+
+Reproduction:
+    python tools/lint-conventions.py
+    -> 0 errors, 68 warnings, all "Math.random() in generation code -- same seed
+       must give same map"
+
+Actual: buildForestMap(seed, ...), buildDesertMap(seed, ...) and
+buildRegionMap(seed, ...) all accept a `seed` parameter and none of them use it.
+Generation runs entirely on bare Math.random()/rnd().
+
+Location: mapgen-biomes.js:117, :466, :636 (signatures); the 68 call sites the linter
+lists; world.js:244 and :546 (where the unused seed is passed).
+
+Impact: this is what makes H1 destructive rather than merely lossy — a regenerated map
+is not a slightly different version of the original, it is an entirely unrelated one.
+It also blocks the permanent fix to H2, makes bug reports about specific maps
+irreproducible, and leaves tools/seed-preview.html unable to do the job it was built
+for.
+
+Note: this is NOT a new discovery. The project's own conventions document
+(.claude/skills/the-rpg-game/SKILL.md) already records it as a known pre-existing gap,
+and sets the bar for fixing it: "threading an actual seeded PRNG through every
+generation file that currently ignores `seed` — not just changing one call site and
+calling it done." The plan below is scoped to meet that bar. It is listed here because
+H1 and H2 both trace back to it, not because it was unknown.
+
+Recommended fix: see the dedicated section below. This is a project, not a patch.
+
+
+-----------------------------------------------------------------------
+L5: The project's documented dependency graph is stale
+-----------------------------------------------------------------------
+[VERIFIED]
+
+Reproduction:
+    diff the <script> tags in index.html against the load order printed in
+    .claude/skills/the-rpg-game/SKILL.md ("Before writing any code", item 1).
+
+Actual: index.html loads 43 scripts; the documented graph lists 34. Nine files are
+missing from it entirely:
+
+    mapgen-prologue.js   (loads after mapgen-village.js)
+    shrines.js           (after world.js)
+    corruption.js        (after shrines.js)
+    abilities.js         (after corruption.js)
+    story.js             (after player.js)
+    sysmenu.js           (after worldmap.js)
+    dialogue.js          (after sysmenu.js)
+    cutscene.js          (after dialogue.js)
+    prologue.js          (after cutscene.js, immediately before main.js)
+
+Expected: the documented order matches index.html exactly.
+
+Location: .claude/skills/the-rpg-game/SKILL.md, "Before writing any code", item 1.
+
+Impact: the same document states that the order of index.html's script tags "IS the
+dependency graph" and that "anything you add has to be inserted at a point where its
+dependencies are already defined". Working from the stale list, a contributor would
+place a new file at the wrong point in the order, and would not know that the entire
+story/prologue/cutscene layer, the shrine and corruption systems, and the abilities
+system exist at all. Everything in that missing set is load-bearing — story.js owns
+the flag bag that save.js migrates against, and abilities.js/shrines.js are referenced
+throughout player.js and fog.js.
+
+Recommended fix: regenerate the list from index.html and add a note to keep the two in
+sync when a script is added. Left unfixed here deliberately — the project's own
+working-style rule is to mention what looks wrong rather than fix it in the same pass
+as unrelated work.
+
+
+=======================================================================
+PLANNED WORK — TRANSITION TO SEED-BASED GENERATION
+=======================================================================
+
+STATUS: not started. Recommended AFTER H1, H2's autosave fix, H3 and M1 have landed —
+none of those depend on this, and all of them are small.
+
+WHAT THIS IS AND IS NOT
+  It will NOT make maps look better. A seeded PRNG produces the same distribution as
+  Math.random(); the generated terrain is aesthetically identical. What it buys is
+  REPRODUCIBILITY, and reproducibility is what lets the save stop storing tiles.
+
+  Projected save budget, per visited map:
+
+                       now              seeded
+    tiles              30,002 chars     ~64 bytes  (seed + generation inputs)
+    player edits       —                ~200 bytes (tile diff)
+    fog                45,001 chars     ~3,752     (bit-packed, from H2)
+    ----------------------------------------------------------------
+    x 232 maps         ~16.6 MB         ~0.9 MB
+
+  Secondary wins: tools/seed-preview.html starts working as designed; bug reports can
+  name a reproducible world ("region 4, cell (3,-2), world seed 12345"); shareable
+  world seeds become available as a player-facing feature.
+
+CURRENT STATE — the groundwork is better than expected
+  - The `seed` parameter is already threaded through buildOverworldForRegion ->
+    buildForestMap / buildDesertMap / buildRegionMap. No signature changes needed.
+  - 157 of the randomness call sites funnel through ONE function, rnd() at
+    map-helpers.js:26. Replacing its body converts two-thirds of the generator in a
+    single edit:
+        mapgen-biomes.js   95     mapgen-tower.js     8
+        mapgen-foliage.js  19     mapgen-caves.js    17
+        mapgen-terrain.js  15     mapgen-village.js   3
+  - The remaining direct Math.random() calls must be converted by hand:
+        mapgen-biomes.js   25     mapgen-village.js  19
+        mapgen-foliage.js  14     mapgen-terrain.js   7
+        connectivity.js     1  (inside the rescue-corridor carve loop, which runs
+                                during generation and therefore must be seeded too)
+    plus, if enemy and name placement should also be reproducible:
+        enemies.js          5     world.js            3  (map name selection)
+  - tools/seed-preview.html already calls
+    buildOverworldForRegion(regionIdx, seed, depth, openSides, false) and expects the
+    seed to matter, so the verification harness exists on day one.
+
+THREE HAZARDS — each of these will silently defeat the migration if missed
+
+  1. DO NOT SEED ON THE MAP ID.
+     world.js:244 currently passes `id` as the seed, and `id` is worldMaps.length at
+     creation time. It shifts depending on how many caves, grottos, dungeons and sky
+     caves the player happened to open first, so two players walking identical routes
+     get different ids for the same place. The stable identity of an overworld map is
+     its grid cell. Seed on hash(worldSeed, gx, gy), and persist worldSeed in the save.
+
+  2. A SEED ALONE DOES NOT MAKE A MAP REPRODUCIBLE.
+     The generated map is a function of (seed, depth, openSides, placeDungeon, region),
+     and three of those five are path-dependent world state rather than properties of
+     the cell:
+        depth        Math.min(regionMapsVisited[r] + 1, 20)  — visit order
+        openSides    reconcileOpenSides(...)                 — which neighbours existed
+        placeDungeon regionDungeonPlaced[r]                  — first map past depth 3
+     All three must be persisted alongside the seed (they are a handful of bytes) or
+     made derivable. Skipping this produces a deterministic generator that still
+     returns a different map — the worst of both worlds, because the failure is quiet.
+
+  3. A DIFF LAYER IS REQUIRED.
+     A seed regenerates the PRISTINE map. The tile array is then mutated at runtime by,
+     at least: cut foliage (projectiles.js:425), bombed rocks and snow drifts,
+     placeVillageBossChest, the whirlpool-grotto chest (player.js:769-770), sealed
+     shrines converted by tryUnsealShrine, installVillageShrineEntrance, and the
+     ability-secret alcoves stamped by ensureAbilitySecret. Store a list of
+     (tileIndex, tileValue) pairs. A few dozen edits per map is ~200 bytes against the
+     30,000 being saved, so this is cheap — but it is not optional.
+
+PHASED PLAN — each phase ends at a verification gate; do not proceed past a red gate
+
+  Phase 0 — Spike (half a day). Do this before committing to the rest.
+    Add a small PRNG (mulberry32 or xorshift32 — both are ~5 lines and more than good
+    enough for terrain). Route rnd() through it. Thread a seed into buildForestMap only.
+    GATE: generate the same cell twice in tools/seed-preview.html and diff the tile
+    arrays. Identical -> the remaining conversions are mechanical, continue. Different
+    -> hidden state is leaking into generation; find it now, before converting 66 more
+    call sites on top of a broken foundation.
+
+  Phase 1 — Convert the generator.
+    Replace the ~66 direct Math.random() calls in the generation path with the seeded
+    stream. Include connectivity.js:102. Decide explicitly whether enemy placement
+    (enemies.js) and map names (world.js:231, :548) join the deterministic set — names
+    are cosmetic but player-visible, so inconsistent names across a reload look like a
+    bug even when the terrain matches.
+    GATE: tools/lint-conventions.py reports 0 Math.random() warnings in generation
+    files. Generate all 13 regions at several depths twice each in seed-preview and
+    diff every tile array.
+
+  Phase 2 — Persist the recipe.
+    Add worldSeed to the save. Add per-map { seed, depth, openSides, placeDungeon } to
+    the worldMapsLite projection. Keep writing mapTiles as well for now — this phase
+    changes nothing about what is loaded, it only starts recording what would be needed.
+    GATE: for every map in a real save, regenerate from the recorded recipe and diff
+    against the stored mapTiles. All must match.
+
+  Phase 3 — Add the diff layer.
+    Capture post-generation tile mutations per map. Simplest correct implementation:
+    on save, diff the live map against a fresh regeneration from its recipe and store
+    the differing cells. That needs no new instrumentation at the ~12 mutation sites
+    and cannot miss one.
+    GATE: recipe + diff reproduces the live map byte-for-byte across a full save/load
+    on a late-game save.
+
+  Phase 4 — Drop mapTiles; pack fog.  *** REQUIRES EXPLICIT SIGN-OFF ***
+    Stop writing mapTiles. Land the H2 fog bit-packing at the same time.
+    This is the one phase that changes the persistence format, which the project's
+    conventions (SKILL.md, "Save compatibility") require flagging before it happens
+    rather than after: "Never change the persistence mechanism or the slot format
+    without flagging it first and saying explicitly that existing saves will break."
+    Per the compatibility plan below, existing saves are designed NOT to break — they
+    keep their stored mapTiles and keep loading through decodeMap. But the format
+    written from this phase onward is new, and a save written after Phase 4 will not
+    load in a build from before it. Confirm that trade before starting, not during.
+    GATE: measure a late-game save. Target under 1 MB. Then load a REAL named save
+    written before the change (per SKILL.md's verification rule — an existing save,
+    not just a new game), and play a full region start to finish on the new format,
+    confirming no visual or progression differences.
+
+  Phase 5 — Cleanup.
+    Remove encodeMap/decodeMap if nothing else uses them. Update the save-format notes
+    in save.js's header comment. Consider exposing the world seed in the UI.
+
+BACKWARD COMPATIBILITY
+  Old saves have no worldSeed, no recipes and no diffs, but they DO have mapTiles.
+  Keep the decodeMap path as the fallback for any map carrying stored tiles, exactly as
+  the existing migrations do (see homeLayoutVersion, save.js:282-284, and the
+  hasBow/hasSword back-fills at save.js:224-240 for the established pattern). Old saves
+  keep their exact worlds; only new maps generated after the upgrade use recipes.
+  Do NOT attempt to back-fill seeds for existing maps — their terrain was produced by
+  an unseeded generator and cannot be recovered from a seed by construction.
+
+RISK
+  Medium, and concentrated in Phase 1 (mechanical but wide) and Phase 3 (subtle). The
+  Phase 0 gate is what makes the whole thing safe to abandon cheaply: if the spike
+  cannot reproduce a single map twice, stop, and the only cost is a few hours plus a
+  PRNG that is worth having regardless. Phases 0-2 are non-breaking — nothing about
+  what the game loads changes until Phase 4.
+
+
+=======================================================================
+RECOMMENDED ORDER OF WORK
+=======================================================================
+
+  1. H2, autosave catch only          one line; turns a silent failure into a visible one
+  2. H3 + M1                          freeze chain + stopPropagation; small, contained,
+                                      and H3 is hit by every player who names a save
+  3. H1                               persist sealed + open sides; re-run
+                                      reconcileOpenSides after rebuild. This is the one
+                                      that quietly corrupts long playthroughs.
+  4. H2, fog bit-packing              ~12x on the dominant cost
+  5. M2, L1, L2, L3                   small and independent of each other
+  6. L5                               documentation only; do it before the seed work,
+                                      since that work touches most of the files the
+                                      stale graph omits
+  7. L4 / seed migration              largest change; the enabler for doing H2
+                                      permanently rather than palliatively
+
+VERIFYING ANY OF THESE
+  Per SKILL.md: there is no test runner and adding one would violate the project's
+  constraints. Open index.html directly (NOT via the test server — a file:// violation
+  only shows up that way), check the console, and load an existing named save rather
+  than only starting a new game. For H1 specifically, the save-and-reload path IS the
+  bug, so verification requires a save written before the fix and loaded after it.
+
+=======================================================================
+FIX LOG — 2026-08-13, second pass
+=======================================================================
+
+Seven items landed. 7 files, +175 / -46. No new files, no new globals beyond one
+shared helper, no change to the load order, no dependency added. tools/lint-conventions.py
+still reports 0 errors and the same 68 pre-existing warnings — no new bare
+Math.random() was introduced in a generation path.
+
+  H1  world.js   extracted upgradeDeadEndChests() out of createSealedNeighbor so the
+                 save/load rebuild can re-apply the Hero's Cache; added mapOpenSides().
+      save.js    persist `openSides` and `sealed` per map; pass openSides into the
+                 rebuild instead of undefined; re-stamp the cache on rebuilt sealed
+                 maps; restore the sealed flag.
+      VERIFIED   round-trip of a sealed dead-end now preserves open sides (right only),
+                 the sealed flag, and the LARGE_CHEST. Was: four sides open, flag gone,
+                 chest downgraded.
+      COST       +68 chars per map in the save — negligible against the 75,003 it
+                 already spends there.
+
+  H2  save.js    autoSave's empty catch now raises a sticky toast naming the
+      (partial)  consequence ("your death checkpoint is not advancing").
+      VERIFIED   forced QuotaExceededError raises the toast; it is sticky (no timer);
+                 three consecutive failures dedupe to one card with a x3 badge rather
+                 than stacking, via showToast's existing dedupe.
+
+  H3  main.js    added modalMode to the update() freeze chain and a modalMode branch to
+                 the keydown overlay chain (Escape closes; no 'v' close, since V is a
+                 letter someone may want in a save name).
+      save.js    e.stopPropagation() on modal-name-input, matching #name-input.
+      VERIFIED   "Zelda Vault P2" now types in full, spaces included. No radial menu,
+                 no sword swing, no potion, no minimap toggle, and the hero does not
+                 move under the modal.
+
+  M1  main.js    added shopOpen and portalOpen to the update() freeze chain.
+      VERIFIED   hero no longer walks under an open shop; still moves normally once it
+                 closes; outside-click still closes.
+      NOTE       the defensive key-clearing in closeShopModals (shop-core.js) was LEFT
+                 IN PLACE. It is no longer load-bearing, but removing it is a behaviour
+                 change (a key still physically held on close) that this fix does not
+                 require. Optional follow-up.
+
+  M2  ui.js      added escapeHTML().
+      stats.js   hero name on the Character page now goes through it.
+      VERIFIED   `<img src=x onerror=...>` renders as literal text; no element created,
+                 no script run.
+
+  L1  enemies.js damageNumbers = [] added alongside the projectiles/particles/drops
+                 clears in spawnEnemiesForMap.
+      VERIFIED   0 left over across a map change. Was: 1, still anchored to an enemy
+                 on the previous map.
+
+  L2  save.js    swordElements, armorElements, arrows and swordDir now cloned in
+                 applyLoadData alongside the fields that already were.
+      VERIFIED   loading a save with all four fields stripped no longer leaves `player`
+                 aliasing DEFAULT_PLAYER.
+
+  L3  shop-core.js removed the redundant DOMContentLoaded registration; kept the direct
+                 one.
+      VERIFIED   outside-click still closes every shop overlay.
+
+BACKWARD COMPATIBILITY — verified
+  A save serialized without the new `openSides` / `sealed` fields (i.e. anything written
+  before this pass) loads without throwing and lands the hero on the right map. Those
+  saves keep the old all-open rebuild behaviour for never-visited maps, because the
+  topology was never recorded and cannot be recovered. New saves are correct from the
+  first write. No storage key, slot format or persistence mechanism changed.
+
+STILL OPEN
+  H2 (fog packing)  changes the persistence format — flagged for sign-off, not started.
+  L4 (seeding)      the PLANNED WORK section above, unchanged.
+  L5 (SKILL.md)     documentation, deliberately not fixed in this pass.
+
+NOT VERIFIED VISUALLY
+  All of the above was verified programmatically against a running instance over
+  http://localhost:8765. A screenshot was not obtainable in this environment, and the
+  game is actually played from file://. To confirm by hand, open index.html directly
+  (double-click, not the test server) and:
+    1. V -> MENU ring -> Game Menu -> Save Game -> click an empty slot, and type a name
+       with a space in it, e.g. "Zelda Vault". The space should appear; the menu ring
+       should not open; the hero should not move.
+    2. Load an existing named save from before this change and confirm it still loads.
+    3. Talk to a shopkeeper in a cleared village while holding an arrow key — the hero
+       should stand still until the shop closes.
+    4. New Game, name the hero  <b>Test  — the Character page should show that as
+       literal text, not bold.
+
+End of report.
