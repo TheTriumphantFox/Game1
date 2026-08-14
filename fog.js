@@ -82,3 +82,40 @@ function isFoggy(mapObj, c, r) {
   if (!mapObj.fog) return true;
   return mapObj.fog[r * MCOLS + c] === 0;
 }
+
+// ─── Fog serialization ────────────────────────────────────────────────────────
+// Fog is one bit per tile but was persisted as `Array.from(fog)` — a JSON array of
+// 22,500 numbers, 45,001 characters per map. That is 1.5x the size of the entire
+// base64 tile map for the map itself, and at the 232 maps the save UI advertises it
+// worked out to ~10 MB of a ~16.6 MB save, which does not fit in the ~5 MB per-origin
+// localStorage budget a phone gives you.
+//
+// Packing eight tiles to the byte and base64-ing the result takes the same data to
+// 2,813 bytes -> 3,752 characters, a ~12x reduction. Same idea and same encoding as
+// encodeMap/decodeMap in map-helpers.js, one bit wide instead of one byte.
+//
+// Written under a NEW key (`fogPacked`), leaving the old `fog` array untouched in
+// saves that already have one — the loader reads whichever is present, so an existing
+// save keeps working and is quietly upgraded the next time it is written.
+function packFog(fog) {
+  const n = MCOLS * MROWS;
+  const bytes = new Uint8Array((n + 7) >> 3);
+  for (let i = 0; i < n; i++) if (fog[i]) bytes[i >> 3] |= 1 << (i & 7);
+  // Chunked so a large map can't overflow the argument limit on String.fromCharCode.
+  let s = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(s);
+}
+
+function unpackFog(b64) {
+  const bin = atob(b64);
+  const n = MCOLS * MROWS;
+  const fog = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (bin.charCodeAt(i >> 3) & (1 << (i & 7))) fog[i] = 1;
+  }
+  return fog;
+}

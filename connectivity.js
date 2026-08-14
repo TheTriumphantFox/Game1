@@ -99,7 +99,7 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
           // Don't paint over the interesting tile itself
           if (!isInteresting(m[pr][pc])) m[pr][pc] = carve;
           reachable[pr * W + pc] = 1;
-          if (pr !== found.r && (pc === found.c || Math.random() < 0.5)) {
+          if (pr !== found.r && (pc === found.c || genRandom() < 0.5)) {
             pr += Math.sign(found.r - pr);
           } else {
             pc += Math.sign(found.c - pc);

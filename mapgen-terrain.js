@@ -22,7 +22,7 @@ function addCliffFace(m) {
         const r = r0 + dr;
         if (r > 0 && r < MROWS - 1 && !isProtectedFeature(m[r][c])) m[r][c] = T.CLIFF;
       }
-      if (footR > 0 && footR < MROWS - 1 && Math.random() < 0.25 &&
+      if (footR > 0 && footR < MROWS - 1 && genRandom() < 0.25 &&
           !isProtectedFeature(m[footR][c])) m[footR][c] = T.ROCK;
     }
   } else {                                      // vertical band (left / right)
@@ -36,7 +36,7 @@ function addCliffFace(m) {
         const c = c0 + dc;
         if (c > 0 && c < MCOLS - 1 && !isProtectedFeature(m[r][c])) m[r][c] = T.CLIFF;
       }
-      if (footC > 0 && footC < MCOLS - 1 && Math.random() < 0.25 &&
+      if (footC > 0 && footC < MCOLS - 1 && genRandom() < 0.25 &&
           !isProtectedFeature(m[r][footC])) m[r][footC] = T.ROCK;
     }
   }
@@ -93,7 +93,7 @@ function growClump(m, size, base, fill) {
   let placed = 1;
   const frontier = [[sr, sc]];
   while (placed < size && frontier.length) {
-    const fi = Math.floor(Math.random() * frontier.length);
+    const fi = Math.floor(genRandom() * frontier.length);
     const [r, c] = frontier[fi];
     const opts = [];
     for (const [dr, dc] of NB4) {
@@ -101,7 +101,7 @@ function growClump(m, size, base, fill) {
       if (nr > 0 && nr < MROWS - 1 && nc > 0 && nc < MCOLS - 1 && m[nr][nc] === base) opts.push([nr, nc]);
     }
     if (!opts.length) { frontier.splice(fi, 1); continue; }   // dead end — retire this cell
-    const [nr, nc] = opts[Math.floor(Math.random() * opts.length)];
+    const [nr, nc] = opts[Math.floor(genRandom() * opts.length)];
     m[nr][nc] = fill; placed++;
     frontier.push([nr, nc]);
   }
@@ -164,12 +164,12 @@ function carveShallowChannels(m, count) {
     const maxSteps = (MROWS + MCOLS) * 4;
     for (let s = 0; s < maxSteps && (Math.abs(r - er) + Math.abs(c - ec)) > 2; s++) {
       let mr = 0, mc = 0;
-      if (Math.random() < 0.65) {                 // bias toward the far point
+      if (genRandom() < 0.65) {                 // bias toward the far point
         if (Math.abs(er - r) > Math.abs(ec - c)) mr = Math.sign(er - r);
         else                                     mc = Math.sign(ec - c);
       } else {                                     // occasional meander
-        if (Math.random() < 0.5) mr = (Math.random() < 0.5 ? 1 : -1);
-        else                     mc = (Math.random() < 0.5 ? 1 : -1);
+        if (genRandom() < 0.5) mr = (genRandom() < 0.5 ? 1 : -1);
+        else                     mc = (genRandom() < 0.5 ? 1 : -1);
       }
       r = Math.max(1, Math.min(MROWS - 2, r + mr));
       c = Math.max(1, Math.min(MCOLS - 2, c + mc));

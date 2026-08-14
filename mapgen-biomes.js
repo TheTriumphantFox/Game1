@@ -26,7 +26,7 @@ function addEarthCaveEntrances(m, regionId) {
     }
   if (!cands.length) return;
   for (let i = cands.length - 1; i > 0; i--) {        // Fisher–Yates shuffle
-    const k = Math.floor(Math.random() * (i + 1));
+    const k = Math.floor(genRandom() * (i + 1));
     const tmp = cands[i]; cands[i] = cands[k]; cands[k] = tmp;
   }
   const want = rnd(1, 6);
@@ -71,7 +71,7 @@ function addSkyWindGusts(m, region) {
     }
   if (!cands.length) return;
   for (let i = cands.length - 1; i > 0; i--) {        // Fisher–Yates shuffle
-    const k = Math.floor(Math.random() * (i + 1));
+    const k = Math.floor(genRandom() * (i + 1));
     const tmp = cands[i]; cands[i] = cands[k]; cands[k] = tmp;
   }
   const want = rnd(1, 6);
@@ -97,7 +97,7 @@ function addSkyWindGusts(m, region) {
 // region, gated by createOverworldMap — never randomly per map.
 function stampRuinedDungeon(m, clearings) {
   if (!clearings || !clearings.length) return;
-  const cl = clearings[Math.floor(Math.random() * clearings.length)];
+  const cl = clearings[Math.floor(genRandom() * clearings.length)];
   let dr = Math.max(2, Math.min(MROWS - 9,  cl.r - 2));
   let dc = Math.max(2, Math.min(MCOLS - 11, cl.c - 4));
   setRect(m, dr, dc, dr + 6, dc + 8, T.FLOOR);
@@ -115,6 +115,12 @@ function stampRuinedDungeon(m, clearings) {
 // border exits get cut. Defaults to all four open. Sealed dead-end maps spawned
 // after the village is saved pass a single-side object here.
 function buildForestMap(seed, depth, openSides, placeDungeon) {
+  // Seed the generation stream for the whole build (map-helpers.js). The `seed`
+  // argument has been in this signature since the beginning and was never used; this
+  // is what makes it mean something. A null seed keeps the old unseeded behaviour, so
+  // any caller that hasn't been updated still works exactly as before.
+  const _prevRng = beginSeededGeneration(
+    seed === undefined || seed === null ? null : hashSeed('forest', seed, depth));
   const open = openSides || { left: true, right: true, up: true, down: true };
   const m = makeTile(MROWS, MCOLS, T.TREE);
 
@@ -153,7 +159,7 @@ function buildForestMap(seed, depth, openSides, placeDungeon) {
   // cross it on a slim plank (bridgeWalk) instead of fording it with a dirt path.
   const streamCount = rnd(1, 4) - 1;
   for (let i = 0; i < streamCount; i++) {
-    const cells = Math.random() < 0.5
+    const cells = genRandom() < 0.5
       ? carveStream(m, rnd(15, MROWS - 16), 1,                 rnd(15, MROWS - 16), MCOLS - 2, 1)  // W→E
       : carveStream(m, 1,                   rnd(15, MCOLS - 16), MROWS - 2,          rnd(15, MCOLS - 16), 1); // N→S
     if (cells.length > 6) {
@@ -187,7 +193,7 @@ function buildForestMap(seed, depth, openSides, placeDungeon) {
   // Phase 5: sparse rocks (destructible with bombs)
   for (let i = 0; i < 80 + depth; i++) {
     const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
-    if ((m[rr][rc] === T.GRASS || m[rr][rc] === T.PATH) && Math.random() < 0.3) {
+    if ((m[rr][rc] === T.GRASS || m[rr][rc] === T.PATH) && genRandom() < 0.3) {
       m[rr][rc] = T.ROCK;
     }
   }
@@ -200,12 +206,12 @@ function buildForestMap(seed, depth, openSides, placeDungeon) {
   // Phase 7: pick the chest spot now (one per map), but defer the actual write
   // until after the later drunkWalk passes so paths can't overwrite it.
   const chestSpot = clearings.length
-    ? clearings[Math.floor(Math.random() * clearings.length)]
+    ? clearings[Math.floor(genRandom() * clearings.length)]
     : null;
 
   // Phase 8: occasional shrine (full HP heal)
-  if (clearings.length > 0 && Math.random() < 0.4) {
-    const cl = clearings[Math.floor(Math.random() * clearings.length)];
+  if (clearings.length > 0 && genRandom() < 0.4) {
+    const cl = clearings[Math.floor(genRandom() * clearings.length)];
     m[cl.r][cl.c] = T.SHRINE;
     if (cl.c > 0)         m[cl.r][cl.c - 1] = T.TORCH;
     if (cl.c < MCOLS - 1) m[cl.r][cl.c + 1] = T.TORCH;
@@ -254,7 +260,7 @@ function buildForestMap(seed, depth, openSides, placeDungeon) {
     // is carved to it: the hero reaches it by swimming the medium-water splash
     // pool behind the curtain. ensureConnectivity counts medium water as
     // traversable, so the door still validates as reachable.
-    if (Math.random() < 0.99) {
+    if (genRandom() < 0.99) {
       m[fallBottom][wc] = T.WATERFALL_DOOR;
     }
   }
@@ -305,6 +311,9 @@ function buildForestMap(seed, depth, openSides, placeDungeon) {
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
 
+  // Hand the previous stream back — nested builds restore rather than
+  // clobber, and runtime rnd() goes back to being unseeded.
+  endSeededGeneration(_prevRng);
   return m;
 }
 
@@ -379,11 +388,11 @@ function addDesertPlateau(m) {
     }
     return false;
   };
-  if (Math.random() < 0.5) {
+  if (genRandom() < 0.5) {
     // Horizontal band: pick a row entirely above OR below the E/W exit corridor.
     let r0 = 0;
     for (let tries = 0; tries < 16; tries++) {
-      r0 = (Math.random() < 0.5)
+      r0 = (genRandom() < 0.5)
         ? rnd(8, EXIT_ROW - thick - 5)
         : rnd(EXIT_ROW + 5, MROWS - thick - 8);
       if (!bandHitsOasis(true, r0)) break;
@@ -413,7 +422,7 @@ function addDesertPlateau(m) {
     // Vertical band: pick a column entirely left OR right of the N/S corridor.
     let c0 = 0;
     for (let tries = 0; tries < 16; tries++) {
-      c0 = (Math.random() < 0.5)
+      c0 = (genRandom() < 0.5)
         ? rnd(8, EXIT_COL - thick - 5)
         : rnd(EXIT_COL + 5, MCOLS - thick - 8);
       if (!bandHitsOasis(false, c0)) break;
@@ -443,7 +452,7 @@ function addDesertPlateau(m) {
 // have 1 HP and are cut down by a sword swing (see doSwordSwing).
 function addFloweringCactiNearWater(m, waters) {
   if (!waters.length) return;
-  const [wr, wc] = waters[Math.floor(Math.random() * waters.length)];
+  const [wr, wc] = waters[Math.floor(genRandom() * waters.length)];
   // 5× the old 2–4 per cluster. The wider radius + larger try budget give the
   // denser bloom enough open SAND/GRASS around the oasis to actually land.
   const target = rnd(2, 4) * 5;
@@ -464,6 +473,8 @@ function addFloweringCactiNearWater(m, waters) {
 // patches as visual variety, the occasional oasis (water surrounded by
 // palm-cactus), bones as decoration, and rock/lava hazards at higher depth.
 function buildDesertMap(seed, depth, openSides, placeDungeon) {
+  const _prevRng = beginSeededGeneration(
+    seed === undefined || seed === null ? null : hashSeed('fire', seed, depth));
   const open = openSides || { left: true, right: true, up: true, down: true };
   const m = makeTile(MROWS, MCOLS, T.CACTUS);
 
@@ -504,7 +515,7 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
     const wr2 = Math.min(wr + ws, MROWS - 2), wc2 = Math.min(wc + ws, MCOLS - 2);
     for (let r = wr; r <= wr2; r++) {
       for (let c = wc; c <= wc2; c++) {
-        if (m[r][c] === T.SAND && Math.random() < 0.7) m[r][c] = T.DUNE;
+        if (m[r][c] === T.SAND && genRandom() < 0.7) m[r][c] = T.DUNE;
       }
     }
   }
@@ -521,7 +532,7 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
         const nr = or_ + dr, nc = oc + dc;
         if (nr <= 0 || nr >= MROWS - 1 || nc <= 0 || nc >= MCOLS - 1) continue;
         const onEdge = (dr === -1 || dr === os + 1 || dc === -1 || dc === os + 1);
-        if (onEdge && m[nr][nc] !== T.OASIS_WATER && Math.random() < 0.45) m[nr][nc] = T.CACTUS;
+        if (onEdge && m[nr][nc] !== T.OASIS_WATER && genRandom() < 0.45) m[nr][nc] = T.CACTUS;
       }
     }
     // Bridge straight across so the oasis isn't a wall
@@ -532,7 +543,7 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
   // Phase 6: scattered rocks (bombable) — denser than forest, this is desert
   for (let i = 0; i < 100 + depth; i++) {
     const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
-    if ((m[rr][rc] === T.SAND || m[rr][rc] === T.PATH) && Math.random() < 0.3) {
+    if ((m[rr][rc] === T.SAND || m[rr][rc] === T.PATH) && genRandom() < 0.3) {
       m[rr][rc] = T.ROCK;
     }
   }
@@ -548,7 +559,7 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
   // Sparse cacti scattered as obstacles in open sand
   for (let i = 0; i < 120; i++) {
     const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
-    if (m[rr][rc] === T.SAND && Math.random() < 0.5) m[rr][rc] = T.CACTUS;
+    if (m[rr][rc] === T.SAND && genRandom() < 0.5) m[rr][rc] = T.CACTUS;
   }
 
   // Phase 7b: small grass-ringed water pools (1d4-1 per map). Placed after the
@@ -569,12 +580,12 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
 
   // Phase 8: chest spot (deferred)
   const chestSpot = clearings.length
-    ? clearings[Math.floor(Math.random() * clearings.length)]
+    ? clearings[Math.floor(genRandom() * clearings.length)]
     : null;
 
   // Phase 9: occasional shrine (full HP heal) — flanked by torches
-  if (clearings.length > 0 && Math.random() < 0.4) {
-    const cl = clearings[Math.floor(Math.random() * clearings.length)];
+  if (clearings.length > 0 && genRandom() < 0.4) {
+    const cl = clearings[Math.floor(genRandom() * clearings.length)];
     m[cl.r][cl.c] = T.SHRINE;
     if (cl.c > 0)         m[cl.r][cl.c - 1] = T.TORCH;
     if (cl.c < MCOLS - 1) m[cl.r][cl.c + 1] = T.TORCH;
@@ -626,6 +637,9 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
   // the walkable rim.
   placeWhirlpool(m, 0.20, 2);
 
+  // Hand the previous stream back — nested builds restore rather than
+  // clobber, and runtime rnd() goes back to being unseeded.
+  endSeededGeneration(_prevRng);
   return m;
 }
 
@@ -634,6 +648,11 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
 // region object from REGIONS — that supplies border/ground/decoration/accent
 // tiles and everything else here is identical structure to the desert builder.
 function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
+  // Region id is part of the seed material so two regions sharing a seed/depth don't
+  // generate the same shape under different palettes.
+  const _prevRng = beginSeededGeneration(
+    seed === undefined || seed === null
+      ? null : hashSeed((region && region.id) || 'region', seed, depth));
   const open = openSides || { left: true, right: true, up: true, down: true };
   const BORDER = region.border, GROUND = region.ground;
   const DECOR = region.decoration, ACCENT = region.accent;
@@ -734,7 +753,7 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   if (!region.skyRegion) {
     for (let i = 0; i < 80 + depth; i++) {
       const rr = rnd(2, MROWS - 3), rc = rnd(2, MCOLS - 3);
-      if ((m[rr][rc] === GROUND || m[rr][rc] === T.PATH) && Math.random() < 0.3) {
+      if ((m[rr][rc] === GROUND || m[rr][rc] === T.PATH) && genRandom() < 0.3) {
         m[rr][rc] = T.ROCK;
       }
     }
@@ -746,12 +765,12 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   // Phase 7: pick the chest spot now and defer the actual write until after
   // any later path carving so corridors can't overwrite it.
   const chestSpot = clearings.length
-    ? clearings[Math.floor(Math.random() * clearings.length)]
+    ? clearings[Math.floor(genRandom() * clearings.length)]
     : null;
 
   // Phase 8: occasional shrine (full HP heal) — flanked by torches.
-  if (clearings.length > 0 && Math.random() < 0.4) {
-    const cl = clearings[Math.floor(Math.random() * clearings.length)];
+  if (clearings.length > 0 && genRandom() < 0.4) {
+    const cl = clearings[Math.floor(genRandom() * clearings.length)];
     m[cl.r][cl.c] = T.SHRINE;
     if (cl.c > 0)         m[cl.r][cl.c - 1] = T.TORCH;
     if (cl.c < MCOLS - 1) m[cl.r][cl.c + 1] = T.TORCH;
@@ -864,7 +883,7 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   if (region.id === 'ice') {
     const iceStreamCount = rnd(1, 4);
     for (let i = 0; i < iceStreamCount; i++) {
-      if (Math.random() < 0.5)
+      if (genRandom() < 0.5)
         carveStream(m, rnd(15, MROWS - 16), 1,                  rnd(15, MROWS - 16), MCOLS - 2, 1, T.ICE);  // W→E
       else
         carveStream(m, 1,                   rnd(15, MCOLS - 16), MROWS - 2,          rnd(15, MCOLS - 16), 1, T.ICE); // N→S
@@ -985,6 +1004,9 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   // Maybe spawn a lone whirlpool far out in open medium water (~30% of maps).
   placeWhirlpool(m);
 
+  // Hand the previous stream back — nested builds restore rather than
+  // clobber, and runtime rnd() goes back to being unseeded.
+  endSeededGeneration(_prevRng);
   return m;
 }
 

@@ -19,9 +19,30 @@ function setSaveIndex(idx) {
   localStorage.setItem('the_rpg_game_index', JSON.stringify(idx));
 }
 
+// Does this map's tile array have to go into the save, or can it be regenerated?
+//
+// Three ways out of paying 30 KB for a map:
+//   • never visited — the player has not seen it, and it always regenerated;
+//   • no recipe (no mapSeed / no pristineHash) — villages, caves, dungeons, tower
+//     floors, grottos, shrines and the home village are not seeded, so they always
+//     store tiles. Only the overworld builders take a seed;
+//   • seeded AND untouched — regeneration reproduces it exactly (verified byte-for-
+//     byte), so storing the tiles is redundant.
+//
+// The moment gameplay writes to the tile array — cut foliage, a bombed rock, the
+// village boss chest, an unsealed shrine, an ability alcove — the hash diverges and
+// the tiles are stored as before. Correctness never depends on guessing which sites
+// mutate a map; the hash is what answers that.
+function mapNeedsStoredTiles(m) {
+  if (!m.visited) return false;
+  if (m.mapSeed == null || m.pristineHash == null) return true;
+  return tileHash(m.map) !== m.pristineHash;
+}
+
 // Serialize everything needed to restore the world.
-// Map tiles are Base64-encoded for compactness. Only visited maps get full
-// tile serialization — unvisited maps regenerate fresh on load.
+// Map tiles are Base64-encoded for compactness. Maps that are unvisited — or that are
+// seeded and still exactly as generated — carry no tiles at all and are rebuilt from
+// their recipe on load (see mapNeedsStoredTiles).
 function buildSaveData() {
   saveEnemyStateToMap(currentMapId);   // capture live enemies before serializing
   return {
@@ -34,6 +55,7 @@ function buildSaveData() {
     regionDungeonPlaced,
     mapSequence,
     worldGrid,
+    worldSeed,
     worldMapsLite: worldMaps.map(m => ({
       id: m.id, gx: m.gx, gy: m.gy,
       name: m.name, type: m.type, biome: m.biome, regionIdx: m.regionIdx, depth: m.depth,
@@ -42,8 +64,11 @@ function buildSaveData() {
       visited: m.visited,
       savedEnemies: m.savedEnemies || null,
       savedVillagers: m.savedVillagers || null,
-      fog: m.fog ? Array.from(m.fog) : null,
-      mapTiles: m.visited ? encodeMap(m.map) : null,
+      // Bit-packed + base64, ~12x smaller than the Array.from() this replaced (see
+      // packFog in fog.js). The old `fog` key is no longer written; the loader still
+      // reads it, so existing saves keep their fog and get upgraded on next write.
+      fogPacked: m.fog ? packFog(m.fog) : null,
+      mapTiles: mapNeedsStoredTiles(m) ? encodeMap(m.map) : null,
       // ─── Rebuild inputs, for maps that carry no mapTiles ────────────────────
       // Only *visited* maps store their tiles, so anything the player never walked
       // into is regenerated from its builder on load. That rebuild was being handed
@@ -58,6 +83,14 @@ function buildSaveData() {
       // (abilities.js). Dropping the flag quietly opted them into all three.
       openSides: mapOpenSides(m),
       sealed: m.sealed || undefined,
+      // The rest of the generation recipe. With mapSeed + depth + openSides +
+      // placeDungeon, a rebuilt map is the SAME map rather than an unrelated one —
+      // generation is seeded now (see beginSeededGeneration in map-helpers.js).
+      // placeDungeon in particular is decided from mutable world state at creation
+      // time, so without it a rebuild silently dropped the region's dungeon entrance.
+      mapSeed: m.mapSeed,
+      placeDungeon: m.placeDungeon || undefined,
+      pristineHash: m.pristineHash,
       // Cave linkage — only set for caves and source maps that opened one.
       returnMapId: m.returnMapId,
       returnX: m.returnX,
@@ -283,6 +316,12 @@ function applyLoadData(data) {
   if (desertsVisited && !regionMapsVisited[1]) regionMapsVisited[1] = desertsVisited;
   mapSequence = data.mapSequence || [];
   worldGrid = data.worldGrid || {};
+  // A save written before seeding existed has no worldSeed. Roll one rather than
+  // leaving it 0, so any map generated from here on in that world is still seeded and
+  // reproducible — the maps it already has keep their own stored mapSeed, or fall
+  // back to regenerating freshly if they predate that too.
+  worldSeed = (typeof data.worldSeed === 'number')
+    ? data.worldSeed : (Math.random() * 0x100000000) >>> 0;
 
   // Reset transient state so the player isn't stuck mid-animation
   attackCooldown = 0; bowCooldown = 0; bombCooldown = 0;
@@ -332,10 +371,17 @@ function applyLoadData(data) {
       // Saves written before openSides existed still pass undefined and still get
       // the old all-open behaviour; the information was never recorded, so there is
       // nothing to recover for them.
-      : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth, lite.openSides)
+      // lite.mapSeed is the seed this map was generated under. Older saves have no
+      // mapSeed — they fall back to lite.id, which is what used to be passed and was
+      // ignored anyway, so those maps regenerate freshly exactly as they did before.
+      : lite.type === 'forest'
+          ? buildForestMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
+                           lite.depth, lite.openSides, lite.placeDungeon)
       : lite.type === 'fire' || lite.type === 'desert'
-                                ? buildDesertMap(lite.id, lite.depth, lite.openSides)
-      :                            buildRegionMap(lite.id, lite.depth, lite.openSides, region);
+          ? buildDesertMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
+                           lite.depth, lite.openSides, lite.placeDungeon)
+      :     buildRegionMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
+                           lite.depth, lite.openSides, region, lite.placeDungeon);
 
     // A rebuilt dead-end needs its Hero's Cache stamped back on — that upgrade
     // happens after generation in createSealedNeighbor (world.js), so a map rebuilt
@@ -381,12 +427,19 @@ function applyLoadData(data) {
     if (migrateHomeLayout && homeRuined) {
       obj.openedChests.add(`${HOME.chest.x},${HOME.chest.y}`);
     }
-    if (lite.fog) obj.fog = new Uint8Array(lite.fog);
+    // `fogPacked` is the current format; `fog` is the pre-packing array, still read
+    // so saves written before the change keep their explored map (see fog.js).
+    if (lite.fogPacked)  obj.fog = unpackFog(lite.fogPacked);
+    else if (lite.fog)   obj.fog = new Uint8Array(lite.fog);
     // Dead-end marker. Read by the per-region map count that triggers a village
     // (player.js), the Guild quarry / bounty spawn candidates (guild.js), and the
     // ability-secret stamping pass (abilities.js) — all three of which quietly
     // started including dead-ends once this flag stopped surviving a load.
     if (lite.sealed) obj.sealed = true;
+    // Carry the recipe forward so re-saving this map preserves it.
+    if (lite.mapSeed != null) obj.mapSeed = lite.mapSeed;
+    if (lite.placeDungeon) obj.placeDungeon = true;
+    if (lite.pristineHash != null) obj.pristineHash = lite.pristineHash;
     if (lite.returnMapId != null) {
       obj.returnMapId = lite.returnMapId;
       obj.returnX = lite.returnX;

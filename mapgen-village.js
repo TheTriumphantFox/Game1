@@ -24,7 +24,7 @@ function activateVillage(mapObj) {
   // Shuffle (Fisher–Yates) and pick the first four for inn + store + herbalist
   // + blacksmith.
   for (let i = doors.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(genRandom() * (i + 1));
     [doors[i], doors[j]] = [doors[j], doors[i]];
   }
   m[doors[0].r][doors[0].c] = T.INN_DOOR;
@@ -382,7 +382,7 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
   const housePlacements = compactForest ? forestHousePlacements : elementalHousePlacements;
   housePlacements.forEach(({ hr, hc }) => house(hr, hc, hw, hh));
   const chestHouse = housePlacements.length
-    ? housePlacements[Math.floor(Math.random() * housePlacements.length)]
+    ? housePlacements[Math.floor(genRandom() * housePlacements.length)]
     : null;
 
   scatter(m, DECOR, 120);
@@ -572,7 +572,7 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) m[r][c] = DECOR;
+        if (genRandom() < 0.55) m[r][c] = DECOR;
       }
     }
   }
@@ -593,7 +593,7 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) m[r][c] = Math.random() < 0.5 ? T.FROST_LILY : T.WINTER_BERRY_BUSH;
+        if (genRandom() < 0.55) m[r][c] = genRandom() < 0.5 ? T.FROST_LILY : T.WINTER_BERRY_BUSH;
       }
     }
   }
@@ -614,8 +614,8 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) {
-          const roll = Math.random();
+        if (genRandom() < 0.55) {
+          const roll = genRandom();
           m[r][c] = roll < 0.4 ? T.MOUNTAIN_SAGE : roll < 0.8 ? T.MOSS_CLUMP : T.CRYSTAL_CLUSTER;
         }
       }
@@ -638,8 +638,8 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) {
-          const roll = Math.random();
+        if (genRandom() < 0.55) {
+          const roll = genRandom();
           m[r][c] = roll < 0.4 ? T.SKY_BLOOM : roll < 0.8 ? T.WIND_REED : T.STORM_THISTLE;
         }
       }
@@ -663,8 +663,8 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) {
-          const roll = Math.random();
+        if (genRandom() < 0.55) {
+          const roll = genRandom();
           m[r][c] = roll < 0.4 ? T.VOLT_BLOOM : roll < 0.8 ? T.SPARK_REED : T.FULGURITE;
         }
       }
@@ -688,8 +688,8 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) {
-          const roll = Math.random();
+        if (genRandom() < 0.55) {
+          const roll = genRandom();
           m[r][c] = roll < 0.4 ? T.RADIANT_BLOOM : roll < 0.8 ? T.GLOW_REED : T.LUMEN_SHARD;
         }
       }
@@ -713,8 +713,8 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) {
-          const roll = Math.random();
+        if (genRandom() < 0.55) {
+          const roll = genRandom();
           m[r][c] = roll < 0.4 ? T.BONE_PILE : roll < 0.8 ? T.WITHERED_SHRUB : T.CORPSE_FLOWER;
         }
       }
@@ -738,8 +738,8 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) {
-          const roll = Math.random();
+        if (genRandom() < 0.55) {
+          const roll = genRandom();
           m[r][c] = roll < 0.4 ? T.CATTAIL : roll < 0.8 ? T.SWAMP_FERN : T.SWAMP_MUSHROOM;
         }
       }
@@ -763,8 +763,8 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) {
-          const roll = Math.random();
+        if (genRandom() < 0.55) {
+          const roll = genRandom();
           m[r][c] = roll < 0.4 ? T.GIANT_BLOOM : roll < 0.8 ? T.VERDANT_FERN : T.GIANT_MUSHROOM;
         }
       }
@@ -793,7 +793,7 @@ function buildVillageMap(biome, exits = { left: true, right: true, up: true, dow
         const adjDoor = isDoor(c - 1, r) || isDoor(c + 1, r) ||
                         isDoor(c, r - 1) || isDoor(c, r + 1);
         if (adjDoor) continue;
-        if (Math.random() < 0.55) m[r][c] = Math.random() < 0.5 ? T.CORAL : T.SEASHELL;
+        if (genRandom() < 0.55) m[r][c] = genRandom() < 0.5 ? T.CORAL : T.SEASHELL;
       }
     }
   }

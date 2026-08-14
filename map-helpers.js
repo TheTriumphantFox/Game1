@@ -23,8 +23,89 @@ function setCol(m, c, r1, r2, t) {
   for (let r = r1; r <= r2; r++) m[r][c] = t;
 }
 
+// ─── Seeded generation stream ─────────────────────────────────────────────────
+// Map generation is supposed to be reproducible — the builders have always taken a
+// `seed` argument — but every one of them ignored it and ran on bare Math.random().
+// That is why a map rebuilt on load (anything the player never entered stores no
+// tiles, see save.js) came back as an entirely unrelated map rather than the same one.
+//
+// `rnd()` is the choke point: ~150 of the generation call sites already go through it.
+// So rather than thread a generator object through every helper signature, generation
+// runs against a module-level stream that the builders swap in for the duration of a
+// build. JS is single-threaded and generation is fully synchronous, so there is no
+// interleaving to worry about.
+//
+// The default is Math.random, deliberately: rnd() is ALSO called at runtime by
+// enemies.js, player.js, render.js, tower.js and villagers.js, and none of that
+// should become deterministic — a save reloaded twice should not replay identical
+// loot rolls. Only code running inside a begin/end window sees the seeded stream.
+let _genRandom = Math.random;
+
+// mulberry32 — small, fast, well-distributed enough for terrain. Not cryptographic,
+// which is irrelevant here.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// FNV-1a over the string form of every part, so a seed can be built from whatever
+// identifies a map (world seed, grid coords, depth) without caring about types.
+function hashSeed(...parts) {
+  let h = 0x811c9dc5;
+  for (const p of parts) {
+    const s = String(p);
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+  }
+  return h >>> 0;
+}
+
+// Swap in a seeded stream and hand back the previous one, so calls can nest (a
+// builder that calls another builder restores rather than clobbering). A null/undefined
+// seed keeps the unseeded stream — that is the escape hatch for anything that
+// genuinely wants fresh randomness, and what old call sites get by default.
+function beginSeededGeneration(seed) {
+  const prev = _genRandom;
+  if (seed !== undefined && seed !== null) _genRandom = mulberry32(hashSeed(seed));
+  return prev;
+}
+function endSeededGeneration(prev) { _genRandom = prev || Math.random; }
+
+// The generation-side replacement for a bare Math.random(). Every direct call inside
+// a mapgen file goes through this so it follows the seeded stream; rnd() below is the
+// integer-range form and the one most call sites want.
+function genRandom() { return _genRandom(); }
+
 function rnd(a, b) {
-  return a + Math.floor(Math.random() * (b - a + 1));
+  return a + Math.floor(_genRandom() * (b - a + 1));
+}
+
+// FNV-1a over a whole tile array. Used to answer one question cheaply: has gameplay
+// modified this map since it was generated? A seeded map can be regenerated exactly
+// (see beginSeededGeneration), so an untouched one needs no tiles in the save at all —
+// but the moment the hero cuts foliage, bombs a rock, or raises a boss chest, the live
+// map and its recipe diverge and the tiles have to be stored.
+//
+// A hash rather than a diff on purpose. Regenerating a map to diff against costs ~6ms,
+// which is ~1.5s across a full world on every autosave; hashing is ~0.05ms, so the
+// clean/dirty question is answered for the whole world in a few milliseconds and only
+// genuinely modified maps pay for their tiles.
+function tileHash(mapArr) {
+  let h = 0x811c9dc5;
+  for (let r = 0; r < MROWS; r++) {
+    const row = mapArr[r];
+    for (let c = 0; c < MCOLS; c++) {
+      h ^= row[c];
+      h = Math.imul(h, 0x01000193);
+    }
+  }
+  return h >>> 0;
 }
 
 // True if `t` is any tile belonging to a chest (single, large 1×2, or boss
@@ -71,12 +152,12 @@ function drunkWalk(m, sr, sc, er, ec, t, width) {
   for (let i = 0; i < maxSteps && (Math.abs(r - er) + Math.abs(c - ec)) > 3; i++) {
     const dr = er - r, dc = ec - c;
     let mr = 0, mc = 0;
-    if (Math.random() < 0.65) {  // bias toward target
+    if (genRandom() < 0.65) {  // bias toward target
       if (Math.abs(dr) > Math.abs(dc)) mr = Math.sign(dr);
       else mc = Math.sign(dc);
     } else {
-      if (Math.random() < 0.5) mr = (Math.random() < 0.5 ? 1 : -1);
-      else mc = (Math.random() < 0.5 ? 1 : -1);
+      if (genRandom() < 0.5) mr = (genRandom() < 0.5 ? 1 : -1);
+      else mc = (genRandom() < 0.5 ? 1 : -1);
     }
     r = Math.max(1, Math.min(MROWS - 2, r + mr));
     c = Math.max(1, Math.min(MCOLS - 2, c + mc));
@@ -160,12 +241,12 @@ function bridgeWalk(m, sr, sc, er, ec, t, width) {
   for (let i = 0; i < maxSteps && (Math.abs(r - er) + Math.abs(c - ec)) > 1; i++) {
     const dr = er - r, dc = ec - c;
     let mr = 0, mc = 0;
-    if (Math.random() < 0.65) {                          // bias toward target
+    if (genRandom() < 0.65) {                          // bias toward target
       if (Math.abs(dr) > Math.abs(dc)) mr = Math.sign(dr);
       else                             mc = Math.sign(dc);
     } else {                                             // occasional detour
-      if (Math.random() < 0.5) mr = (Math.random() < 0.5 ? 1 : -1);
-      else                     mc = (Math.random() < 0.5 ? 1 : -1);
+      if (genRandom() < 0.5) mr = (genRandom() < 0.5 ? 1 : -1);
+      else                     mc = (genRandom() < 0.5 ? 1 : -1);
     }
     const nr = r + mr, nc = c + mc;
     if (nr <= 0 || nr >= MROWS - 1 || nc <= 0 || nc >= MCOLS - 1) continue;
@@ -231,12 +312,12 @@ function carveStream(m, sr, sc, er, ec, width, tile) {
   for (let i = 0; i < maxSteps && (Math.abs(r - er) + Math.abs(c - ec)) > 2; i++) {
     const dr = er - r, dc = ec - c;
     let mr = 0, mc = 0;
-    if (Math.random() < 0.7) {                 // bias toward the mouth
+    if (genRandom() < 0.7) {                 // bias toward the mouth
       if (Math.abs(dr) > Math.abs(dc)) mr = Math.sign(dr);
       else                             mc = Math.sign(dc);
     } else {                                    // meander for an organic course
-      if (Math.random() < 0.5) mr = (Math.random() < 0.5 ? 1 : -1);
-      else                     mc = (Math.random() < 0.5 ? 1 : -1);
+      if (genRandom() < 0.5) mr = (genRandom() < 0.5 ? 1 : -1);
+      else                     mc = (genRandom() < 0.5 ? 1 : -1);
     }
     r = Math.max(1, Math.min(MROWS - 2, r + mr));
     c = Math.max(1, Math.min(MCOLS - 2, c + mc));
@@ -323,7 +404,7 @@ function freezeWaterToIce(m) {
 // finalized (depth banding / demotion) and after connectivity.
 const WHIRLPOOL_CLEARANCE = 8;
 function placeWhirlpool(m, chance = 0.30, clearance = WHIRLPOOL_CLEARANCE) {
-  if (Math.random() >= chance) return false;
+  if (genRandom() >= chance) return false;
   // "Open" = water deep enough to be far from shore (medium or deep). Every
   // other tile (land, shallow water, features) seeds a multi-source 8-connected
   // BFS so each open-water tile learns its Chebyshev distance to the shore.
@@ -353,7 +434,7 @@ function placeWhirlpool(m, chance = 0.30, clearance = WHIRLPOOL_CLEARANCE) {
       if (m[r][c] === T.MEDIUM_WATER && dist[r * MCOLS + c] >= clearance)
         candidates.push([r, c]);
   if (!candidates.length) return false;
-  const [wr, wc] = candidates[Math.floor(Math.random() * candidates.length)];
+  const [wr, wc] = candidates[Math.floor(genRandom() * candidates.length)];
   m[wr][wc] = T.WHIRLPOOL;
   return true;
 }
