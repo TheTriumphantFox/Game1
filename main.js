@@ -98,11 +98,20 @@ function update(dt) {
   // still called every frame so the menu animates, and the HUD still refreshes
   // (so the menu's purchases / item use visually update), but every dt-based
   // state change is frozen.
+  // shopOpen / portalOpen / modalMode were missing from this list. They gate
+  // *input* (the keydown chain below, and gameplayTouchBlocked) but not the world,
+  // so the hero kept walking under an open shop or save dialog — far enough to hit
+  // tryTransition() and leave the map with the modal still up. That gap is also why
+  // closeShopModals has to force-clear `keys` on the way out (shop-core.js): it was
+  // treating the symptom. modalMode is the save/load modal (save.js), null when shut.
   if ((typeof radialMenuOpen    !== 'undefined' && radialMenuOpen)    ||
       (typeof ledgerOpen        !== 'undefined' && ledgerOpen)        ||
       (typeof statsPageOpen     !== 'undefined' && statsPageOpen)     ||
       (typeof worldMapOpen      !== 'undefined' && worldMapOpen)      ||
       (typeof sysMenuOpen       !== 'undefined' && sysMenuOpen)       ||
+      (typeof modalMode         !== 'undefined' && modalMode)         ||
+      (typeof shopOpen          !== 'undefined' && shopOpen)          ||
+      (typeof portalOpen        !== 'undefined' && portalOpen)        ||
       (typeof victoryOpen       !== 'undefined' && victoryOpen)       ||
       (typeof dialogueOpen      !== 'undefined' && dialogueOpen)      ||
       (typeof cutsceneBlocking  !== 'undefined' && cutsceneBlocking)) {
@@ -294,6 +303,18 @@ document.addEventListener('keydown', e => {
     // Esc — or V again — closes the game menu.
     if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeSysMenu();
     return;   // game menu swallows gameplay input
+  }
+  // The save / load modal (save.js; modalMode is 'save' | 'load', null when shut).
+  // This branch was missing, and it is the one modal with a TEXT FIELD in it — so
+  // every gameplay key fired while the player typed a save name: SPACE was
+  // preventDefault()ed and never reached the input (you could not type a space in a
+  // save name at all), V opened the radial menu on top of the dialog, Z swung the
+  // sword, P drank a potion. Deliberately no 'v' close here, unlike the panels
+  // above: V is a letter someone may well want in a save name, and the modal has its
+  // own ✕ Close. Escape closes, everything else is swallowed.
+  if (typeof modalMode !== 'undefined' && modalMode) {
+    if (e.key === 'Escape') closeModal();
+    return;   // save/load modal swallows gameplay input
   }
   // Escape dismisses the newest toast. Sticky toasts (dur = 0) sit there until
   // an input clears them, and a keyboard player shouldn't have to reach for the
