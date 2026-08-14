@@ -44,7 +44,32 @@ const SYSMENU_ITEMS = [
     meta: 'Admin grant — every elemental sword and armor, 100 HP, 10000 rubies.',
     btn: 'Grant',
     run: () => { if (typeof grantGodMode === 'function') grantGodMode(); } },
+  { icon: '🗺️', label: 'Generate Full Map',
+    meta: 'Dev — build all 13 regions at once: every region\'s 20 maps, its village and its ' +
+          'ring of dead-ends, woven so each village is one map from the next. Nothing is cleared or explored.',
+    btn: 'Build',
+    run: () => runGenerateFullWorld() },
 ];
+
+// Dev world-builder (generateFullWorld in world.js). 273 maps is a few seconds of
+// solid work with no chance to paint, so the "working" toast goes up first and the
+// build starts two frames later — otherwise the screen simply freezes with no
+// indication anything is happening. The atlas opens on the way out, since seeing
+// the weave is the point of the command.
+function runGenerateFullWorld() {
+  if (typeof generateFullWorld !== 'function') return;
+  showMsg('🗺️ Charting every region — this takes a moment…', 6000);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const t0 = performance.now();
+    const res = generateFullWorld();
+    const secs = ((performance.now() - t0) / 1000).toFixed(1);
+    const skipped = res.skipped ? ` ${res.skipped} cell${res.skipped > 1 ? 's' : ''} already existed and were left alone.` : '';
+    showMapMsg(`🗺️ World charted — ${res.built} maps across ${REGIONS.length} regions ` +
+               `(${res.deadEnds} of them dead-ends) in ${secs}s.${skipped}`);
+    if (typeof minimapDirty !== 'undefined') minimapDirty = true;
+    if (typeof openWorldMap === 'function') openWorldMap();
+  }));
+}
 
 function renderSysMenuContents() {
   const rows = SYSMENU_ITEMS.map((it, i) => `

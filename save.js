@@ -362,7 +362,13 @@ function applyLoadData(data) {
 
     const md = lite.mapTiles && !migrateHomeLayout
       ? decodeMap(lite.mapTiles)
-      : lite.type === 'village' ? buildVillageMap(region.id)
+      // A village only lands here when it was never entered (a visited one stores its
+      // tiles). `lite.openSides` is the topology it actually had — without it the
+      // rebuild opened all four gates, which re-cut the final village's sealed sides
+      // and let the hero walk out of a border that had no map behind it. Saves written
+      // before openSides existed still pass undefined and still get the old all-open
+      // behaviour, since the information was never recorded for them.
+      : lite.type === 'village' ? buildVillageMap(region.id, lite.openSides)
       : lite.type === 'cave'    ? buildCaveMap()
       : lite.type === 'cave_chain' ? buildCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1)).map
       : lite.type === 'sky_cave' ? buildSkyCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1), region).map
