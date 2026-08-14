@@ -445,6 +445,11 @@ function spawnEnemiesForMap(mid) {
   projectiles = [];
   particles = [];
   drops = [];   // floor pickups are transient per-visit
+  // Damage numbers were missing from this list. They hold a live `entity` reference
+  // (projectiles.js) and draw at that entity's tile, so one spawned just before a
+  // transition kept floating over the NEW map at the old enemy's coordinates for the
+  // remainder of its ~1.1s life.
+  damageNumbers = [];
   // The Man-Eater bounty (#5) relocates to whatever region overworld map the hero
   // enters while it lives (see guild.js).
   if (typeof ensureManeaterOnMap === 'function') ensureManeaterOnMap(rm);

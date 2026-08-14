@@ -60,15 +60,14 @@ function closeShopModals() {
   for (const k of Object.keys(keys)) keys[k] = false;
 }
 
-// Close on click outside the modal
-document.addEventListener('DOMContentLoaded', () => {
-  SHOP_OVERLAY_IDS.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('click', e => { if (e.target === el) closeShopModals(); });
-  });
-});
-// Fallback for when the script loads after DOMContentLoaded already fired.
+// Close on click outside the modal. Registered directly, not inside a
+// DOMContentLoaded callback: these scripts sit at the end of <body>, so the overlay
+// elements are already parsed by the time this runs — the same reasoning boot() in
+// main.js spells out. There used to be BOTH, a DOMContentLoaded registration plus
+// this one as a "fallback in case the script loads after it already fired". Classic
+// scripts at the end of <body> run *before* DOMContentLoaded, so both always fired
+// and every overlay carried the handler twice. Harmless, since closeShopModals is
+// idempotent, but there is no case where the deleted half was the one doing the work.
 SHOP_OVERLAY_IDS.forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('click', e => { if (e.target === el) closeShopModals(); });

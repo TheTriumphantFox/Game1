@@ -5,6 +5,23 @@
 // textContent writes force style recalc and SVG reparses even for identical
 // values.
 
+// Escape a string for safe interpolation into an innerHTML template. Most panels in
+// this game build their markup as template literals, which is fine for the numbers
+// and fixed labels they mostly contain — but NOT for anything the player typed. The
+// hero name is the one such value that reaches a template (the Character page), and
+// it went in raw: a hero named `<img src=x onerror=…>` ran the script, and an
+// entirely innocent name containing < or & rendered wrong or broke the panel.
+//
+// Lives here rather than in stats.js because ui.js loads first (see index.html) and
+// this is general UI plumbing — any future panel interpolating player text wants it.
+// Where a node's text is set directly, prefer textContent, which needs no escaping
+// (that is what the save-slot list already does).
+function escapeHTML(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // Render one HP heart as inline SVG, divided into `total` angular wedges. HP is
 // spent from the top-right wedge clockwise, so the empty wedges are the first
 // (total - filled) going clockwise from the top, and the `filled` remaining HP

@@ -44,6 +44,20 @@ function buildSaveData() {
       savedVillagers: m.savedVillagers || null,
       fog: m.fog ? Array.from(m.fog) : null,
       mapTiles: m.visited ? encodeMap(m.map) : null,
+      // ─── Rebuild inputs, for maps that carry no mapTiles ────────────────────
+      // Only *visited* maps store their tiles, so anything the player never walked
+      // into is regenerated from its builder on load. That rebuild was being handed
+      // `undefined` for openSides, which the builders read as "all four sides open"
+      // — so every sealed dead-end came back with four exits instead of one and the
+      // region seal fell apart after a save/load. Persist the topology the map
+      // actually has, so the rebuild can reproduce it.
+      //
+      // `sealed` matters beyond the borders: dead-ends are excluded from the
+      // per-region map count that triggers a village (player.js), from Guild quarry
+      // and bounty spawn candidates (guild.js), and from ability-secret stamping
+      // (abilities.js). Dropping the flag quietly opted them into all three.
+      openSides: mapOpenSides(m),
+      sealed: m.sealed || undefined,
       // Cave linkage — only set for caves and source maps that opened one.
       returnMapId: m.returnMapId,
       returnX: m.returnX,
@@ -217,6 +231,19 @@ function applyLoadData(data) {
   player.forageBonus = { ...((data.player && data.player.forageBonus) || {}) };
   player.armorUpgrades = { ...((data.player && data.player.armorUpgrades) || {}) };
   player.swordUpgrades = { ...((data.player && data.player.swordUpgrades) || {}) };
+  // The last four object-valued fields that were still being aliased. Object.assign
+  // above copies DEFAULT_PLAYER's own literals by REFERENCE, so a save missing any of
+  // these left `player` pointing straight at the shared default — and all four are
+  // mutated in place elsewhere (the blacksmith pushes onto swordElements/
+  // armorElements, addArrow writes into arrows, movement reassigns swordDir). One
+  // such load and the blacksmith would be editing DEFAULT_PLAYER for the rest of the
+  // session, handing the next load a hero with someone else's arsenal. Not reachable
+  // from a save the current code writes — every one carries all four — but the
+  // clones above already established the rule and these were simply missed.
+  player.swordElements = [ ...((data.player && data.player.swordElements) || []) ];
+  player.armorElements = [ ...((data.player && data.player.armorElements) || []) ];
+  player.arrows = { ...((data.player && data.player.arrows) || {}) };
+  player.swordDir = { ...((data.player && data.player.swordDir) || { x: 0, y: -1 }) };
   player.flags = { ...((data.player && data.player.flags) || {}) };
   // Saves predating the prologue have no `hasBow` field and no flags at all, but
   // their hero has been shooting arrows for hours. Test for *absence*, not false —
@@ -299,10 +326,27 @@ function applyLoadData(data) {
       // ruined Elderbrook from story flags.
       : lite.type === 'homevillage'
           ? (homeRuined ? buildRuinedHomeVillage() : buildHomeVillageMap())
-      : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth)
+      // lite.openSides is the topology this map actually had when it was saved (see
+      // buildSaveData). It used to be `undefined` here, which the builders read as
+      // "open on all four sides" — the bug that unsealed every dead-end on load.
+      // Saves written before openSides existed still pass undefined and still get
+      // the old all-open behaviour; the information was never recorded, so there is
+      // nothing to recover for them.
+      : lite.type === 'forest'  ? buildForestMap(lite.id, lite.depth, lite.openSides)
       : lite.type === 'fire' || lite.type === 'desert'
-                                ? buildDesertMap(lite.id, lite.depth)
-      :                            buildRegionMap(lite.id, lite.depth, undefined, region);
+                                ? buildDesertMap(lite.id, lite.depth, lite.openSides)
+      :                            buildRegionMap(lite.id, lite.depth, lite.openSides, region);
+
+    // A rebuilt dead-end needs its Hero's Cache stamped back on — that upgrade
+    // happens after generation in createSealedNeighbor (world.js), so a map rebuilt
+    // from its builder comes back with the plain CHEST the builder placed. Only when
+    // we actually rebuilt: a decoded map already carries the large chest in its tiles,
+    // and re-running this on one would promote unrelated chests the player has since
+    // found. `openedChests` is keyed by "x,y" and both halves share the anchor's key,
+    // so an already-looted cache stays looted.
+    if (lite.sealed && !(lite.mapTiles && !migrateHomeLayout)) {
+      if (typeof upgradeDeadEndChests === 'function') upgradeDeadEndChests(md);
+    }
 
     // Villages share type 'village' but each region's boss differs, so build a
     // `<region>_village` discriminator for makeEnemyDefs. Sky caves are stocked
@@ -338,6 +382,11 @@ function applyLoadData(data) {
       obj.openedChests.add(`${HOME.chest.x},${HOME.chest.y}`);
     }
     if (lite.fog) obj.fog = new Uint8Array(lite.fog);
+    // Dead-end marker. Read by the per-region map count that triggers a village
+    // (player.js), the Guild quarry / bounty spawn candidates (guild.js), and the
+    // ability-secret stamping pass (abilities.js) — all three of which quietly
+    // started including dead-ends once this flag stopped surviving a load.
+    if (lite.sealed) obj.sealed = true;
     if (lite.returnMapId != null) {
       obj.returnMapId = lite.returnMapId;
       obj.returnX = lite.returnX;
@@ -447,7 +496,20 @@ function autoSave(label) {
     setSaveIndex(idx);
     lastCheckpoint = json;
     showMsg(label ? `💾 Auto-saved · ${label}` : '💾 Auto-saved', 1500);
-  } catch (e) { /* storage full — skip the autosave silently */ }
+  } catch (e) {
+    // Storage is full (or blocked). This used to be swallowed silently, which was
+    // the worst possible handling: `lastCheckpoint` keeps pointing at the PREVIOUS
+    // payload, respawn() restores from it (player.js), and the hero goes on clearing
+    // villages and tower floors while their death-restore point quietly stops
+    // advancing. The only cue was the absence of the toast above — invisible unless
+    // you already knew to watch for it.
+    //
+    // Sticky (dur 0) on purpose: this costs the player hours if it goes unread, and
+    // it is exactly what sticky is for. Repeats are safe — showToast dedupes on the
+    // message text and bumps a ×N badge instead of stacking copies (see ui.js).
+    showMsg('⚠️ Auto-save FAILED (storage full) — your death checkpoint is not ' +
+            'advancing. Save to a slot, or delete an old save, before continuing.', 0);
+  }
 }
 
 // Restore the most recent checkpoint after death. Returns false if none exists
@@ -677,10 +739,16 @@ document.getElementById('save-modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('save-modal-overlay')) closeModal();
 });
 
-// Enter / Escape on the name input
+// Enter confirms, Escape closes. stopPropagation so keystrokes while naming a save
+// never reach the gameplay keydown handler in main.js — the same guard the hero-name
+// prompt has always had (see the #name-input listener there). Without it, typing a
+// name swung the sword, drank potions and opened the menu ring, and SPACE was
+// preventDefault()ed out of the field entirely. Belt and braces with the modalMode
+// branch now in that handler; either alone would fix it, and both is cheap.
 document.getElementById('modal-name-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && pendingSlot !== null) doSave(pendingSlot);
   if (e.key === 'Escape') closeModal();
+  e.stopPropagation();
 });
 
 // ─── New game button ──────────────────────────────────────────────────────────

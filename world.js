@@ -517,6 +517,55 @@ function createWhirlpoolGrottoMap(returnMapId, returnX, returnY, sourceTier) {
   return newId;
 }
 
+// 1-exit dead-ends reward the detour with a Hero's Cache. The map builder already
+// placed a regular CHEST in a clearing and connectivity guarantees it's reachable
+// from the single exit — just upgrade that tile in place. The large chest is 2 tiles
+// wide, so also stamp the right-half extension on the tile to the east when it's
+// passable; if that tile is blocked, try the west side and swap anchor/extension. As
+// a last resort, leave it as a single LARGE_CHEST so the pickup still works.
+//
+// Lifted out of createSealedNeighbor so the save/load rebuild can re-apply it. A
+// dead-end the player never entered isn't stored by tile (save.js), so it is rebuilt
+// from its builder on load — and that rebuild used to hand back a plain CHEST,
+// silently downgrading the reward for the detour.
+function upgradeDeadEndChests(mapTiles) {
+  const passable = (c, r) =>
+    c > 0 && c < MCOLS - 1 && r > 0 && r < MROWS - 1 &&
+    !(mapTiles[r][c] === T.TREE || mapTiles[r][c] === T.CACTUS ||
+      mapTiles[r][c] === T.WATER || mapTiles[r][c] === T.DEEP_WATER ||
+      mapTiles[r][c] === T.MEDIUM_WATER ||
+      mapTiles[r][c] === T.ROCK || mapTiles[r][c] === T.WALL ||
+      mapTiles[r][c] === T.CAVE_WALL ||
+      mapTiles[r][c] === T.CHEST || mapTiles[r][c] === T.LARGE_CHEST ||
+      mapTiles[r][c] === T.LARGE_CHEST_R || mapTiles[r][c] === T.SHRINE);
+  for (let r = 0; r < MROWS; r++) {
+    for (let c = 0; c < MCOLS; c++) {
+      if (mapTiles[r][c] !== T.CHEST) continue;
+      if (passable(c + 1, r)) {
+        mapTiles[r][c]     = T.LARGE_CHEST;
+        mapTiles[r][c + 1] = T.LARGE_CHEST_R;
+      } else if (passable(c - 1, r)) {
+        // Re-anchor one tile west so the chest still spans 2 tiles
+        mapTiles[r][c - 1] = T.LARGE_CHEST;
+        mapTiles[r][c]     = T.LARGE_CHEST_R;
+      } else {
+        mapTiles[r][c] = T.LARGE_CHEST;
+      }
+    }
+  }
+}
+
+// Which of a map's four border gates are walkable, as the { left, right, up, down }
+// shape the map builders take as `openSides`. This is the *result* of generation, read
+// back off the finished tiles — which makes it exactly what a rebuild needs to
+// reproduce the same topology, so it is persisted with the map (see save.js).
+function mapOpenSides(mapObj) {
+  return {
+    left:  mapEdgeOpen(mapObj, 'left'),  right: mapEdgeOpen(mapObj, 'right'),
+    up:    mapEdgeOpen(mapObj, 'up'),    down:  mapEdgeOpen(mapObj, 'down')
+  };
+}
+
 // Build a dead-end map attached to `sourceId` in `direction`. The only open
 // border faces back toward the source map, so the player can step in and must
 // step back out the same way. Tile palette matches the source's region — the
@@ -546,37 +595,7 @@ function createSealedNeighbor(sourceId, direction) {
   const mapTiles = buildOverworldForRegion(regionIdx, newId, depth, openSides);
   const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
   const name = (region.names[Math.floor(Math.random() * region.names.length)]) + ' (Dead End)';
-  // 1-exit dead-ends reward the detour with a Hero's Cache. The map builder
-  // already placed a regular CHEST in a clearing and connectivity guarantees
-  // it's reachable from the single exit — just upgrade that tile in place.
-  // The large chest is 2 tiles wide, so also stamp the right-half extension on
-  // the tile to the east when it's passable; if that tile is blocked, try the
-  // west side and swap anchor/extension. As a last resort, leave it as a single
-  // LARGE_CHEST so the pickup still works.
-  const passable = (c, r) =>
-    c > 0 && c < MCOLS - 1 && r > 0 && r < MROWS - 1 &&
-    !(mapTiles[r][c] === T.TREE || mapTiles[r][c] === T.CACTUS ||
-      mapTiles[r][c] === T.WATER || mapTiles[r][c] === T.DEEP_WATER ||
-      mapTiles[r][c] === T.MEDIUM_WATER ||
-      mapTiles[r][c] === T.ROCK || mapTiles[r][c] === T.WALL ||
-      mapTiles[r][c] === T.CAVE_WALL ||
-      mapTiles[r][c] === T.CHEST || mapTiles[r][c] === T.LARGE_CHEST ||
-      mapTiles[r][c] === T.LARGE_CHEST_R || mapTiles[r][c] === T.SHRINE);
-  for (let r = 0; r < MROWS; r++) {
-    for (let c = 0; c < MCOLS; c++) {
-      if (mapTiles[r][c] !== T.CHEST) continue;
-      if (passable(c + 1, r)) {
-        mapTiles[r][c]     = T.LARGE_CHEST;
-        mapTiles[r][c + 1] = T.LARGE_CHEST_R;
-      } else if (passable(c - 1, r)) {
-        // Re-anchor one tile west so the chest still spans 2 tiles
-        mapTiles[r][c - 1] = T.LARGE_CHEST;
-        mapTiles[r][c]     = T.LARGE_CHEST_R;
-      } else {
-        mapTiles[r][c] = T.LARGE_CHEST;
-      }
-    }
-  }
+  upgradeDeadEndChests(mapTiles);
   worldMaps.push({
     id: newId, gx: ngx, gy: ngy, name,
     type: region.id, biome: region.id, regionIdx,
