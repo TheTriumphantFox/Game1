@@ -15,7 +15,7 @@ function addSnowDrifts(m, regionId, depth) {
     const wr2 = Math.min(wr + ws, MROWS - 2), wc2 = Math.min(wc + ws, MCOLS - 2);
     for (let r = wr; r <= wr2; r++) {
       for (let c = wc; c <= wc2; c++) {
-        if (m[r][c] === T.SNOW && Math.random() < 0.7) m[r][c] = T.SNOW_DRIFT;
+        if (m[r][c] === T.SNOW && genRandom() < 0.7) m[r][c] = T.SNOW_DRIFT;
       }
     }
   }
@@ -27,7 +27,7 @@ function sprinkleSnowPines(m, regionId, chance = 0.45) {
   if (regionId !== 'ice') return;
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.GLACIER && Math.random() < chance) m[r][c] = T.SNOW_PINE;
+      if (m[r][c] === T.GLACIER && genRandom() < chance) m[r][c] = T.SNOW_PINE;
 }
 
 // Ice region: scatter wintry natural growth across the open snowfields — winter
@@ -126,7 +126,7 @@ function sprinkleLuminousGlow(m, regionId) {
   if (regionId !== 'luminous') return;
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.LUMINOUS_FLOOR && Math.random() < 0.20) m[r][c] = T.LUMINOUS_GLOW;
+      if (m[r][c] === T.LUMINOUS_FLOOR && genRandom() < 0.20) m[r][c] = T.LUMINOUS_GLOW;
 }
 
 // Luminous region: scatter the sanctum's radiant growth across the open floor —
@@ -179,7 +179,7 @@ function sprinkleGraveDirt(m, regionId) {
   if (regionId !== 'necrotic') return;
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.BLIGHT && Math.random() < 0.16) m[r][c] = T.GRAVE_DIRT;
+      if (m[r][c] === T.BLIGHT && genRandom() < 0.16) m[r][c] = T.GRAVE_DIRT;
 }
 
 // Necrotic region: strew the wastes' decay across the open BLIGHT — heaps of
@@ -206,7 +206,7 @@ function sprinkleDeadTrees(m, regionId, chance = 0.30) {
   if (regionId !== 'necrotic') return;
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.BLIGHTED_WALL && Math.random() < chance) m[r][c] = T.DEAD_TREE;
+      if (m[r][c] === T.BLIGHTED_WALL && genRandom() < chance) m[r][c] = T.DEAD_TREE;
 }
 
 // Necrotic region: stand a scattering of cracked TOMBSTONEs across the wastes as
@@ -262,7 +262,7 @@ function scatterPoisonFoliage(m, regionId) {
   for (let r = 1; r < MROWS - 1; r++)
     for (let c = 1; c < MCOLS - 1; c++) {
       if (m[r][c] !== T.SLUDGE) continue;
-      const roll = Math.random();
+      const roll = genRandom();
       if      (roll < 0.14) m[r][c] = T.CATTAIL;
       else if (roll < 0.26) m[r][c] = T.SWAMP_FERN;
       else if (roll < 0.35) m[r][c] = T.SWAMP_MUSHROOM;
@@ -278,7 +278,7 @@ function sprinkleMangroves(m, regionId, chance = 0.28) {
   if (regionId !== 'poison') return;
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.POISON_WALL && Math.random() < chance) m[r][c] = T.MANGROVE;
+      if (m[r][c] === T.POISON_WALL && genRandom() < chance) m[r][c] = T.MANGROVE;
 }
 
 // Poison region: lay a scattering of rotting FALLEN_LOG trunks across the swamp as
@@ -302,7 +302,7 @@ function addFallenLogs(m, regionId, depth) {
   let placed = 0, tries = 0;
   while (placed < count && tries < count * 80) {
     tries++;
-    const horiz = Math.random() < 0.5;
+    const horiz = genRandom() < 0.5;
     const len = rnd(2, 4);
     const r0 = rnd(2, MROWS - 3 - (horiz ? 0 : len));
     const c0 = rnd(2, MCOLS - 3 - (horiz ? len : 0));
@@ -336,7 +336,7 @@ function addManaRivers(m, regionId, depth) {
   if (regionId !== 'mana') return;
   const rivers = rnd(1, 6);   // 1d6
   for (let i = 0; i < rivers; i++) {
-    const cells = Math.random() < 0.5
+    const cells = genRandom() < 0.5
       ? carveStream(m, rnd(15, MROWS - 16), 1,                 rnd(15, MROWS - 16), MCOLS - 2, 2)  // W→E, 5-wide
       : carveStream(m, 1,                   rnd(15, MCOLS - 16), MROWS - 2,          rnd(15, MCOLS - 16), 2); // N→S
     if (cells.length > 6) {
@@ -359,7 +359,7 @@ function sprinkleManaMoss(m, regionId) {
   if (regionId !== 'mana') return;
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.MANA_FLOOR && Math.random() < 0.28) m[r][c] = T.MANA_MOSS;
+      if (m[r][c] === T.MANA_FLOOR && genRandom() < 0.28) m[r][c] = T.MANA_MOSS;
 }
 
 // Mana region: choke the open turf with the forest's abnormally large growth —
@@ -377,7 +377,7 @@ function scatterManaFoliage(m, regionId) {
   for (let r = 1; r < MROWS - 1; r++)
     for (let c = 1; c < MCOLS - 1; c++) {
       if (m[r][c] !== T.MANA_FLOOR) continue;
-      const roll = Math.random();
+      const roll = genRandom();
       if      (roll < 0.18) m[r][c] = T.GIANT_BLOOM;
       else if (roll < 0.33) m[r][c] = T.VERDANT_FERN;
       else if (roll < 0.45) m[r][c] = T.GIANT_MUSHROOM;
@@ -394,7 +394,7 @@ function sprinkleGreatTrees(m, regionId, chance = 0.30) {
   if (regionId !== 'mana') return;
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === T.MANA_CRYSTAL && Math.random() < chance) m[r][c] = T.GREAT_TREE;
+      if (m[r][c] === T.MANA_CRYSTAL && genRandom() < chance) m[r][c] = T.GREAT_TREE;
 }
 
 // Mana region: raise a scattering of colossal GREAT_TREEs standing proud in the
@@ -464,7 +464,7 @@ function addColossalTrees(m, regionId, count, minGap = 22) {
     }
   if (!cands.length) return;
   for (let i = cands.length - 1; i > 0; i--) {               // Fisher–Yates shuffle
-    const k = Math.floor(Math.random() * (i + 1));
+    const k = Math.floor(genRandom() * (i + 1));
     const tmp = cands[i]; cands[i] = cands[k]; cands[k] = tmp;
   }
   const want = (count === undefined) ? rnd(1, 4) + 2 : count;
@@ -489,7 +489,7 @@ function sprinkleCloudFloor(m, regionId) {
   const FLOOR = region.ground, PUFF = region.decoration;
   for (let r = 0; r < MROWS; r++)
     for (let c = 0; c < MCOLS; c++)
-      if (m[r][c] === FLOOR && Math.random() < 0.22) m[r][c] = PUFF;
+      if (m[r][c] === FLOOR && genRandom() < 0.22) m[r][c] = PUFF;
 }
 
 // Sky regions (air, lightning): ring the entire walkable area with an impassable

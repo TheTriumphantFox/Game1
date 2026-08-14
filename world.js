@@ -18,6 +18,17 @@ let mapSequence = [];    // ordered visit log (for UI / debugging)
 let currentRegionIdx = 0;
 let regionMapsVisited = {};
 
+// ─── World seed ───────────────────────────────────────────────────────────────
+// Rolled once per world and persisted, so a map's terrain can be regenerated from
+// its identity instead of stored tile-by-tile. Each overworld map's own seed is
+// hashSeed(worldSeed, gx, gy) — the GRID CELL, deliberately not the map id: `id` is
+// worldMaps.length at creation time, which shifts with how many caves, grottos and
+// dungeons the player happened to open first, so the same place would seed
+// differently between two playthroughs of the same route. The resolved seed is also
+// stored per map (mapSeed), so changing this derivation later can't invalidate a
+// save that was written under the old rule.
+let worldSeed = 0;
+
 // One ruined dungeon per region. `regionDungeonPlaced[N]` flips to true once the
 // region's dungeon-hosting overworld map has been generated, so no second dungeon
 // is ever stamped for that region (see createOverworldMap / stampRuinedDungeon).
@@ -90,6 +101,9 @@ function mapGroundTile() {
 function initWorld() {
   worldMaps = [];
   worldGrid = {};
+  // A fresh world rolls a fresh seed. Everything generated from here on is
+  // reproducible from it plus the map's grid cell.
+  worldSeed = (Math.random() * 0x100000000) >>> 0;
   mapsVisited = 1;
   desertsVisited = 0;
   currentRegionIdx = 0;
@@ -228,7 +242,11 @@ function createOverworldMap(id, gx, gy, regionIdx) {
 
   const depth = Math.min(visited + 1, 20);
   const namePool = region.names || FOREST_NAMES;
-  const name = namePool[Math.floor(Math.random() * namePool.length)] + ` [${depth}]`;
+  // Seeded on the grid cell like the terrain, so the same world seed names the same
+  // place the same thing. Derived straight from the seed rather than drawn from the
+  // generation stream, so adding or removing a name never shifts the terrain.
+  const mapSeed = hashSeed(worldSeed, gx, gy);
+  const name = namePool[hashSeed(mapSeed, 'name') % namePool.length] + ` [${depth}]`;
   // Open every side that isn't blocked by an existing, non-reciprocating
   // neighbor, so we never create a one-way transition into a sealed map.
   const openSides = reconcileOpenSides(gx, gy, { left: true, right: true, up: true, down: true });
@@ -241,12 +259,21 @@ function createOverworldMap(id, gx, gy, regionIdx) {
     placeDungeon = true;
     regionDungeonPlaced[regionIdx] = true;
   }
-  const mapTiles = buildOverworldForRegion(regionIdx, id, depth, openSides, placeDungeon);
+  // mapSeed is resolved above, with the name — both key off the grid cell.
+  const mapTiles = buildOverworldForRegion(regionIdx, mapSeed, depth, openSides, placeDungeon);
   const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
   return {
     id, gx, gy,
     name, type: region.id, biome: region.id,
     regionIdx,
+    // The generation recipe, kept on the map and persisted with it. depth and
+    // openSides alone aren't enough: placeDungeon is decided from mutable world state
+    // (whichever map in the region got past DUNGEON_MIN_DEPTH first), so a rebuild
+    // that didn't know about it dropped the region's only dungeon entrance.
+    mapSeed, placeDungeon,
+    // Hash of the map as generated. save.js compares the live tiles against this to
+    // decide whether they need storing at all — see tileHash in map-helpers.js.
+    pristineHash: tileHash(mapTiles),
     map: mapTiles, enemyDefs, openedChests: new Set(),
     visited: false, depth
   };
@@ -592,14 +619,19 @@ function createSealedNeighbor(sourceId, direction) {
     ? src.regionIdx
     : Math.max(0, REGIONS.findIndex(r => r.id === src.biome));
   const region = REGIONS[regionIdx];
-  const mapTiles = buildOverworldForRegion(regionIdx, newId, depth, openSides);
+  const mapSeed = hashSeed(worldSeed, ngx, ngy);
+  const mapTiles = buildOverworldForRegion(regionIdx, mapSeed, depth, openSides);
   const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
-  const name = (region.names[Math.floor(Math.random() * region.names.length)]) + ' (Dead End)';
+  // Seeded like the overworld names above, off this cell's own seed.
+  const name = region.names[hashSeed(mapSeed, 'name') % region.names.length] + ' (Dead End)';
   upgradeDeadEndChests(mapTiles);
   worldMaps.push({
     id: newId, gx: ngx, gy: ngy, name,
     type: region.id, biome: region.id, regionIdx,
-    depth,
+    depth, mapSeed,
+    // Hashed AFTER upgradeDeadEndChests, so the Hero's Cache is part of the pristine
+    // state — the rebuild re-applies that upgrade too (save.js), so the two match.
+    pristineHash: tileHash(mapTiles),
     map: mapTiles, enemyDefs, openedChests: new Set(),
     visited: false, sealed: true
   });

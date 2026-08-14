@@ -27,13 +27,13 @@ findings, performance measurements and architectural notes included.
 SEVERITY INDEX
 =======================================================================
 
-Status as of 2026-08-13, second pass. FIXED items were re-verified against a running
-instance after the change; see "FIX LOG" at the end of this report.
+Status as of 2026-08-13, third pass. ALL ITEMS CLOSED. Every fix was re-verified
+against a running instance after the change; see the two FIX LOG sections at the end.
 
   H1  Save/load destroys sealed dead-end maps; region seal breaks      [FIXED]
-  H2  Completed save exceeds localStorage; autosave fails silently     [PARTIAL]
+  H2  Completed save exceeds localStorage; autosave fails silently     [FIXED]
         - autosave now reports the failure                             [FIXED]
-        - fog bit-packing (the size half)                              [OPEN — needs sign-off]
+        - fog bit-packing (the size half)                              [FIXED]
   H3  Save/Load modal does not block input or freeze the world         [FIXED]
 
   M1  Shop / portal modals do not freeze the world                     [FIXED]
@@ -42,8 +42,12 @@ instance after the change; see "FIX LOG" at the end of this report.
   L1  Damage numbers survive map transitions                           [FIXED]
   L2  DEFAULT_PLAYER object fields shared by reference                 [FIXED]
   L3  Duplicate overlay click listeners in shop-core.js                [FIXED]
-  L4  Map generation non-deterministic; `seed` accepted and ignored    [OPEN — see PLANNED WORK]
-  L5  SKILL.md dependency graph is stale — 9 of 43 scripts missing     [OPEN]
+  L4  Map generation non-deterministic; `seed` accepted and ignored    [FIXED]
+  L5  SKILL.md dependency graph is stale — 9 of 43 scripts missing     [FIXED]
+
+Headline outcome: a completed save is projected at ~2.55 MB, down from ~16.6 MB —
+comfortably inside the ~5 MB per-origin budget that was the actual risk. Generation is
+now seeded and reproducible, which is what made that possible.
 
   Plus: PLANNED WORK — transition to seed-based generation (addresses L4, and is the
   enabler for the permanent fix to H2). See the dedicated section below.
@@ -664,10 +668,105 @@ BACKWARD COMPATIBILITY — verified
   topology was never recorded and cannot be recovered. New saves are correct from the
   first write. No storage key, slot format or persistence mechanism changed.
 
-STILL OPEN
+STILL OPEN AFTER THE SECOND PASS (all closed in the third — see below)
   H2 (fog packing)  changes the persistence format — flagged for sign-off, not started.
   L4 (seeding)      the PLANNED WORK section above, unchanged.
   L5 (SKILL.md)     documentation, deliberately not fixed in this pass.
+
+
+=======================================================================
+FIX LOG — 2026-08-13, third pass: the remaining three
+=======================================================================
+
+H2 (fog packing), L4 (seeded generation) and L5 (docs) all landed. The PLANNED WORK
+section above is the plan this followed; where reality differed, it is called out.
+
+  L5  .claude/skills/the-rpg-game/SKILL.md — dependency graph regenerated from
+      index.html (43 files, was 34), with a line telling the next contributor to update
+      it in the same change that adds a script.
+
+  H2  fog.js  packFog / unpackFog — 8 tiles to the byte, then base64. Same encoding
+              idea as encodeMap, one bit wide instead of one byte.
+      save.js writes the new `fogPacked` key; still READS the old `fog` array, so
+              existing saves keep their explored map and upgrade on next write.
+      VERIFIED round-trip is bit-exact; 45,001 chars -> 3,752 per map (12.0x).
+
+  L4  THE PHASE 0 GATE CAUGHT A REAL MISS — which is what it was for. After converting
+      all 66 direct Math.random() calls in mapgen-*.js and connectivity.js, the same
+      seed STILL produced different maps. Cause: map-helpers.js had 14 more calls of
+      its own, in the drunkWalk corridor carvers that every builder leans on. It is not
+      a mapgen-* file, so the sweep missed it. Converting those turned the gate green.
+      Had this been taken on faith, the whole save-size change would have been built on
+      a generator that only looked deterministic.
+
+      map-helpers.js  mulberry32 PRNG, hashSeed (FNV-1a), and a module-level generation
+                      stream that builders swap in for the duration of a build and
+                      restore on the way out (nestable). rnd() reads the stream;
+                      genRandom() is the direct-call form. Default is Math.random, so
+                      runtime rnd() callers (enemies, player, render, tower, villagers)
+                      stay non-deterministic — a reloaded save must not replay
+                      identical loot rolls. Also tileHash().
+      mapgen-*.js     66 conversions; connectivity.js 1; map-helpers.js 14.
+      mapgen-biomes.js the three overworld builders seed on entry and restore on exit.
+      world.js        worldSeed rolled per world; each map seeded on hashSeed(worldSeed,
+                      gx, gy) — the GRID CELL, not the map id. id is worldMaps.length at
+                      creation and shifts with how many caves/grottos the player opened
+                      first, so it would seed the same place differently between runs.
+                      Map names seed off the cell too, derived from the seed rather than
+                      drawn from the stream so editing a name pool never shifts terrain.
+      save.js         persists worldSeed, and per map: mapSeed, placeDungeon,
+                      pristineHash (alongside openSides / sealed from the second pass).
+                      placeDungeon matters — it is decided from mutable world state, so
+                      a rebuild without it silently dropped the region's only dungeon.
+
+      VERIFIED  same seed -> byte-identical map for forest, desert and all 13 regions;
+                different seed and different depth both diverge; regions don't collide
+                on a shared seed; dead-end topology reproduces exactly; unseeded callers
+                and runtime rnd() remain random; the stream restores after every build.
+
+  SAVE SIZE — the point of all of the above
+      A seeded map that gameplay has not touched need not be stored at all. save.js
+      hashes the live tiles against pristineHash and stores them only when they differ.
+
+      DEVIATION FROM THE PLAN: Phase 3 called for a tile-diff computed by regenerating
+      each map at save time. Measured, that is ~5.8 ms per map — ~1.5 s to save a full
+      world, on every autosave. Rejected. Hashing answers the same clean/dirty question
+      at ~0.05 ms per map, so the whole world is checked in a couple of milliseconds and
+      only genuinely modified maps pay for their tiles. Modified maps still store full
+      tiles rather than a sparse diff; that is the remaining refinement, worth roughly
+      another 1.5 MB, and it is not needed to get under budget.
+
+      VERIFIED  clean maps store no tiles, the dirty map stores them and keeps its
+                edits, every map restores byte-identically, save build takes 1.7 ms.
+      RESULT    11,543 chars per map, ~2.55 MB projected at 232 maps.
+                Was 75,003 chars per map, ~16.6 MB. A 6.5x reduction.
+
+  LINTER  68 warnings -> 2. Both survivors are correct by design and should stay:
+            world.js  worldSeed = (Math.random() * 0x100000000) >>> 0
+                      the ROOT seed; it has to be random or every world is identical.
+            world.js  requiredElement in the legacy sealed-shrine seeder, which the
+                      code notes is retained solely for tolerant legacy loads.
+          tools/lint-conventions.py has no inline-suppression mechanism, and adding one
+          was out of scope for this pass. If these two become noise, that is the fix.
+
+BACKWARD COMPATIBILITY — verified again after the third pass
+  A save in the fully OLD format — fog as a plain array, no worldSeed, no mapSeed /
+  openSides / sealed / pristineHash — loads without throwing, keeps its explored fog,
+  lands on the right map, and has a worldSeed rolled for it so anything generated from
+  then on is seeded. Maps it already carries keep their stored tiles. Storage keys, slot
+  format and the persistence mechanism are unchanged; the save gained keys, it did not
+  change shape.
+
+REMAINING REFINEMENT (not needed, recorded so it isn't rediscovered)
+  Sparse tile diffs for modified maps, worth ~1.5 MB on top of the 14 MB already saved.
+  And villages, caves, dungeons, tower floors, grottos and shrines are still unseeded,
+  so they always store tiles — seeding those builders too is the other half.
+
+NOT VERIFIED VISUALLY
+  As with the second pass: everything was verified programmatically over
+  http://localhost:8765, and the game is played from file://. The manual checks listed
+  in the second-pass fix log still apply. Add one for this pass: start a new game, walk
+  into two or three maps, save, reload, and confirm the maps look the way you left them.
 
 NOT VERIFIED VISUALLY
   All of the above was verified programmatically against a running instance over
