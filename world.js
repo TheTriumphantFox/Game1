@@ -193,11 +193,62 @@ function buildOverworldForRegion(regionIdx, seed, depth, openSides, placeDungeon
   return buildRegionMap(seed, depth, openSides, REGIONS[regionIdx], placeDungeon);
 }
 
+// Build a region's village (boss arena) map object for (gx, gy). `exits` selects
+// which of the four border gates are cut; `castleExitDir` marks the final
+// region's tower gate (see enterCastleTower). Split out of createOverworldMap so
+// the full-world dev generator can place villages on its own layout.
+function makeVillageMapAt(id, gx, gy, regionIdx, exits, castleExitDir) {
+  const region = REGIONS[regionIdx];
+  const mapTiles = buildVillageMap(region.id, exits);
+  const enemyType = `${region.id}_village`;
+  const enemyDefs = makeEnemyDefs(20, enemyType, mapTiles);
+  return {
+    id, gx, gy,
+    name: region.villageName,
+    type: 'village', biome: region.id,
+    regionIdx, castleExitDir,
+    map: mapTiles, enemyDefs, openedChests: new Set(),
+    visited: false, depth: 20
+  };
+}
+
+// Build one overworld map object for `regionIdx` at (gx, gy) with an explicit
+// depth and topology. The walk-driven path derives both from how far the player
+// has come (createOverworldMap below); the full-world dev generator supplies them
+// from its own plan. Both go through here so a generated map carries the same
+// shape — including the mapSeed / placeDungeon / pristineHash recipe a save needs
+// to rebuild it — however it was made.
+function makeOverworldMapAt(id, gx, gy, regionIdx, depth, openSides, placeDungeon) {
+  const region = REGIONS[regionIdx];
+  const namePool = region.names || FOREST_NAMES;
+  // Seeded on the grid cell like the terrain, so the same world seed names the same
+  // place the same thing. Derived straight from the seed rather than drawn from the
+  // generation stream, so adding or removing a name never shifts the terrain.
+  const mapSeed = hashSeed(worldSeed, gx, gy);
+  const name = namePool[hashSeed(mapSeed, 'name') % namePool.length] + ` [${depth}]`;
+  const mapTiles = buildOverworldForRegion(regionIdx, mapSeed, depth, openSides, placeDungeon);
+  const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
+  return {
+    id, gx, gy,
+    name, type: region.id, biome: region.id,
+    regionIdx,
+    // The generation recipe, kept on the map and persisted with it. depth and
+    // openSides alone aren't enough: placeDungeon is decided from mutable world state
+    // (whichever map in the region got past DUNGEON_MIN_DEPTH first), so a rebuild
+    // that didn't know about it dropped the region's only dungeon entrance.
+    mapSeed, placeDungeon,
+    // Hash of the map as generated. save.js compares the live tiles against this to
+    // decide whether they need storing at all — see tileHash in map-helpers.js.
+    pristineHash: tileHash(mapTiles),
+    map: mapTiles, enemyDefs, openedChests: new Set(),
+    visited: false, depth
+  };
+}
+
 // Construct a map for the given region at (gx, gy). When the player has
 // already visited 20 maps in `regionIdx`, the next new neighbor becomes the
 // region's village (boss arena) instead of another overworld map.
 function createOverworldMap(id, gx, gy, regionIdx) {
-  const region = REGIONS[regionIdx];
   const visited = regionMapsVisited[regionIdx] || 0;
 
   if (visited >= 20) {
@@ -227,26 +278,10 @@ function createOverworldMap(id, gx, gy, regionIdx) {
       exits[entry] = true;
       exits[castleExitDir] = true;
     }
-    const mapTiles = buildVillageMap(region.id, exits);
-    const enemyType = `${region.id}_village`;
-    const enemyDefs = makeEnemyDefs(20, enemyType, mapTiles);
-    return {
-      id, gx, gy,
-      name: region.villageName,
-      type: 'village', biome: region.id,
-      regionIdx, castleExitDir,
-      map: mapTiles, enemyDefs, openedChests: new Set(),
-      visited: false, depth: 20
-    };
+    return makeVillageMapAt(id, gx, gy, regionIdx, exits, castleExitDir);
   }
 
   const depth = Math.min(visited + 1, 20);
-  const namePool = region.names || FOREST_NAMES;
-  // Seeded on the grid cell like the terrain, so the same world seed names the same
-  // place the same thing. Derived straight from the seed rather than drawn from the
-  // generation stream, so adding or removing a name never shifts the terrain.
-  const mapSeed = hashSeed(worldSeed, gx, gy);
-  const name = namePool[hashSeed(mapSeed, 'name') % namePool.length] + ` [${depth}]`;
   // Open every side that isn't blocked by an existing, non-reciprocating
   // neighbor, so we never create a one-way transition into a sealed map.
   const openSides = reconcileOpenSides(gx, gy, { left: true, right: true, up: true, down: true });
@@ -259,24 +294,7 @@ function createOverworldMap(id, gx, gy, regionIdx) {
     placeDungeon = true;
     regionDungeonPlaced[regionIdx] = true;
   }
-  // mapSeed is resolved above, with the name — both key off the grid cell.
-  const mapTiles = buildOverworldForRegion(regionIdx, mapSeed, depth, openSides, placeDungeon);
-  const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
-  return {
-    id, gx, gy,
-    name, type: region.id, biome: region.id,
-    regionIdx,
-    // The generation recipe, kept on the map and persisted with it. depth and
-    // openSides alone aren't enough: placeDungeon is decided from mutable world state
-    // (whichever map in the region got past DUNGEON_MIN_DEPTH first), so a rebuild
-    // that didn't know about it dropped the region's only dungeon entrance.
-    mapSeed, placeDungeon,
-    // Hash of the map as generated. save.js compares the live tiles against this to
-    // decide whether they need storing at all — see tileHash in map-helpers.js.
-    pristineHash: tileHash(mapTiles),
-    map: mapTiles, enemyDefs, openedChests: new Set(),
-    visited: false, depth
-  };
+  return makeOverworldMapAt(id, gx, gy, regionIdx, depth, openSides, placeDungeon);
 }
 
 // Find an existing village map for `regionIdx`, or -1 if none has been built.
@@ -603,15 +621,25 @@ function createSealedNeighbor(sourceId, direction) {
   const regionIdx = (typeof src.regionIdx === 'number')
     ? src.regionIdx
     : Math.max(0, REGIONS.findIndex(r => r.id === src.biome));
+  worldMaps.push(makeDeadEndMapAt(newId, ngx, ngy, regionIdx, depth, openSides));
+  worldGrid[key] = newId;
+  return newId;
+}
+
+// Build the dead-end map object itself. Split out of createSealedNeighbor (which
+// derives the cell and topology from a source map and direction) so the full-world
+// dev generator can ring a region from its own plan instead — same map either way,
+// Hero's Cache included.
+function makeDeadEndMapAt(id, gx, gy, regionIdx, depth, openSides) {
   const region = REGIONS[regionIdx];
-  const mapSeed = hashSeed(worldSeed, ngx, ngy);
+  const mapSeed = hashSeed(worldSeed, gx, gy);
   const mapTiles = buildOverworldForRegion(regionIdx, mapSeed, depth, openSides);
   const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
   // Seeded like the overworld names above, off this cell's own seed.
   const name = region.names[hashSeed(mapSeed, 'name') % region.names.length] + ' (Dead End)';
   upgradeDeadEndChests(mapTiles);
-  worldMaps.push({
-    id: newId, gx: ngx, gy: ngy, name,
+  return {
+    id, gx, gy, name,
     type: region.id, biome: region.id, regionIdx,
     depth, mapSeed,
     // Hashed AFTER upgradeDeadEndChests, so the Hero's Cache is part of the pristine
@@ -619,9 +647,7 @@ function createSealedNeighbor(sourceId, direction) {
     pristineHash: tileHash(mapTiles),
     map: mapTiles, enemyDefs, openedChests: new Set(),
     visited: false, sealed: true
-  });
-  worldGrid[key] = newId;
-  return newId;
+  };
 }
 
 // Called whenever a region's village is cleared. Walks every overworld map in
@@ -650,9 +676,14 @@ function sealRegion(regionIdx) {
       // Never brick over the final village's castle gate — the tower is the
       // whole point of clearing the last region.
       if (src.type === 'village' && src.castleExitDir === dir) continue;
-      // The final village only opens two sides; don't stamp junk dead-end
-      // neighbors behind its solid walls.
-      if (src.type === 'village' && !mapEdgeOpen(src, dir)) continue;
+      // A border that is already a solid wall needs no dead-end behind it — and
+      // stamping one there builds a map with no way in, since createSealedNeighbor
+      // opens the new map toward its source and reconcileOpenSides then closes that
+      // one gate again because the source doesn't open back. A walked overworld map
+      // opens all four sides, so this only ever skips a deliberately sealed border:
+      // the final village's walls (which this guard used to cover on its own), a
+      // dead-end's own three sides, and the closed edges of a generated world.
+      if (!mapEdgeOpen(src, dir)) continue;
       const { dx, dy } = DIR_DELTA[dir];
       if (worldGrid[gridKey(src.gx + dx, src.gy + dy)] !== undefined) continue;
       createSealedNeighbor(src.id, dir);
@@ -828,4 +859,182 @@ function getOrCreateNeighbor(direction) {
   worldMaps.push(newMap);
   worldGrid[key] = newId;
   return newId;
+}
+
+// ─── DEV: generate the whole world in one pass ────────────────────────────────
+// Lays out every region's full 20-map progression plus its village on the (gx, gy)
+// grid without the player walking a step. Reached from the ⚙️ Game Menu
+// (sysmenu.js); the atlas (worldmap.js) is where you look at the result.
+//
+// THE WEAVE. Villages are threaded onto a single north-south column so that
+// consecutive villages sit exactly TWO cells apart with one map of the new region
+// between them — the tightest spacing that still keeps a map between every pair of
+// villages. Each region's other 19 maps fold out from that column across two rows,
+// alternating sides — east, then west, then east — so the world zigzags down the
+// village column instead of hanging entirely off one flank. Region k (0-based) owns
+// rows 2k+1 and 2k+2:
+//
+//                   west  ←   col 0   →  east
+//     row 0                    🏠                       home village
+//     row 1                    A0 A1 A2 … A9            forest,  depths 1…10
+//     row 2                    V0 B1 B2 … B10           V0 = forest village, depths 20…11
+//     row 3        A9 … A2 A1  A0                       fire,    depths 1…10
+//     row 4       B10 … B2 B1  V1                       V1 = fire village
+//     row 5                    A0 A1 A2 … A9            water,   depths 1…10
+//
+// A0 is the region's entrance — the cell the previous village opens onto — and the
+// region's village sits directly below it, so village → one map → next village is
+// always walkable while all 20 maps still exist to be explored. Depth (difficulty,
+// and what the terrain builders ramp on) climbs outward along row A and back inward
+// along row B, which puts the region's deepest map right beside its village.
+//
+// Regions stay separate, and alternating sides is what makes that free: two
+// consecutive regions' rows run on opposite flanks of the column, so the only cell
+// they share a border with at all is the village itself. That gate is the single
+// crossing between two regions, exactly as in a walked playthrough.
+//
+// DEAD-ENDS. Every region is then ringed with them — the same one-way detours, each
+// holding a Hero's Cache, that sealRegion stamps around a region once its village
+// falls. Each border of a region map that faces open space gets one; the dead-end
+// opens only back toward the map it hangs off, and its own three sides are sealed.
+// That closes the world: the outermost border everywhere is a dead-end's wall, so
+// the hero can't step off the edge and start sprouting maps outside the layout.
+// Because the ring already occupies those cells, clearing a village later finds
+// nothing left to seal and adds nothing — the world stays exactly as laid out.
+//
+// Nothing here is marked visited and no village is activated — this lays the world
+// out, it doesn't clear it. Every village still has its boss, and any cell the
+// player has already generated is left exactly as it is.
+const FULL_WORLD_ROW_LEN = 10;             // maps per row in a region's two-row block
+const FULL_WORLD_MAPS_PER_REGION = 20;     // mirrors the `visited >= 20` village rule
+
+// The ordered build plan: one entry per grid cell the generated world occupies.
+// Order matters — a region's maps are built before its village, and that village
+// before the next region's entrance, so each cell's neighbors already exist (or
+// don't yet) in the way fullWorldOpenSides expects.
+function planFullWorld() {
+  const cells = [];
+  const byKey = {};
+  const add = (gx, gy, regionIdx, kind, depth, source) => {
+    const cell = { gx, gy, regionIdx, kind, depth, source };
+    cells.push(cell);
+    byKey[gridKey(gx, gy)] = cell;
+    return cell;
+  };
+  // Pass 1 — the regions themselves. Every region is placed before any dead-end is,
+  // so a ring can never take a cell a later region needs.
+  const core = [];
+  for (let k = 0; k < REGIONS.length; k++) {
+    const rowA = 2 * k + 1, rowB = 2 * k + 2;
+    // Which flank this region folds out onto. Alternating keeps consecutive regions
+    // on opposite sides of the village column, so they never share a border except
+    // at the village — see the header.
+    const flank = (k % 2 === 0) ? 1 : -1;
+    let depth = 0;
+    for (let x = 0; x < FULL_WORLD_ROW_LEN; x++)   core.push(add(x * flank, rowA, k, 'map', ++depth));
+    for (let x = FULL_WORLD_ROW_LEN; x >= 1; x--)  core.push(add(x * flank, rowB, k, 'map', ++depth));
+    const village = add(0, rowB, k, 'village', FULL_WORLD_MAPS_PER_REGION);
+    // The final region's village carries the castle gate. Reserve its cell now so
+    // pass 2 doesn't ring over it — the tower is the point of clearing the last
+    // region (see enterCastleTower).
+    if (k === REGIONS.length - 1) {
+      village.castleExit = ['down', 'left', 'up', 'right'].find(d =>
+        !byKey[gridKey(village.gx + DIR_DELTA[d].dx, village.gy + DIR_DELTA[d].dy)]);
+    }
+  }
+  // Pass 2 — ring every region map with dead-ends, which is what sealRegion does to
+  // a region when its village falls: each border facing open space becomes a one-way
+  // detour holding a Hero's Cache. Villages are skipped for the same reason
+  // sealRegion skips them — their gates are how you leave for the next region.
+  // First claim wins, so a cell touching two maps hangs off exactly one of them and
+  // stays a genuine dead end.
+  for (const cell of core) {
+    if (cell.kind !== 'map') continue;
+    for (const dir of ['left', 'right', 'up', 'down']) {
+      const ngx = cell.gx + DIR_DELTA[dir].dx, ngy = cell.gy + DIR_DELTA[dir].dy;
+      const nkey = gridKey(ngx, ngy);
+      if (byKey[nkey] || worldGrid[nkey] !== undefined) continue;
+      add(ngx, ngy, cell.regionIdx, 'deadend', Math.min(cell.depth, 20), cell);
+    }
+  }
+  return { cells, byKey };
+}
+
+// Do two planned cells share a walkable border? Same region always. Across a
+// region boundary only a village does, and only into the region that follows it —
+// which is what keeps region k's maps from spilling into region k+1's.
+function fullWorldCellsLink(a, b) {
+  if (!a || !b) return false;
+  // A dead-end opens toward the single map it hangs off and nothing else — that one
+  // border is what makes it a dead end, so it is checked before the region rule
+  // (which would otherwise open it to every neighbor sharing its region).
+  if (a.kind === 'deadend' || b.kind === 'deadend') return a.source === b || b.source === a;
+  if (a.regionIdx === b.regionIdx) return true;
+  if (a.kind === 'village' && b.regionIdx === a.regionIdx + 1) return true;
+  if (b.kind === 'village' && a.regionIdx === b.regionIdx + 1) return true;
+  return false;
+}
+
+// Which gates a planned cell opens, in the { left, right, up, down } shape the map
+// builders take. Linked plan neighbors open; a side facing a map the player already
+// generated (the home village the first region hangs off, or anywhere they walked)
+// opens only if that map opens back; everything else stays sealed. The closing pass
+// is reconcileOpenSides, same as the walk-driven path uses.
+function fullWorldOpenSides(cell, byKey) {
+  const open = { left: false, right: false, up: false, down: false };
+  for (const dir of ['left', 'right', 'up', 'down']) {
+    const nkey = gridKey(cell.gx + DIR_DELTA[dir].dx, cell.gy + DIR_DELTA[dir].dy);
+    if (fullWorldCellsLink(cell, byKey[nkey])) { open[dir] = true; continue; }
+    const nId = worldGrid[nkey];
+    if (nId !== undefined && mapEdgeOpen(worldMaps[nId], OPPOSITE_DIR[dir])) open[dir] = true;
+  }
+  return reconcileOpenSides(cell.gx, cell.gy, open);
+}
+
+// Build the plan. Returns { built, deadEnds, skipped, total } — `deadEnds` is how
+// many of `built` are the ring, and `skipped` counts plan cells the player had
+// already generated, which are left untouched.
+function generateFullWorld() {
+  const { cells, byKey } = planFullWorld();
+  let built = 0, deadEnds = 0, skipped = 0;
+  for (const cell of cells) {
+    const key = gridKey(cell.gx, cell.gy);
+    if (worldGrid[key] !== undefined) { skipped++; continue; }
+    const open = fullWorldOpenSides(cell, byKey);
+    const id = worldMaps.length;
+    let obj;
+    if (cell.kind === 'village') {
+      // Castle gate side, reserved by the plan. It only fails the worldGrid test if
+      // the player had already walked a map onto that cell, in which case fall back
+      // to any side still free of both the plan and the world.
+      let castleExitDir = cell.castleExit;
+      if (castleExitDir && worldGrid[gridKey(cell.gx + DIR_DELTA[castleExitDir].dx,
+                                             cell.gy + DIR_DELTA[castleExitDir].dy)] !== undefined) {
+        castleExitDir = ['down', 'left', 'up', 'right'].find(d => {
+          const k = gridKey(cell.gx + DIR_DELTA[d].dx, cell.gy + DIR_DELTA[d].dy);
+          return !byKey[k] && worldGrid[k] === undefined;
+        });
+      }
+      if (castleExitDir) open[castleExitDir] = true;
+      obj = makeVillageMapAt(id, cell.gx, cell.gy, cell.regionIdx, open, castleExitDir);
+    } else if (cell.kind === 'deadend') {
+      obj = makeDeadEndMapAt(id, cell.gx, cell.gy, cell.regionIdx, cell.depth, open);
+      deadEnds++;
+    } else {
+      // One ruined dungeon per region, on the first map at or past DUNGEON_MIN_DEPTH
+      // — the same rule createOverworldMap applies, sharing the same per-region flag
+      // so a region the player already found a dungeon in doesn't get a second.
+      let placeDungeon = false;
+      if (!regionDungeonPlaced[cell.regionIdx] && cell.depth >= DUNGEON_MIN_DEPTH) {
+        placeDungeon = true;
+        regionDungeonPlaced[cell.regionIdx] = true;
+      }
+      obj = makeOverworldMapAt(id, cell.gx, cell.gy, cell.regionIdx,
+                               cell.depth, open, placeDungeon);
+    }
+    worldMaps.push(obj);
+    worldGrid[key] = id;
+    built++;
+  }
+  return { built, deadEnds, skipped, total: cells.length };
 }

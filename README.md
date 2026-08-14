@@ -104,7 +104,7 @@ portal.js            # Cave / portal transitions
 ledger.js            # Completionist's drop Ledger
 stats.js             # Character stats page
 worldmap.js          # Zoomable world-map atlas page
-sysmenu.js           # ⚙️ Game Menu window — Save / Load / New Game / God Mode
+sysmenu.js           # ⚙️ Game Menu window — Save / Load / New Game / God Mode / Generate Full Map
 main.js              # Game loop, init, input
 ```
 
