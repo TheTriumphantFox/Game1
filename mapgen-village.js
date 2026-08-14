@@ -44,9 +44,6 @@ function activateVillage(mapObj) {
   if (typeof installVillageShrineEntrance === 'function') installVillageShrineEntrance(mapObj);
   // Rename so the HUD reflects the change
   if (!/Active/.test(mapObj.name)) mapObj.name = mapObj.name + ' (Active)';
-  // Reveal the whole village so the player can find the new doors immediately.
-  if (!mapObj.fog) mapObj.fog = new Uint8Array(MROWS * MCOLS);
-  mapObj.fog.fill(1);
   return true;
 }
 

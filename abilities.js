@@ -3,12 +3,12 @@
 // rewards; this file is what owning one actually does once the hero walks back
 // out of the shrine. Kept apart from shrines.js because the two have different
 // lifetimes: a shrine matters for the twenty minutes you are inside it, and an
-// ability matters for the rest of the game, in ice fields and necrotic fog and
-// the tower, none of which shrines.js should have to know about.
+// ability matters for the rest of the game, in ice fields and the tower, neither
+// of which shrines.js should have to know about.
 //
 //   Frost Grip    passive — boots that bite. Cancels the ice slide.
-//   Ember Lantern passive — a light that the pall cannot eat. Restores the
-//                 necrotic region's shortened sight.
+//   Ember Lantern passive — INERT since fog of war was removed; its only effect
+//                 was restoring the necrotic region's shortened sight.
 //   Arcane Sight  passive — reads what was written and hidden. Rune marks
 //                 (T.RUNE_MARK) are invisible ground without it.
 //   Updraft Glide ACTIVE  — rides a thermal across a gap. Equipped, then [F].
@@ -165,15 +165,13 @@ function tryShadowStep() {
   return false;
 }
 
-// Land a completed ability move. Shared so both abilities snap the camera, wake
-// the fog and run the arrival hooks the same way an ordinary step would — a
-// teleport that skips revealAround leaves the hero standing in the dark.
+// Land a completed ability move. Shared so both abilities snap the camera and
+// run the arrival hooks the same way an ordinary step would.
 function landAbilityStep(x, y, message) {
   player.x = x; player.y = y;
   player.renderX = x; player.renderY = y;
   const sp = screenPX(x, y);
   spawnParticle(sp.x, sp.y, '#c58ae8', 14, 3);
-  if (typeof revealWalk === 'function') revealWalk(currentMap(), x, y);
   if (typeof clampCam === 'function') clampCam(false);
   if (typeof onShrinePlayerStep === 'function') onShrinePlayerStep();
   if (typeof buzz === 'function') buzz(14);
@@ -192,24 +190,14 @@ function frostGripHolds() {
 }
 
 // ─── Ember Lantern ────────────────────────────────────────────────────────────
-// The necrotic region is a pall: without a light, walking reveals 8 tiles
-// instead of 12 (see walkRevealRadius in fog.js). The Ember Lantern gives the
-// region back its ordinary sight — and, since a cleansed region reveals 14, a
-// cleansed necrotic region with the lantern reveals 14 like anywhere else.
+// CURRENTLY INERT. The lantern's whole mechanic was the fog of war: the necrotic
+// region's pall cut the walking reveal radius from 12 tiles to 8, and carrying
+// the lantern gave that sight back. Fog of war has been removed from the game,
+// so there is no sight to take away and nothing left for the lantern to restore.
 //
-// Reducing the radius rather than adding a darkness overlay is deliberate: fog
-// is already this game's language for "you cannot see there", it persists per
-// map, and it shows up on the minimap for free. A second darkness system would
-// have to be taught all three.
-const NECROTIC_REVEAL = 8;
-
-function necroticSightPenalty(mapObj) {
-  if (!mapObj) return false;
-  if (typeof mapRegionIndex !== 'function') return false;
-  const region = REGIONS[mapRegionIndex(mapObj)];
-  if (!region || region.id !== 'necrotic') return false;
-  return !(typeof hasAbility === 'function' && hasAbility('emberLantern'));
-}
+// The ability is still awarded by the necrotic shrine and still shows in the
+// ability list (see ABILITY_IDS in player.js, SHRINE_REWARDS in shrines.js) —
+// it just has no effect until it is given a new one.
 
 // ─── Arcane Sight and the rune marks ──────────────────────────────────────────
 // A hidden rune path: a short trail of T.RUNE_MARK tiles ending at a cache. The
@@ -359,7 +347,7 @@ function placeGlideIslet(mapObj) {
 }
 
 // A pocket hollowed inside a run of solid terrain: a chest walled in on all four
-// sides, two tiles deep from open ground. Visible once the fog is off it, and
+// sides, two tiles deep from open ground — visible from the outside, and
 // unreachable without stepping through the wall.
 function placeShadowAlcove(mapObj) {
   const m = mapObj.map;

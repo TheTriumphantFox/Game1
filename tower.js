@@ -36,7 +36,6 @@ function enterCastleTower(villageMap, dir) {
   transitionCooldown = 400;
   minimapDirty = true;
   clampCam(true);
-  revealAround(currentMap(), player.x, player.y, 16);
   showMapMsg('🏰 The Final Castle — its tower climbs beyond sight. Floor 1/14.');
   // Auto-save on arrival at each tower floor (floor 1 here) so a death in the
   // deadly climb restores the hero to the floor it began on, not the cabin.

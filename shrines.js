@@ -246,14 +246,13 @@ function buildShrineInterior(regionIdx) {
 function createShrineMap(villageMapId, returnX, returnY, regionIdx) {
   const built = buildShrineInterior(regionIdx);
   const id = worldMaps.length;
-  const fog = new Uint8Array(MROWS * MCOLS); fog.fill(1);
   worldMaps.push({
     id, gx:0, gy:0,
     name:`${REGIONS[regionIdx].id[0].toUpperCase() + REGIONS[regionIdx].id.slice(1)} Shrine — ${SHRINE_NAMES[regionIdx]}`,
     type:'shrine', biome:REGIONS[regionIdx].id, regionIdx, depth:0,
     map:built.map, shrineState:built.state, entryLand:built.entryLand,
     returnMapId:villageMapId, returnX, returnY,
-    enemyDefs:[], openedChests:new Set(), visited:true, fog,
+    enemyDefs:[], openedChests:new Set(), visited:true,
   });
   return id;
 }
@@ -285,7 +284,6 @@ function enterShrineMap(shrineId) {
   player.renderX = player.x; player.renderY = player.y;
   spawnEnemiesForMap(shrineId); spawnVillagersForMap(shrineId);
   transitionCooldown = 400; minimapDirty = true; clampCam(true);
-  cm.fog = cm.fog || new Uint8Array(MROWS * MCOLS); cm.fog.fill(1);
   showMapMsg(`⛩ ${SHRINE_NAMES[cm.regionIdx]}`);
   if (cm.regionIdx === 0 && shrineQuest(0).status !== 'solved')
     showMsg('Press Space / Interact beside the switch, then push the block onto its plate.', 4200);
@@ -312,7 +310,6 @@ function tryShrineTransition() {
     player.renderX = player.x; player.renderY = player.y;
     spawnEnemiesForMap(currentMapId); spawnVillagersForMap(currentMapId);
     transitionCooldown = 500; minimapDirty = true; clampCam(true);
-    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('You return to the village.');
     return true;
   }
@@ -377,8 +374,7 @@ function setShrineSolved(cm) {
   showMsg('✦ The shrine gate opens.', 2400);
   minimapDirty = true;
   // Stage 8: solving the puzzle is what lifts the blight from this region — the
-  // overlay stops, its creatures shed the corrupted template, the village is
-  // revealed and the walking fog radius widens (corruption.js).
+  // overlay stops and its creatures shed the corrupted template (corruption.js).
   if (typeof cleanseRegionCorruption === 'function') cleanseRegionCorruption(cm.regionIdx);
 }
 
@@ -707,7 +703,6 @@ function migrateShrineSystemAfterLoad() {
       if (!player.shrineQuests[rid] || player.shrineQuests[rid].version !== 2)
         player.shrineQuests[rid] = newShrineQuest(cm.returnMapId);
       player.shrineQuests[rid].shrineMapId = cm.id;
-      cm.fog = cm.fog || new Uint8Array(MROWS*MCOLS); cm.fog.fill(1);
       resetShrineVolatile(cm); evaluateShrinePuzzle(cm);
     }
   }

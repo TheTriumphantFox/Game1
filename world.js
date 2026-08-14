@@ -4,7 +4,7 @@
 // → up) correctly returns the player to the original map instead of generating
 // a new one.
 
-let worldMaps = [];      // index = mapId; stores map data, fog, enemyDefs etc.
+let worldMaps = [];      // index = mapId; stores map data, enemyDefs etc.
 let worldGrid = {};      // "gx,gy" -> mapId
 let currentMapId = 0;
 let mapsVisited = 0;     // # of distinct maps the player has entered
@@ -363,7 +363,6 @@ function createCaveChainMap(returnMapId, returnX, returnY, sourceTier, chainDept
     visited: true,
     returnMapId, returnX, returnY,
     rootMapId: root.mapId, rootX: root.x, rootY: root.y
-    // Fog is created lazily — a full-sized cave is explored, not pre-revealed.
   };
   worldMaps.push(obj);
   return newId;
@@ -402,7 +401,6 @@ function createDungeonMap(returnMapId, returnX, returnY, regionIdx) {
     // Single level: the overworld door IS the root, so the chest portal returns to
     // the same place as the edge door — just without the walk back through the maze.
     rootMapId: returnMapId, rootX: returnX, rootY: returnY
-    // Fog is created lazily — a full-sized dungeon is explored, not pre-revealed.
   };
   worldMaps.push(obj);
   return newId;
@@ -449,7 +447,6 @@ function createSkyCaveMap(returnMapId, returnX, returnY, regionIdx, chainDepth, 
     visited: true,
     returnMapId, returnX, returnY,
     rootMapId: root.mapId, rootX: root.x, rootY: root.y
-    // Fog is created lazily — a full-sized sky cave is explored, not pre-revealed.
   };
   worldMaps.push(obj);
   return newId;
@@ -489,9 +486,6 @@ function createTowerFloorMap(returnMapId, returnX, returnY, floorIdx) {
     visited: true,
     returnMapId, returnX, returnY
   };
-  // The throne hall is revealed in full on entry — 13 bosses and the sleeping
-  // dragon on its gold should read at a glance (the grotto idiom).
-  if (isFinal) obj.fog = new Uint8Array(MCOLS * MROWS).fill(1);
   worldMaps.push(obj);
   return newId;
 }
@@ -529,16 +523,7 @@ function createWhirlpoolGrottoMap(returnMapId, returnX, returnY, sourceTier) {
     enemyDefs: makeEnemyDefs(sourceTier, 'whirlpool_grotto', mapTiles),
     openedChests: new Set(),
     visited: true,
-    returnMapId, returnX, returnY,
-    // One open pool — pre-reveal all of it so the fight reads at a glance.
-    fog: (() => {
-      const f = new Uint8Array(MCOLS * MROWS);
-      const cx = Math.floor(MCOLS / 2), cy = Math.floor(MROWS / 2);
-      for (let r = cy - GROTTO_HALF - 2; r <= cy + GROTTO_HALF + 2; r++)
-        for (let c = cx - GROTTO_HALF - 2; c <= cx + GROTTO_HALF + 2; c++)
-          if (r >= 0 && r < MROWS && c >= 0 && c < MCOLS) f[r * MCOLS + c] = 1;
-      return f;
-    })()
+    returnMapId, returnX, returnY
   };
   worldMaps.push(obj);
   return newId;

@@ -1113,7 +1113,6 @@ function skipPrologue() {
   placePlayerInFamilyHome(home);
   burnLevel = 0.25;
   minimapDirty = true;
-  revealWalk(currentMap(), player.x, player.y);
   clampCam(true);
   updateHUD();
   // Same card Beat 5 shows. It said HYRULE QUEST, which is the pre-rename title

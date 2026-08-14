@@ -1008,7 +1008,6 @@ function boot() {
   // player.js). Idempotent on reload — newGame / applyLoadData re-seed too.
   applyStartingInventory(player);
   initWorld();
-  revealWalk(currentMap(), player.x, player.y);
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
   clampCam(true);

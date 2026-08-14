@@ -1,11 +1,11 @@
 ---
 name: the-rpg-game
-description: Project conventions, architecture rules, and story canon for The RPG Game, a browser-based top-down RPG that runs from the local filesystem with no build step. Use this skill for ANY work in this repo — adding or editing enemies, maps, items, quests, dialogue, save/load, fog of war, XP and leveling, UI, or refactors — and also whenever the user asks about game balance, story beats, the Withering Crown plotline, the Red Dragon Emperor, or what a system currently does. Consult it before writing code here, not after, because this project has hard constraints (no bundler, no ES module imports, no network calls) that ordinary web-app instincts will violate.
+description: Project conventions, architecture rules, and story canon for The RPG Game, a browser-based top-down RPG that runs from the local filesystem with no build step. Use this skill for ANY work in this repo — adding or editing enemies, maps, items, quests, dialogue, save/load, enemy persistence, XP and leveling, UI, or refactors — and also whenever the user asks about game balance, story beats, the Withering Crown plotline, the Red Dragon Emperor, or what a system currently does. Consult it before writing code here, not after, because this project has hard constraints (no bundler, no ES module imports, no network calls) that ordinary web-app instincts will violate.
 ---
 
 # The RPG Game
 
-A browser-based top-down action RPG in the spirit of *Zelda: A Link to the Past*. Procedurally generated maps, fog of war, D&D 5e-derived enemies, XP and leveling, named save slots, and a coordinate registry that acts as the source of truth for world state.
+A browser-based top-down action RPG in the spirit of *Zelda: A Link to the Past*. Procedurally generated maps, D&D 5e-derived enemies, XP and leveling, named save slots, and a coordinate registry that acts as the source of truth for world state.
 
 The whole game is opened by double-clicking `index.html`. There is no build and no install step. That single fact drives most of the rules below.
 
@@ -15,7 +15,7 @@ There *is* a small local static server in the repo — `.claude/serve.ps1`, wire
 
 Orient yourself in the actual repo rather than assuming — the project has grown and moved things around before.
 
-1. Read `index.html` first — it is the authority, and this list is a copy that has gone stale before. The order of its `<script>` tags **is** the dependency graph, currently 43 files: `config.js → elements.js → map-helpers.js → connectivity.js → regions.js → mapgen-terrain.js → mapgen-foliage.js → mapgen-caves.js → mapgen-village.js → mapgen-prologue.js → mapgen-tower.js → mapgen-biomes.js → enemies.js → world.js → shrines.js → corruption.js → abilities.js → fog.js → player.js → story.js → projectiles.js → render-tiles.js → render-enemies.js → render.js → ui.js → save.js → shop-core.js → shop-general.js → shop-blacksmith.js → shop-herbalist.js → villagers.js → guild.js → tower.js → radial.js → portal.js → ledger.js → stats.js → worldmap.js → sysmenu.js → dialogue.js → cutscene.js → prologue.js → main.js`. Anything you add has to be inserted at a point where its dependencies are already defined, and added to this list in the same change.
+1. Read `index.html` first — it is the authority, and this list is a copy that has gone stale before. The order of its `<script>` tags **is** the dependency graph, currently 42 files: `config.js → elements.js → map-helpers.js → connectivity.js → regions.js → mapgen-terrain.js → mapgen-foliage.js → mapgen-caves.js → mapgen-village.js → mapgen-prologue.js → mapgen-tower.js → mapgen-biomes.js → enemies.js → world.js → shrines.js → corruption.js → abilities.js → player.js → story.js → projectiles.js → render-tiles.js → render-enemies.js → render.js → ui.js → save.js → shop-core.js → shop-general.js → shop-blacksmith.js → shop-herbalist.js → villagers.js → guild.js → tower.js → radial.js → portal.js → ledger.js → stats.js → worldmap.js → sysmenu.js → dialogue.js → cutscene.js → prologue.js → main.js`. Anything you add has to be inserted at a point where its dependencies are already defined, and added to this list in the same change.
 2. There is no `src/` or `styles/` folder — every `.js` and `.css` file sits flat at the repo root, alongside `index.html` itself. List the repo root and read the files you're about to touch, plus the file that owns the system you're changing.
 3. Only then propose a change.
 
