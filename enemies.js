@@ -370,25 +370,44 @@ function makeTowerFinaleDefs(map) {
 
 // ─── Live enemy state per map ─────────────────────────────────────────────────
 // `enemies` is the active list for the current map.
-// When the player leaves a map, this list is cloned onto map.savedEnemies so
-// returning to that map restores the exact state — dead enemies stay dead,
-// wounded ones keep their HP.
+//
+// The world does NOT remember its dead. Walk off an overworld map, a cave, a
+// dungeon, a grotto, a sky cave or a shrine and its roster is forgotten outright;
+// walk back in and every enemy is spawned again from the map's `enemyDefs`, at
+// full HP. Clearing ground is a thing you do for the moment, not for good.
+//
+// The exception is the arenas, where "cleared" is a piece of progression rather
+// than a lull: a village (its boss gates the King's Hoard, the gates opening and
+// the village activating) and the castle tower's fourteen floors (each a boss
+// climb, and the pinnacle's dragon ends the game). Those clone the live list onto
+// `map.savedEnemies` on the way out and restore it exactly on the way back —
+// dead enemies stay dead, wounded ones keep their HP.
+const MAP_TYPES_REMEMBER_ENEMIES = new Set(['village', 'homevillage', 'castle_tower']);
+
+function mapRemembersEnemies(mapObj) {
+  return !!mapObj && MAP_TYPES_REMEMBER_ENEMIES.has(mapObj.type);
+}
 
 let enemies = [];
 
 function saveEnemyStateToMap(mapId) {
-  if (worldMaps[mapId]) {
-    worldMaps[mapId].savedEnemies = enemies.map(e => ({ ...e }));
-  }
+  const rm = worldMaps[mapId];
+  if (!rm) return;
+  // Everything else drops its roster on the floor here rather than keeping a list
+  // that spawnEnemiesForMap would only throw away — one place decides, and the
+  // saved shape of a forgetful map stays empty instead of stale.
+  rm.savedEnemies = mapRemembersEnemies(rm) ? enemies.map(e => ({ ...e })) : null;
 }
 
 function spawnEnemiesForMap(mid) {
   const rm = worldMaps[mid];
   if (rm.savedEnemies) {
-    // Restoring a previously-visited map
+    // An arena that remembers being cleared, or the mid-fight roster a save
+    // restored for the map the hero was standing on (see applyLoadData).
     enemies = rm.savedEnemies.map(e => ({ ...e }));
   } else {
-    // First visit — instantiate fresh from defs
+    // First visit, or any re-entry to a map that doesn't remember — instantiate
+    // fresh from defs.
     enemies = rm.enemyDefs.map((def, i) => {
       const base = DND_ENEMIES[def.type] || DND_ENEMIES.goblin;
       // A Guild Quarry def (see guild.js) — a boss-flagged elite kept at its base
@@ -450,6 +469,10 @@ function spawnEnemiesForMap(mid) {
   // transition kept floating over the NEW map at the old enemy's coordinates for the
   // remainder of its ~1.1s life.
   damageNumbers = [];
+  // Guild elites are injected after generation and so are absent from enemyDefs —
+  // a regenerated roster has to be restocked with them from their quest records,
+  // or stepping off the map would delete the hero's quarry (see guild.js).
+  if (typeof ensureGuildElitesOnMap === 'function') ensureGuildElitesOnMap(rm);
   // The Man-Eater bounty (#5) relocates to whatever region overworld map the hero
   // enters while it lives (see guild.js).
   if (typeof ensureManeaterOnMap === 'function') ensureManeaterOnMap(rm);

@@ -152,7 +152,6 @@ function portalTravelTo(mapId) {
   target.visited = true;
   if (typeof spawnEnemiesForMap   === 'function') spawnEnemiesForMap(mapId);
   if (typeof spawnVillagersForMap === 'function') spawnVillagersForMap(mapId);
-  if (typeof revealWalk === 'function') revealWalk(target, player.x, player.y);
   if (typeof clampCam     === 'function') clampCam(true);
   if (typeof minimapDirty !== 'undefined') minimapDirty = true;
 

@@ -48,6 +48,15 @@ function buildSaveData() {
   return {
     player,
     currentMapId,
+    // The one roster worth writing for a map that doesn't remember its dead: the
+    // fight the hero is standing in the middle of right now. Only what is still
+    // breathing, at the position and HP it has this instant — a reload drops the
+    // hero back into the same fight rather than a freshly stocked map, while
+    // walking out and back in still regenerates it (see mapRemembersEnemies).
+    // Villages and tower floors need nothing here; their full roster, dead
+    // included, is in worldMapsLite[].savedEnemies below.
+    liveEnemies: mapRemembersEnemies(worldMaps[currentMapId])
+      ? null : enemies.filter(e => !e.dead).map(e => ({ ...e })),
     mapsVisited,
     desertsVisited,
     currentRegionIdx,
@@ -62,12 +71,14 @@ function buildSaveData() {
       homeLayoutVersion: m.homeLayoutVersion,
       openedChests: Array.from(m.openedChests),
       visited: m.visited,
-      savedEnemies: m.savedEnemies || null,
+      // Only the arenas persist a roster (see mapRemembersEnemies in enemies.js).
+      // Everywhere else regenerates from enemyDefs on entry, so there is nothing
+      // here to keep — and a save written before that change may still carry a
+      // stale one, which is dropped rather than restored.
+      savedEnemies: mapRemembersEnemies(m) ? (m.savedEnemies || null) : null,
       savedVillagers: m.savedVillagers || null,
-      // Bit-packed + base64, ~12x smaller than the Array.from() this replaced (see
-      // packFog in fog.js). The old `fog` key is no longer written; the loader still
-      // reads it, so existing saves keep their fog and get upgraded on next write.
-      fogPacked: m.fog ? packFog(m.fog) : null,
+      // Fog of war has been removed from the game, so no fog is written any more.
+      // Older saves still carry `fogPacked` / `fog` keys; the loader ignores them.
       mapTiles: mapNeedsStoredTiles(m) ? encodeMap(m.map) : null,
       // ─── Rebuild inputs, for maps that carry no mapTiles ────────────────────
       // Only *visited* maps store their tiles, so anything the player never walked
@@ -418,7 +429,11 @@ function applyLoadData(data) {
         : makeEnemyDefs(lite.depth, enemyType, md),
       openedChests: new Set(lite.openedChests || []),
       visited: lite.visited,
-      savedEnemies: lite.savedEnemies || null,
+      // Kept only for the arenas. An older save carries one for every map it had
+      // ever entered; honouring those would resurrect the old "dead stays dead
+      // everywhere" behaviour on load, so they are discarded and those maps come
+      // back stocked (see mapRemembersEnemies in enemies.js).
+      savedEnemies: mapRemembersEnemies(lite) ? (lite.savedEnemies || null) : null,
       savedVillagers: migrateHomeLayout
         ? migrateHomeVillageVillagers(lite.savedVillagers, homeRuined)
         : (lite.savedVillagers || null),
@@ -427,10 +442,8 @@ function applyLoadData(data) {
     if (migrateHomeLayout && homeRuined) {
       obj.openedChests.add(`${HOME.chest.x},${HOME.chest.y}`);
     }
-    // `fogPacked` is the current format; `fog` is the pre-packing array, still read
-    // so saves written before the change keep their explored map (see fog.js).
-    if (lite.fogPacked)  obj.fog = unpackFog(lite.fogPacked);
-    else if (lite.fog)   obj.fog = new Uint8Array(lite.fog);
+    // `lite.fogPacked` / `lite.fog` may still be present in a save written before
+    // fog of war was removed. Both are deliberately dropped on the floor.
     // Dead-end marker. Read by the per-region map count that triggers a village
     // (player.js), the Guild quarry / bounty spawn candidates (guild.js), and the
     // ability-secret stamping pass (abilities.js) — all three of which quietly
@@ -513,6 +526,16 @@ function applyLoadData(data) {
   }
   for (const m of worldMaps) delete m._homeLayoutMigrated;
 
+  // Put the hero back into the fight they saved in. `liveEnemies` is the current
+  // map's living roster (see buildSaveData) and only exists for maps that don't
+  // remember their own — an arena already restored its full roster above, and
+  // overwriting that with the living-only list would resurrect its dead.
+  // Absent (older save, or an arena) means the map simply spawns fresh.
+  const curMap = worldMaps[currentMapId];
+  if (curMap && !mapRemembersEnemies(curMap) && Array.isArray(data.liveEnemies)) {
+    curMap.savedEnemies = data.liveEnemies.map(e => ({ ...e }));
+  }
+
   spawnEnemiesForMap(currentMapId);
   spawnVillagersForMap(currentMapId);
   // Cancel any cutscene the load interrupted and restore the ambient state that
@@ -520,7 +543,6 @@ function applyLoadData(data) {
   // load from inside a scripted beat leaves the world frozen forever.
   if (typeof restorePrologueAmbience === 'function') restorePrologueAmbience();
   clampCam(true);
-  revealWalk(currentMap(), player.x, player.y);
   updateHUD();
 }
 
@@ -872,7 +894,6 @@ function resetGame(heroName) {
   try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* storage unavailable — nothing to clear */ }
 
   initWorld();
-  revealWalk(currentMap(), player.x, player.y);
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
   clampCam(true);

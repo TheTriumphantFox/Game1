@@ -392,6 +392,48 @@ function startGuildBounty(regionIdx, rid, kind) {
   return { creature, mapId };
 }
 
+// ─── Restocking the Guild's elites onto a regenerated map ────────────────────
+// Every map outside the villages and the castle tower forgets its roster the
+// moment the hero walks out and rebuilds it from `enemyDefs` on the way back in
+// (see mapRemembersEnemies, enemies.js). The Guild Quarry and the Bounty Board
+// elite are not in `enemyDefs` — both are injected after the map was generated,
+// and on a visited map they were only ever held in `savedEnemies`, which is now
+// thrown away. Left alone, a hero who stepped off the quarry's map before killing
+// it would find the map empty forever and the quest unfinishable.
+//
+// So they are respawned from the thing that IS durable: the quest record on
+// `player.guildQuests`, which already carries the creature and the map it was
+// assigned to and already round-trips through save/load. Called from
+// spawnEnemiesForMap once `enemies` is populated, and idempotent — a map whose
+// defs already produced the elite (the never-visited path in spawnGuildBossOnMap /
+// spawnBountyOnMap) is left alone.
+function ensureGuildElitesOnMap(rm) {
+  if (!rm || !rm.map) return;
+  if (typeof player === 'undefined' || !player.guildQuests) return;
+  const push = (make) => {
+    const spot = findOpenTileNearCentre(rm.map);
+    const maxId = enemies.reduce((mx, e) => Math.max(mx, e.id || 0), -1);
+    enemies.push(make(spot, maxId + 1));
+  };
+  for (const rid of Object.keys(player.guildQuests)) {
+    const q = player.guildQuests[rid];
+    if (!q) continue;
+    // The head quest's Guild Quarry, while its head is still on its shoulders.
+    if (q.status === 'active' && q.creature && q.bossMapId === rm.id &&
+        !enemies.some(e => e.guildBoss && !e.dead)) {
+      push((spot, id) => makeGuildBossEnemy(q.creature, spot.x, spot.y, rid, id));
+    }
+    // Bounty #4's Board elite, which stays put on the map it was set on. #5 the
+    // Man-Eater moves and has its own restocker below; #6 the Culling is a kill
+    // count against the ordinary roster and needs nothing here.
+    const b = (q.bounties && q.bounties.board) ? q.bounties.board : null;
+    if (b && b.status === 'active' && b.creature && b.mapId === rm.id &&
+        !enemies.some(e => e.bounty === 'board' && !e.dead)) {
+      push((spot, id) => makeBountyEnemy(b.creature, spot.x, spot.y, rid, 'board', id));
+    }
+  }
+}
+
 // The Man-Eater relocates to whatever region overworld map the hero enters while it
 // still lives (called from spawnEnemiesForMap after `enemies` is populated).
 function ensureManeaterOnMap(rm) {
@@ -405,18 +447,27 @@ function ensureManeaterOnMap(rm) {
   const q = player.guildQuests[rid];
   const b = (q && q.bounties) ? q.bounties.maneater : null;
   if (!b || b.status !== 'active') return;
-  if (b.mapId === rm.id) return;                           // already denned here
+  // Presence first, den second. This used to return early on `b.mapId === rm.id`
+  // ("already denned here"), which was true while a visited map kept its roster in
+  // savedEnemies. A map that regenerates comes back WITHOUT the Man-Eater, so
+  // re-entering its own den would have quietly left it empty.
   if (enemies.some(e => e.bounty === 'maneater' && !e.dead)) { b.mapId = rm.id; return; }
-  // Pull any stale copy off the previous map, then den it here (live + saved).
-  if (b.mapId != null && worldMaps[b.mapId] && Array.isArray(worldMaps[b.mapId].savedEnemies)) {
-    worldMaps[b.mapId].savedEnemies = worldMaps[b.mapId].savedEnemies.filter(e => e.bounty !== 'maneater');
+  const moved = b.mapId !== rm.id;
+  // Pull any stale copy off the previous map — from its saved roster and from its
+  // defs, since a never-visited target was given a def rather than a live entry.
+  if (moved && b.mapId != null && worldMaps[b.mapId]) {
+    const old = worldMaps[b.mapId];
+    if (Array.isArray(old.savedEnemies)) old.savedEnemies = old.savedEnemies.filter(e => e.bounty !== 'maneater');
+    if (Array.isArray(old.enemyDefs))    old.enemyDefs    = old.enemyDefs.filter(d => d.bounty !== 'maneater');
   }
   const spot = findOpenTileNearCentre(rm.map);
   const maxId = enemies.reduce((mx, e) => Math.max(mx, e.id || 0), -1);
   enemies.push(makeBountyEnemy(b.creature, spot.x, spot.y, rid, 'maneater', maxId + 1));
-  rm.savedEnemies = enemies.map(e => ({ ...e }));
+  // Only worth mirroring where a saved roster exists at all; a forgetful map's is
+  // null and stays null until saveEnemyStateToMap decides otherwise.
+  if (Array.isArray(rm.savedEnemies)) rm.savedEnemies = enemies.map(e => ({ ...e }));
   b.mapId = rm.id;
-  if (typeof showMapMsg === 'function') showMapMsg(`🩸 The Man-Eater has tracked you to ${rm.name || 'these lands'}!`);
+  if (moved && typeof showMapMsg === 'function') showMapMsg(`🩸 The Man-Eater has tracked you to ${rm.name || 'these lands'}!`);
 }
 
 // Advance the region's bounties on a kill. board/maneater elites flip to 'ready';

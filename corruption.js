@@ -98,34 +98,20 @@ function isMapCorrupted(mapObj) {
 }
 
 // ─── Cleansing ────────────────────────────────────────────────────────────────
-// Called from setShrineSolved (shrines.js) the moment the puzzle falls. Three
-// things happen at once, and all three are the shrine's payoff:
+// Called from setShrineSolved (shrines.js) the moment the puzzle falls. Two
+// things happen at once, and both are the shrine's payoff:
 //   1. the overlay stops being drawn on that region's maps (derived — free)
 //   2. everything still alive in the region sheds the corrupted template
-//   3. the fog lifts a little wider, and the village is revealed whole
+// There used to be a third — the fog lifting wider and the village revealed
+// whole — but fog of war has been removed from the game, so every map already
+// reads in full from the moment it is entered.
 function cleanseRegionCorruption(regionIdx) {
   if (!Number.isInteger(regionIdx)) return;
   syncCorruptionForRegion(regionIdx);
-  revealCleansedRegion(regionIdx);
   if (typeof minimapDirty !== 'undefined') minimapDirty = true;
   const region = (typeof REGIONS !== 'undefined') ? REGIONS[regionIdx] : null;
   if (region && typeof showMapMsg === 'function') {
     showMapMsg(`✦ The blight lifts from the ${region.id} region.`);
-  }
-}
-
-// The fog half of the payoff. A cleansed region's village is revealed outright
-// (the hero has been told where everything in it is), and every map in the
-// region widens its walking reveal from 12 tiles to 14 — see walkRevealRadius
-// in fog.js, which is what the walking call sites actually read.
-function revealCleansedRegion(regionIdx) {
-  if (typeof worldMaps === 'undefined') return;
-  for (const m of worldMaps) {
-    if (!m || mapRegionIndex(m) !== regionIdx) continue;
-    if (m.type !== 'village') continue;
-    if (typeof ensureFog === 'function') ensureFog(m);
-    if (m.fog) m.fog.fill(1);
-    if (typeof minimapCanvases !== 'undefined') delete minimapCanvases[m.id];
   }
 }
 
@@ -331,7 +317,6 @@ function drawCorruptionOverlay(ts, startC, startR, endC, endR) {
     if (mr < 0 || mr >= MROWS) continue;
     for (let mc = startC; mc <= endC; mc++) {
       if (mc < 0 || mc >= MCOLS) continue;
-      if (typeof isFoggy === 'function' && isFoggy(mapObj, mc, mr)) continue;
       const n = corruptionTileNoise(mc, mr);
       const patch = corruptionPatchNoise(mc, mr);
       // A slow swell, offset per tile so the whole screen doesn't breathe in
@@ -364,7 +349,6 @@ function drawCorruptionOverlay(ts, startC, startR, endC, endR) {
       if (patch < 0.35) continue;
       const n = corruptionTileNoise(mc, mr);
       if (n < 0.78 - patch * 0.55) continue;
-      if (typeof isFoggy === 'function' && isFoggy(mapObj, mc, mr)) continue;
       const drift = Math.sin(now / 900 + n * 12) * ts * 0.18;
       const sx = (mc - camC) * ts + ts * (0.25 + n * 0.4);
       const sy = (mr - camR) * ts + ts * 0.5 + drift;

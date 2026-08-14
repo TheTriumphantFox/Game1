@@ -1,5 +1,5 @@
 // ─── Rendering ────────────────────────────────────────────────────────────────
-// Every frame: draw visible tiles, fog, projectiles, enemies, player,
+// Every frame: draw visible tiles, projectiles, enemies, player,
 // particles, damage numbers, exit arrows, and (toggleable) minimap.
 
 // ─── Sprite cache ─────────────────────────────────────────────────────────────
@@ -1188,28 +1188,13 @@ function drawProjectile(p) {
 }
 
 // ─── Minimap ──────────────────────────────────────────────────────────────────
-// Per-map cached offscreen canvas. Rebuilt only when fog changes or the map
-// changes — much cheaper than redrawing every tile every frame.
+// Per-map cached offscreen canvas. Rebuilt only when the map changes — much
+// cheaper than redrawing every tile every frame. Every tile is painted: fog of
+// war is gone, so a map is fully drawn from the moment it is entered.
 
 let minimapDirty = true;
 let minimapCanvases = {};   // keyed by mapId
-const MINIMAP_SCALE = 1.2;  // minimap pixels per world tile (shared by full + incremental paint)
-
-// Stamp one just-revealed tile onto a map's cached minimap canvas, matching the
-// full-rebuild loop in drawMinimap exactly. Lets fog reveals keep the minimap
-// current incrementally instead of rescanning all MROWS*MCOLS tiles every step
-// (the old minimapDirty full rebuild cost ~9ms/step on a large, mostly-revealed
-// map like a castle-tower floor — see revealAround). No-op until the canvas
-// exists; the first drawMinimap builds it in full, then reveals patch it.
-function paintMinimapTile(mapObj, c, r) {
-  const mmc = minimapCanvases[mapObj.id];
-  if (!mmc) return;
-  const g = mmc.getContext('2d');
-  const t = mapObj.map[r][c];
-  g.fillStyle = TILE_COLORS[t] || '#111';
-  g.fillRect(Math.floor(c * MINIMAP_SCALE), Math.floor(r * MINIMAP_SCALE),
-             Math.ceil(MINIMAP_SCALE), Math.ceil(MINIMAP_SCALE));
-}
+const MINIMAP_SCALE = 1.2;  // minimap pixels per world tile
 
 // Which of the four map edges actually lead somewhere, so the minimap only
 // draws an exit arrow where a real transition exists. An edge counts when the
@@ -1236,8 +1221,8 @@ function edgeTransitions(mapObj) {
   };
 }
 
-// Build (or refresh, when fog has changed) the current map's cached minimap
-// canvas at MINIMAP_SCALE and return it. Shared by the corner minimap and the
+// Build (or refresh, when the tiles have changed) the current map's cached
+// minimap canvas at MINIMAP_SCALE and return it. Shared by the corner minimap and the
 // full-screen minimap view so the terrain paint lives in exactly one place.
 function buildMinimapCanvas() {
   const scale = MINIMAP_SCALE;
@@ -1255,7 +1240,6 @@ function buildMinimapCanvas() {
     const mapObj = currentMap();
     for (let r = 0; r < MROWS; r++) {
       for (let c = 0; c < MCOLS; c++) {
-        if (isFoggy(mapObj, c, r)) continue;
         const t = mapObj.map[r][c];
         mc2.fillStyle = TILE_COLORS[t] || '#111';
         mc2.fillRect(Math.floor(c*scale), Math.floor(r*scale), Math.ceil(scale), Math.ceil(scale));
@@ -1310,7 +1294,7 @@ function drawMinimap() {
     });
   }
 
-  // Active-village shop markers (I = inn, $ = store) — always on top of fog
+  // Active-village shop markers (I = inn, $ = store)
   const cm = currentMap();
   if (cm && cm.activated) {
     ctx.font = 'bold 10px monospace';
@@ -1330,26 +1314,6 @@ function drawMinimap() {
     if (cm.smithDoor) {
       ctx.fillStyle = '#aac4ee';
       ctx.fillText('B', mx + Math.floor(cm.smithDoor.c * scale), my + Math.floor(cm.smithDoor.r * scale) + 4);
-    }
-  }
-  ctx.restore();
-}
-
-// ─── Fog overlay ──────────────────────────────────────────────────────────────
-function drawFog() {
-  const mapObj = currentMap();
-  if (!mapObj.fog) return;
-  ctx.save();
-  const startC = Math.floor(camC), startR = Math.floor(camR);
-  const endC = Math.ceil(camC + PW/TILE_PX) + 1;
-  const endR = Math.ceil(camR + PH/TILE_PX) + 1;
-  for (let mr = startR; mr <= endR; mr++) {
-    for (let mc = startC; mc <= endC; mc++) {
-      if (mc < 0 || mc >= MCOLS || mr < 0 || mr >= MROWS) continue;
-      if (!isFoggy(mapObj, mc, mr)) continue;
-      const sx = (mc - camC) * TILE_PX, sy = (mr - camR) * TILE_PX;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), Math.ceil(TILE_PX)+1, Math.ceil(TILE_PX)+1);
     }
   }
   ctx.restore();
@@ -1382,7 +1346,7 @@ function cycleViewMode() {
 
 // The whole-screen map: the cached minimap terrain scaled up to fill the view,
 // with live player / enemy / exit markers over it. Reuses buildMinimapCanvas so
-// terrain + fog stay in sync with the corner minimap.
+// its terrain stays in sync with the corner minimap.
 function drawFullMinimap() {
   const mmc = buildMinimapCanvas();
   ctx.save();
@@ -2121,7 +2085,6 @@ function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
 
   for (const h of mapForestHouseRoofs(mapObj)) {
     if (h.c2 < startC - 1 || h.c1 > endC + 1 || h.r2 < startR - 1 || h.r1 > endR + 1) continue;
-    if (isFoggy(mapObj, h.doorC, h.r2)) continue;
     // Crossing the doorway counts as entering: the whole roof vanishes at once
     // and exposes walls, floor, furniture, villagers, and the hero underneath.
     if (player.x >= h.c1 && player.x <= h.c2 && player.y >= h.r1 && player.y <= h.r2) continue;
@@ -2255,17 +2218,14 @@ function render() {
 
   if (typeof drawShrineOverlays === 'function') drawShrineOverlays(ts);
 
-  drawFog();
-  drops.forEach(d => { if (!isFoggy(mapObj, d.x, d.y)) drawDrop(d, ts); });
+  drops.forEach(d => drawDrop(d, ts));
   projectiles.forEach(p => drawProjectile(p));
   for (const e of enemies) {
     if (e.dead) continue;
-    if (!isFoggy(mapObj, e.x, e.y)) drawEnemy(e, ts);
+    drawEnemy(e, ts);
   }
   if (typeof villagers !== 'undefined') {
-    villagers.forEach(v => {
-      if (!isFoggy(mapObj, v.x, v.y)) drawVillager(v, ts);
-    });
+    villagers.forEach(v => drawVillager(v, ts));
   }
   drawPlayer(ts);
 
@@ -2300,25 +2260,23 @@ function render() {
   // player) so the player and enemies pass BEHIND the overhanging canopy, and after
   // the tile grid so neighbours can't overdraw the giant. The scan range is widened
   // a few tiles below / either side of the viewport so a giant whose anchor sits just
-  // off-screen still pokes its canopy into view. Only drawn once the anchor tile is
-  // unfogged (its ~3-tile canopy reveals together with the base, so fog clipping the
-  // canopy is unnecessary — the player can't see a tree without standing near it).
+  // off-screen still pokes its canopy into view.
   const colossalTrees = mapFeatureTiles(mapObj, T.COLOSSAL_TREE, '_colossalTrees');
   for (let i = 0; i < colossalTrees.length; i += 2) {
     const mc = colossalTrees[i], mr = colossalTrees[i + 1];
-    if (mc >= startC - 3 && mc <= endC + 3 && mr >= startR - 1 && mr <= endR + 4 &&
-        !isFoggy(mapObj, mc, mr)) drawColossalTree(mc, mr, ts);
+    if (mc >= startC - 3 && mc <= endC + 3 && mr >= startR - 1 && mr <= endR + 4)
+      drawColossalTree(mc, mr, ts);
   }
 
   // Enlarged region landmarks — the elemental / non-forest regions' answer to the
   // colossal trees, given the same after-entities overlay treatment. Scan range is
   // widened a few tiles (a giant whose foot sits just off-screen still overhangs into
-  // view) and each is drawn only once its foot tile is unfogged.
+  // view).
   const bigLandmarks = mapBigLandmarkTiles(mapObj);
   for (let i = 0; i < bigLandmarks.length; i += 2) {
     const mc = bigLandmarks[i], mr = bigLandmarks[i + 1];
-    if (mc >= startC - 3 && mc <= endC + 3 && mr >= startR - 2 && mr <= endR + 4 &&
-        !isFoggy(mapObj, mc, mr)) drawBigLandmark(map[mr][mc], mc, mr, ts);
+    if (mc >= startC - 3 && mc <= endC + 3 && mr >= startR - 2 && mr <= endR + 4)
+      drawBigLandmark(map[mr][mc], mc, mr, ts);
   }
 
   // Lightning-region storm flash — over the world, under the HUD/minimap.

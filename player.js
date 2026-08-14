@@ -963,7 +963,6 @@ function tryTransition() {
   transitionCooldown = 400;
   minimapDirty = true;
   clampCam(true);   // snap on map transition (instant teleport)
-  revealWalk(nm, player.x, player.y);
   // (Map-name announcements removed — the current area name still lives in the
   // HUD's roomName span. Notable map events use showMapMsg instead.)
 }
@@ -1394,7 +1393,6 @@ function tryCaveTransition() {
     transitionCooldown = 400;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 16);
     showMapMsg('🕳️ You squeeze into a hidden cave…');
     return true;
   }
@@ -1422,7 +1420,6 @@ function tryCaveTransition() {
     transitionCooldown = 400;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 16);
     showMapMsg('🕳️ Behind the falls — a hidden passage!');
     return true;
   }
@@ -1457,7 +1454,6 @@ function tryCaveTransition() {
     transitionCooldown = 400;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 16);
     showMapMsg('🌬️ A gust of wind lifts you into the clouds!');
     return true;
   }
@@ -1484,7 +1480,6 @@ function tryCaveTransition() {
     transitionCooldown = 400;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 16);
     showMapMsg('🌬️ An updraft carries you higher into the storm…');
     return true;
   }
@@ -1509,7 +1504,6 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('🌬️ The wind sets you gently back down.');
     return true;
   }
@@ -1547,7 +1541,6 @@ function tryCaveTransition() {
     transitionCooldown = 400;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 16);
     const nf = worldMaps[nextId].floorIdx;
     showMapMsg(nf >= 14
       ? '🐉 The pinnacle. Every fallen champion of the realm stands guard here…'
@@ -1578,7 +1571,6 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealWalk(currentMap(), player.x, player.y);
     showMapMsg(dest.type === 'castle_tower'
       ? `🏰 You wind back down — Floor ${dest.floorIdx}/14.`
       : '🏘️ You step out of the castle, back into the village.');
@@ -1606,7 +1598,6 @@ function tryCaveTransition() {
     transitionCooldown = 400;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 16);
     showMapMsg('🕳️ You descend deeper into the cave…');
     return true;
   }
@@ -1646,7 +1637,6 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('✨ The portal returns you to the surface.');
     return true;
   }
@@ -1695,7 +1685,6 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('🕳️ You emerge back from the cave.');
     return true;
   }
@@ -1731,7 +1720,6 @@ function tryCaveTransition() {
     transitionCooldown = 400;
     minimapDirty = true;
     clampCam(true);
-    revealAround(currentMap(), player.x, player.y, 14);
     showMapMsg('🏛️ You step down into the ruined dungeon…');
     return true;
   }
@@ -1752,7 +1740,6 @@ function tryCaveTransition() {
     transitionCooldown = 600;
     minimapDirty = true;
     clampCam(true);
-    revealWalk(currentMap(), player.x, player.y);
     showMapMsg('🏛️ You emerge from the ruined dungeon.');
     return true;
   }
@@ -1884,7 +1871,6 @@ function stepPlayerMovement() {
     if (typeof onShrinePlayerStep === 'function') onShrinePlayerStep();
   }
   clampCam();
-  revealWalk(currentMap(), player.x, player.y);
   if (!(typeof tryShrineTransition === 'function' && tryShrineTransition()) &&
       !tryPortalInteraction() && !tryCaveTransition()) tryTransition();
 }
@@ -1980,7 +1966,6 @@ function enterWhirlpoolGrotto(cm) {
   whirlpoolCooldown = WHIRLPOOL_REGRAB_MS;
   minimapDirty = true;
   clampCam(true);
-  revealAround(currentMap(), player.x, player.y, 16);
   showMapMsg('🌀 The vortex drags you down into a flooded grotto!');
 }
 
@@ -1997,7 +1982,6 @@ function exitWhirlpoolGrotto(cm) {
   transitionCooldown = 600;
   minimapDirty = true;
   clampCam(true);
-  revealWalk(currentMap(), player.x, player.y);
   showMapMsg('🌊 The whirlpool spits you back out!');
 }
 

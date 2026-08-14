@@ -1,9 +1,13 @@
 # The RPG Game
 
 A top-down Zelda-style adventure RPG that runs in the browser. Procedurally
-generated maps across 13 elemental regions, D&D 5e enemies, fog of war,
-persistent map memory, an elemental crafting economy, side quests, and named
-save slots — ending in a multi-floor castle tower and a final dragon.
+generated maps across 13 elemental regions, D&D 5e enemies, persistent map
+memory, an elemental crafting economy, side quests, and named save slots —
+ending in a multi-floor castle tower and a final dragon.
+
+Maps remember their terrain, their opened chests and their quest state, but not
+their dead: only villages and the castle tower's floors stay cleared. Everywhere
+else restocks from its spawn table every time you walk back in.
 
 ## Running
 
@@ -81,7 +85,6 @@ mapgen-tower.js      # Castle-tower floor layouts
 mapgen-biomes.js     # Per-region map assembly (buildRegionMap etc.)
 enemies.js           # D&D enemy data, pools, and spawning
 world.js             # Coordinate registry, neighbor lookup, region sealing, shrines
-fog.js               # Per-map fog of war
 player.js            # Player state, movement, XP, loot tables, kill/respawn
 projectiles.js       # Arrows / bombs / enemy projectiles, particles, damage numbers
 render-tiles.js      # Tile rendering + sprite cache
@@ -114,9 +117,15 @@ Styling is in `game.css` (HUD, layout, full-window canvas) and `modal.css`
   progression order: forest → fire → water → ice → earth → volcanic → air →
   lightning → luminous → necrotic → poison → mana → shadow.
 - Each map has up to 4 exits (one per side). Maps are persistent — walk away and
-  return and your kills, opened chests, and explored areas stay. Positions live
-  in a coordinate registry, so a loop (right → down → left → up) returns you to
-  the starting map.
+  return and the terrain you changed and the chests you opened stay that way.
+  Positions live in a coordinate registry, so a loop (right → down → left → up)
+  returns you to the starting map.
+- **Kills do not persist.** Walk out of an overworld map, cave, dungeon, sky
+  cave or grotto and it restocks: every enemy is back, at full HP, next time you
+  step in. The exceptions are the arenas — villages and the 14 castle-tower
+  floors — where a boss you have killed stays killed. A save records only the
+  living enemies on the map you are standing on, so reloading drops you back
+  into the same fight rather than a freshly stocked map.
 - After ~20 unique overworld maps in a region, the next new map is that region's
   **Village**. Clearing the village boss seals the region (dead-ends behind you)
   and opens the gate into the next region.

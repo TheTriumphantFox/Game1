@@ -123,10 +123,12 @@ built; what follows is what they actually are.
   that palette-shifts the tiles underneath. It never mutates terrain. Distinct from the
   necrotic region's `BLIGHT` tiles, which are ordinary biome ground with an unfortunate
   name. Advances as each region opens; a region's shrine cleanses it.
-- **Shrines and fog of war.** `shrines.js` for the 13 puzzles, `abilities.js` for what
-  their rewards do. Exactly 8 heart containers and 5 abilities, never XP. Solving a shrine
-  also widens that region's walking fog reveal from 12 tiles to 14 and reveals its village
-  outright.
+- **Shrines.** `shrines.js` for the 13 puzzles, `abilities.js` for what their rewards do.
+  Exactly 8 heart containers and 5 abilities, never XP. Solving a shrine cleanses its
+  region. Note that fog of war has been removed from the game: the shrine's old fog payoff
+  (a wider walking reveal, the village revealed outright) is gone, and the Ember Lantern
+  ability — whose only mechanic was the necrotic region's shortened sight — is inert until
+  it is given a new effect.
 - **Corrupted enemies.** The `corrupted` template in `corruption.js`: 1.5× HP, damage and
   XP over the base entry, following the `tier15`/"Greater" multiplier pattern, reversible,
   and stripped from everything still alive when the region is cleansed.
