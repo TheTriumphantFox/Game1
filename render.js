@@ -274,6 +274,30 @@ function drawPlayer(ts) {
     drawElementFX(sx + s / 2, sy + s * 0.5 + bob, s * 0.62, player.activeArmorElement, 0.6, 0);
   }
 
+  // ── Sprite-sheet path (hero-sheet.png, see hero-sprite.js) ────────────
+  // One blit stands in for the entire procedural body below — cape through
+  // swinging sword. Everything around it (shadow, auras, low-HP tint, swim
+  // clip and ripple) is shared, so the two paths stay visually consistent.
+  //
+  // walkBob is already baked into the walk frames, so only the jump/climb lift
+  // is applied here; climbSway is in the transform above. Falls through to the
+  // procedural sprite until the sheet loads, and permanently if it fails.
+  if (heroSheetReady()) {
+    const spriteY = sy + (bob - walkBob);
+    drawHeroSprite(sx, spriteY, s, facing, moving);
+
+    // Elemental sword FX still bursts from the blade tip. The sheet is one flat
+    // image, so unlike the procedural blade it can't take the element's tint.
+    if (player.swordTimer > 0 && player.activeSwordElement) {
+      const tip = heroSwordTip(sx, spriteY, s);
+      drawElementFX(tip.x, tip.y, s * 0.55, player.activeSwordElement,
+                    0.85 + 0.15 * (1 - player.swordTimer / 180), 0);
+    }
+
+    finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming);
+    return;
+  }
+
   // ── Flowing green cape (behind the whole body) ────────
   const capeSway = walkBob * s * 0.05;
   ctx.fillStyle = P_CAPE_D;
@@ -593,6 +617,13 @@ function drawPlayer(ts) {
     ctx.fill();
   }
 
+  finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming);
+}
+
+// Tail shared by both drawPlayer paths (sprite sheet and procedural): the low-HP
+// tint, the ctx.restore that closes the swim clip, and the waterline ripple that
+// has to be drawn outside that clip so its full rings show.
+function finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming) {
   // ── Low-HP red flash overlay (drawn last so it tints the whole sprite) ──
   if (lowHp) {
     ctx.shadowBlur = 0;

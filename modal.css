@@ -38,6 +38,13 @@
 }
 
 /* Individual save slot row */
+/* Nine slots plus the autosave row can outgrow a short window, and the modal
+   itself doesn't scroll — cap the list and let it scroll on its own. */
+#slot-list {
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
 .save-slot {
   display: flex;
   align-items: center;
