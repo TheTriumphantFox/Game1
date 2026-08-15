@@ -6,7 +6,10 @@
 // has to know about the old names.
 
 const SAVE_KEY_PREFIX = 'the_rpg_game_slot_';
-const MAX_SLOTS = 6;
+// Slot indices are 0-based here and displayed as i + 1, so this is also the
+// highest slot number the player sees. Raising it only widens the list: every
+// existing save keeps its own index and key, so nothing has to be migrated.
+const MAX_SLOTS = 9;
 
 let modalMode = null;        // 'save' | 'load'
 let pendingSlot = null;      // slot index currently being named
@@ -555,7 +558,7 @@ function applyLoadData(data) {
 // ─── Auto-save / death checkpoint ──────────────────────────────────────────────
 // A single rolling autosave written at key checkpoints (clearing a village,
 // each castle-tower floor). It lives under its own key so it never clobbers one
-// of the 6 named slots. `lastCheckpoint` holds the most recent save payload of
+// of the named slots. `lastCheckpoint` holds the most recent save payload of
 // ANY kind — manual save, auto-save, or the save just loaded — and is what a
 // death reload restores from.
 const AUTOSAVE_KEY = 'the_rpg_game_autosave';

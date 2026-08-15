@@ -872,11 +872,17 @@ function drawVillager(v, ts) {
   // Shadow at feet — anchored to the un-bobbed position. A body on the ground
   // pools a longer, softer one; drawn before the rotation so it stays flat.
   ctx.fillStyle = fallen ? 'rgba(0, 0, 0, 0.28)' : 'rgba(0, 0, 0, 0.35)';
+  const homeLight = typeof isInsideIntactElderbrookHomePosition === 'function' &&
+                    isInsideIntactElderbrookHomePosition(v.renderX, v.renderY);
+  const homeShadowX = homeLight ? ts * 0.045 : 0;
+  const homeShadowY = homeLight ? ts * 0.018 : 0;
   ctx.beginPath();
   if (fallen) {
-    ctx.ellipse(cx, sy + ts * 0.86, ts * 0.44 * v.size, ts * 0.12 * v.size, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + homeShadowX, sy + ts * 0.86 + homeShadowY,
+      ts * 0.44 * v.size, ts * 0.12 * v.size, 0, 0, Math.PI * 2);
   } else {
-    ctx.ellipse(sx + ts / 2, sy + ts * 0.93, ts * 0.26 * v.size, ts * 0.06 * v.size, 0, 0, Math.PI * 2);
+    ctx.ellipse(sx + ts / 2 + homeShadowX, sy + ts * 0.93 + homeShadowY,
+      ts * 0.26 * v.size, ts * 0.06 * v.size, 0, 0, Math.PI * 2);
   }
   ctx.fill();
 

@@ -3,6 +3,49 @@
 // art). Plain <script> globals — loaded before render.js in index.html. Calls
 // drawElementFX (still in render.js) at runtime, which is fine for load order.
 
+// ─── Adult Red Dragon soft FX ─────────────────────────────────────────────────
+// Split out of the `adult_red_dragon` switch arm so the sprite-sheet path and
+// the procedural fallback draw identical effects. These stay procedural on
+// purpose: gradients and per-particle alpha animate better live than baked into
+// frames, and each keeps its own period.
+
+function dragonAura(cx, cy, s, tt) {
+  const r = s * 0.62 + Math.sin(tt / 200) * s * 0.05;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  g.addColorStop(0, 'rgba(255,110,30,0.38)');
+  g.addColorStop(1, 'rgba(180,40,10,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+}
+
+function dragonFurnace(cx, py, s, furn) {
+  const g = ctx.createRadialGradient(cx, py + s * 0.46, 0, cx, py + s * 0.46, s * 0.14);
+  g.addColorStop(0, `rgba(255,220,90,${0.55 + furn * 0.40})`);
+  g.addColorStop(1, 'rgba(255,120,30,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, py + s * 0.46, s * 0.14, 0, Math.PI * 2); ctx.fill();
+}
+
+function dragonEmbers(cx, py, s, tt, phase) {
+  for (let i = 0; i < 5; i++) {
+    const ph = ((tt / 800) + i * 0.21 + phase * 0.13) % 1;
+    const ex = cx + Math.sin(tt / 210 + i * 1.9) * s * 0.30;
+    const ey = py + s * 0.55 - ph * s * 0.55;
+    ctx.fillStyle = `rgba(255,${120 + Math.floor(ph * 110)},40,${(1 - ph) * 0.85})`;
+    ctx.fillRect(ex - 1, ey - 1, 2.5, 2.5);
+  }
+}
+
+function dragonSmoke(px, pyd, s, tt, phase) {
+  for (let i = 0; i < 3; i++) {
+    const ph = ((tt / 1600) + i * 0.33 + phase * 0.1) % 1;
+    const wx = px + s * 0.13 + Math.sin(tt / 500 + i * 2.1) * s * 0.03;
+    const wy = pyd + s * 0.70 - ph * s * 0.30;
+    ctx.fillStyle = `rgba(120,110,110,${(1 - ph) * 0.40})`;
+    ctx.beginPath(); ctx.arc(wx, wy, s * (0.015 + ph * 0.030), 0, Math.PI * 2); ctx.fill();
+  }
+}
+
 // ─── Enemy sprites ────────────────────────────────────────────────────────────
 // Each type has hand-drawn pixel art. Generic fallback at the end.
 function drawEnemy(e, ts) {
@@ -2701,6 +2744,34 @@ function drawEnemy(e, ts) {
       // with vast ribbed wings, a furnace glowing in its chest, and burning
       // slit eyes. Size 2.8 — it dwarfs every other creature in the game.
       const tt = Date.now();
+
+      // ── Sprite-sheet path (dragon-sheet.png, see dragon-sprite.js) ──────
+      // One blit stands in for the creature; the soft FX around it stay
+      // procedural. Falls through to the art below until the sheet loads, and
+      // permanently if it fails.
+      if (dragonSheetReady()) {
+        const anim = dragonPickAnim(e);
+        if (anim === 'dormant') {
+          const pyd = sy + oy;                     // no idle bob — it's asleep
+          drawDragonSprite(px, pyd, s, 'dormant', phase);
+          dragonSmoke(px, pyd, s, tt, phase);
+        } else {
+          dragonAura(cx, cy, s, tt);
+          // breathe is a one-shot driven by e.breathT counting down
+          const t = (anim === 'breathe')
+            ? 1 - Math.max(0, Math.min(1, e.breathT / DRAGON_BREATH_ANIM_MS))
+            : undefined;
+          drawDragonSprite(px, py, s, anim, phase, t);
+          // The furnace glow sits in his chest, which the breath plume covers —
+          // skip it mid-breath so it doesn't burn through the flame.
+          if (anim !== 'breathe') {
+            dragonFurnace(cx, py, s, Math.sin(tt / 260 + phase) * 0.5 + 0.5);
+          }
+          dragonEmbers(cx, py, s, tt, phase);
+        }
+        break;
+      }
+
       if (e.dormant) {
         // ── Asleep on the gold ──
         const pyd = sy + oy;                       // no idle bob — it's asleep
@@ -2767,23 +2838,13 @@ function drawEnemy(e, ts) {
         ctx.lineTo(px + s * 0.26, pyd + s * 0.675);
         ctx.stroke();
         // Lazy smoke wisps curling up from the nostrils.
-        for (let i = 0; i < 3; i++) {
-          const ph2 = ((tt / 1600) + i * 0.33 + phase * 0.1) % 1;
-          const wx = px + s * 0.13 + Math.sin(tt / 500 + i * 2.1) * s * 0.03;
-          const wy = pyd + s * 0.70 - ph2 * s * 0.30;
-          ctx.fillStyle = `rgba(120,110,110,${(1 - ph2) * 0.40})`;
-          ctx.beginPath(); ctx.arc(wx, wy, s * (0.015 + ph2 * 0.030), 0, Math.PI * 2); ctx.fill();
-        }
+        dragonSmoke(px, pyd, s, tt, phase);
         ctx.lineCap = 'butt';
         break;
       }
       // ── Awake — the fight ──
       // Fiery boss aura behind everything.
-      const auraR = s * 0.62 + Math.sin(tt / 200) * s * 0.05;
-      const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, auraR);
-      aura.addColorStop(0, 'rgba(255,110,30,0.38)');
-      aura.addColorStop(1, 'rgba(180,40,10,0)');
-      ctx.fillStyle = aura; ctx.fillRect(cx - auraR, cy - auraR, auraR * 2, auraR * 2);
+      dragonAura(cx, cy, s, tt);
       // Vast ribbed wings, beating on the flap phase, with membrane struts.
       const wf = 1 + Math.sin(tt / 130 + phase) * 0.22;
       ctx.fillStyle = '#6e1004';
@@ -2849,11 +2910,7 @@ function drawEnemy(e, ts) {
       }
       // Furnace glow building in the chest.
       const furn = Math.sin(tt / 260 + phase) * 0.5 + 0.5;
-      const fg = ctx.createRadialGradient(cx, py + s * 0.46, 0, cx, py + s * 0.46, s * 0.14);
-      fg.addColorStop(0, `rgba(255,220,90,${0.55 + furn * 0.40})`);
-      fg.addColorStop(1, 'rgba(255,120,30,0)');
-      ctx.fillStyle = fg;
-      ctx.beginPath(); ctx.arc(cx, py + s * 0.46, s * 0.14, 0, Math.PI * 2); ctx.fill();
+      dragonFurnace(cx, py, s, furn);
       // Forelimbs with talons.
       ctx.strokeStyle = '#8a1408'; ctx.lineWidth = Math.max(2, s * 0.05);
       ctx.beginPath(); ctx.moveTo(cx - s * 0.16, py + s * 0.56); ctx.lineTo(cx - s * 0.26, py + s * 0.70); ctx.stroke();
@@ -2925,13 +2982,7 @@ function drawEnemy(e, ts) {
       ctx.fillRect(cx - s * 0.065, py + s * 0.168, s * 0.012, s * 0.026);
       ctx.fillRect(cx + s * 0.055, py + s * 0.168, s * 0.012, s * 0.026);
       // Rising embers around the beast.
-      for (let i = 0; i < 5; i++) {
-        const ph3 = ((tt / 800) + i * 0.21 + phase * 0.13) % 1;
-        const ex2 = cx + Math.sin(tt / 210 + i * 1.9) * s * 0.30;
-        const ey2 = py + s * 0.55 - ph3 * s * 0.55;
-        ctx.fillStyle = `rgba(255,${120 + Math.floor(ph3 * 110)},40,${(1 - ph3) * 0.85})`;
-        ctx.fillRect(ex2 - 1, ey2 - 1, 2.5, 2.5);
-      }
+      dragonEmbers(cx, py, s, tt, phase);
       ctx.lineCap = 'butt';
       break;
     }

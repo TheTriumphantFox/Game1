@@ -1,0 +1,343 @@
+{ "frames": [
+   {
+    "filename": "dragon-sheet 0.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 220
+   },
+   {
+    "filename": "dragon-sheet 1.aseprite",
+    "frame": { "x": 168, "y": 0, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 220
+   },
+   {
+    "filename": "dragon-sheet 2.aseprite",
+    "frame": { "x": 336, "y": 0, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 220
+   },
+   {
+    "filename": "dragon-sheet 3.aseprite",
+    "frame": { "x": 504, "y": 0, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 220
+   },
+   {
+    "filename": "dragon-sheet 4.aseprite",
+    "frame": { "x": 672, "y": 0, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 100
+   },
+   {
+    "filename": "dragon-sheet 5.aseprite",
+    "frame": { "x": 840, "y": 0, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 100
+   },
+   {
+    "filename": "dragon-sheet 6.aseprite",
+    "frame": { "x": 0, "y": 168, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 100
+   },
+   {
+    "filename": "dragon-sheet 7.aseprite",
+    "frame": { "x": 168, "y": 168, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 100
+   },
+   {
+    "filename": "dragon-sheet 8.aseprite",
+    "frame": { "x": 336, "y": 168, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 100
+   },
+   {
+    "filename": "dragon-sheet 9.aseprite",
+    "frame": { "x": 504, "y": 168, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 100
+   },
+   {
+    "filename": "dragon-sheet 10.aseprite",
+    "frame": { "x": 672, "y": 168, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 100
+   },
+   {
+    "filename": "dragon-sheet 11.aseprite",
+    "frame": { "x": 840, "y": 168, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 100
+   },
+   {
+    "filename": "dragon-sheet 12.aseprite",
+    "frame": { "x": 0, "y": 336, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 13.aseprite",
+    "frame": { "x": 168, "y": 336, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 14.aseprite",
+    "frame": { "x": 336, "y": 336, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 15.aseprite",
+    "frame": { "x": 504, "y": 336, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 16.aseprite",
+    "frame": { "x": 672, "y": 336, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 17.aseprite",
+    "frame": { "x": 840, "y": 336, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 18.aseprite",
+    "frame": { "x": 0, "y": 504, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 80
+   },
+   {
+    "filename": "dragon-sheet 19.aseprite",
+    "frame": { "x": 168, "y": 504, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 80
+   },
+   {
+    "filename": "dragon-sheet 20.aseprite",
+    "frame": { "x": 336, "y": 504, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 80
+   },
+   {
+    "filename": "dragon-sheet 21.aseprite",
+    "frame": { "x": 504, "y": 504, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 80
+   },
+   {
+    "filename": "dragon-sheet 22.aseprite",
+    "frame": { "x": 672, "y": 504, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 80
+   },
+   {
+    "filename": "dragon-sheet 23.aseprite",
+    "frame": { "x": 840, "y": 504, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 80
+   },
+   {
+    "filename": "dragon-sheet 24.aseprite",
+    "frame": { "x": 0, "y": 672, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 25.aseprite",
+    "frame": { "x": 168, "y": 672, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 26.aseprite",
+    "frame": { "x": 336, "y": 672, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 27.aseprite",
+    "frame": { "x": 504, "y": 672, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 28.aseprite",
+    "frame": { "x": 672, "y": 672, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 29.aseprite",
+    "frame": { "x": 840, "y": 672, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 90
+   },
+   {
+    "filename": "dragon-sheet 30.aseprite",
+    "frame": { "x": 0, "y": 840, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 70
+   },
+   {
+    "filename": "dragon-sheet 31.aseprite",
+    "frame": { "x": 168, "y": 840, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 70
+   },
+   {
+    "filename": "dragon-sheet 32.aseprite",
+    "frame": { "x": 336, "y": 840, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 70
+   },
+   {
+    "filename": "dragon-sheet 33.aseprite",
+    "frame": { "x": 504, "y": 840, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 70
+   },
+   {
+    "filename": "dragon-sheet 34.aseprite",
+    "frame": { "x": 672, "y": 840, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 70
+   },
+   {
+    "filename": "dragon-sheet 35.aseprite",
+    "frame": { "x": 840, "y": 840, "w": 168, "h": 168 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 168, "h": 168 },
+    "sourceSize": { "w": 168, "h": 168 },
+    "duration": 70
+   }
+ ],
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18.2-dev",
+  "image": "dragon-sheet.png",
+  "format": "RGBA8888",
+  "size": { "w": 1008, "h": 1008 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "dormant", "from": 0, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "awake", "from": 4, "to": 11, "direction": "forward", "color": "#000000ff" },
+   { "name": "fly", "from": 12, "to": 17, "direction": "forward", "color": "#000000ff" },
+   { "name": "run", "from": 18, "to": 23, "direction": "forward", "color": "#000000ff" },
+   { "name": "breathe", "from": 24, "to": 29, "direction": "forward", "color": "#000000ff" },
+   { "name": "fight", "from": 30, "to": 35, "direction": "forward", "color": "#000000ff" }
+  ]
+ }
+}

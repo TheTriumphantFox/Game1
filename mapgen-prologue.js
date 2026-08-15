@@ -82,31 +82,32 @@ function hvRuinShops(mapObj) {
 // it. All are [col, row] in the standard 150×150 grid.
 const HOME = {
   // ── The family home ──
-  // The same compact 9×7 footprint as the forest-village cottages. Its interior
-  // is arranged by hand because it still has to stage the whole opening scene.
-  house: { r1: 46, c1: 71, w: 8, h: 6 },   // walls span rows 46–52, cols 71–79
+  // A broader 13×10 footprint sets the family home apart from the compact
+  // neighbours and gives the opening scene room to breathe. The south wall stays
+  // on row 52 so enlarging it does not move the door or the scripted road home.
+  house: { r1: 43, c1: 69, w: 12, h: 9 },  // walls span rows 43–52, cols 69–81
   door:      { x: 75, y: 52 },   // south-facing door in the house's south wall
-  hearth:    { x: 78, y: 49 },   // FIREPLACE — Mother stands beside it
-  window:    { x: 72, y: 46 },   // CASTLE_WINDOW set into the north wall
+  hearth:    { x: 80, y: 46 },   // FIREPLACE — Mother stands beside it
+  window:    { x: 71, y: 43 },   // CASTLE_WINDOW set into the north wall
   // Where each family member stands in Beat 1.
-  motherAt:      { x: 77, y: 49 },
-  fatherAt:      { x: 74, y: 51 },   // near the door, without blocking it
-  grandmotherAt: { x: 72, y: 49 },   // seated beneath the window
+  motherAt:      { x: 79, y: 46 },
+  fatherAt:      { x: 73, y: 50 },   // near the door, without blocking it
+  grandmotherAt: { x: 71, y: 46 },  // seated beneath the window
   // Where the player spawns — mid-room, facing south toward the door.
-  spawn:     { x: 75, y: 50 },
+  spawn:     { x: 75, y: 48 },
   // The household chest, against the south-west wall inside the house. Named
   // rather than left as an inline offset because it is story furniture now: it
   // holds Grandmother's Sword, it is locked until Beat 5, and handlePickup has to
   // recognise it to keep generic chest loot out of it (see isHomeStoryChest).
-  chest:     { x: 73, y: 51 },
+  chest:     { x: 70, y: 51 },
   // Where the bow rests in Beat 1 — against the north wall, beside her chair, on
   // the far side from the window she keeps looking out of. Beat 4's fire moves it
   // to `bowAt` (hvPinGrandmother), which is the "just out of her reach" tile.
-  bowRestAt: { x: 73, y: 48 },
+  bowRestAt: { x: 72, y: 45 },
   // Where the grandmother lies in Beat 5, pinned near the hearth, and the tile
   // her bow ends up on ("just out of her reach").
-  dyingAt:   { x: 76, y: 49 },
-  bowAt:     { x: 74, y: 49 },
+  dyingAt:   { x: 77, y: 47 },
+  bowAt:     { x: 74, y: 47 },
   // Where Mother and Father are found after the strike. They start Beat 1 inside
   // the house, but they cannot still be standing in it when the player gets home:
   // Beat 5's narration is "No sign of your mother or your father", and the room
@@ -151,8 +152,8 @@ const HOME = {
   // every other landmark is: move a building and its birds move with it.
   // Family home, the four neighbours, the inn, the store, and the mill.
   roosts: [
-    { x: 75, y: 49 }, { x: 51, y: 50 }, { x: 63, y: 50 },
-    { x: 87, y: 50 }, { x: 100, y: 50 }, { x: 98, y: 63 },
+    { x: 75, y: 47 }, { x: 49, y: 50 }, { x: 61, y: 50 },
+    { x: 89, y: 50 }, { x: 101, y: 50 }, { x: 98, y: 63 },
     { x: 55, y: 63 }, { x: 60, y: 83 },
   ],
 
@@ -284,14 +285,15 @@ function buildHomeVillageMap() {
   hvGrandSquare(m);
 
   // ── Neighbours' houses ──
-  // Compact 9×7 cottages form close streets around the clearing. Their footprint
-  // matches the forest-village redesign, and the extra homes make Elderbrook
-  // feel inhabited without returning to oversized, empty interiors.
+  // Compact 9×7 cottages form close streets around the clearing. Every house
+  // footprint in Elderbrook has at least three open tiles before the next one;
+  // the northern row is spaced outward from the larger family home accordingly.
+  // The compact footprint still matches the forest-village redesign.
   const neighbours = [
-    { r1: 47,  c1: 47, w: 8, h: 6 },
-    { r1: 47,  c1: 59, w: 8, h: 6 },
-    { r1: 47,  c1: 83, w: 8, h: 6 },
-    { r1: 47,  c1: 96, w: 8, h: 6 },
+    { r1: 47,  c1: 45, w: 8, h: 6 },
+    { r1: 47,  c1: 57, w: 8, h: 6 },
+    { r1: 47,  c1: 85, w: 8, h: 6 },
+    { r1: 47,  c1: 97, w: 8, h: 6 },
     { r1: 72,  c1: 44, w: 8, h: 6 },
     { r1: 72,  c1: 99, w: 8, h: 6 },
     { r1: 100, c1: 60, w: 8, h: 6 },
@@ -346,13 +348,14 @@ function buildHomeVillageMap() {
   m[HOME.hearth.y][HOME.hearth.x] = T.FIREPLACE;
   m[H.r1 + 1][H.c1 + 1]   = T.TORCH;
   m[H.r1 + 1][hc2 - 1]    = T.TORCH;
-  // Compact furnishings: beds along the west wall and a small dining setting
-  // against the north side, leaving a clear aisle from spawn to the door.
-  m[H.r1 + 4][H.c1 + 1] = T.BED;
+  // Furnishings use the edges of the larger room: beds along the west wall and
+  // a dining setting across the north side. The broad middle and the aisle from
+  // spawn to the door stay clear for the opening scene and free movement.
   m[H.r1 + 5][H.c1 + 1] = T.BED;
-  m[H.r1 + 2][H.c1 + 5] = T.TABLE;
-  m[H.r1 + 2][H.c1 + 4] = T.CHAIR;
+  m[H.r1 + 6][H.c1 + 1] = T.BED;
+  m[H.r1 + 2][H.c1 + 7] = T.TABLE;
   m[H.r1 + 2][H.c1 + 6] = T.CHAIR;
+  m[H.r1 + 2][H.c1 + 8] = T.CHAIR;
   // The household chest, tucked in the south-west corner. Story furniture: it
   // holds Grandmother's Sword and stays locked until Beat 5, and it is exempt
   // from the generic small-chest loot table (see handlePickup in player.js).

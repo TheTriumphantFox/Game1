@@ -574,6 +574,10 @@ function stepEnemies(dt, map) {
 function stepEnemyRanged(dt) {
   for (const e of enemies) {
     if (e.dead || !e.ranged || e.dormant) continue;
+    // Purely cosmetic: how long the breath animation has left to play. Set when
+    // the flame fan spawns below, read by dragon-sprite.js. Nothing about damage,
+    // reach or cadence depends on it.
+    if (e.breathT > 0) e.breathT -= dt;
     e.shootTimer -= dt;
     if (e.shootTimer > 0) continue;
     e.shootTimer = 1800 + Math.random() * 1200;
@@ -587,6 +591,7 @@ function stepEnemyRanged(dt) {
     if (e.breath === 'fire') {
       e.shootTimer = 2400 + Math.random() * 900;
       if (dist >= 26 || dist === 0) continue;
+      e.breathT = DRAGON_BREATH_ANIM_MS;      // cosmetic; see dragon-sprite.js
       const base = Math.atan2(dy, dx);
       for (let k = -2; k <= 2; k++) {
         const a = base + k * 0.18;
