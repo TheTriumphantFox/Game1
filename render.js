@@ -256,8 +256,13 @@ function drawPlayer(ts) {
   const airT = Math.max(0, Math.min(1, (jumpLift + climbLift) / (s * 0.45)));
   const shScale = 1 - 0.45 * airT;
   ctx.fillStyle = `rgba(0,0,0,${(0.40 * (1 - 0.4 * airT)).toFixed(3)})`;
+  const homeLight = typeof isInsideIntactElderbrookHomePosition === 'function' &&
+                    isInsideIntactElderbrookHomePosition(px, py);
+  const homeShadowX = homeLight ? s * 0.045 : 0;
+  const homeShadowY = homeLight ? s * 0.018 : 0;
   ctx.beginPath();
-  ctx.ellipse(sx + s/2 + climbSway, sy + s*0.93, s*0.28*shScale, s*0.07*shScale, 0, 0, Math.PI*2);
+  ctx.ellipse(sx + s/2 + climbSway + homeShadowX, sy + s*0.93 + homeShadowY,
+    s*0.28*shScale, s*0.07*shScale, 0, 0, Math.PI*2);
   ctx.fill();
   // Sway the body horizontally during a climb (shadow already placed above).
   if (climbSway) ctx.translate(climbSway, 0);
@@ -2075,6 +2080,401 @@ function drawForestShopSign(doorTile, centreX, bottom, ts) {
   }
 }
 
+// The enlarged Elderbrook family home is the 2.5D art-direction pilot. It keeps
+// the ordinary tile map and collision underneath, then replaces only this one
+// shell with timber, plaster, depth shadows and local light inspired by the
+// forest-village concept art. The ruin deliberately keeps its established
+// scorched rendering so Ashfall still destroys the warm home shown in Beat 1.
+function isIntactElderbrookHome(mapObj) {
+  if (!mapObj || mapObj.type !== 'homevillage' || typeof HOME === 'undefined') return false;
+  return !(typeof hasFlag === 'function' &&
+    (hasFlag('village_burning') || hasFlag('prologue_complete')));
+}
+
+function isFamilyHomeRoof(h, mapObj) {
+  if (!isIntactElderbrookHome(mapObj)) return false;
+  const H = HOME.house;
+  return h.c1 === H.c1 && h.r1 === H.r1 &&
+         h.c2 === H.c1 + H.w && h.r2 === H.r1 + H.h;
+}
+
+function isInsideIntactElderbrookHomePosition(x, y) {
+  if (typeof currentMap !== 'function' || typeof HOME === 'undefined') return false;
+  const mapObj = currentMap();
+  if (!isIntactElderbrookHome(mapObj)) return false;
+  const H = HOME.house;
+  return x >= H.c1 && x <= H.c1 + H.w && y >= H.r1 && y <= H.r1 + H.h;
+}
+
+// Directional finishing pass for the enlarged family-home interior. Shared tile
+// sprites stay untouched elsewhere in the world; only furniture in this room
+// receives the pilot's upper-left highlights and lower-right contact shadows.
+function drawElderbrookInteriorFurnishingLight(mapObj, ts) {
+  const H = HOME.house;
+  const r2 = H.r1 + H.h, c2 = H.c1 + H.w;
+  const map = mapObj.map;
+
+  ctx.save();
+
+  // The dining candle is a small local source, just like the hearth and wall
+  // torches. It warms the nearby tabletop without changing the sun direction.
+  const candleX = (H.c1 + 7.5 - camC) * ts;
+  const candleY = (H.r1 + 2.22 - camR) * ts;
+  const candleGlow = ctx.createRadialGradient(candleX, candleY, ts * 0.03,
+    candleX, candleY, ts * 1.15);
+  candleGlow.addColorStop(0, 'rgba(255,221,135,0.20)');
+  candleGlow.addColorStop(1, 'rgba(255,180,76,0)');
+  ctx.fillStyle = candleGlow;
+  ctx.fillRect(candleX - ts * 1.15, candleY - ts * 1.15, ts * 2.3, ts * 2.3);
+
+  const groundShadow = (x, y, rx, ry, angle = 0.10) => {
+    ctx.fillStyle = 'rgba(39,22,12,0.24)';
+    ctx.beginPath();
+    ctx.ellipse(x + ts * 0.57, y + ts * 0.88, ts * rx, ts * ry,
+      angle, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  for (let r = H.r1 + 1; r < r2; r++) {
+    for (let c = H.c1 + 1; c < c2; c++) {
+      const tile = map[r][c];
+      const x = (c - camC) * ts, y = (r - camR) * ts;
+
+      switch (tile) {
+        case T.BED:
+          groundShadow(x, y, 0.40, 0.095);
+          // Lit mattress/head edge; shaded east frame and foot edge.
+          ctx.fillStyle = 'rgba(255,248,225,0.34)';
+          ctx.fillRect(x + ts * 0.13, y + ts * 0.19, ts * 0.60, ts * 0.035);
+          ctx.fillRect(x + ts * 0.11, y + ts * 0.21, ts * 0.035, ts * 0.46);
+          ctx.fillStyle = 'rgba(39,20,10,0.22)';
+          ctx.fillRect(x + ts * 0.87, y + ts * 0.22, ts * 0.035, ts * 0.60);
+          ctx.fillRect(x + ts * 0.16, y + ts * 0.80, ts * 0.71, ts * 0.035);
+          break;
+
+        case T.TABLE:
+          groundShadow(x, y, 0.40, 0.10);
+          ctx.fillStyle = 'rgba(233,176,103,0.34)';
+          ctx.fillRect(x + ts * 0.11, y + ts * 0.235, ts * 0.61, ts * 0.035);
+          ctx.fillRect(x + ts * 0.095, y + ts * 0.25, ts * 0.035, ts * 0.31);
+          ctx.fillStyle = 'rgba(31,16,8,0.25)';
+          ctx.fillRect(x + ts * 0.87, y + ts * 0.29, ts * 0.035, ts * 0.36);
+          break;
+
+        case T.CHAIR:
+          groundShadow(x, y, 0.25, 0.075);
+          ctx.fillStyle = 'rgba(224,157,87,0.34)';
+          ctx.fillRect(x + ts * 0.30, y + ts * 0.15, ts * 0.27, ts * 0.025);
+          ctx.fillRect(x + ts * 0.30, y + ts * 0.18, ts * 0.025, ts * 0.35);
+          ctx.fillStyle = 'rgba(31,16,8,0.24)';
+          ctx.fillRect(x + ts * 0.70, y + ts * 0.51, ts * 0.025, ts * 0.38);
+          break;
+
+        case T.CHEST: {
+          const opened = mapObj.openedChests.has(`${c},${r}`);
+          groundShadow(x, y, 0.43, 0.105);
+
+          if (opened) {
+            // Raised lid: dark outer silhouette, warm inner boards, and a deep
+            // black cavity make the open state immediately distinct.
+            ctx.fillStyle = '#24160f';
+            ctx.beginPath();
+            ctx.moveTo(x + ts * 0.10, y + ts * 0.42);
+            ctx.lineTo(x + ts * 0.16, y + ts * 0.11);
+            ctx.lineTo(x + ts * 0.88, y + ts * 0.18);
+            ctx.lineTo(x + ts * 0.91, y + ts * 0.47);
+            ctx.closePath(); ctx.fill();
+            const openLid = ctx.createLinearGradient(x, y, x + ts, y + ts * 0.48);
+            openLid.addColorStop(0, '#a66a34');
+            openLid.addColorStop(1, '#58331f');
+            ctx.fillStyle = openLid;
+            ctx.beginPath();
+            ctx.moveTo(x + ts * 0.16, y + ts * 0.39);
+            ctx.lineTo(x + ts * 0.21, y + ts * 0.17);
+            ctx.lineTo(x + ts * 0.83, y + ts * 0.22);
+            ctx.lineTo(x + ts * 0.86, y + ts * 0.41);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#160f0b';
+            ctx.beginPath();
+            ctx.moveTo(x + ts * 0.13, y + ts * 0.43);
+            ctx.lineTo(x + ts * 0.88, y + ts * 0.43);
+            ctx.lineTo(x + ts * 0.80, y + ts * 0.58);
+            ctx.lineTo(x + ts * 0.20, y + ts * 0.58);
+            ctx.closePath(); ctx.fill();
+          } else {
+            // Domed lid gives the closed chest the classic treasure-trunk shape.
+            ctx.fillStyle = '#26170f';
+            ctx.beginPath();
+            ctx.moveTo(x + ts * 0.07, y + ts * 0.47);
+            ctx.lineTo(x + ts * 0.12, y + ts * 0.30);
+            ctx.quadraticCurveTo(x + ts * 0.50, y + ts * 0.09,
+                                 x + ts * 0.88, y + ts * 0.30);
+            ctx.lineTo(x + ts * 0.94, y + ts * 0.47);
+            ctx.closePath(); ctx.fill();
+            const lidWood = ctx.createLinearGradient(x + ts * 0.12, y + ts * 0.18,
+              x + ts * 0.88, y + ts * 0.46);
+            lidWood.addColorStop(0, '#bd7a3a');
+            lidWood.addColorStop(0.55, '#895126');
+            lidWood.addColorStop(1, '#4c2c1c');
+            ctx.fillStyle = lidWood;
+            ctx.beginPath();
+            ctx.moveTo(x + ts * 0.13, y + ts * 0.44);
+            ctx.lineTo(x + ts * 0.17, y + ts * 0.31);
+            ctx.quadraticCurveTo(x + ts * 0.50, y + ts * 0.15,
+                                 x + ts * 0.83, y + ts * 0.31);
+            ctx.lineTo(x + ts * 0.87, y + ts * 0.44);
+            ctx.closePath(); ctx.fill();
+            // Upper-left rim catches the room's morning light.
+            ctx.strokeStyle = 'rgba(255,210,126,0.58)';
+            ctx.lineWidth = Math.max(1, ts * 0.028);
+            ctx.beginPath();
+            ctx.moveTo(x + ts * 0.18, y + ts * 0.31);
+            ctx.quadraticCurveTo(x + ts * 0.43, y + ts * 0.17,
+                                 x + ts * 0.61, y + ts * 0.20);
+            ctx.stroke();
+          }
+
+          // Heavy lower box and recessed front panel remain visible in both
+          // states, so the object never collapses into an orange square.
+          ctx.fillStyle = '#25170f';
+          ctx.fillRect(x + ts * 0.06, y + ts * 0.44, ts * 0.88, ts * 0.47);
+          const chestFace = ctx.createLinearGradient(x + ts * 0.09, y + ts * 0.47,
+            x + ts * 0.91, y + ts * 0.89);
+          chestFace.addColorStop(0, '#a8622d');
+          chestFace.addColorStop(0.58, '#75401f');
+          chestFace.addColorStop(1, '#42271a');
+          ctx.fillStyle = chestFace;
+          ctx.fillRect(x + ts * 0.10, y + ts * 0.48, ts * 0.80, ts * 0.38);
+          ctx.strokeStyle = 'rgba(49,25,13,0.72)';
+          ctx.lineWidth = Math.max(1, ts * 0.028);
+          ctx.strokeRect(x + ts * 0.20, y + ts * 0.56, ts * 0.60, ts * 0.22);
+
+          // Iron bands, corner plates, bolts and feet make the storage function
+          // legible even before the player notices the lock.
+          ctx.fillStyle = '#3e4140';
+          ctx.fillRect(x + ts * 0.10, y + ts * 0.44, ts * 0.80, ts * 0.075);
+          ctx.fillRect(x + ts * 0.18, y + ts * 0.32, ts * 0.075, ts * 0.56);
+          ctx.fillRect(x + ts * 0.75, y + ts * 0.32, ts * 0.075, ts * 0.56);
+          ctx.fillStyle = '#242625';
+          ctx.fillRect(x + ts * 0.10, y + ts * 0.80, ts * 0.10, ts * 0.10);
+          ctx.fillRect(x + ts * 0.80, y + ts * 0.80, ts * 0.10, ts * 0.10);
+          ctx.fillStyle = '#a7a39a';
+          for (const px of [0.215, 0.785]) {
+            for (const py of [0.48, 0.82]) {
+              ctx.beginPath();
+              ctx.arc(x + ts * px, y + ts * py, ts * 0.018, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          // Oversized brass escutcheon and keyhole are the final recognition cue.
+          ctx.fillStyle = '#d5a640';
+          ctx.fillRect(x + ts * 0.42, y + ts * 0.45, ts * 0.16, ts * 0.20);
+          ctx.fillStyle = '#f0cc67';
+          ctx.fillRect(x + ts * 0.44, y + ts * 0.47, ts * 0.10, ts * 0.035);
+          ctx.fillStyle = '#3b2918';
+          ctx.beginPath();
+          ctx.arc(x + ts * 0.50, y + ts * 0.54, ts * 0.026, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillRect(x + ts * 0.485, y + ts * 0.55, ts * 0.03, ts * 0.06);
+          break;
+        }
+
+        case T.FIREPLACE:
+          // The stone body still obeys daylight; the fire remains an emissive
+          // radial source layered over that masonry.
+          ctx.fillStyle = 'rgba(225,213,188,0.28)';
+          ctx.fillRect(x + ts * 0.05, y + ts * 0.045, ts * 0.68, ts * 0.04);
+          ctx.fillRect(x + ts * 0.045, y + ts * 0.07, ts * 0.04, ts * 0.61);
+          ctx.fillStyle = 'rgba(25,18,15,0.25)';
+          ctx.fillRect(x + ts * 0.91, y + ts * 0.14, ts * 0.045, ts * 0.77);
+          ctx.fillRect(x + ts * 0.15, y + ts * 0.91, ts * 0.80, ts * 0.045);
+          break;
+
+        case T.PORTAL:
+          groundShadow(x, y, 0.40, 0.105);
+          ctx.fillStyle = 'rgba(225,211,242,0.26)';
+          ctx.fillRect(x + ts * 0.10, y + ts * 0.095, ts * 0.55, ts * 0.035);
+          ctx.fillRect(x + ts * 0.095, y + ts * 0.12, ts * 0.035, ts * 0.53);
+          ctx.fillStyle = 'rgba(20,12,27,0.30)';
+          ctx.fillRect(x + ts * 0.87, y + ts * 0.18, ts * 0.035, ts * 0.70);
+          ctx.fillRect(x + ts * 0.18, y + ts * 0.87, ts * 0.70, ts * 0.035);
+          break;
+
+        case T.TORCH:
+          groundShadow(x, y, 0.27, 0.07);
+          ctx.fillStyle = 'rgba(255,226,151,0.28)';
+          ctx.fillRect(x + ts * 0.255, y + ts * 0.775, ts * 0.25, ts * 0.025);
+          ctx.fillRect(x + ts * 0.255, y + ts * 0.79, ts * 0.025, ts * 0.13);
+          break;
+
+        case T.GRAN_BOW:
+          // Offset shadow and a fine upper-left rim follow the bow's own arc.
+          ctx.strokeStyle = 'rgba(39,22,12,0.26)';
+          ctx.lineWidth = Math.max(1, ts * 0.055);
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(x + ts * 0.27, y + ts * 0.21);
+          ctx.quadraticCurveTo(x + ts * 0.91, y + ts * 0.55, x + ts * 0.27, y + ts * 0.89);
+          ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,225,166,0.44)';
+          ctx.lineWidth = Math.max(0.8, ts * 0.025);
+          ctx.beginPath();
+          ctx.moveTo(x + ts * 0.20, y + ts * 0.14);
+          ctx.quadraticCurveTo(x + ts * 0.82, y + ts * 0.47, x + ts * 0.20, y + ts * 0.79);
+          ctx.stroke();
+          ctx.lineCap = 'butt';
+          break;
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawElderbrookFamilyHomeDepth(mapObj, ts) {
+  if (!isIntactElderbrookHome(mapObj)) return;
+  const H = HOME.house;
+  const r2 = H.r1 + H.h, c2 = H.c1 + H.w;
+  const left = (H.c1 - camC) * ts, top = (H.r1 - camR) * ts;
+  const right = (c2 + 1 - camC) * ts, bottom = (r2 + 1 - camR) * ts;
+  const inside = player.x >= H.c1 && player.x <= c2 &&
+                 player.y >= H.r1 && player.y <= r2;
+  const map = mapObj.map;
+
+  ctx.save();
+
+  // A south-east cast shadow anchors the building to the ground. It remains
+  // visible around the roof outside and around the exposed shell inside.
+  ctx.fillStyle = 'rgba(37,24,13,0.34)';
+  ctx.fillRect(right, top + ts * 0.34, ts * 0.30, bottom - top);
+  ctx.fillRect(left + ts * 0.34, bottom, right - left, ts * 0.30);
+
+  if (inside) {
+    const innerLeft = left + ts, innerTop = top + ts;
+    const innerW = right - left - ts * 2, innerH = bottom - top - ts * 2;
+
+    // Long floorboards remove the checkerboard feel without changing any tile.
+    // Only bare FLOOR cells get seams, so the lines never cut across furniture.
+    ctx.strokeStyle = 'rgba(63,35,17,0.25)';
+    ctx.lineWidth = Math.max(0.75, ts * 0.018);
+    for (let r = H.r1 + 1; r < r2; r++) {
+      for (let c = H.c1 + 1; c < c2; c++) {
+        if (map[r][c] !== T.FLOOR) continue;
+        const x = (c - camC) * ts, y = (r - camR) * ts;
+        for (const f of [0.32, 0.66]) {
+          ctx.beginPath(); ctx.moveTo(x, y + ts * f); ctx.lineTo(x + ts, y + ts * f); ctx.stroke();
+        }
+        if ((r * 11 + c * 7) % 5 === 0) {
+          ctx.fillStyle = 'rgba(73,40,19,0.24)';
+          ctx.beginPath(); ctx.ellipse(x + ts * 0.72, y + ts * 0.49,
+            ts * 0.08, ts * 0.035, 0, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+
+    // Upper-left morning light and lower-right ambient shade give the single
+    // room a consistent light direction, matching the concept sheet.
+    ctx.save();
+    ctx.beginPath(); ctx.rect(innerLeft, innerTop, innerW, innerH); ctx.clip();
+    const shade = ctx.createLinearGradient(innerLeft, innerTop, right - ts, bottom - ts);
+    shade.addColorStop(0, 'rgba(255,236,184,0.08)');
+    shade.addColorStop(0.55, 'rgba(70,39,20,0.03)');
+    shade.addColorStop(1, 'rgba(36,20,12,0.23)');
+    ctx.fillStyle = shade; ctx.fillRect(innerLeft, innerTop, innerW, innerH);
+
+    const wx = (HOME.window.x + 0.5 - camC) * ts;
+    const wy = (HOME.window.y + 1 - camR) * ts;
+    const sun = ctx.createLinearGradient(wx, wy, wx + ts * 4.6, wy + ts * 4.2);
+    sun.addColorStop(0, 'rgba(255,239,172,0.30)');
+    sun.addColorStop(1, 'rgba(255,239,172,0)');
+    ctx.fillStyle = sun;
+    ctx.beginPath();
+    ctx.moveTo(wx - ts * 0.26, wy);
+    ctx.lineTo(wx + ts * 0.36, wy);
+    ctx.lineTo(wx + ts * 4.9, wy + ts * 4.5);
+    ctx.lineTo(wx + ts * 3.2, wy + ts * 4.5);
+    ctx.closePath(); ctx.fill();
+
+    const hx = (HOME.hearth.x + 0.5 - camC) * ts;
+    const hy = (HOME.hearth.y + 0.62 - camR) * ts;
+    const firelight = ctx.createRadialGradient(hx, hy, ts * 0.10, hx, hy, ts * 3.1);
+    firelight.addColorStop(0, 'rgba(255,173,69,0.28)');
+    firelight.addColorStop(0.45, 'rgba(255,133,43,0.10)');
+    firelight.addColorStop(1, 'rgba(255,112,28,0)');
+    ctx.fillStyle = firelight; ctx.fillRect(hx - ts * 3.1, hy - ts * 3.1, ts * 6.2, ts * 6.2);
+    ctx.restore();
+  }
+
+  // Repaint the one-tile shell as warm lime plaster held by dark oak framing.
+  // The lower and right bevels turn the wall band into a raised volume.
+  const plaster = ctx.createLinearGradient(left, top, right, bottom);
+  plaster.addColorStop(0, '#c7a879'); plaster.addColorStop(1, '#8c6847');
+  const wallTile = (c, r) => {
+    const x = (c - camC) * ts, y = (r - camR) * ts;
+    ctx.fillStyle = plaster; ctx.fillRect(x, y, ts + 0.5, ts + 0.5);
+    ctx.fillStyle = '#d9bd88'; ctx.fillRect(x + ts * 0.08, y + ts * 0.08, ts * 0.84, ts * 0.10);
+    ctx.fillStyle = '#4a2b19';
+    ctx.fillRect(x, y, ts * 0.11, ts);
+    ctx.fillRect(x + ts * 0.89, y, ts * 0.11, ts);
+    ctx.fillRect(x, y, ts, ts * 0.10);
+    ctx.fillStyle = '#5b351f'; ctx.fillRect(x, y + ts * 0.82, ts, ts * 0.18);
+    ctx.fillStyle = 'rgba(35,19,11,0.44)'; ctx.fillRect(x + ts * 0.90, y + ts * 0.10, ts * 0.10, ts * 0.72);
+  };
+
+  for (let c = H.c1; c <= c2; c++) {
+    if (map[H.r1][c] === T.WALL || map[H.r1][c] === T.CASTLE_WINDOW) wallTile(c, H.r1);
+    if (map[r2][c] === T.WALL) wallTile(c, r2);
+  }
+  for (let r = H.r1 + 1; r < r2; r++) {
+    if (map[r][H.c1] === T.WALL) wallTile(H.c1, r);
+    if (map[r][c2] === T.WALL) wallTile(c2, r);
+  }
+
+  // Deep inset leaded window, with a bright upper-left glint.
+  {
+    const x = (HOME.window.x - camC) * ts, y = (HOME.window.y - camR) * ts;
+    ctx.fillStyle = '#3c2418'; ctx.fillRect(x + ts * 0.16, y + ts * 0.12, ts * 0.68, ts * 0.82);
+    ctx.fillStyle = '#203b38'; ctx.fillRect(x + ts * 0.25, y + ts * 0.20, ts * 0.50, ts * 0.62);
+    const glass = ctx.createLinearGradient(x + ts * 0.25, y + ts * 0.20, x + ts * 0.75, y + ts * 0.82);
+    glass.addColorStop(0, '#9fd48f'); glass.addColorStop(0.5, '#4e8f69'); glass.addColorStop(1, '#244d43');
+    ctx.fillStyle = glass; ctx.fillRect(x + ts * 0.29, y + ts * 0.24, ts * 0.42, ts * 0.54);
+    ctx.strokeStyle = '#d6b46c'; ctx.lineWidth = Math.max(1, ts * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(x + ts * 0.50, y + ts * 0.24); ctx.lineTo(x + ts * 0.50, y + ts * 0.78);
+    ctx.moveTo(x + ts * 0.29, y + ts * 0.50); ctx.lineTo(x + ts * 0.71, y + ts * 0.50); ctx.stroke();
+    ctx.fillStyle = 'rgba(236,255,210,0.60)'; ctx.fillRect(x + ts * 0.31, y + ts * 0.27, ts * 0.13, ts * 0.05);
+  }
+
+  // A timber threshold replaces the purple placeholder door for this home only.
+  {
+    const x = (HOME.door.x - camC) * ts, y = (HOME.door.y - camR) * ts;
+    ctx.fillStyle = '#2a190f'; ctx.fillRect(x + ts * 0.06, y, ts * 0.88, ts);
+    const threshold = ctx.createLinearGradient(x, y, x, y + ts);
+    threshold.addColorStop(0, '#b47a3e'); threshold.addColorStop(1, '#6b3b20');
+    ctx.fillStyle = threshold; ctx.fillRect(x + ts * 0.15, y, ts * 0.70, ts);
+    ctx.strokeStyle = 'rgba(55,27,13,0.60)'; ctx.lineWidth = Math.max(1, ts * 0.035);
+    for (const f of [0.26, 0.52, 0.78]) {
+      ctx.beginPath(); ctx.moveTo(x + ts * 0.17, y + ts * f); ctx.lineTo(x + ts * 0.83, y + ts * f); ctx.stroke();
+    }
+    ctx.fillStyle = '#d39a55'; ctx.fillRect(x + ts * 0.15, y, ts * 0.70, ts * 0.08);
+  }
+
+  if (inside) {
+    // Inner wall lips are the strongest depth cue while the roof is hidden.
+    const northLip = ctx.createLinearGradient(0, top + ts, 0, top + ts * 1.34);
+    northLip.addColorStop(0, 'rgba(35,20,11,0.42)'); northLip.addColorStop(1, 'rgba(35,20,11,0)');
+    ctx.fillStyle = northLip; ctx.fillRect(left + ts, top + ts, right - left - ts * 2, ts * 0.34);
+    const eastLip = ctx.createLinearGradient(right - ts * 1.28, 0, right - ts, 0);
+    eastLip.addColorStop(0, 'rgba(35,20,11,0)'); eastLip.addColorStop(1, 'rgba(35,20,11,0.34)');
+    ctx.fillStyle = eastLip; ctx.fillRect(right - ts * 1.28, top + ts, ts * 0.28, bottom - top - ts * 2);
+
+    drawElderbrookInteriorFurnishingLight(mapObj, ts);
+  }
+
+  ctx.restore();
+}
+
 function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
   if (!mapObj || mapObj.biome !== 'forest' ||
       (mapObj.type !== 'village' && mapObj.type !== 'homevillage')) return;
@@ -2083,6 +2483,7 @@ function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
   if (mapObj.type === 'homevillage' && typeof hasFlag === 'function' &&
       (hasFlag('village_burning') || hasFlag('prologue_complete'))) return;
 
+  let redrawPlayerInFront = false;
   for (const h of mapForestHouseRoofs(mapObj)) {
     if (h.c2 < startC - 1 || h.c1 > endC + 1 || h.r2 < startR - 1 || h.r1 > endR + 1) continue;
     // Crossing the doorway counts as entering: the whole roof vanishes at once
@@ -2093,15 +2494,24 @@ function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
     const top = (h.r1 - camR - 0.45) * ts;
     const right = (h.c2 + 1 - camC + 0.28) * ts;
     const bottom = (h.r2 + 1 - camR + 0.20) * ts;
+    const familyHome = isFamilyHomeRoof(h, mapObj);
+    // The pilot roof stops short of the south edge so a projected front wall can
+    // stand beneath it. Generic cottages retain their established full footprint.
+    const roofBottom = familyHome ? bottom - ts * 2.08 : bottom;
     const width = right - left, height = bottom - top;
-    const ridgeY = top + height * 0.43;
+    const roofHeight = roofBottom - top;
+    const ridgeY = top + roofHeight * 0.43;
     const centreX = (h.doorC + 0.5 - camC) * ts;
     const seed = (h.c1 * 37 + h.r1 * 61) >>> 0;
+    const northRoof = familyHome ? '#6f4728' : (seed % 3 === 0 ? '#6f3525' : '#743a28');
+    const southRoof = familyHome ? '#98623a' : (seed % 2 ? '#914d31' : '#88452e');
+    const roofEdge = familyHome ? '#342015' : '#3a1d17';
+    const ridge = familyHome ? '#d39a58' : '#c27a4a';
 
     ctx.save();
     // Deep eave shadow makes the roof read as a raised structure rather than a
     // recoloured patch of ground.
-    ctx.fillStyle = 'rgba(18,10,5,0.48)';
+    ctx.fillStyle = familyHome ? 'rgba(26,17,9,0.58)' : 'rgba(18,10,5,0.48)';
     ctx.fillRect(left + ts * 0.14, top + ts * 0.28, width, height);
 
     // North and south roof planes, with clipped corners and a bright ridge.
@@ -2111,22 +2521,29 @@ function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
     ctx.lineTo(right, ridgeY);
     ctx.lineTo(left, ridgeY);
     ctx.closePath();
-    ctx.fillStyle = seed % 3 === 0 ? '#6f3525' : '#743a28'; ctx.fill();
-    ctx.strokeStyle = '#3a1d17'; ctx.lineWidth = Math.max(1.5, ts * 0.07); ctx.stroke();
+    const northRoofLight = ctx.createLinearGradient(0, top, 0, ridgeY);
+    northRoofLight.addColorStop(0, familyHome ? '#4a2d1c' : northRoof);
+    northRoofLight.addColorStop(1, familyHome ? '#865936' : northRoof);
+    ctx.fillStyle = northRoofLight; ctx.fill();
+    ctx.strokeStyle = roofEdge; ctx.lineWidth = Math.max(1.5, ts * 0.07); ctx.stroke();
 
     ctx.beginPath();
     ctx.moveTo(left, ridgeY);
     ctx.lineTo(right, ridgeY);
-    ctx.lineTo(right - ts * 0.18, bottom);
-    ctx.lineTo(left + ts * 0.18, bottom);
+    ctx.lineTo(right - ts * 0.18, roofBottom);
+    ctx.lineTo(left + ts * 0.18, roofBottom);
     ctx.closePath();
-    ctx.fillStyle = seed % 2 ? '#914d31' : '#88452e'; ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = '#c27a4a'; ctx.lineWidth = Math.max(1, ts * 0.08);
+    const southRoofLight = ctx.createLinearGradient(0, ridgeY, 0, roofBottom);
+    southRoofLight.addColorStop(0, familyHome ? '#b57a48' : southRoof);
+    southRoofLight.addColorStop(0.58, southRoof);
+    southRoofLight.addColorStop(1, familyHome ? '#633c25' : southRoof);
+    ctx.fillStyle = southRoofLight; ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = ridge; ctx.lineWidth = Math.max(1, ts * 0.08);
     ctx.beginPath(); ctx.moveTo(left + ts * 0.05, ridgeY); ctx.lineTo(right - ts * 0.05, ridgeY); ctx.stroke();
 
     // Layered shingle courses break up the large planes at every zoom level.
     ctx.strokeStyle = 'rgba(48,20,15,0.55)'; ctx.lineWidth = Math.max(1, ts * 0.035);
-    for (let y = ridgeY + ts * 0.48; y < bottom - ts * 0.18; y += ts * 0.52) {
+    for (let y = ridgeY + ts * 0.48; y < roofBottom - ts * 0.18; y += ts * 0.52) {
       ctx.beginPath(); ctx.moveTo(left + ts * 0.20, y); ctx.lineTo(right - ts * 0.20, y); ctx.stroke();
     }
     ctx.strokeStyle = 'rgba(224,132,78,0.28)';
@@ -2134,22 +2551,387 @@ function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
       ctx.beginPath(); ctx.moveTo(left + ts * 0.22, y); ctx.lineTo(right - ts * 0.22, y); ctx.stroke();
     }
 
-    // A front gable over the south-facing door gives each footprint a clear
-    // cottage silhouette. Its little timber brace points to the entrance.
-    const gableHalf = Math.min(ts * 1.45, width * 0.22);
-    ctx.beginPath();
-    ctx.moveTo(centreX, ridgeY - ts * 0.10);
-    ctx.lineTo(centreX + gableHalf, bottom + ts * 0.12);
-    ctx.lineTo(centreX - gableHalf, bottom + ts * 0.12);
-    ctx.closePath();
-    ctx.fillStyle = '#7c3828'; ctx.fill(); ctx.strokeStyle = '#3a1d17'; ctx.stroke();
-    ctx.strokeStyle = '#c78452'; ctx.lineWidth = Math.max(1.5, ts * 0.06);
-    ctx.beginPath(); ctx.moveTo(centreX, ridgeY + ts * 0.05); ctx.lineTo(centreX, bottom - ts * 0.08); ctx.stroke();
+    if (familyHome) {
+      // Staggered shingle joints and a thick south fascia make the larger pilot
+      // roof feel built from overlapping material instead of a flat polygon.
+      ctx.strokeStyle = 'rgba(49,29,17,0.38)';
+      ctx.lineWidth = Math.max(0.8, ts * 0.025);
+      let course = 0;
+      for (let y = top + ts * 0.38; y < roofBottom - ts * 0.20; y += ts * 0.52, course++) {
+        const offset = (course % 2) * ts * 0.46;
+        for (let x = left + ts * 0.42 + offset; x < right - ts * 0.24; x += ts * 0.92) {
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, Math.min(y + ts * 0.42, roofBottom - ts * 0.18)); ctx.stroke();
+        }
+      }
+
+      // Projected front elevation: warm infill, oak frame, two inset windows and
+      // a panelled door. This is deliberately taller than one tile so the player
+      // sees a house facade as well as its top-down roof plane.
+      const facadeTop = roofBottom - ts * 0.03;
+      const facadeBottom = bottom + ts * 0.10;
+      // Pull the front plane inside the roof silhouette. Matching shallow wall
+      // returns keep the depth cue without distorting either end of the house.
+      const facadeLeft = left + ts * 0.42;
+      const facadeRight = right - ts * 0.42;
+      const facadeH = facadeBottom - facadeTop;
+      ctx.fillStyle = 'rgba(28,17,10,0.52)';
+      ctx.fillRect(facadeLeft + ts * 0.18, facadeTop + ts * 0.24,
+        facadeRight - facadeLeft, facadeH);
+
+      // Deep west/east returns sit behind the front wall. Their angled lower
+      // edges and different light values establish the building's actual depth.
+      ctx.fillStyle = '#735338';
+      ctx.beginPath();
+      ctx.moveTo(left + ts * 0.18, facadeTop - ts * 0.08);
+      ctx.lineTo(facadeLeft, facadeTop + ts * 0.12);
+      ctx.lineTo(facadeLeft, facadeBottom);
+      ctx.lineTo(left + ts * 0.20, facadeBottom - ts * 0.27);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#513722';
+      ctx.beginPath();
+      ctx.moveTo(facadeRight, facadeTop + ts * 0.12);
+      ctx.lineTo(right - ts * 0.18, facadeTop - ts * 0.08);
+      ctx.lineTo(right - ts * 0.16, facadeBottom - ts * 0.30);
+      ctx.lineTo(facadeRight, facadeBottom);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(37,22,13,0.72)';
+      ctx.lineWidth = Math.max(1, ts * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(facadeRight, facadeTop + ts * 0.12);
+      ctx.lineTo(facadeRight, facadeBottom);
+      ctx.stroke();
+
+      const face = ctx.createLinearGradient(facadeLeft, facadeTop, facadeRight, facadeBottom);
+      face.addColorStop(0, '#cdb27f'); face.addColorStop(0.58, '#b18a5c'); face.addColorStop(1, '#805c3e');
+      ctx.fillStyle = face;
+      ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, facadeH);
+
+      // A hard roof contact shadow separates the upper plane from the vertical
+      // wall and makes the eave appear to float in front of it.
+      const eaveShade = ctx.createLinearGradient(0, facadeTop, 0, facadeTop + ts * 0.42);
+      eaveShade.addColorStop(0, 'rgba(24,14,8,0.64)');
+      eaveShade.addColorStop(1, 'rgba(24,14,8,0)');
+      ctx.fillStyle = eaveShade;
+      ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, ts * 0.42);
+
+      // Hand-trowelled plaster variation. Deterministic marks keep the front from
+      // becoming a featureless rectangle without adding animation noise.
+      ctx.strokeStyle = 'rgba(93,62,39,0.18)';
+      ctx.lineWidth = Math.max(0.65, ts * 0.015);
+      for (let i = 0; i < 28; i++) {
+        const fx = facadeLeft + ts * 0.35 +
+          ((Math.sin(seed * 0.13 + i * 4.17) * 0.5 + 0.5) * (facadeRight - facadeLeft - ts * 0.70));
+        const fy = facadeTop + ts * 0.28 +
+          ((Math.sin(seed * 0.29 + i * 7.31) * 0.5 + 0.5) * (facadeH - ts * 0.72));
+        ctx.beginPath(); ctx.moveTo(fx - ts * 0.07, fy); ctx.lineTo(fx + ts * 0.08, fy + ts * 0.025); ctx.stroke();
+      }
+
+      // Stone sill / foundation projects forward below the timber wall.
+      ctx.fillStyle = '#4c433a';
+      ctx.fillRect(facadeLeft - ts * 0.05, facadeBottom - ts * 0.23,
+        facadeRight - facadeLeft + ts * 0.10, ts * 0.27);
+      ctx.fillStyle = '#716358';
+      for (let x = facadeLeft; x < facadeRight; x += ts * 0.72) {
+        ctx.fillRect(x, facadeBottom - ts * 0.20, ts * 0.60, ts * 0.06);
+      }
+      ctx.strokeStyle = '#342e29'; ctx.lineWidth = Math.max(0.8, ts * 0.022);
+      for (let x = facadeLeft + ts * 0.52; x < facadeRight; x += ts * 0.72) {
+        ctx.beginPath(); ctx.moveTo(x, facadeBottom - ts * 0.22); ctx.lineTo(x, facadeBottom); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(198,181,157,0.38)';
+      ctx.fillRect(facadeLeft, facadeBottom - ts * 0.22, facadeRight - facadeLeft, ts * 0.035);
+
+      // Offset beam shadows put the timber frame physically in front of the
+      // plaster rather than painting brown lines directly onto it.
+      ctx.fillStyle = 'rgba(29,17,10,0.42)';
+      ctx.fillRect(facadeLeft + ts * 0.07, facadeTop + ts * 0.08,
+        facadeRight - facadeLeft, ts * 0.16);
+      ctx.fillRect(facadeLeft + ts * 0.07, facadeBottom - ts * 0.24,
+        facadeRight - facadeLeft, ts * 0.14);
+      ctx.fillRect(facadeLeft + ts * 0.07, facadeTop + ts * 0.08, ts * 0.16, facadeH);
+      ctx.fillRect(facadeRight - ts * 0.09, facadeTop + ts * 0.08, ts * 0.16, facadeH);
+
+      // Continuous beams and end posts make the face read as one structure, not
+      // a row of separate tile squares.
+      ctx.fillStyle = '#422719';
+      ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, ts * 0.16);
+      ctx.fillRect(facadeLeft, facadeBottom - ts * 0.31, facadeRight - facadeLeft, ts * 0.14);
+      ctx.fillRect(facadeLeft, facadeTop, ts * 0.16, facadeH);
+      ctx.fillRect(facadeRight - ts * 0.16, facadeTop, ts * 0.16, facadeH);
+      for (const x of [centreX - width * 0.30, centreX + width * 0.30]) {
+        ctx.fillRect(x - ts * 0.06, facadeTop + ts * 0.08, ts * 0.12, facadeH - ts * 0.34);
+      }
+
+      // Four diagonal braces make the timber frame structural and break the long
+      // horizontal frontage into readable bays.
+      const leftWindowX = centreX - width * 0.25;
+      const rightWindowX = centreX + width * 0.25;
+      const braceTop = facadeTop + ts * 0.24;
+      const braceBottom = facadeBottom - ts * 0.36;
+      ctx.strokeStyle = '#57341f'; ctx.lineWidth = Math.max(2, ts * 0.10);
+      ctx.lineCap = 'square';
+      const braces = [
+        [facadeLeft + ts * 0.18, braceBottom, leftWindowX - ts * 0.62, braceTop],
+        [leftWindowX + ts * 0.62, braceTop, centreX - ts * 0.68, braceBottom],
+        [centreX + ts * 0.68, braceBottom, rightWindowX - ts * 0.62, braceTop],
+        [rightWindowX + ts * 0.62, braceTop, facadeRight - ts * 0.18, braceBottom],
+      ];
+      for (const [x1,y1,x2,y2] of braces) {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(202,139,77,0.32)'; ctx.lineWidth = Math.max(0.8, ts * 0.025);
+        ctx.beginPath();
+        ctx.moveTo(x1 - ts * 0.025, y1 - ts * 0.025);
+        ctx.lineTo(x2 - ts * 0.025, y2 - ts * 0.025);
+        ctx.stroke();
+        ctx.strokeStyle = '#57341f'; ctx.lineWidth = Math.max(2, ts * 0.10);
+      }
+      ctx.lineCap = 'butt';
+
+      const drawFacadeWindow = (cx) => {
+        const wx = cx - ts * 0.54, wy = facadeTop + ts * 0.46;
+        // Carve a dark opening first, then build four visible reveal planes
+        // around the glass. This reads as a deep window niche at game scale.
+        ctx.fillStyle = '#25170f';
+        ctx.fillRect(wx - ts * 0.14, wy - ts * 0.14, ts * 1.36, ts * 1.04);
+        ctx.fillStyle = '#d1b27d';
+        ctx.beginPath();
+        ctx.moveTo(wx - ts * 0.14, wy - ts * 0.14);
+        ctx.lineTo(wx + ts * 1.22, wy - ts * 0.14);
+        ctx.lineTo(wx + ts * 1.08, wy);
+        ctx.lineTo(wx, wy); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#6b482e';
+        ctx.beginPath();
+        ctx.moveTo(wx + ts * 1.08, wy);
+        ctx.lineTo(wx + ts * 1.22, wy - ts * 0.14);
+        ctx.lineTo(wx + ts * 1.22, wy + ts * 0.90);
+        ctx.lineTo(wx + ts * 1.08, wy + ts * 0.76); ctx.closePath(); ctx.fill();
+        const pane = ctx.createLinearGradient(wx, wy, wx + ts * 1.08, wy + ts * 0.76);
+        pane.addColorStop(0, '#9ed3a1'); pane.addColorStop(0.48, '#4f8d72'); pane.addColorStop(1, '#274b46');
+        ctx.fillStyle = pane; ctx.fillRect(wx, wy, ts * 1.08, ts * 0.76);
+        ctx.strokeStyle = '#d6aa61'; ctx.lineWidth = Math.max(1, ts * 0.035);
+        ctx.beginPath();
+        ctx.moveTo(cx, wy); ctx.lineTo(cx, wy + ts * 0.76);
+        ctx.moveTo(wx, wy + ts * 0.38); ctx.lineTo(wx + ts * 1.08, wy + ts * 0.38); ctx.stroke();
+        ctx.fillStyle = 'rgba(239,255,211,0.55)';
+        ctx.fillRect(wx + ts * 0.07, wy + ts * 0.06, ts * 0.24, ts * 0.06);
+        // Projecting sill and flower box bring the windows forward from the wall.
+        ctx.fillStyle = '#4a2c1b'; ctx.fillRect(wx - ts * 0.13, wy + ts * 0.76, ts * 1.34, ts * 0.13);
+        ctx.fillStyle = '#704224'; ctx.fillRect(wx - ts * 0.04, wy + ts * 0.86, ts * 1.16, ts * 0.22);
+        ctx.fillStyle = '#3f5f2e';
+        for (const dx of [0.10,0.32,0.54,0.76,0.98]) {
+          ctx.beginPath(); ctx.arc(wx + ts * dx, wy + ts * 0.84, ts * 0.10, 0, Math.PI * 2); ctx.fill();
+        }
+        for (const [dx,color] of [[0.18,'#f2cf55'],[0.49,'#e86d6d'],[0.82,'#eee4a0']]) {
+          ctx.fillStyle = color; ctx.beginPath(); ctx.arc(wx + ts * dx, wy + ts * 0.78, ts * 0.045, 0, Math.PI * 2); ctx.fill();
+        }
+      };
+      drawFacadeWindow(leftWindowX);
+      drawFacadeWindow(rightWindowX);
+
+      const doorW = ts * 0.88;
+      const doorX = centreX - doorW / 2;
+      const doorY = facadeTop + ts * 0.23;
+      const doorH = facadeBottom - doorY - ts * 0.23;
+      // Deep jamb and header reveal put the door behind the facade plane.
+      ctx.fillStyle = '#21140d';
+      ctx.fillRect(doorX - ts * 0.18, doorY - ts * 0.16, doorW + ts * 0.36, doorH + ts * 0.16);
+      ctx.fillStyle = '#b48b59';
+      ctx.beginPath();
+      ctx.moveTo(doorX - ts * 0.18, doorY - ts * 0.16);
+      ctx.lineTo(doorX + doorW + ts * 0.18, doorY - ts * 0.16);
+      ctx.lineTo(doorX + doorW, doorY);
+      ctx.lineTo(doorX, doorY); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#5d3d28';
+      ctx.beginPath();
+      ctx.moveTo(doorX + doorW, doorY);
+      ctx.lineTo(doorX + doorW + ts * 0.18, doorY - ts * 0.16);
+      ctx.lineTo(doorX + doorW + ts * 0.18, doorY + doorH);
+      ctx.lineTo(doorX + doorW, doorY + doorH); ctx.closePath(); ctx.fill();
+      const doorFace = ctx.createLinearGradient(doorX, doorY, doorX + doorW, doorY + doorH);
+      doorFace.addColorStop(0, '#966039'); doorFace.addColorStop(1, '#55321f');
+      ctx.fillStyle = doorFace; ctx.fillRect(doorX, doorY, doorW, doorH);
+      ctx.strokeStyle = '#3d2417'; ctx.lineWidth = Math.max(1, ts * 0.04);
+      ctx.strokeRect(doorX + ts * 0.12, doorY + ts * 0.12, doorW - ts * 0.24, doorH * 0.30);
+      ctx.strokeRect(doorX + ts * 0.12, doorY + doorH * 0.52, doorW - ts * 0.24, doorH * 0.32);
+      // Blacksmith-made strap hinges and nail heads give the door real hardware.
+      ctx.fillStyle = '#292727';
+      for (const fy of [0.20,0.67]) {
+        ctx.fillRect(doorX + ts * 0.04, doorY + doorH * fy, doorW * 0.52, ts * 0.075);
+        ctx.beginPath(); ctx.arc(doorX + ts * 0.13, doorY + doorH * fy + ts * 0.037, ts * 0.025, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(doorX + doorW * 0.46, doorY + doorH * fy + ts * 0.037, ts * 0.025, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = '#d6a84f';
+      ctx.beginPath(); ctx.arc(doorX + doorW * 0.76, doorY + doorH * 0.54, ts * 0.055, 0, Math.PI * 2); ctx.fill();
+      // Projecting threshold: light top plane, dark front riser and ground shadow.
+      ctx.fillStyle = 'rgba(24,14,9,0.48)';
+      ctx.fillRect(doorX - ts * 0.28, doorY + doorH + ts * 0.12, doorW + ts * 0.56, ts * 0.18);
+      ctx.fillStyle = '#8b765e';
+      ctx.beginPath();
+      ctx.moveTo(doorX - ts * 0.18, doorY + doorH);
+      ctx.lineTo(doorX + doorW + ts * 0.18, doorY + doorH);
+      ctx.lineTo(doorX + doorW + ts * 0.30, doorY + doorH + ts * 0.14);
+      ctx.lineTo(doorX - ts * 0.30, doorY + doorH + ts * 0.14);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#4f4438';
+      ctx.fillRect(doorX - ts * 0.30, doorY + doorH + ts * 0.14,
+        doorW + ts * 0.60, ts * 0.11);
+
+      const drawEntryLantern = (lx) => {
+        const ly = facadeTop + ts * 0.83;
+        const glow = ctx.createRadialGradient(lx, ly, ts * 0.04, lx, ly, ts * 0.72);
+        glow.addColorStop(0, 'rgba(255,205,99,0.32)'); glow.addColorStop(1, 'rgba(255,164,55,0)');
+        ctx.fillStyle = glow; ctx.fillRect(lx - ts * 0.72, ly - ts * 0.72, ts * 1.44, ts * 1.44);
+        ctx.strokeStyle = '#2d261f'; ctx.lineWidth = Math.max(1.2, ts * 0.045);
+        ctx.beginPath(); ctx.moveTo(lx, ly - ts * 0.32); ctx.lineTo(lx, ly - ts * 0.16); ctx.stroke();
+        ctx.fillStyle = '#342b22'; ctx.fillRect(lx - ts * 0.12, ly - ts * 0.16, ts * 0.24, ts * 0.38);
+        ctx.fillStyle = '#ffc45f'; ctx.fillRect(lx - ts * 0.065, ly - ts * 0.09, ts * 0.13, ts * 0.20);
+        ctx.fillStyle = '#1f1b17'; ctx.fillRect(lx - ts * 0.16, ly + ts * 0.20, ts * 0.32, ts * 0.07);
+      };
+      drawEntryLantern(centreX - ts * 0.82);
+      drawEntryLantern(centreX + ts * 0.82);
+
+      // A visible soffit, exposed rafter tails, and fascia turn the roof edge into
+      // a thick overhang rather than a single line at the top of the wall.
+      ctx.fillStyle = '#26180f';
+      ctx.beginPath();
+      ctx.moveTo(left + ts * 0.18, roofBottom - ts * 0.16);
+      ctx.lineTo(right - ts * 0.18, roofBottom - ts * 0.16);
+      ctx.lineTo(right - ts * 0.36, roofBottom + ts * 0.20);
+      ctx.lineTo(left + ts * 0.36, roofBottom + ts * 0.20);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#5b3822';
+      for (let x = left + ts * 0.48; x < right - ts * 0.38; x += ts * 0.72) {
+        ctx.fillRect(x, roofBottom + ts * 0.02, ts * 0.14, ts * 0.28);
+      }
+      ctx.fillStyle = '#3a2417'; ctx.fillRect(left + ts * 0.18, roofBottom - ts * 0.18, width - ts * 0.36, ts * 0.22);
+      ctx.fillStyle = '#bd8150'; ctx.fillRect(left + ts * 0.26, roofBottom - ts * 0.18, width - ts * 0.52, ts * 0.055);
+    }
+
+    // Generic cottages retain their small front gable. The larger family house
+    // uses a clean, uninterrupted eave above the door.
+    if (!familyHome) {
+      const gableHalf = Math.min(ts * 1.45, width * 0.22);
+      const gablePeakY = ridgeY - ts * 0.10;
+      const gableBaseY = bottom + ts * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(centreX, gablePeakY);
+      ctx.lineTo(centreX + gableHalf, gableBaseY);
+      ctx.lineTo(centreX - gableHalf, gableBaseY);
+      ctx.closePath();
+      ctx.fillStyle = '#7c3828'; ctx.fill();
+      ctx.strokeStyle = roofEdge; ctx.stroke();
+      ctx.strokeStyle = '#c78452'; ctx.lineWidth = Math.max(1.5, ts * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(centreX, gablePeakY + ts * 0.14);
+      ctx.lineTo(centreX, gableBaseY - ts * 0.10);
+      ctx.stroke();
+    }
 
     // Chimney and a restrained patch of moss tie the cottages to the forest.
     const chimneyX = right - ts * (1.35 + (seed % 3) * 0.18);
-    ctx.fillStyle = '#59473f'; ctx.fillRect(chimneyX, top + ts * 0.55, ts * 0.55, ts * 0.82);
-    ctx.fillStyle = '#2f2522'; ctx.fillRect(chimneyX - ts * 0.08, top + ts * 0.48, ts * 0.71, ts * 0.18);
+    if (familyHome) {
+      // Anchor the stack to the visible south slope. The enlarged family roof's
+      // north edge can sit above the camera while the player approaches.
+      const chimneyY = roofBottom - ts * 1.65;
+      const chimneyW = ts * 0.72;
+      const chimneyH = ts * 1.08;
+      const sideW = ts * 0.22;
+
+      // Long roof shadow anchors the stack and establishes its height above the
+      // shingles before any masonry is drawn.
+      ctx.fillStyle = 'rgba(27,17,11,0.34)';
+      ctx.beginPath();
+      ctx.moveTo(chimneyX + ts * 0.10, chimneyY + chimneyH * 0.72);
+      ctx.lineTo(chimneyX + chimneyW + sideW, chimneyY + chimneyH * 0.58);
+      ctx.lineTo(chimneyX + chimneyW + ts * 1.12, chimneyY + chimneyH + ts * 0.38);
+      ctx.lineTo(chimneyX + ts * 0.48, chimneyY + chimneyH + ts * 0.44);
+      ctx.closePath(); ctx.fill();
+
+      // Warm front face with a darker east side creates a compact masonry block.
+      const chimneyFace = ctx.createLinearGradient(chimneyX, chimneyY,
+        chimneyX + chimneyW, chimneyY + chimneyH);
+      chimneyFace.addColorStop(0, '#927765');
+      chimneyFace.addColorStop(1, '#5d493d');
+      ctx.fillStyle = chimneyFace;
+      ctx.fillRect(chimneyX, chimneyY, chimneyW, chimneyH);
+      ctx.fillStyle = '#44352e';
+      ctx.beginPath();
+      ctx.moveTo(chimneyX + chimneyW, chimneyY);
+      ctx.lineTo(chimneyX + chimneyW + sideW, chimneyY - ts * 0.10);
+      ctx.lineTo(chimneyX + chimneyW + sideW, chimneyY + chimneyH - ts * 0.10);
+      ctx.lineTo(chimneyX + chimneyW, chimneyY + chimneyH);
+      ctx.closePath(); ctx.fill();
+
+      // Offset mortar courses wrap from the lit face onto the side plane.
+      ctx.strokeStyle = 'rgba(49,37,31,0.68)';
+      ctx.lineWidth = Math.max(0.8, ts * 0.025);
+      for (const f of [0.27, 0.56, 0.84]) {
+        const mortarY = chimneyY + chimneyH * f;
+        ctx.beginPath();
+        ctx.moveTo(chimneyX, mortarY);
+        ctx.lineTo(chimneyX + chimneyW, mortarY);
+        ctx.lineTo(chimneyX + chimneyW + sideW, mortarY - ts * 0.10);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.moveTo(chimneyX + chimneyW * 0.48, chimneyY);
+      ctx.lineTo(chimneyX + chimneyW * 0.48, chimneyY + chimneyH * 0.27);
+      ctx.moveTo(chimneyX + chimneyW * 0.24, chimneyY + chimneyH * 0.27);
+      ctx.lineTo(chimneyX + chimneyW * 0.24, chimneyY + chimneyH * 0.56);
+      ctx.moveTo(chimneyX + chimneyW * 0.68, chimneyY + chimneyH * 0.56);
+      ctx.lineTo(chimneyX + chimneyW * 0.68, chimneyY + chimneyH * 0.84);
+      ctx.stroke();
+
+      // The cap has separate top and front planes plus a dark flue opening.
+      const capLeft = chimneyX - ts * 0.10;
+      const capRight = chimneyX + chimneyW + ts * 0.11;
+      const capY = chimneyY - ts * 0.09;
+      ctx.fillStyle = '#332821';
+      ctx.fillRect(capLeft, capY + ts * 0.10, capRight - capLeft, ts * 0.16);
+      ctx.fillStyle = '#806a59';
+      ctx.beginPath();
+      ctx.moveTo(capLeft, capY + ts * 0.10);
+      ctx.lineTo(capRight, capY + ts * 0.10);
+      ctx.lineTo(capRight + sideW, capY);
+      ctx.lineTo(capLeft + sideW, capY);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#211b17';
+      ctx.beginPath();
+      ctx.ellipse(chimneyX + chimneyW * 0.58 + sideW * 0.35,
+        capY + ts * 0.055, ts * 0.20, ts * 0.075, -0.12, 0, Math.PI * 2);
+      ctx.fill();
+      // Two soft smoke wisps lift away from the opening and reinforce the
+      // chimney's vertical silhouette without becoming a large particle effect.
+      ctx.fillStyle = 'rgba(207,205,193,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(chimneyX + chimneyW * 0.48, capY - ts * 0.20,
+        ts * 0.15, ts * 0.10, -0.18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(207,205,193,0.12)';
+      ctx.beginPath();
+      ctx.ellipse(chimneyX + chimneyW * 0.35, capY - ts * 0.43,
+        ts * 0.22, ts * 0.13, -0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(210,179,145,0.48)';
+      ctx.lineWidth = Math.max(0.8, ts * 0.025);
+      ctx.beginPath();
+      ctx.moveTo(chimneyX + ts * 0.02, chimneyY + ts * 0.02);
+      ctx.lineTo(chimneyX + ts * 0.02, chimneyY + chimneyH - ts * 0.03);
+      ctx.stroke();
+
+      // Small timber stoop beneath the entrance, like the concept cottages.
+      ctx.fillStyle = 'rgba(31,18,10,0.45)';
+      ctx.fillRect(centreX - ts * 0.72 + ts * 0.08, bottom + ts * 0.04, ts * 1.44, ts * 0.36);
+      ctx.fillStyle = '#8b5a32'; ctx.fillRect(centreX - ts * 0.72, bottom, ts * 1.44, ts * 0.18);
+      ctx.fillStyle = '#6b4025'; ctx.fillRect(centreX - ts * 0.58, bottom + ts * 0.18, ts * 1.16, ts * 0.17);
+      ctx.strokeStyle = '#d19a5c'; ctx.lineWidth = Math.max(1, ts * 0.035);
+      ctx.beginPath(); ctx.moveTo(centreX - ts * 0.68, bottom + ts * 0.04); ctx.lineTo(centreX + ts * 0.68, bottom + ts * 0.04); ctx.stroke();
+    } else {
+      ctx.fillStyle = '#59473f';
+      ctx.fillRect(chimneyX, top + ts * 0.55, ts * 0.55, ts * 0.82);
+      ctx.fillStyle = '#2f2522';
+      ctx.fillRect(chimneyX - ts * 0.08, top + ts * 0.48, ts * 0.71, ts * 0.18);
+    }
     ctx.fillStyle = 'rgba(73,105,49,0.64)';
     ctx.beginPath(); ctx.ellipse(left + width * 0.24, ridgeY - ts * 0.18,
       ts * 0.72, ts * 0.26, -0.15, 0, Math.PI * 2); ctx.fill();
@@ -2157,8 +2939,16 @@ function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
     // Read the live door tile instead of caching it with the footprint. Forest
     // villages assign their four shop types after the base map is generated.
     drawForestShopSign(mapObj.map[h.r2][h.doorC], centreX, bottom, ts);
+    if (familyHome && player.y > h.r2 && player.y <= h.r2 + 2 &&
+        player.x >= h.c1 - 1 && player.x <= h.c2 + 1) {
+      redrawPlayerInFront = true;
+    }
     ctx.restore();
   }
+  // Roofs are a foreground layer so they can hide interior actors. The family
+  // facade is different: an approaching hero stands in front of it, so redraw
+  // only that narrowly-scoped overlap after the architecture is complete.
+  if (redrawPlayerInFront) drawPlayer(ts);
 }
 
 function render() {
@@ -2217,6 +3007,10 @@ function render() {
   }
 
   if (typeof drawShrineOverlays === 'function') drawShrineOverlays(ts);
+
+  // Architectural depth for the single Elderbrook family-home pilot. It sits
+  // over the flat tile pass but under actors and the removable roof layer.
+  drawElderbrookFamilyHomeDepth(mapObj, ts);
 
   drops.forEach(d => drawDrop(d, ts));
   projectiles.forEach(p => drawProjectile(p));

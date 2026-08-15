@@ -1,2 +1,10 @@
 # Windows Explorer folder-view metadata
 desktop.ini
+
+# Scratch space for the Game1.xlsx audit tooling — its own node_modules, the
+# per-sheet preview PNGs, and the ndjson logs it writes. Regenerated on demand
+# and no part of the game itself, which has no build step or dependencies.
+.codex-tmp/
+
+# Generated workbook exports, one directory per run.
+outputs/
