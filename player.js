@@ -110,6 +110,17 @@ let player = {
   // operates on integer (x, y). renderX/Y lerps toward x/y each frame at the
   // same rate as the camera so the player stays visually centered.
   renderX: EXIT_COL, renderY: EXIT_ROW,
+  // Height above the SURFACE HE IS STANDING ON, in world units where 1.0 is one
+  // tile edge. Written only by stepPlayerJump, and it is the hop arc plus
+  // whatever is left of a drop. 0 whenever both feet are down.
+  z: 0,
+  // Height of that surface itself: 0 on ordinary ground, 1.00 on a ledge top
+  // (5d). Split from z rather than added into it because the two answer
+  // different questions. His sprite is lifted by groundZ + z, but his SHADOW is
+  // painted on the surface at groundZ and only shrinks with z, so standing on a
+  // shelf casts a normal shadow on the shelf instead of a shrivelled one on the
+  // ground below.
+  groundZ: 0,
   hp: 12, maxHp: 12,
   // Temporary HP — a green-heart buffer (bought at the General Store) that
   // absorbs damage before real HP. Not healed by potions/hearts/rest.
@@ -365,12 +376,103 @@ const ICE_SLIDE_MS = 320;        // released walk input stays live this long on 
                                  // (~MOVE_MS×3 → the hero glides a couple of tiles
                                  // before stopping; bumped from 50 for slicker ice)
 
-// ── Climb / jump animation state (read by drawPlayer in render.js) ────────────
-// A "jump" is a short timed hop arc, triggered when the player mounts or leaves
-// a CLIMB ramp (the lip where a path crosses a plateau). Climbing itself is
-// detected per-frame from the tile under the player, so it needs no state here.
-let playerJumpStart = -1;        // ms timestamp the current hop began (-1 = none)
+// ── Jump ──────────────────────────────────────────────────────────────────────
+// A "jump" is a short hop arc, triggered when the player mounts or leaves a
+// CLIMB ramp (the lip where a path crosses a plateau), or crosses the swimming
+// waterline. It is real state now: stepPlayerJump writes `player.z`, a height in
+// world units, and the renderer only reads it.
+//
+// It used to be a Date.now() timestamp that drawPlayer both read AND cleared, so
+// the renderer was advancing game state, and the one frame where drawPlayer ran
+// twice (the old redrawPlayerInFront, deleted in Phase 4) saw two different jump
+// times. A dt countdown fixes both, and has two other properties worth having:
+// the hop pauses with the world when a menu opens, and nothing about it depends
+// on wall-clock time, so it cannot be broken by a save written mid-hop.
+//
+// Climbing is deliberately NOT altitude. It stays a cosmetic lift and sway in
+// drawPlayer: folding a ramp scramble into z would shrink the hero's shadow
+// every time he walks up a slope he is still standing on.
+let playerJumpMs = -1;           // ms REMAINING in the current hop (-1 = none)
 const PLAYER_JUMP_MS = 260;      // hop duration
+const PLAYER_JUMP_HEIGHT = 0.45; // peak height in tiles; was `s * 0.45` in pixels
+
+// ── Falling off a ledge (5d) ──────────────────────────────────────────────────
+// Dropping off a shelf moves the hero's TILE immediately, the same as any other
+// step, so gameplay never waits on an animation. What falls is the picture: the
+// hero keeps the height he stepped off at and drops to the new surface under
+// gravity, so a one-tile drop reads as a drop rather than a teleport.
+//
+// The height still to fall, in world units. Added to the hop arc in
+// stepPlayerJump, which is why a hop and a drop compose instead of fighting.
+let playerFallZ = 0;
+let playerFallVz = 0;
+// The tile the fall was last stepped at, so stepPlayerJump can tell a walked
+// step from a teleport and drop a stale fall on the floor rather than carrying
+// it across a map change.
+let playerFallTileC = -999, playerFallTileR = -999;
+const PLAYER_FALL_GRAVITY = 0.055;  // world units per 16ms frame, per frame
+
+function startPlayerJump() { playerJumpMs = PLAYER_JUMP_MS; }
+
+// Begin a drop of `drop` world units. Additive, so stepping off two shelves in
+// quick succession keeps the hero visually above the ground rather than
+// snapping him down between them.
+function startPlayerFall(drop) {
+  if (!(drop > 0)) return;
+  playerFallZ += drop;
+  playerFallVz = 0;
+}
+
+// Advance the hop and publish the height. Called every frame from update()
+// (main.js), never from the renderer.
+//
+// Always writes player.z, including the 0 when no hop is running. That is what
+// makes a stale z harmless: `player` is serialized wholesale, so a save written
+// mid-hop stores a non-zero z, and the countdown that would have cleared it is
+// deliberately not saved. The first stepped frame after the load zeroes it.
+function stepPlayerJump(dt) {
+  // The surface underfoot, read from the tile every frame rather than written by
+  // whoever moved him. There are a dozen ways the hero changes tiles (walking,
+  // a map transition, respawn, a whirlpool spit, loading a save), and having
+  // each one remember to update this is how one of them ends up forgetting.
+  // Deriving it here means it is right by construction, and a stale groundZ
+  // from a save is corrected on the first stepped frame.
+  const _m = (typeof mapData === 'function') ? mapData() : null;
+  player.groundZ = _m ? surfaceZ(_m, player.x, player.y) : 0;
+
+  // A fall belongs to the step that started it. If the hero got somewhere he
+  // could not have WALKED to since the last frame, that step is over and any
+  // remaining drop is stale: a map transition, a respawn, a whirlpool spit, or
+  // a save loaded mid-drop. Without this he arrives on the far side of a
+  // transition drawn floating and visibly sinking.
+  //
+  // Detected rather than wired into each of those call sites, for the same
+  // reason groundZ is derived here: there are half a dozen of them and the one
+  // that forgets is the one that ships.
+  if ((Math.abs(player.x - playerFallTileC) > 1 ||
+       Math.abs(player.y - playerFallTileR) > 1) && playerFallZ > 0) {
+    playerFallZ = 0; playerFallVz = 0;
+  }
+  playerFallTileC = player.x; playerFallTileR = player.y;
+
+  // Advance a drop first, so z is always hop + whatever is left to fall.
+  if (playerFallZ > 0) {
+    const f = dt / 16;
+    playerFallVz += PLAYER_FALL_GRAVITY * f;
+    playerFallZ -= playerFallVz * f;
+    if (playerFallZ <= 0) { playerFallZ = 0; playerFallVz = 0; }
+  }
+  let hop = 0;
+  if (playerJumpMs >= 0) {
+    playerJumpMs -= dt;
+    if (playerJumpMs <= 0) { playerJumpMs = -1; }
+    else {
+      const t = 1 - playerJumpMs / PLAYER_JUMP_MS;  // 0 to 1 through the hop
+      hop = Math.sin(t * Math.PI) * PLAYER_JUMP_HEIGHT;
+    }
+  }
+  player.z = hop + playerFallZ;
+}
 let attackCooldown = 0;
 let bowCooldown = 0;
 let bombCooldown = 0;
@@ -1818,7 +1920,18 @@ function stepPlayerMovement() {
     if (typeof shrinePrepareMove === 'function' &&
         !shrinePrepareMove(currentMap(), player.x, player.y, c, r)) return true;
     if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return false;
-    return isSolid(map, c, r);
+    if (isSolid(map, c, r)) return true;
+    // Step-up gate (5d). A LEDGE is passable, so isSolid says nothing about it
+    // and without this the hero would walk up a one-tile shelf as if it were
+    // painted on the floor. Stepping DOWN is always allowed and is what
+    // triggers the fall below; only climbing is gated.
+    //
+    // stepUpBlocked (map-helpers.js) is shared with enemies and with the
+    // tap-to-travel pathfinder, so all three agree about what is climbable. It
+    // reads surfaceZ rather than TILE_HEIGHT on purpose: a fern is 0.3 to the
+    // renderer and 0 to the hero's knees, and walking into one must not start
+    // failing. It also exempts T.CLIMB, which is the sanctioned way up a shelf.
+    return stepUpBlocked(map, player.x, player.y, c, r);
   };
 
   // Try diagonal first; if blocked, slide along whichever axis is clear.
@@ -1840,12 +1953,25 @@ function stepPlayerMovement() {
     // kick up sand while scrambling along the ramp.
     const wasClimb = map[player.y][player.x] === T.CLIMB;
     const nowClimb = map[ty][tx] === T.CLIMB;
-    if (wasClimb !== nowClimb) playerJumpStart = Date.now();
+    if (wasClimb !== nowClimb) startPlayerJump();
     // Dive-in / haul-out feedback: the same hop when crossing the medium-water
     // boundary in either direction (Water armor swimming).
     const wasSwim = map[player.y][player.x] === T.MEDIUM_WATER;
     const nowSwim = map[ty][tx] === T.MEDIUM_WATER;
-    if (wasSwim !== nowSwim) playerJumpStart = Date.now();
+    if (wasSwim !== nowSwim) startPlayerJump();
+    // Ledges (5d). The tile moves now and the picture catches up: keep the
+    // height he stepped off at and fall to the new surface. Stepping UP can only
+    // ever be within STEP_UP_MAX here, since blocked() refused anything taller,
+    // so that direction just snaps.
+    //
+    // A ramp step never falls. Walking DOWN a T.CLIMB slope off a shelf is a
+    // controlled descent, not a drop off an edge, and firing the fall there
+    // would have the hero pitch a full tile in the middle of the staircase.
+    if (!isRampStep(map, player.x, player.y, tx, ty)) {
+      const fromZ = surfaceZ(map, player.x, player.y);
+      const toZ = surfaceZ(map, tx, ty);
+      if (fromZ > toZ) startPlayerFall(fromZ - toZ);
+    }
     if (nowClimb) {
       const sp = screenPX(tx, ty);
       spawnParticle(sp.x, sp.y + TILE_PX * 0.35, '#caa46a', 4, 2);
@@ -1920,7 +2046,7 @@ function stepWhirlpoolPull(dt) {
 
   // Caught — drag to the eye (the render lerp animates the pull) and churn.
   player.x = wx; player.y = wy;
-  playerJumpStart = Date.now();
+  startPlayerJump();
   whirlpoolChurnMs = WHIRLPOOL_CHURN_MS;
   clampCam();
   const sp = screenPX(wx, wy);
@@ -2003,7 +2129,7 @@ function ejectFromWhirlpool(map) {
     const out = exits[Math.floor(Math.random() * exits.length)];
     player.x = out.c; player.y = out.r;
   }
-  playerJumpStart = Date.now();
+  startPlayerJump();
   whirlpoolCooldown = WHIRLPOOL_REGRAB_MS;
   clampCam();
   const sp = screenPX(player.x, player.y);

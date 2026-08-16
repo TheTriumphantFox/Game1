@@ -373,6 +373,10 @@ function setShrineSolved(cm) {
   cm.map[75][91] = T.SHRINE_FLOOR;
   showMsg('✦ The shrine gate opens.', 2400);
   minimapDirty = true;
+  // The gate tile changed, so the renderer's memoized per-map tile scans have to
+  // be dropped alongside the minimap. Shrines are not a 2.5D map today, so this
+  // is insurance: a stale tall-tile list draws a gate that is already open.
+  if (typeof invalidateTallTiles === 'function') invalidateTallTiles(cm);
   // Stage 8: solving the puzzle is what lifts the blight from this region — the
   // overlay stops and its creatures shed the corrupted template (corruption.js).
   if (typeof cleanseRegionCorruption === 'function') cleanseRegionCorruption(cm.regionIdx);

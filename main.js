@@ -160,6 +160,12 @@ function update(dt) {
   // Whirlpool suction — grabs the hero when swimming within a tile of one
   stepWhirlpoolPull(dt);
 
+  // Advance the hop and publish player.z (player.js). After the two things that
+  // START a hop, so one triggered this frame is already rising by the time the
+  // renderer reads it, and below the freeze chain, so the arc pauses with the
+  // rest of the world when a menu opens instead of finishing behind it.
+  stepPlayerJump(dt);
+
   // Attacks
   const actZ = keys[' '] || keys['z'] || keys['Z'];
   const actX = keys['x'] || keys['X'];
@@ -735,6 +741,7 @@ function findPathToGoals(goalSet) {
   const N = MROWS * MCOLS;
   const idx = (c, r) => r * MCOLS + c;
   const canSwimMedium = player.activeArmorElement === 'water';
+  // Reachability of the tile itself, independent of where you are coming from.
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
     if (typeof villagerAt === 'function' && villagerAt(c, r)) return false;
@@ -742,6 +749,13 @@ function findPathToGoals(goalSet) {
     if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);
   };
+  // Whether the STEP between two tiles is legal, which passability alone cannot
+  // answer once ledges exist: a LEDGE is passable from above and unclimbable
+  // from below. Without this the BFS routes cheerfully over a shelf, the injected
+  // keys jam the hero against it, and advanceAutoNav's stuck timer cancels the
+  // trip 1.6 seconds later instead of the route going around in the first place.
+  const stepOk = (c1, r1, c2, r2) =>
+    !(typeof stepUpBlocked === 'function' && stepUpBlocked(map, c1, r1, c2, r2));
   const prev = new Int32Array(N).fill(-1);
   const seen = new Uint8Array(N);
   const start = idx(player.x, player.y);
@@ -755,7 +769,7 @@ function findPathToGoals(goalSet) {
     for (const [dc, dr] of DIRS) {
       const nc = c + dc, nr = r + dr, ni = idx(nc, nr);
       if (nc < 0 || nr < 0 || nc >= MCOLS || nr >= MROWS) continue;
-      if (seen[ni] || !passable(nc, nr)) continue;
+      if (seen[ni] || !passable(nc, nr) || !stepOk(c, r, nc, nr)) continue;
       seen[ni] = 1; prev[ni] = idx(c, r);
       queue.push([nc, nr]);
     }

@@ -160,6 +160,15 @@ const DEFAULT_PLAYER = {
   deaths: 0,
   x: EXIT_COL, y: EXIT_ROW,
   renderX: EXIT_COL, renderY: EXIT_ROW,
+  // Height above the ground (see stepPlayerJump, player.js). Here so a save
+  // written before z existed loads with both feet on the floor rather than
+  // `undefined`, which would read as NaN the moment anything multiplied it.
+  z: 0,
+  // Height of the surface underfoot (ledges, 5d). Same reasoning: a save from
+  // before ledges existed must load standing on the floor, not on `undefined`.
+  // It is also recomputed from the tile on the first step after a load, so a
+  // stale value cannot survive; this is what covers the frame before that.
+  groundZ: 0,
   hp: 12, maxHp: 12, tempHp: 0,
   rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },

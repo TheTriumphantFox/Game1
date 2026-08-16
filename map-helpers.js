@@ -137,6 +137,136 @@ function isSolid(map, c, r) {
   return SOLID_TILES.has(t) || isChestTile(t);
 }
 
+// The height an actor STANDS AT on this tile, in world units, as opposed to how
+// tall the tile LOOKS (that is TILE_HEIGHT in config.js).
+//
+// The rule: a passable tile is walked THROUGH, not climbed ONTO, so its surface
+// is the ground however tall its art is. A fern is 0.3 to the renderer and 0 to
+// the hero's knees. That is what keeps one height table honest for both jobs
+// instead of needing a second column that can drift out of step with the first.
+//
+// A solid tile reports its full height. Nothing can stand there today, so this
+// is only meaningful to a caller asking "how high is the thing in front of me",
+// which is what the projectile gate in 5c wants: an arrow clears a ROCK (0.40)
+// and not a WALL (1.60).
+//
+// Out of bounds reports 0 rather than a height. The border is not a ledge, and a
+// caller pairing this with isSolid() already gets "blocked" from that.
+// T.LEDGE is the ONE exception to the rule above, and it is deliberate: it is
+// the only passable tile in the game that you stand ON TOP OF rather than walk
+// THROUGH, so it reports its height even though it does not block. That is what
+// a shelf IS. Everything else passable stays 0, so the fern rule is intact.
+function surfaceZ(map, c, r) {
+  if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return 0;
+  const t = map[r][c];
+  if (t === T.LEDGE) return TILE_HEIGHT[t];
+  return isSolid(map, c, r) ? TILE_HEIGHT[t] : 0;
+}
+
+// ─── Ledge shelves ────────────────────────────────────────────────────────────
+
+// How far up an actor can step WITHOUT a ramp. A ledge is a full tile, so it
+// cannot be climbed and an actor has to find a T.CLIMB ramp or a way around,
+// which is the whole point of the mechanic. Anything shorter is a kerb and is
+// walked up without comment.
+//
+// Lives here rather than in player.js because it is not the hero's rule: the
+// hero, enemies and the pathfinder all measure against it, and a movement
+// constant owned by one of three callers is one refactor away from drifting.
+const STEP_UP_MAX = 0.50;
+
+// A ramp is the sanctioned way up. Stepping onto or off one skips the step-up
+// gate and skips the fall, because a ramp is the slope between two heights
+// rather than either of them. T.CLIMB already means exactly this for plateaus,
+// so ledges reuse it rather than inventing a second word for the same idea.
+//
+// Both directions are exempt, not just "onto": walking DOWN a ramp off a shelf
+// must not trigger a one-tile drop animation halfway along the slope.
+function isRampStep(map, c1, r1, c2, r2) {
+  return (map[r1] && map[r1][c1] === T.CLIMB) ||
+         (map[r2] && map[r2][c2] === T.CLIMB);
+}
+
+// Can an actor standing at (c1, r1) step to (c2, r2) without a ramp? Solidity is
+// the caller's business; this answers height only.
+//
+// One rule, one place. The hero (player.js), enemies (projectiles.js) and the
+// tap-to-travel pathfinder (main.js) all ask here, because a pathfinder that
+// disagrees with the movement it is planning for walks the hero into a wall it
+// cannot climb and then gives up.
+function stepUpBlocked(map, c1, r1, c2, r2) {
+  if (isRampStep(map, c1, r1, c2, r2)) return false;
+  return surfaceZ(map, c2, r2) - surfaceZ(map, c1, r1) > STEP_UP_MAX;
+}
+
+// Stamp a rectangular ledge shelf whose ENTIRE perimeter is faced, which is the
+// invariant the connectivity flood-fill depends on (see T.LEDGE in config.js).
+//
+// Every tile of the rect becomes LEDGE, then every tile of it that touches a
+// non-ledge neighbour becomes LEDGE_FACE. That leaves the shelf sealed to the
+// flood exactly as it is sealed to the player, so the two cannot disagree.
+//
+// `ramps` is a list of [c, r] inside the rect that become T.CLIMB instead: the
+// only way up, for the flood and for the hero alike. A shelf with no ramps is
+// legal and simply unreachable, so ensureConnectivity will seal its interior;
+// that is correct, and it is why this returns the tile count it laid, so a
+// caller can assert it built what it meant to.
+function stampLedgeShelf(map, c1, r1, c2, r2, ramps) {
+  const lo = (a, b) => Math.max(1, Math.min(a, b));
+  const hi = (a, b, m) => Math.min(m - 2, Math.max(a, b));
+  const cA = lo(c1, c2), cB = hi(c1, c2, MCOLS);
+  const rA = lo(r1, r2), rB = hi(r1, r2, MROWS);
+  if (cB < cA || rB < rA) return { ledge: 0, face: 0, ramp: 0 };
+
+  for (let r = rA; r <= rB; r++) for (let c = cA; c <= cB; c++) map[r][c] = T.LEDGE;
+
+  // Face every edge tile. Tested against the rect rather than the tile array so
+  // two shelves laid side by side do not face each other along the seam.
+  const inRect = (c, r) => c >= cA && c <= cB && r >= rA && r <= rB;
+  let face = 0;
+  for (let r = rA; r <= rB; r++) {
+    for (let c = cA; c <= cB; c++) {
+      if (inRect(c - 1, r) && inRect(c + 1, r) && inRect(c, r - 1) && inRect(c, r + 1)) continue;
+      map[r][c] = T.LEDGE_FACE;
+      face++;
+    }
+  }
+
+  let ramp = 0;
+  for (const [rc, rr] of (ramps || [])) {
+    if (!inRect(rc, rr)) continue;
+    map[rr][rc] = T.CLIMB;
+    ramp++;
+    if (face > 0) face--;
+  }
+  const total = (cB - cA + 1) * (rB - rA + 1);
+  return { ledge: total - face - ramp, face, ramp };
+}
+
+// Audit: every LEDGE tile that touches a lower, passable, non-ramp neighbour is
+// a hole in the invariant above, because the flood can walk in there and the
+// player cannot. Returns the offending coordinates, empty when the map is sound.
+//
+// Not called in the game loop; it is a level-design check, meant to be run from
+// the console or a probe over a freshly generated map.
+function findUnfacedLedgeEdges(map) {
+  const bad = [];
+  for (let r = 0; r < MROWS; r++) {
+    for (let c = 0; c < MCOLS; c++) {
+      if (map[r][c] !== T.LEDGE) continue;
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nc = c + dc, nr = r + dr;
+        if (nc < 0 || nr < 0 || nc >= MCOLS || nr >= MROWS) continue;
+        if (isSolid(map, nc, nr)) continue;              // faced, or otherwise blocked
+        if (isRampStep(map, c, r, nc, nr)) continue;     // sanctioned way up
+        if (surfaceZ(map, nc, nr) >= surfaceZ(map, c, r)) continue;  // level ground
+        bad.push([c, r, nc, nr]);
+      }
+    }
+  }
+  return bad;
+}
+
 // Medium-depth water is solid to ordinary walkers, but not to everything:
 // projectiles fly over it and aquatic (`swims: true`) enemies move through it.
 // Bounds-checked so callers can pair it directly with isSolid().

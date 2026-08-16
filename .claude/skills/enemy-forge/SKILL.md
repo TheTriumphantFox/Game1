@@ -16,6 +16,7 @@ From `enemies.js`'s `DND_ENEMIES` table, every entry carries exactly: `name, hp,
 - **No `ac`, no attack bonus, no ability scores, no to-hit.** `cr` is stored as a flavor/reference tag on the object — the engine never computes or checks it at runtime.
 - **`spd` is not tabletop speed-in-feet.** It's the enemy's move/attack tick interval in **milliseconds** (`e.timer = e.spd`, reset each tick — see `stepEnemies` in `projectiles.js`). Lower `spd` means faster ticks: quicker pursuit, and for melee enemies more frequent hits. Reading an enemy's real damage output means `dmg` × attack frequency, never `dmg` in isolation — but see Step 4, because the frequency is *not* simply `1/spd` for either melee or ranged enemies.
 - **Melee damage is capped by player i-frames.** A melee hit sets `player.invincible = 900` (`stepEnemies`), so no melee enemy can land hits faster than one per 900 ms no matter how low its `spd` goes. Below `spd: 900`, extra speed buys pursuit and pressure, not damage.
+- **So is projectile damage, and this is the one most easily missed.** A projectile hit is gated on `player.invincible <= 0` and sets `player.invincible = 800` (`stepProjectiles`, the `p.type === 'enemy'` branch). **One projectile per 800 ms, full stop, no matter how many are in the air.** Firing more projectiles at once buys angles and coverage, never damage: the extras hit an invincible player and are wasted. Measured against the Adult Red Dragon's 5-shot fan over 30 s: 11 volleys, 55 projectiles spawned, **exactly 11 hits**.
 - **Ranged enemies ignore `spd` entirely for damage.** They deal no contact damage at all (the melee branch is gated on `!e.ranged`) and fire on their own `shootTimer`, reset to `1800 + rand*1200` ms — about 2400 ms average, independent of `spd`. See `stepEnemyRanged` in `projectiles.js`.
 
 ## The one calibration that matters
@@ -72,7 +73,11 @@ Groups matter: four enemies at CR 1 are far more dangerous than one at CR 4, bec
 |---|---|
 | Melee | `dmg × 1000 / max(spd, 900)` — the i-frame floor, not `spd`, sets the ceiling |
 | Ranged (`ranged: true`) | `dmg × 1000 / 2400` — the average shoot timer; `spd` does not appear |
-| Dragon breath (`breath: 'fire'`) | `5 × dmg × 1000 / 2850` — a 5-projectile fan on a `2400 + rand*900` ms timer, and the whole fan can land |
+| Dragon breath (`breath: 'fire'`) | `dmg × 1000 / 2850` — a 5-projectile fan on a `2400 + rand*900` ms timer, but only ONE shot of the fan can land |
+
+**The breath row used to read `5 × dmg × 1000 / 2850`, on the assumption that the whole fan connects. It does not, and that made this table overstate a breath enemy's output by nearly 5x.** The 800 ms projectile i-frame above means the first shot of a fan to connect eats the whole volley; the other four pass through an invincible player. Measured on the shipped dragon (`dmg: 40`): the old formula predicted 70.18 dmg/sec, the game delivers **14.67**, a factor of 4.78. Every hit was a clean 40, one per volley.
+
+The fan is a coverage and angle mechanism, not a damage multiplier. If you want a breath enemy to hit harder, raise `dmg` or shorten the volley timer; adding projectiles does nothing to its DPS.
 
 Both ranged rows assume the player is inside the firing range (18 tiles for a stock shot, 26 for breath) and that shots connect; treat them as an upper bound. Compare the result to a same-region, already-shipped enemy as a sanity check, since there's no confirmed absolute target yet.
 

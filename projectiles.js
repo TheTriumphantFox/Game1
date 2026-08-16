@@ -241,10 +241,24 @@ function damagePlayer(rawDmg, hitElement) {
 }
 
 // Convert tile coordinates to canvas pixel coordinates (camera-relative).
+//
+// There are two anchor contracts in this renderer and they are both correct:
+//
+//   screenPX(tx, ty)  gives the TILE CENTRE. Its ~84 callers are particle
+//                     spawns and damage-number anchors, which want a body
+//                     centre, not ground contact. Re-anchoring them to the feet
+//                     would drop every burst half a tile.
+//   footBox(...)      gives a sprite box planted on the GROUND (projection.js).
+//                     Actors use this, so height reads correctly and boots meet
+//                     their own shadow.
+//
+// Expressed through worldX/worldY so there is one source of camera math rather
+// than two copies of the same subtraction. Numerically identical to what this
+// returned before.
 function screenPX(tx, ty) {
   return {
-    x: (tx - camC + 0.5) * TILE_PX,
-    y: (ty - camR + 0.5) * TILE_PX
+    x: worldX(tx + 0.5),
+    y: worldY(ty + 0.5)
   };
 }
 
@@ -289,6 +303,46 @@ function firePlayerArrow() {
   });
 }
 
+// ─── Bomb throw arc ───────────────────────────────────────────────────────────
+// A bomb used to APPEAR three tiles ahead of the hero. It is thrown now, and
+// travels there on a ballistic arc over the first part of its fuse.
+//
+// The landing tile and the total fuse are deliberately unchanged, and the bomb
+// snaps to the exact landing coordinate when the flight ends. So it detonates in
+// the same place, at the same moment, for the same damage as before: what is new
+// is that you can see it leave his hand. Anything else would be a balance change
+// wearing a rendering change's clothes.
+//
+// Frames here are 60 FPS-referenced, the same unit `life` and `step` use.
+const BOMB_FLIGHT_FRAMES = 16;     // of the 50-frame fuse; the rest is spent lit
+const BOMB_GRAVITY = 0.028;        // world units per frame per frame, +z is up
+
+// Launch speed that brings the arc back to z = 0 exactly as the flight ends.
+// Integrating z += vz, vz -= g over n steps from z = 0 gives
+// z(n) = n*vz0 - g*n*(n-1)/2, so z(n) = 0 at vz0 = g*(n-1)/2. Derived rather
+// than written as a literal, so tuning either constant cannot desync the two
+// and leave the bomb landing above or below the ground.
+const BOMB_THROW_VZ = BOMB_GRAVITY * (BOMB_FLIGHT_FRAMES - 1) / 2;
+
+// How tall terrain has to be to stop a thrown bomb, in world units.
+//
+// A deliberate threshold, NOT the arc's own height. Physically the bomb only
+// reaches 0.896, so letting its arc decide would have it turned back by a
+// PLATEAU (1.20) or a CLIFF (1.40), and by a fence of waist-high furniture. The
+// call was that a bomb clears terrain and is stopped by BUILT things, so this is
+// set to the wall height: 1.60 catches all twelve 1.60 wall types (WALL,
+// CAVE_WALL, SHRINE_WALL, BLIGHTED/POISON/SHADOW_WALL, SHRINE_GATE,
+// CASTLE_WINDOW, BANNER, MANGROVE, CLOUDWALL, STORM_CLOUD), TREE at 1.80, and
+// everything above. ROCK 0.40, RUBBLE 0.35, BURNT_WALL 0.50, PLATEAU 1.20 and
+// CLIFF 1.40 are all still cleared.
+//
+// This ENDS bombing through walls, which the throw arc had preserved from the
+// days when a bomb simply appeared three tiles away. Worth knowing: a bomb
+// thrown at a nearby wall now stops against it and detonates about a tile from
+// the hero, well inside the 2-tile blast, so throwing one at a wall you are
+// standing next to will hurt.
+const BOMB_THROW_CLEARANCE = 1.60;
+
 function placePlayerBomb() {
   // Bombs are a finite consumable now — no bombs, no boom.
   if ((player.bombs || 0) <= 0) {
@@ -300,9 +354,18 @@ function placePlayerBomb() {
   if (typeof buzz === 'function') buzz(20);
   const bx = player.x + player.swordDir.x * 3;
   const by = player.y + player.swordDir.y * 3;
+  // Unchanged landing point. It is kept on the projectile so the landing can be
+  // snapped to it exactly, instead of trusting a float sum over a variable
+  // number of frames to arrive on the tile it was aimed at.
+  const destX = bx + 0.5, destY = by + 0.5;
+  const fromX = player.x + 0.5, fromY = player.y + 0.5;
   projectiles.push({
-    tx: bx + 0.5, ty: by + 0.5,
-    vx: 0, vy: 0,
+    tx: fromX, ty: fromY,
+    vx: (destX - fromX) / BOMB_FLIGHT_FRAMES,
+    vy: (destY - fromY) / BOMB_FLIGHT_FRAMES,
+    z: 0, vz: BOMB_THROW_VZ,
+    flight: BOMB_FLIGHT_FRAMES,
+    destX, destY,
     dmg: 7 + player.swordLevel,
     type: 'bomb', life: 50, color: '#333'
   });
@@ -498,6 +561,12 @@ function stepEnemies(dt, map) {
   }
 
   for (const e of enemies) {
+    // Altitude eases every frame, ahead of every gate below it. A hovering
+    // enemy is still stepped while it is dormant or staggered, because both of
+    // those want it to settle back DOWN rather than hang in the air, and the
+    // step-cadence gate further down would otherwise move it a third of a tile
+    // at a time. Purely visual: see the `hover` note in enemies.js.
+    if (!e.dead) stepEnemyHover(e, dt, map);
     if (e.dead || e.dormant) continue;      // the dormant dragon sleeps
     // Staggered: reeling, and neither moving nor attacking until it passes. Set
     // by the Emperor's 15% threshold (tower.js) and general enough for anything
@@ -550,9 +619,18 @@ function stepEnemies(dt, map) {
     // bounds AND the border ring is solid, so without this a flier could never
     // leave a wall's edge — or worse, drift off-map).
     const inBounds = nx >= 1 && ny >= 1 && nx <= MCOLS - 2 && ny <= MROWS - 2;
+    // The step-up gate (5d), the same rule the hero walks by. Without it an
+    // enemy strolls up a one-tile shelf as if it were floor, and worse, strolls
+    // OFF the far side into the air. Stepping down is allowed; drawEnemy puts
+    // it at the height of whatever it is standing on either way.
+    //
+    // Fliers are exempt for the same reason they ignore walls: `flies` means it
+    // is not walking on the ground at all.
+    const stepsUpTooFar = !e.flies && stepUpBlocked(map, e.x, e.y, nx, ny);
     const blocked = e.flies
       ? !inBounds
-      : (isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny)));
+      : (stepsUpTooFar ||
+         (isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny))));
     if (!blocked && !otherEnemy && !onPlayer && !onVillager) {
       const okey = tkey(e.x, e.y);
       occ.set(okey, (occ.get(okey) || 0) - 1);
@@ -617,6 +695,37 @@ function stepEnemyRanged(dt) {
 }
 
 // ─── Projectile physics + collision ───────────────────────────────────────────
+// Does terrain at (c, r) stop a projectile flying at height z?
+//
+// The height table's gameplay use: a shot is stopped only by terrain taller than
+// it is flying, so something lobbed over a ROCK (0.40) clears it while a WALL
+// (1.60) still eats it.
+//
+// Two guards make this provably identical to the flat solid test it replaces,
+// which is what lets it land while every projectile in the game is still flat:
+//
+//  1. The solid test stays in FRONT of the height compare. Height alone would be
+//     wrong in the other direction: the passable low props carry a real height
+//     for the renderer and have never blocked a shot, and a pure height compare
+//     would have a fern eat an arrow.
+//  2. A shot at z = 0 is stopped by everything solid, without consulting the
+//     table at all. That matters because solid does NOT imply tall: liquids are
+//     solid and are listed at 0 on purpose (see TILE_HEIGHT_SPEC, config.js), so
+//     a bare `TILE_HEIGHT[t] > z` compare would start letting arrows sail across
+//     lava and deep water. Only a shot with real altitude can clear anything.
+//
+// The `!(z > 0)` form rather than `z <= 0` is deliberate: it also catches a NaN
+// z, which fails every comparison, and treats it as blocking rather than as a
+// projectile that passes through the world.
+function projectileBlockedAt(map, c, r, z) {
+  if (!isSolid(map, c, r) || isMediumWater(map, c, r)) return false;
+  // Out of bounds reads as solid and has no tile to measure. Always blocking,
+  // which is what keeps a shot from sailing off the edge of the map.
+  if (r < 0 || c < 0 || r >= MROWS || c >= MCOLS) return true;
+  if (!(z > 0)) return true;
+  return TILE_HEIGHT[map[r][c]] >= z;
+}
+
 function stepProjectiles(dt, map) {
   // How many 60 FPS-equivalent frames elapsed this tick (dt is real ms, clamped
   // to 80 in the main loop). Scales both lifetime and travel so speed/range are
@@ -626,6 +735,41 @@ function stepProjectiles(dt, map) {
     p.life -= step;
 
     if (p.type === 'bomb') {
+      // In flight: carry it toward the landing tile on the arc. Same gravity
+      // idiom as stepParticles, so the game has one model of a falling thing
+      // rather than two that can drift apart.
+      if (p.flight > 0) {
+        p.flight -= step;
+        if (p.flight <= 0) {
+          // Landed. Snap to the aimed tile and kill the residual vertical
+          // speed, so the detonation coordinate is exactly what it always was
+          // no matter how the frames divided up.
+          p.flight = 0;
+          p.tx = p.destX; p.ty = p.destY;
+          p.z = 0; p.vz = 0;
+        } else {
+          const prevX = p.tx, prevY = p.ty;
+          p.tx += p.vx * step; p.ty += p.vy * step;
+          p.z += p.vz * step;
+          p.vz -= BOMB_GRAVITY * step;
+          if (p.z < 0) p.z = 0;
+          // Tall terrain stops the throw. Reuses the same gate arrows go
+          // through, passing the bomb's clearance instead of its arc height, so
+          // there is one answer to "does this terrain stop a projectile" rather
+          // than a second rule that can drift from the first.
+          //
+          // On a block the bomb drops where it was the instant before, not on
+          // the tile it failed to enter, so it never detonates inside a wall.
+          // destX/destY move with it, so the landing snap above cannot pull it
+          // forward through the thing that just stopped it.
+          if (projectileBlockedAt(map, Math.floor(p.tx), Math.floor(p.ty),
+                                  BOMB_THROW_CLEARANCE)) {
+            p.tx = prevX; p.ty = prevY;
+            p.destX = prevX; p.destY = prevY;
+            p.flight = 0; p.z = 0; p.vz = 0;
+          }
+        }
+      }
       if (p.life > 0) return;
       // Fuse expired — explode. Everything within 2 tiles (Chebyshev) takes
       // the full damage: enemies, the player (if not invincible), and any
@@ -687,6 +831,11 @@ function stepProjectiles(dt, map) {
           }
         }
       }
+      // The blast rewrote tiles, so the renderer's memoized per-map tile scans
+      // are stale. Nothing it can break today is IN those lists (it only takes
+      // ROCK and SNOW_DRIFT), but the depth layer reads a cached list of tall
+      // tiles and a stale one fails silently, by drawing a wall that is gone.
+      if (typeof invalidateTallTiles === 'function') invalidateTallTiles(currentMap());
       p.life = -999;
       return;
     }
@@ -701,7 +850,7 @@ function stepProjectiles(dt, map) {
     // own off-map kill (isSolid no longer stops it at the border).
     if (p.overWalls) {
       if (pc < 0 || pr < 0 || pc >= MCOLS || pr >= MROWS) { p.life = -999; return; }
-    } else if (isSolid(map, pc, pr) && !isMediumWater(map, pc, pr)) { p.life = -999; return; }
+    } else if (projectileBlockedAt(map, pc, pr, p.z || 0)) { p.life = -999; return; }
 
     if (p.type === 'arrow') {
       // An arrow passing over a sealed shrine strikes it — try to break the seal
