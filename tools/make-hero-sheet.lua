@@ -8,30 +8,58 @@
 -- palette and missing shield are approximations of that art; this sheet goes
 -- back to the source.
 --
--- 64x64 frames. Per direction: idle(2) + walk(4) + sword(5) = 11 frames,
--- four directions, 44 frames total, tagged per animation.
+-- 64x64 frames. Per direction: unarmed idle(2) + walk(4) + punch(4), then armed
+-- idle(2) + walk(4) + sword(5) = 21 frames, four directions, 84 frames total,
+-- tagged per animation. (This line used to say 11 and 44, from before the
+-- unarmed set and the punch existed.)
 --
--- Regenerate:
---   aseprite --batch --script-param out=hero-sheet.aseprite \
---            --script tools/make-hero-sheet.lua
+-- Step 1 also writes hero-atlas.js, the frame layout the game reads at runtime.
+--
+-- Regenerate (run from the repo root; verified byte-identical to the
+-- committed hero-sheet.png/.json/.aseprite on aseprite 1.3.18.2-dev):
+--   aseprite -b --script-param out=hero-sheet.aseprite --script tools/make-hero-sheet.lua
+--   aseprite -b hero-sheet.aseprite --sheet hero-sheet.png --data hero-sheet.json ^
+--            --format json-array --sheet-type rows --sheet-columns 21 --list-tags
+--
+-- Two steps because the sprite the script builds is not left "open" for the
+-- CLI's own --sheet/--data flags to see when they are chained onto the same
+-- invocation as --script; --list-tags is required or frameTags is omitted
+-- from the JSON.
 
-local W, H   = 64, 64
+-- Frame 96, body 48. The frame is deliberately twice the body: everything is
+-- authored as a fraction of the 48px BODY box, and the surplus is overhang room
+-- for the raised blade, the ear tips, the cloak, and the downward swings.
+--
+-- It was 64, which left 8px of margin each side and 7 above. That was not
+-- enough: measured on the old sheet, art reached x=0, x=63 and y=0 in three of
+-- the four direction rows, so poses were being cut off at the frame edge rather
+-- than merely filling it. heroSwordTip's own comment admitted as much, calling
+-- the drawn blade "shorter than the 1.25 tiles the hitbox uses, because the full
+-- reach does not fit in a 64px frame". 24px of margin all round fixes that.
+local W, H   = 96, 96
 local DIRS   = { "down", "up", "left", "right" }
 local N_IDLE, N_WALK, N_PUNCH, N_SWING = 2, 4, 4, 5
 -- unarmed idle+walk+punch, then armed idle+walk+sword
 local PER_DIR = N_IDLE + N_WALK + N_PUNCH + N_IDLE + N_WALK + N_SWING
 local S       = 48.0
-local OX, OY  = 8.0, 7.0
+local OX, OY  = 24.0, 24.0
+
+-- Where the boot SOLES sit, as a fraction down the body box. This is the hero's
+-- foot row, and it is the number the renderer plants on the ground.
+--
+-- It is 0.96, not 1.0: the character does not quite fill her own body box. That
+-- is fine and stays as authored, but it used to be invisible, and the renderer
+-- planted the body box BOTTOM instead, which left her floating 2px above the
+-- ground at TILE_PX 48. Naming it here, using it in drawLegs, and shipping it in
+-- the atlas is what lets the renderer plant the feet rather than the box.
+local FOOT_F = 0.96
+
+local lib = dofile("tools/aseprite-lib.lua")
 
 ----------------------------------------------------------------------
 -- palette sampled from hero-portrait.png
 ----------------------------------------------------------------------
-local function hex(h)
-  return app.pixelColor.rgba(
-    tonumber(h:sub(2, 3), 16),
-    tonumber(h:sub(4, 5), 16),
-    tonumber(h:sub(6, 7), 16), 255)
-end
+local hex = lib.hex
 
 local STEEL_D  = hex('#3f4340')   -- weathered plate, deep shadow
 local STEEL    = hex('#636761')
@@ -58,16 +86,17 @@ local WHITE    = hex('#ffffff')
 local OUTLINE  = hex('#12100c')
 
 ----------------------------------------------------------------------
--- rasteriser
+-- rasteriser (px/polyPx/ellipsePx/linePx/outlineSilhouette live in
+-- tools/aseprite-lib.lua, shared with make-dragon-sheet.lua; only the
+-- fraction-of-S wrappers below stay local, since they close over this
+-- script's own W, H, OX, OY, S)
 ----------------------------------------------------------------------
+local raster = lib.newRaster(W, H)
+local px, polyPx, ellipsePx, linePx, outlineSilhouette =
+  raster.px, raster.polyPx, raster.ellipsePx, raster.linePx, raster.outlineSilhouette
+
 local function X(f) return OX + f * S end
 local function Y(f) return OY + f * S end
-
-local function px(img, x, y, c)
-  x = math.floor(x); y = math.floor(y)
-  if x < 0 or y < 0 or x >= W or y >= H then return end
-  img:drawPixel(x, y, c)
-end
 
 local function rectF(img, fx, fy, fw, fh, c)
   local ix0 = math.floor(X(fx) + 0.5)
@@ -81,87 +110,27 @@ local function rectF(img, fx, fy, fw, fh, c)
   end
 end
 
-local function polyPx(img, P, c)
-  local miny, maxy = 1e9, -1e9
-  for i = 1, #P do
-    if P[i][2] < miny then miny = P[i][2] end
-    if P[i][2] > maxy then maxy = P[i][2] end
-  end
-  for y = math.max(0, math.floor(miny)), math.min(H - 1, math.ceil(maxy)) do
-    local yc, xs, n = y + 0.5, {}, #P
-    for i = 1, n do
-      local j = (i % n) + 1
-      local ax, ay, bx, by = P[i][1], P[i][2], P[j][1], P[j][2]
-      if (ay <= yc and by > yc) or (by <= yc and ay > yc) then
-        xs[#xs + 1] = ax + (yc - ay) / (by - ay) * (bx - ax)
-      end
-    end
-    table.sort(xs)
-    for k = 1, #xs - 1, 2 do
-      for x = math.floor(xs[k] + 0.5), math.floor(xs[k + 1] + 0.5) - 1 do
-        px(img, x, y, c)
-      end
-    end
-  end
-end
-
 local function polyF(img, P, c)
   local Q = {}
   for i = 1, #P do Q[i] = { X(P[i][1]), Y(P[i][2]) } end
   polyPx(img, Q, c)
 end
 
-local function ellipsePx(img, cx, cy, rx, ry, c)
-  for y = math.max(0, math.floor(cy - ry)), math.min(H - 1, math.ceil(cy + ry)) do
-    for x = math.max(0, math.floor(cx - rx)), math.min(W - 1, math.ceil(cx + rx)) do
-      local dx, dy = (x + 0.5 - cx) / rx, (y + 0.5 - cy) / ry
-      if dx * dx + dy * dy <= 1.0 then px(img, x, y, c) end
-    end
-  end
-end
-
 local function ellipseF(img, fcx, fcy, frx, fry, c)
   ellipsePx(img, X(fcx), Y(fcy), frx * S, fry * S, c)
 end
 
-local function linePx(img, x0, y0, x1, y1, wdt, c)
-  local dx, dy = x1 - x0, y1 - y0
-  local steps = math.max(1, math.ceil(math.max(math.abs(dx), math.abs(dy)) * 2))
-  local r = wdt / 2
-  for i = 0, steps do
-    local t = i / steps
-    local cx, cy = x0 + dx * t, y0 + dy * t
-    for y = math.floor(cy - r), math.ceil(cy + r) do
-      for x = math.floor(cx - r), math.ceil(cx + r) do
-        local ddx, ddy = x + 0.5 - cx, y + 0.5 - cy
-        if ddx * ddx + ddy * ddy <= r * r + 0.25 then px(img, x, y, c) end
-      end
-    end
-  end
-end
+-- lineF's width is a fraction of S, matching every other *F function here
+-- and matching make-dragon-sheet.lua (which is the version this reconciles
+-- to -- the hero sheet previously took line width in raw pixels while the
+-- dragon sheet took a fraction of S). LINE_W is every hero call site's
+-- previous literal pixel width (1.0) re-expressed as that fraction; S
+-- cancels out exactly (verified: (1.0/S)*S == 1.0 in Lua's double
+-- arithmetic for S=48), so this is a pure reconciliation, not a redraw.
+local LINE_W = 1.0 / S
 
-local function lineF(img, fx0, fy0, fx1, fy1, wdt, c)
-  linePx(img, X(fx0), Y(fy0), X(fx1), Y(fy1), wdt, c)
-end
-
-local function outlineSilhouette(img, col)
-  local solid = {}
-  for y = 0, H - 1 do
-    solid[y] = {}
-    for x = 0, W - 1 do
-      solid[y][x] = app.pixelColor.rgbaA(img:getPixel(x, y)) > 0
-    end
-  end
-  for y = 0, H - 1 do
-    for x = 0, W - 1 do
-      if not solid[y][x] then
-        if (x > 0 and solid[y][x-1]) or (x < W-1 and solid[y][x+1]) or
-           (y > 0 and solid[y-1][x]) or (y < H-1 and solid[y+1][x]) then
-          img:drawPixel(x, y, col)
-        end
-      end
-    end
-  end
+local function lineF(img, fx0, fy0, fx1, fy1, wf, c)
+  linePx(img, X(fx0), Y(fy0), X(fx1), Y(fy1), wf * S, c)
 end
 
 ----------------------------------------------------------------------
@@ -174,9 +143,9 @@ local function drawCloak(img, sway, bob)
   local b = bob
   polyF(img, { {0.28,0.33+b}, {0.72,0.33+b}, {0.84+sway,0.82+b}, {0.16+sway,0.82+b} }, CLOAK_D)
   polyF(img, { {0.28,0.33+b}, {0.50,0.33+b}, {0.50+sway,0.82+b}, {0.16+sway,0.82+b} }, CLOAK)
-  lineF(img, 0.50, 0.36+b, 0.50+sway, 0.81+b, 1.0, CLOAK_D)
-  lineF(img, 0.34, 0.40+b, 0.27+sway, 0.81+b, 1.0, CLOAK_L)
-  lineF(img, 0.66, 0.40+b, 0.74+sway, 0.81+b, 1.0, hex('#1b2b17'))
+  lineF(img, 0.50, 0.36+b, 0.50+sway, 0.81+b, LINE_W, CLOAK_D)
+  lineF(img, 0.34, 0.40+b, 0.27+sway, 0.81+b, LINE_W, CLOAK_L)
+  lineF(img, 0.66, 0.40+b, 0.74+sway, 0.81+b, LINE_W, hex('#1b2b17'))
 end
 
 -- Armoured legs with plated greaves, and boots. `swing` moves the feet through
@@ -197,7 +166,10 @@ local function drawLegs(img, facing, swing, bob)
     rectF(img, lx, 0.72 + ly, 0.13, 0.02, STEEL_L)     -- knee cop
     rectF(img, lx - 0.01, 0.86 + ly, 0.15, 0.09, boot)
     rectF(img, lx - 0.01, 0.86 + ly, 0.15, 0.02, LEATHER)
-    rectF(img, lx - 0.01, 0.935 + ly, 0.15, 0.025, hex('#1a1206'))
+    -- The sole, derived from FOOT_F so the declared foot row and the drawn one
+    -- cannot drift apart. Was the literal 0.935; FOOT_F - 0.025 is the same
+    -- number, now stated once.
+    rectF(img, lx - 0.01, FOOT_F - 0.025 + ly, 0.15, 0.025, hex('#1a1206'))
   end
 end
 
@@ -212,8 +184,8 @@ local function drawTorso(img, facing, bob)
   -- tassets / skirt plates
   polyF(img, { {L+0.02,0.60+b}, {R-0.02,0.60+b}, {R+0.02,0.74+b}, {L-0.02,0.74+b} }, LEATHER)
   polyF(img, { {0.50,0.60+b}, {R-0.02,0.60+b}, {R+0.02,0.74+b}, {0.50,0.74+b} }, LEATHER_D)
-  lineF(img, 0.38, 0.62+b, 0.36, 0.73+b, 1.0, STEEL_D)
-  lineF(img, 0.62, 0.62+b, 0.64, 0.73+b, 1.0, STEEL_D)
+  lineF(img, 0.38, 0.62+b, 0.36, 0.73+b, LINE_W, STEEL_D)
+  lineF(img, 0.62, 0.62+b, 0.64, 0.73+b, LINE_W, STEEL_D)
 
   -- cuirass
   polyF(img, { {L,0.37+b}, {R,0.37+b}, {R,0.55+b}, {0.50,0.63+b}, {L,0.55+b} }, STEEL)
@@ -225,26 +197,33 @@ local function drawTorso(img, facing, bob)
   -- deep V neckline
   polyF(img, { {0.415,0.365+b}, {0.585,0.365+b}, {0.50,0.50+b} }, SKIN_D)
   polyF(img, { {0.435,0.365+b}, {0.565,0.365+b}, {0.50,0.475+b} }, SKIN)
-  lineF(img, 0.415, 0.365+b, 0.50, 0.50+b, 1.0, GOLD)
-  lineF(img, 0.585, 0.365+b, 0.50, 0.50+b, 1.0, GOLD_D)
+  lineF(img, 0.415, 0.365+b, 0.50, 0.50+b, LINE_W, GOLD)
+  lineF(img, 0.585, 0.365+b, 0.50, 0.50+b, LINE_W, GOLD_D)
   -- bronze filigree down the flanks
-  lineF(img, L+0.03, 0.40+b, L+0.05, 0.54+b, 1.0, GOLD_D)
-  lineF(img, R-0.03, 0.40+b, R-0.05, 0.54+b, 1.0, GOLD_D)
+  lineF(img, L+0.03, 0.40+b, L+0.05, 0.54+b, LINE_W, GOLD_D)
+  lineF(img, R-0.03, 0.40+b, R-0.05, 0.54+b, LINE_W, GOLD_D)
 
   -- belt, buckle, and the green sash hanging from it
   rectF(img, L-0.01, 0.575+b, (R-L)+0.02, 0.045, LEATHER_D)
   rectF(img, 0.475, 0.567+b, 0.055, 0.06, GOLD)
   rectF(img, 0.489, 0.582+b, 0.026, 0.032, GOLD_D)
   polyF(img, { {0.40,0.60+b}, {0.50,0.60+b}, {0.48,0.80+b}, {0.37,0.78+b} }, CLOAK)
-  lineF(img, 0.43, 0.63+b, 0.42, 0.77+b, 1.0, CLOAK_D)
+  lineF(img, 0.43, 0.63+b, 0.42, 0.77+b, LINE_W, CLOAK_D)
 
   -- pauldrons: layered plates with a bright top edge
+  -- Concentric shells lit toward lib.LIGHT_DIR: rim in shadow, crown of the
+  -- plate catching the highlight. STEEL_RAMP is dark-to-light
+  -- (STEEL_D, STEEL, STEEL_L, STEEL_H); lib.ramp(_, (i-1)/3) reproduces
+  -- STEEL_D, STEEL_L, STEEL_H exactly (the plain STEEL step is unused here,
+  -- same as before this was expressed as a ramp).
+  local STEEL_RAMP = { STEEL_D, STEEL, STEEL_L, STEEL_H }
   local function pauldron(cx)
-    ellipseF(img, cx, 0.415+b, 0.095, 0.075, STEEL_D)
-    ellipseF(img, cx, 0.405+b, 0.085, 0.062, STEEL_L)
-    ellipseF(img, cx, 0.392+b, 0.070, 0.042, STEEL_H)
-    lineF(img, cx-0.075, 0.445+b, cx+0.075, 0.445+b, 1.0, GOLD_D)
+    ellipseF(img, cx, 0.415+b, 0.095, 0.075, lib.ramp(STEEL_RAMP, 0/3))
+    ellipseF(img, cx, 0.405+b, 0.085, 0.062, lib.ramp(STEEL_RAMP, 2/3))
+    ellipseF(img, cx, 0.392+b, 0.070, 0.042, lib.ramp(STEEL_RAMP, 3/3))
+    lineF(img, cx-0.075, 0.445+b, cx+0.075, 0.445+b, LINE_W, GOLD_D)
   end
+  assert(lib.LIGHT_DIR.y < 0, "STEEL_RAMP is ordered dark-to-light assuming an overhead/upper light")
   if isSide then
     pauldron(facing == 'left' and 0.38 or 0.62)
     rectF(img, facing == 'left' and 0.34 or 0.54, 0.46+b, 0.12, 0.14, LEATHER)
@@ -305,8 +284,8 @@ local function drawHead(img, facing, bob)
     ellipseF(img, 0.50, 0.22+b, 0.195, 0.175, HAIR_D)
     ellipseF(img, 0.50, 0.205+b, 0.165, 0.145, HAIR)
     ellipseF(img, 0.50, 0.165+b, 0.105, 0.065, HAIR_L)
-    lineF(img, 0.42, 0.13+b, 0.40, 0.30+b, 1.0, HAIR_D)
-    lineF(img, 0.58, 0.13+b, 0.61, 0.30+b, 1.0, HAIR_D)
+    lineF(img, 0.42, 0.13+b, 0.40, 0.30+b, LINE_W, HAIR_D)
+    lineF(img, 0.58, 0.13+b, 0.61, 0.30+b, LINE_W, HAIR_D)
     -- ear tips just clear the hair
     polyF(img, { {0.31,0.20+b}, {0.19,0.13+b}, {0.315,0.26+b} }, EAR_T)
     polyF(img, { {0.69,0.20+b}, {0.81,0.13+b}, {0.685,0.26+b} }, EAR_T)
@@ -315,21 +294,21 @@ local function drawHead(img, facing, bob)
 
   -- hair mass behind the head, sweeping to the character's right
   polyF(img, { {0.58,0.14+b}, {0.74,0.19+b}, {0.88,0.44+b}, {0.68,0.42+b} }, HAIR_D)
-  lineF(img, 0.70, 0.22+b, 0.84, 0.41+b, 1.0, HAIR)
+  lineF(img, 0.70, 0.22+b, 0.84, 0.41+b, LINE_W, HAIR)
   ellipseF(img, 0.50, 0.21+b, 0.185, 0.165, HAIR_D)
 
   -- long pointed ears, angled up and back
   if facing == 'right' then
     polyF(img, { {0.34,0.175+b}, {0.19,0.10+b}, {0.35,0.255+b} }, EAR_T)
-    lineF(img, 0.33, 0.175+b, 0.22, 0.125+b, 1.0, SKIN_D)
+    lineF(img, 0.33, 0.175+b, 0.22, 0.125+b, LINE_W, SKIN_D)
   elseif facing == 'left' then
     polyF(img, { {0.66,0.175+b}, {0.81,0.10+b}, {0.65,0.255+b} }, EAR_T)
-    lineF(img, 0.67, 0.175+b, 0.78, 0.125+b, 1.0, SKIN_D)
+    lineF(img, 0.67, 0.175+b, 0.78, 0.125+b, LINE_W, SKIN_D)
   else
     polyF(img, { {0.345,0.18+b}, {0.20,0.105+b}, {0.355,0.26+b} }, EAR_T)
     polyF(img, { {0.655,0.18+b}, {0.80,0.105+b}, {0.645,0.26+b} }, EAR_T)
-    lineF(img, 0.335, 0.18+b, 0.23, 0.13+b, 1.0, SKIN_D)
-    lineF(img, 0.665, 0.18+b, 0.77, 0.13+b, 1.0, SKIN_D)
+    lineF(img, 0.335, 0.18+b, 0.23, 0.13+b, LINE_W, SKIN_D)
+    lineF(img, 0.665, 0.18+b, 0.77, 0.13+b, LINE_W, SKIN_D)
   end
 
   -- face
@@ -340,8 +319,8 @@ local function drawHead(img, facing, bob)
   polyF(img, { {0.355,0.09+b}, {0.65,0.09+b}, {0.66,0.20+b}, {0.545,0.145+b},
                {0.47,0.205+b}, {0.40,0.15+b}, {0.35,0.21+b} }, HAIR)
   rectF(img, 0.43, 0.088+b, 0.15, 0.022, HAIR_L)
-  lineF(img, 0.40, 0.115+b, 0.375, 0.19+b, 1.0, HAIR_D)
-  lineF(img, 0.62, 0.115+b, 0.645, 0.19+b, 1.0, HAIR_D)
+  lineF(img, 0.40, 0.115+b, 0.375, 0.19+b, LINE_W, HAIR_D)
+  lineF(img, 0.62, 0.115+b, 0.645, 0.19+b, LINE_W, HAIR_D)
 
   if facing == 'down' then
     rectF(img, 0.405, 0.215+b, 0.055, 0.042, EYE)
@@ -365,13 +344,13 @@ local function drawHead(img, facing, bob)
     if facing == 'right' then
       polyF(img, { {0.385,0.095+b}, {0.545,0.095+b}, {0.535,0.185+b},
                    {0.495,0.265+b}, {0.435,0.245+b}, {0.380,0.160+b} }, HAIR)
-      lineF(img, 0.500, 0.115+b, 0.478, 0.250+b, 1.0, HAIR_D)
-      lineF(img, 0.435, 0.110+b, 0.416, 0.220+b, 1.0, HAIR_L)
+      lineF(img, 0.500, 0.115+b, 0.478, 0.250+b, LINE_W, HAIR_D)
+      lineF(img, 0.435, 0.110+b, 0.416, 0.220+b, LINE_W, HAIR_L)
     else
       polyF(img, { {0.615,0.095+b}, {0.455,0.095+b}, {0.465,0.185+b},
                    {0.505,0.265+b}, {0.565,0.245+b}, {0.620,0.160+b} }, HAIR)
-      lineF(img, 0.500, 0.115+b, 0.522, 0.250+b, 1.0, HAIR_D)
-      lineF(img, 0.565, 0.110+b, 0.584, 0.220+b, 1.0, HAIR_L)
+      lineF(img, 0.500, 0.115+b, 0.522, 0.250+b, LINE_W, HAIR_D)
+      lineF(img, 0.565, 0.110+b, 0.584, 0.220+b, LINE_W, HAIR_L)
     end
   end
 end
@@ -379,15 +358,32 @@ end
 ----------------------------------------------------------------------
 -- sword
 ----------------------------------------------------------------------
-local SW_CX, SW_CY    = 32.0, 30.0
+-- Sword hand, as a position in the BODY box rather than the frame.
+--
+-- These were the literals 32 and 30, tuned when the frame was 64 and the body
+-- box sat at (8, 7). Both are exact fractions of the 48px body there
+-- (X(0.5) = 32, Y(23/48) = 30), so this is the same point, now expressed so it
+-- follows the body box instead of the frame corner. Enlarging the frame is what
+-- exposed the difference: the blade and fist stayed pinned to absolute
+-- coordinates while the body moved down, tearing them off the arm.
+--
+-- SW_HILT and SW_LEN are deliberately NOT converted. They are LENGTHS, and the
+-- body is still 48px at any frame size, so a distance in pixels is still the
+-- distance it was. Only positions had to move.
+local SW_CX, SW_CY    = X(0.5), Y(23.0 / 48.0)
 local SW_HILT, SW_LEN = 10.0, 30.0
 local BASE_ANGLE = { down = math.pi/2, up = -math.pi/2, left = math.pi, right = 0.0 }
 -- Carried high, as in the portrait. Pivoted at the sword hand (opposite the
 -- shield) and angled near-vertical so the blade rises beside the head instead
 -- of cutting across her face.
 local IDLE_ANGLE = { down = -1.75, up = -1.75, left = -1.35, right = -1.75 }
+-- Same conversion: these were 23/41 and 34, which are X(15/48), X(33/48) and
+-- Y(27/48) under the old 64px geometry.
 local IDLE_PIVOT = {
-  down = {23.0, 34.0}, up = {23.0, 34.0}, left = {41.0, 34.0}, right = {23.0, 34.0},
+  down  = { X(15.0 / 48.0), Y(27.0 / 48.0) },
+  up    = { X(15.0 / 48.0), Y(27.0 / 48.0) },
+  left  = { X(33.0 / 48.0), Y(27.0 / 48.0) },
+  right = { X(15.0 / 48.0), Y(27.0 / 48.0) },
 }
 
 local function drawBlade(img, a, bob, trail, cx, cy0)
@@ -438,7 +434,9 @@ local DIR_VEC = { down = {0,1}, up = {0,-1}, left = {-1,0}, right = {1,0} }
 local function drawFist(img, facing, phase, bob)
   local d = DIR_VEC[facing]
   local reach = math.sin(phase * math.pi) * S * 0.55
-  local cy0 = 30 + bob * S
+  -- Was the literal 30, the same point SW_CY names. Shares it now so the fist
+  -- and the blade cannot end up anchored to different places.
+  local cy0 = SW_CY + bob * S
   local cx, cy = SW_CX + d[1]*reach, cy0 + d[2]*reach
   local r = S * 0.095
   -- forearm back to the body
@@ -536,3 +534,64 @@ end
 
 spr:saveAs(app.params["out"])
 print("wrote " .. app.params["out"] .. "  frames=" .. #spr.frames .. " tags=" .. #spr.tags)
+
+----------------------------------------------------------------------
+-- hero-atlas.js
+----------------------------------------------------------------------
+-- The frame layout, emitted as a plain global assignment for the game to read.
+--
+-- This exists because hero-sprite.js used to hardcode a copy of every constant
+-- in this file (frame size, body box, column count, per-animation start/length/
+-- duration) with a comment telling the next person to remember to change both.
+-- That is a drift hazard with no upside: the numbers all live here already.
+--
+-- It is a .js file rather than the .json Aseprite emits alongside the sheet,
+-- because the game is opened from file://, where fetch and XHR cannot read a
+-- sibling file. A <script> tag assigning a global is the project's standing
+-- answer to that, and hero-sheet.json stays a build artefact for humans.
+--
+-- Written from THIS script's own constants rather than parsed back out of the
+-- sheet, so the atlas cannot describe a layout the generator did not author.
+local atlasPath = app.params["atlas"] or "hero-atlas.js"
+local af = io.open(atlasPath, "wb")
+if not af then
+  error("cannot write " .. atlasPath .. " (run from the repo root)")
+end
+
+local ms = function (sec) return math.floor(sec * 1000 + 0.5) end
+
+af:write("// GENERATED by tools/make-hero-sheet.lua. Do not edit by hand.\n")
+af:write("//\n")
+af:write("// Regenerate with the two commands in that script's header, from the\n")
+af:write("// repo root. This file is written by step 1, alongside the .aseprite.\n")
+af:write("//\n")
+af:write("// Loaded as a plain script (no modules, no fetch) so it works from\n")
+af:write("// file://, and read by hero-sprite.js.\n")
+af:write("const HERO_ATLAS = {\n")
+af:write(string.format("  frame: %d,\n", W))
+af:write(string.format("  body: %d,\n", math.floor(S + 0.5)))
+af:write(string.format("  bodyOX: %d,\n", math.floor(OX + 0.5)))
+af:write(string.format("  bodyOY: %d,\n", math.floor(OY + 0.5)))
+-- Foot row, as a fraction down the body box. The renderer plants THIS on the
+-- ground, not the body box bottom, which is what stops the hero floating.
+af:write(string.format("  footF: %s,\n", tostring(FOOT_F)))
+af:write(string.format("  cols: %d,\n", PER_DIR))
+-- Row per direction, in this script's DIRS order, which is the order the frames
+-- were written in and therefore the order the sheet rows come out in.
+af:write("  dirRow: {")
+for d = 1, #DIRS do
+  af:write(string.format("%s %s: %d", d > 1 and "," or "", DIRS[d], d - 1))
+end
+af:write(" },\n")
+-- anim -> [startColumn, frameCount, msPerFrame]. Columns are relative to the
+-- start of a direction's row, which is how the blit indexes them.
+af:write("  anims: {\n")
+local cursor = 0
+for _, K in ipairs(KINDS) do
+  af:write(string.format("    %s: [%d, %d, %d],\n", K[1], cursor, K[2], ms(K[3])))
+  cursor = cursor + K[2]
+end
+af:write("  },\n")
+af:write("};\n")
+af:close()
+print("wrote " .. atlasPath)
