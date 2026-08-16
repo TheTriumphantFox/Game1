@@ -8,10 +8,14 @@ stopped. Keep it to three lines: the phase in progress, what landed last, and
 anything left half-finished.
 
 ```
-Phase in progress:  PHASE 6 IS COMPLETE, 6a/6b/6c all done, and so is every
-                    phase of the conversion. The ONLY outstanding item in the
-                    whole project is the USER's phone check at TILE_PX 24, which
-                    has been on hold since Phase 4.
+Phase in progress:  THE CONVERSION IS COMPLETE. Every phase is done and the phone
+                    check is answered, so nothing is outstanding. The USER
+                    measured TILE_PX 24 on a real device via the #perf HUD:
+                    median 4 ms, 24% of the 16.7 ms budget, p95 7 ms, with 114
+                    tiles extruded. Two caveats recorded: the device coarsens
+                    performance.now() to 1 ms, and 114 extruded is a lighter
+                    scene than the 418 desktop worst case, which projects to
+                    roughly 5 ms rather than being measured.
 Last completed:     6c. T.TREE extrudes (+0.15ms at TILE_PX 48, +0.75ms at 24,
                     2.35ms total against a 16.7ms budget) and the USER confirmed
                     the forest wall reads correct. Doorways and the castle window
