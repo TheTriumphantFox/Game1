@@ -28,6 +28,24 @@
 // sprite would be silently wrong. Both call drawTileProcedural directly.
 let tileOverlayPass = false;
 
+// Draw a tile's decoration WITHOUT its opaque ground square, over whatever is
+// already there.
+//
+// The forest terrain art needs this. Its chunk baker paints the turf under a
+// fern or a mushroom, but the fern's own art is fine and is not being replaced,
+// so the tile still has to draw — and if it draws normally it starts with
+// `fillRect(TILE_COLORS[t])` and punches a flat green square through the baked
+// ground. That square was invisible before, because the tile next to it was
+// another flat square of nearly the same colour.
+//
+// Procedural by necessity, like the other two overlay callers: a cached sprite
+// bakes the base fill in, and getTileSprite has no notion of the flag.
+function drawTileOverlay(col, row, t, sx, sy, s) {
+  tileOverlayPass = true;
+  try { drawTileProcedural(col, row, t, sx, sy, s); }
+  finally { tileOverlayPass = false; }
+}
+
 // Castle tower heraldry — per-region [deep cloth, bright trim] hues for the
 // BANNER and CASTLE_WINDOW tiles. Each tower floor carries its region's id in
 // map.biome, so the same tile type recolors itself per floor. NOTE: this is why
@@ -1385,13 +1403,17 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.closePath(); ctx.fill();
       break; }
     case T.MUSHROOM:
-      ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x,y,s,s);
+      // Guarded: these two paint their OWN ground square on top of the one at
+      // the head of this function, so clearing tileOverlayPass up there was not
+      // enough and a mushroom kept punching a flat green tile through the baked
+      // forest turf underneath it.
+      if (!tileOverlayPass) { ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x,y,s,s); }
       ctx.fillStyle = '#cc3300'; ctx.beginPath(); ctx.arc(x+s/2,y+s*0.4,s*0.28,Math.PI,0); ctx.fill();
       ctx.fillStyle = '#aa2200'; ctx.beginPath(); ctx.arc(x+s/2,y+s*0.42,s*0.28,0,Math.PI); ctx.fill();
       ctx.fillStyle = '#ffaaaa'; ctx.fillRect(x+s/2-1,y+s*0.3,2,2); ctx.fillRect(x+s/2+3,y+s*0.32,2,2);
       ctx.fillStyle = '#ddddaa'; ctx.fillRect(x+s/2-2,y+s*0.42,4,s*0.3); break;
     case T.FERN:
-      ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x,y,s,s);
+      if (!tileOverlayPass) { ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x,y,s,s); }
       ctx.save();
       ctx.strokeStyle = '#44aa44'; ctx.lineWidth = 2;
       for (let i = 0; i < 3; i++) {
@@ -2354,8 +2376,14 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // Floor base + a slender stem and a six-petal white-gold bloom ringed by a
       // soft, breathing halo of light with a brilliant glowing core — the luminous
       // sanctum's flower, twin of the air region's pink SKY_BLOOM.
-      ctx.fillStyle = '#f5edd8'; ctx.fillRect(x, y, s, s);
-      ctx.fillStyle = '#ece1c4'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      //
+      // Guarded like T.MUSHROOM and T.MAGMA_CRACK: this case paints its own
+      // floor square on top of the one at the head of the function, so without
+      // the check it punches a flat cream tile through the baked sanctum floor.
+      if (!tileOverlayPass) {
+        ctx.fillStyle = '#f5edd8'; ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = '#ece1c4'; ctx.fillRect(x, y + s*0.86, s, s*0.14);
+      }
       ctx.strokeStyle = '#b8a86a'; ctx.lineWidth = Math.max(1, s*0.045); ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(x + s*0.5, y + s*0.9); ctx.lineTo(x + s*0.5, y + s*0.46); ctx.stroke();
       ctx.fillStyle = '#cdb96e';
@@ -2713,7 +2741,9 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       const h = (col * 137 + row * 71);
       const j = (a, n) => (((h >> a) & 3) / 3) * n;
       const hcx = 0.5 + j(0,0.18) - 0.09, hcy = 0.56 + j(2,0.16) - 0.08;   // hollow centre
-      ctx.fillStyle = '#39481d'; ctx.fillRect(x, y, s, s);            // wet mire base
+      if (!tileOverlayPass) {
+        ctx.fillStyle = '#39481d'; ctx.fillRect(x, y, s, s);          // wet mire base
+      }
       ctx.fillStyle = '#2a3716';                                       // sunken hollow
       ctx.beginPath(); ctx.ellipse(x+s*hcx, y+s*hcy, s*(0.34+j(4,0.12)), s*(0.27+j(6,0.10)), j(8,0.6), 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#46602a';                                       // glossy standing-water skin
@@ -2732,8 +2762,10 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       const tt = Date.now() / 800;
       const a = Math.sin(tt + col * 0.5 + row * 0.3);
       const h = (col * 131 + row * 83);
-      ctx.fillStyle = '#16280f'; ctx.fillRect(x, y, s, s);            // deep murk base
-      ctx.fillStyle = '#1d3415'; ctx.fillRect(x, y + s*0.5, s, s*0.5); // darker deep trough
+      if (!tileOverlayPass) {
+        ctx.fillStyle = '#16280f'; ctx.fillRect(x, y, s, s);          // deep murk base
+        ctx.fillStyle = '#1d3415'; ctx.fillRect(x, y + s*0.5, s, s*0.5); // darker deep trough
+      }
       ctx.fillStyle = '#33521f'; ctx.fillRect(x+s*0.10, y+s*0.30+a*2, s*0.50, s*0.05);   // scum streaks
       ctx.fillStyle = '#284018'; ctx.fillRect(x+s*0.45, y+s*0.62-a*2, s*0.40, s*0.05);
       if ((h & 1) === 0) {                                             // green scum film
@@ -2754,7 +2786,9 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // A clump of bulrush reeds in the mire — arching reed blades and a couple of
       // brown cattail seed-heads on tall stalks (cut for an Herbal). Muck base with
       // a wet shadow. Static.
-      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // muck base
+      if (!tileOverlayPass) {
+        ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);          // muck base
+      }
       ctx.fillStyle = '#3b4a1e'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.84, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();  // wet shadow
       ctx.lineCap = 'round';
       const reed = (tx, col2) => { ctx.strokeStyle = col2; ctx.lineWidth = Math.max(1, s*0.04);
@@ -2774,7 +2808,9 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // A bushy marsh fern — a fanning rosette of arching fronds ticked with
       // leaflets, lusher and broader than the forest fern (cut for an Herbal). Muck
       // base with a wet shadow. Static.
-      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // muck base
+      if (!tileOverlayPass) {
+        ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);          // muck base
+      }
       ctx.fillStyle = '#3b4a1e'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.82, s*0.28, s*0.08, 0,0,Math.PI*2); ctx.fill();
       const cx2 = x+s*0.5, base = y+s*0.86;
       for (let i = 0; i < 5; i++) {
@@ -2819,30 +2855,32 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
     case T.SWAMP_MUSHROOM: {
       // A cluster of sickly poison toadstools on the mire — drawn on the muck base
       // so it sits in the swamp instead of clashing like the forest's grass-backed
-      // mushroom. A taller capped toadstool and a small one, lurid purple caps
+      // mushroom. A taller capped toadstool and a small one, acid-lime caps
       // freckled with pale spots, each breathing a faint, slowly pulsing spore-glow
       // (cut for a Mushroom). Animated glow.
-      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // muck base
+      if (!tileOverlayPass) {
+        ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);          // muck base
+      }
       ctx.fillStyle = '#3b4a1e'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.84, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();  // wet shadow
       const glow = 0.16 + 0.12*Math.sin(Date.now()/700 + col*0.6 + row*0.5);
       // taller toadstool (left)
       const ax = 0.40, ay = 0.40;
-      ctx.fillStyle = `rgba(170,120,210,${glow})`;                     // spore-glow halo
+      ctx.fillStyle = `rgba(183,226,48,${glow})`;                      // spore-glow halo
       ctx.beginPath(); ctx.arc(x+s*ax, y+s*ay, s*0.24, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#cfc2a0'; ctx.fillRect(x+s*(ax-0.045), y+s*ay, s*0.09, s*0.34);   // pale stalk
-      ctx.fillStyle = '#7a4aa0';                                       // lurid purple cap
+      ctx.fillStyle = '#8fb51e';                                       // acid-lime cap
       ctx.beginPath(); ctx.arc(x+s*ax, y+s*ay, s*0.20, Math.PI, 0); ctx.fill();
-      ctx.fillStyle = '#5e3683'; ctx.beginPath(); ctx.arc(x+s*ax, y+s*(ay+0.02), s*0.20, 0, Math.PI); ctx.fill();   // cap underside
-      ctx.fillStyle = '#e6d8f2';                                       // freckled spots
+      ctx.fillStyle = '#526d12'; ctx.beginPath(); ctx.arc(x+s*ax, y+s*(ay+0.02), s*0.20, 0, Math.PI); ctx.fill();   // cap underside
+      ctx.fillStyle = '#d8ee72';                                       // freckled spots
       ctx.fillRect(x+s*(ax-0.10), y+s*(ay-0.07), s*0.04, s*0.04);
       ctx.fillRect(x+s*(ax+0.05), y+s*(ay-0.05), s*0.035, s*0.035);
       ctx.fillRect(x+s*(ax-0.02), y+s*(ay-0.11), s*0.03, s*0.03);
       // small toadstool (right)
       const bx2 = 0.66, by2 = 0.58;
       ctx.fillStyle = '#cfc2a0'; ctx.fillRect(x+s*(bx2-0.03), y+s*by2, s*0.06, s*0.22);  // stalk
-      ctx.fillStyle = '#8a55b4';
+      ctx.fillStyle = '#a3c92a';
       ctx.beginPath(); ctx.arc(x+s*bx2, y+s*by2, s*0.13, Math.PI, 0); ctx.fill();        // cap
-      ctx.fillStyle = '#e6d8f2'; ctx.fillRect(x+s*(bx2-0.05), y+s*(by2-0.05), s*0.03, s*0.03);
+      ctx.fillStyle = '#e5f58a'; ctx.fillRect(x+s*(bx2-0.05), y+s*(by2-0.05), s*0.03, s*0.03);
       break; }
     case T.FALLEN_LOG: {
       // A rotting, moss-grown tree trunk lying across the swamp — the poison
@@ -2858,7 +2896,9 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       const vert = upL || downL;                                      // vertical run?
       const h = (col*131 + row*83);
       const j = (a, n) => (((h >> a) & 3) / 3) * n;
-      ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);            // muck base
+      if (!tileOverlayPass) {
+        ctx.fillStyle = '#4a5a26'; ctx.fillRect(x, y, s, s);          // muck base
+      }
       if (!vert) {
         // ── Horizontal trunk (spans the tile width so runs join) ──
         const top = y + s*0.28, bh = s*0.44;
@@ -3426,21 +3466,42 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // is the walkable interior and LEDGE_FACE is its southern rim, and a rim
       // with different art from the middle would read as a painted stripe
       // instead of one raised surface. The vertical face below the rim is not
-      // drawn here at all; drawTileExtrusion paints it from
-      // TILE_COLORS[T.LEDGE_FACE] so it can shade against its neighbours.
-      ctx.fillStyle = '#5f8a44'; ctx.fillRect(x, y, s, s);
-      // Speckled turf, hashed off the tile's own coordinates so the pattern is
-      // identical on every frame and cannot shimmer. Same one-shot mulberry32
-      // mixing burntWallStands uses, for the same reason: a shelf edge is a
-      // straight run, and a low-period hash lays a visible repeat along it.
-      let lh = Math.imul(col, 0x27d4eb2d) ^ Math.imul(row, 0x165667b1);
-      for (let i = 0; i < 5; i++) {
-        lh = Math.imul(lh ^ (lh >>> 15), 1 | lh);
-        const fx = ((lh >>> 8) & 255) / 255, fy = ((lh >>> 16) & 255) / 255;
-        ctx.fillStyle = (i & 1) ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.10)';
-        ctx.fillRect(x + fx * s * 0.85, y + fy * s * 0.85,
-                     Math.max(1, s * 0.10), Math.max(1, s * 0.07));
-      }
+      // drawn here at all; drawTileExtrusion paints it, from the same palette.
+      const LP = ledgePalette();
+      ctx.fillStyle = LP.base; ctx.fillRect(x, y, s, s);
+
+      // Faceted rock rather than flat colour plus speckles. A shelf is a broken
+      // slab of the ground it rose out of, so it is lit the same way the mesa
+      // art is: a lit facet upper-left where the sun is, a shadowed recess
+      // lower-right, and a fracture between them. Hashed per tile so the
+      // fracture pattern never repeats along a straight rim and never shimmers.
+      const lhs = (col * 97 + row * 53);
+      const jf = (a, n) => (((lhs >> a) & 3) / 3) * n;
+      ctx.fillStyle = LP.lit;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + s * (0.52 + jf(0, 0.16)), y);
+      ctx.lineTo(x + s * (0.28 + jf(2, 0.14)), y + s * (0.48 + jf(4, 0.12)));
+      ctx.lineTo(x, y + s * (0.54 + jf(6, 0.12)));
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = LP.shade;
+      ctx.beginPath();
+      ctx.moveTo(x + s, y + s);
+      ctx.lineTo(x + s * (0.46 - jf(8, 0.14)), y + s);
+      ctx.lineTo(x + s * (0.70 - jf(10, 0.12)), y + s * (0.50 - jf(12, 0.12)));
+      ctx.lineTo(x + s, y + s * (0.44 - jf(14, 0.12)));
+      ctx.closePath(); ctx.fill();
+      // A single jagged fracture across the facet join, and a grit fleck.
+      ctx.strokeStyle = LP.crack;
+      ctx.lineWidth = Math.max(1, s * 0.035);
+      ctx.beginPath();
+      ctx.moveTo(x + s * (0.10 + jf(16, 0.12)), y + s * (0.62 + jf(18, 0.14)));
+      ctx.lineTo(x + s * (0.44 + jf(20, 0.10)), y + s * (0.40 + jf(0, 0.12)));
+      ctx.lineTo(x + s * (0.84 + jf(4, 0.10)), y + s * (0.66 + jf(8, 0.12)));
+      ctx.stroke();
+      ctx.fillStyle = LP.glint;
+      ctx.fillRect(x + s * (0.18 + jf(12, 0.5)), y + s * (0.20 + jf(16, 0.5)),
+                   Math.max(1, s * 0.08), Math.max(1, s * 0.06));
       // Lit lip along the north edge, same light convention as the extruded
       // face, so a shelf and a wall agree about where the sun is. Drawn ONLY
       // where the shelf actually ends: giving every row its own lip stripes a
@@ -3652,7 +3713,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // luminous region's glow pools. Hashed per tile. Static.
       const h = (col * 137 + row * 71);
       const j = (a, n) => (((h >> a) & 3) / 3) * n;
-      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // turf base
+      if (!tileOverlayPass) { ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s); }  // turf base
       ctx.fillStyle = '#39a062';                                      // mossy cushion
       ctx.beginPath(); ctx.ellipse(x+s*(0.48+j(0,0.14)-0.07), y+s*(0.52+j(2,0.14)-0.07), s*(0.36+j(4,0.08)), s*(0.30+j(6,0.07)), j(8,0.5), 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#46bd76';                                      // lit moss clumps
@@ -3730,7 +3791,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // two broad leaves carrying a huge violet many-petalled bloom around a
       // glowing golden-violet heart that slowly pulses. Drawn on the verdant turf
       // so it sits in the forest (cut for a Mana Petal). Animated heart-glow.
-      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // turf base
+      if (!tileOverlayPass) { ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s); }  // turf base
       ctx.fillStyle = '#276e45'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.86, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();   // ground shadow
       ctx.strokeStyle = '#3f9a4a'; ctx.lineWidth = Math.max(1.5, s*0.07); ctx.lineCap = 'round';   // thick stalk
       ctx.beginPath(); ctx.moveTo(x+s*0.5, y+s*0.92); ctx.lineTo(x+s*0.5, y+s*0.40); ctx.stroke();
@@ -3761,7 +3822,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // fronds ticked with leaflets, broader and taller than the forest fern, the
       // newest fronds tipped violet with fresh growth. Drawn on the verdant turf
       // (cut for a Heart Frond). Static.
-      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // turf base
+      if (!tileOverlayPass) { ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s); }  // turf base
       ctx.fillStyle = '#276e45'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.84, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();   // shadow
       const cx2 = x+s*0.5, base = y+s*0.90;
       for (let i = 0; i < 7; i++) {
@@ -3786,7 +3847,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // cap glowing from beneath, freckled with pale spots and breathing a slow
       // violet spore-glow. Far larger than the swamp's toadstool. Drawn on the
       // verdant turf (cut for a Glow Cap). Animated glow.
-      ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s);           // turf base
+      if (!tileOverlayPass) { ctx.fillStyle = '#2e7d4f'; ctx.fillRect(x, y, s, s); }  // turf base
       ctx.fillStyle = '#276e45'; ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.86, s*0.30, s*0.08, 0,0,Math.PI*2); ctx.fill();   // shadow
       const glow = 0.18 + 0.14*Math.sin(Date.now()/650 + col*0.6 + row*0.5);
       ctx.fillStyle = `rgba(186,128,232,${glow})`;                     // spore-glow halo
@@ -4053,7 +4114,10 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // of orange-and-yellow magma breathing heat. Animated.
       const h = (col * 137 + row * 89);
       const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
-      ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s);            // cooled-floor base
+      // Guarded like T.MUSHROOM and T.FERN: this case paints its own cooled-floor
+      // square on top of the one at the head of the function, so without the
+      // check it punches a flat brown tile through the baked volcanic ash.
+      if (!tileOverlayPass) { ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s); }  // cooled-floor base
       const pulse = 0.6 + 0.4 * Math.sin(Date.now()/500 + col*0.6 + row*0.5);
       ctx.fillStyle = `rgba(255,90,20,${0.18*pulse})`;                 // soft heat glow
       ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.42, 0, Math.PI*2); ctx.fill();
@@ -4167,7 +4231,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // A pool of deeper gloom gathered on the umbral floor — a soft dark hollow
       // rimmed by a faint cold-violet edge, the shadow twin of the cloud regions'
       // brighter puffs. Static.
-      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);            // floor base
+      if (!tileOverlayPass) { ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s); }  // floor base
       ctx.fillStyle = '#15101f';
       ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.42, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#0d0a15';
@@ -4179,7 +4243,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // A void chasm torn in the waste — near-black depths breathing a faint cold
       // violet light from far below, its jagged rim catching the last of it. The
       // shadow region's accent, crossed by plank bridges. Animated glow.
-      ctx.fillStyle = '#080510'; ctx.fillRect(x, y, s, s);            // the void
+      if (!tileOverlayPass) { ctx.fillStyle = '#080510'; ctx.fillRect(x, y, s, s); }  // the void
       const pulse = 0.5 + 0.5*Math.sin(Date.now()/700 + col*0.5 + row*0.4);
       ctx.fillStyle = `rgba(110,80,180,${0.10+0.14*pulse})`;          // light from below
       ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.5, s*0.3, s*0.4, 0, 0, Math.PI*2); ctx.fill();
@@ -4196,7 +4260,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // grey-violet caps, each with a faint underglow. Hashed; static.
       const h=(col*137+row*71);
       const j=(a,n)=>(((h>>a)&3)/3-0.5)*n;
-      ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s);
+      if (!tileOverlayPass) { ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s); }
       const cap=(px,py,r)=>{
         ctx.strokeStyle='#cfc6df'; ctx.lineWidth=Math.max(1,s*0.05); ctx.lineCap='round';   // stem
         ctx.beginPath(); ctx.moveTo(x+s*px, y+s*(py+0.28)); ctx.lineTo(x+s*px, y+s*py); ctx.stroke();
@@ -4376,6 +4440,55 @@ function drawBigLandmark(tile, col, row, ts) {
 // Runs procedurally, never through drawTile/getTileSprite: the face depends on
 // the south neighbour (see below), which breaks the cache's "pure function of
 // (type, size)" contract. See the tileOverlayPass comment at the top of the file.
+// ─── Ledge palette ────────────────────────────────────────────────────────────
+// A shelf is a broken slab of the ground it rose out of, so it takes its colour
+// from the REGION rather than carrying one of its own. T.LEDGE shipped a single
+// green (`#5f8a44`), which was a fine placeholder while no map contained one and
+// is badly wrong the moment a desert mesa becomes a shelf: the top read as a
+// lawn on a sand map.
+//
+// Derived from `region.ground` rather than hand-authored per region, so all
+// thirteen are covered by construction and a fourteenth would be too.
+//
+// Safe here, and it would NOT be if these tiles were cached: getTileSprite's
+// contract is that art is a pure function of (type, size), and this makes it a
+// function of the map as well. Neither ledge tile is in CACHEABLE_TILES, and the
+// extruded face never goes through the cache at all by design (see the Risks
+// note about neighbour-dependent shading). Memoized per region id, which is a
+// pure key, so the derivation runs once and not per tile per frame.
+const _ledgePalettes = new Map();
+
+// Scale an #rrggbb toward white (f > 1) or black (f < 1).
+function _shadeHex(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const cl = v => Math.max(0, Math.min(255, Math.round(v)));
+  const r = cl(((n >> 16) & 255) * f), g = cl(((n >> 8) & 255) * f), b = cl((n & 255) * f);
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+}
+
+function ledgePalette() {
+  const mo = (typeof currentMap === 'function') ? currentMap() : null;
+  const id = (mo && mo.biome) || 'forest';
+  let p = _ledgePalettes.get(id);
+  if (p) return p;
+  const region = (typeof regionById === 'function') ? regionById(id) : null;
+  const ground = region && TILE_COLORS[region.ground];
+  // Darker than the ground it came from: a slab in shadow reads as rock, and a
+  // shelf exactly the colour of the floor around it reads as a painted patch.
+  const base = _shadeHex(ground || '#5f8a44', 0.82);
+  p = {
+    base,
+    lit:   _shadeHex(base, 1.20),
+    shade: _shadeHex(base, 0.72),
+    crack: _shadeHex(base, 0.52),
+    glint: 'rgba(255,255,255,0.20)',
+    // The vertical face is darker still: it faces the camera, not the sun.
+    face:  _shadeHex(base, 0.66),
+  };
+  _ledgePalettes.set(id, p);
+  return p;
+}
+
 const EXTRUDE_FACE_TOP_SHADE = 0.34;   // shade where the face meets its own cap
 const EXTRUDE_FACE_BOT_SHADE = 0.62;   // and where it meets the ground
 
@@ -4491,10 +4604,35 @@ function drawTileExtrusion(map, col, row, ts) {
   const doorway = DOORWAY_TILES.has(tile);
   const faceTile = doorway ? (doorwayWallTile(map, col, row) || tile) : tile;
 
+  // Forest-village timber for the wall parts of this pass, when the sheet is
+  // loaded and this is one of those maps. Only WALL and the doorways set into
+  // it: a tree, a ledge and a burnt wall are not the village's architecture and
+  // keep their own art. See village-sprite.js.
+  const villageTimber = (faceTile === T.WALL) &&
+    typeof villageArtHere === 'function' && villageArtHere();
+
   if (!southTall) {
     const faceTop = y + ts - lift;
-    ctx.fillStyle = TILE_COLORS[faceTile] || '#555';
-    ctx.fillRect(x, faceTop, ts, lift);
+    if (!(villageTimber && drawVillageWallFace(x, faceTop, ts, lift))) {
+      // A ledge face takes the region's rock, like its cap, instead of the one
+      // green TILE_COLORS entry that made a desert mesa read as a grass bank.
+      const ledgeFace = (faceTile === T.LEDGE || faceTile === T.LEDGE_FACE);
+      ctx.fillStyle = ledgeFace ? ledgePalette().face : (TILE_COLORS[faceTile] || '#555');
+      ctx.fillRect(x, faceTop, ts, lift);
+
+      // Horizontal strata, so a tall rock face reads as bedded stone rather than
+      // as the plank siding the flat gradient alone suggested. Hashed off the
+      // column so the beds do not line up into one continuous stripe along a
+      // shelf that runs the width of the map.
+      if (ledgeFace) {
+        const bed = Math.max(2, ts * 0.22);
+        const off = ((col * 37) & 7) / 8 * bed;
+        ctx.fillStyle = 'rgba(0,0,0,0.16)';
+        for (let yy = faceTop + off; yy < faceTop + lift; yy += bed) {
+          ctx.fillRect(x, yy, ts, Math.max(1, ts * 0.04));
+        }
+      }
+    }
 
     // Graded so a tall face is a surface rather than a flat band of colour.
     const g = ctx.createLinearGradient(0, faceTop, 0, y + ts);
@@ -4515,9 +4653,16 @@ function drawTileExtrusion(map, col, row, ts) {
   // The cap, drawn last so it trims the top of the face cleanly. A doorway caps
   // with its WALL, because what sits above a door is the lintel and more
   // masonry, never a door lying on its back.
-  tileOverlayPass = true;
-  try { drawTileProcedural(col, row, faceTile, x, y - lift, ts); }
-  finally { tileOverlayPass = false; }
+  //
+  // The village cap is a full opaque tile of planks rather than an overlay,
+  // because that is what a wall top IS when you look straight down at it. It
+  // does not go through drawTile either: this is a lifted transform, and the
+  // sprite cache's contract is that art is a pure function of (type, size).
+  if (!(villageTimber && drawVillageWallCap(x, y - lift, ts))) {
+    tileOverlayPass = true;
+    try { drawTileProcedural(col, row, faceTile, x, y - lift, ts); }
+    finally { tileOverlayPass = false; }
+  }
 
   // Then the doorway itself, at the FOOT of the face. The face band runs from
   // faceTop down to y + ts, so the tile's own square is its bottom tile: drawing
@@ -4527,7 +4672,10 @@ function drawTileExtrusion(map, col, row, ts) {
   // Deliberately NOT an overlay pass: the door paints its own base square, so it
   // reads as a solid panel set into the masonry rather than a translucent
   // sketch with the wall showing through.
-  if (doorway) drawTileProcedural(col, row, tile, x, y, ts);
+  if (doorway) {
+    if (!(villageTimber && drawVillageDoorPanel(x, y, ts)))
+      drawTileProcedural(col, row, tile, x, y, ts);
+  }
 }
 
 // ─── Whirlpool suction overlay ────────────────────────────────────────────────

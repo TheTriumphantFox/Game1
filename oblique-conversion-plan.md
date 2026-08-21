@@ -8,34 +8,215 @@ stopped. Keep it to three lines: the phase in progress, what landed last, and
 anything left half-finished.
 
 ```
-Phase in progress:  THE CONVERSION IS COMPLETE. Every phase is done and the phone
-                    check is answered, so nothing is outstanding. The USER
-                    measured TILE_PX 24 on a real device via the #perf HUD:
-                    median 4 ms, 24% of the 16.7 ms budget, p95 7 ms, with 114
-                    tiles extruded. Two caveats recorded: the device coarsens
-                    performance.now() to 1 ms, and 114 extruded is a lighter
-                    scene than the 418 desktop worst case, which projects to
-                    roughly 5 ms rather than being measured.
-Last completed:     6c. T.TREE extrudes (+0.15ms at TILE_PX 48, +0.75ms at 24,
-                    2.35ms total against a 16.7ms budget) and the USER confirmed
-                    the forest wall reads correct. Doorways and the castle window
-                    now close their notches, taking their height from the wall
-                    they are set into so they are right in both the intact
-                    village and the ruin: 17 found, all 17 at 1.60, 0 orphaned.
-Half-finished:      Nothing. Every USER judgement is answered. ON HOLD, the only
-                    open item: the phone check at TILE_PX 24. ANSWERED, do not
-                    re-ask: losing "player always on top" is PREFERRED, the Beat
-                    3 49px sliver is accepted, the ramp shadow no longer pulsing
-                    is accepted, the nine hover heights are approved, the
-                    dragon's own hover is deferred to "the appropriate time",
-                    and thrown bombs are now stopped by terrain at or above 1.60
-                    (built and verified).
+Phase in progress:  ITEMS A AND C ARE BUILT. A got the USER's YES on 2026-08-16
+                    ("I like it"). C is landed and verified but its two USER
+                    judgements are open, including the phone check, which is now
+                    the ONLY number that could force a retreat. Item B (ledges)
+                    has not been started and needs USER decisions before it can
+                    be. Phases 0-6 remain done and remain not the point.
+Last completed:     B1/B2. Ledges are IN MAPS for the first time. The desert mesa
+                    is a climbable shelf (band stamped T.LEDGE, ramps up at each
+                    corridor, perimeter discovered by the new faceLedgeEdges),
+                    corridors through it capped at 2, and every earth map plus
+                    every mesa-less desert map gets a raised causeway from
+                    addLedgeCauseway, which is the first real call site of
+                    stampLedgeShelf. Ledges are tinted from region.ground and
+                    drawn as faceted rock. Verified across 17 maps: 0 unfaced
+                    edges, 17 of 17 shelves fully reachable, ice control clean.
+                    OPEN: the USER has not played it yet.
+Previously:         C. isObliqueMap widened to every map, so walls, doorways and
+                    ledges stand up game-wide; the depth merge runs everywhere.
+                    T.TREE is the exception and is gated to village maps by
+                    mapExtrudesTrees, because extruding a scattered forest hides
+                    the hero completely behind the trunks in front of him. The
+                    win is dungeons and towers (+1.56 ms at TILE_PX 24, frame
+                    3.61 ms of 16.7); villages gain almost nothing at close zoom
+                    because their walls are under their roofs, which is the
+                    audit's own finding measured at the gate: 18 wall faces
+                    drawn, frame byte-identical.
+Half-finished:      Nothing is half-built. OPEN: the phone check at TILE_PX 24
+                    (carried over from A, and the dungeon is now the case to
+                    test); whether dungeon and tower walls read right; and
+                    whether T.CAVE_WALL should join EXTRUDED_TILES, since caves
+                    currently gain nothing from C. The flat branches in render()
+                    are deliberately left in place as the retreat path if the
+                    phone check fails. SEPARATE AND NOT OURS: the necrotic
+                    overworld already costs 7.56 ms per frame at TILE_PX 24
+                    before any of this, 45% of the budget, and is the hottest map
+                    measured. ANSWERED, do not re-ask: losing "player always on
+                    top" is PREFERRED, the Beat 3 49px sliver is accepted, the
+                    ramp shadow no longer pulsing is accepted, the nine hover
+                    heights are approved, the dragon's own hover is deferred to
+                    "the appropriate time", and thrown bombs are stopped by
+                    terrain at or above 1.60.
 ```
 
 Read `oblique-conversion-todo.md` next. Its "Verification rig" section describes
 the headless-Edge CDP harness and the save fixture that every later phase should
 verify against, and its Phase 2 block carries five specific notes handed forward
-from Phase 1.
+from Phase 1. Its Phase 0-6 checkboxes are accurate and stay ticked; they record
+work that was really done.
+
+---
+
+## What actually shipped
+
+Audited 2026-08-16 against the source, after the USER reported the conversion
+does not feel different. Every claim here was verified by reading the code or by
+rendering through the CDP rig, and the numbers are reproducible. This section
+exists because the phase list and the played result disagreed, and the next
+session needs to start from the played result.
+
+**The projection never tilts.** `worldX`/`worldY` in `projection.js` are
+`(w - cam) * TILE_PX` on both axes, which is the same orthographic top-down
+mapping the flat game always had. The file's own header says "the camera just
+tilts", and it does not: there is no foreshortening, no vertical compression, no
+change to any tile's ground footprint. "Oblique" is expressed entirely as two
+additions on top of an unchanged top-down view: `z` lifts a sprite up the screen
+by `z * TILE_PX`, and a tall tile draws a vertical face band below its cap. That
+is a legitimate way to build this, but it means the face bands are the *only*
+thing on screen that says the world has height.
+
+**Those face bands run on one map.** The whole gate is `isObliqueMap`
+(`render.js:2388`), which is `mapObj.type === 'homevillage'`. Four call sites,
+and between them they control both wall extrusion and the depth merge. Off the
+pilot, `render.js:3438` takes the flat branch and the ONLY type that extrudes is
+`T.LEDGE`/`T.LEDGE_FACE` (`mapLedgeTiles`, `render.js:2108`, whose own comment
+says it is "the one extruded type that must not be left flat off-pilot"). Walls
+do not extrude off-pilot. Trees do not extrude off-pilot. Actors do not depth
+sort off-pilot; the player is still unconditionally on top.
+
+**And that one map is intact only during the prologue.** Post-prologue Elderbrook
+is built from `T.BURNT_WALL`, half of which `burntWallStands` deliberately
+collapses flat. Every save the USER loads sits in the ruin. So the fully oblique
+version of the game is visible for one sequence and then never again.
+
+**Ledges exist in code and in zero maps.** `stampLedgeShelf` (`map-helpers.js:214`)
+is complete: it lays the shelf, faces the edges, cuts ramps, and is integrated
+with the connectivity flood-fill and the `blocked()` step-up gate. Its call-site
+count across the entire repo is **zero**, and no mapgen assigns `T.LEDGE`
+anywhere. `config.js:377` even carries a comment telling a caller to use it. 5d
+shipped a mechanic with no level to play it in, which is why "Z is a real
+gameplay axis" reads as unfulfilled however much of it is built.
+
+**The Z features that DO run game-wide have amplitude below half a tile.** Jump
+(`player.z` via `stepPlayerJump`), hover (nine enemies, 0.26 to 0.50), and the
+bomb arc with its height gate are all live on every map and all work. But a
+0.3-tile offset plus a slightly tightened shadow reads as a small bob, not as
+depth. They are correct and they are not felt.
+
+**Measured, not argued.** Forcing `isObliqueMap` to return true for Village of
+the Lost, with no source change, and re-rendering the same frame: the cottage
+street is visually indistinguishable from the flat version. The interior of a
+cottage, where the roof lifts, is transformed. That is the finding that matters
+most, and it is not about the gate at all:
+
+> **A top-down building hides its own height under its own roof.** The roof is a
+> flat overhead plane covering the walls, so from outside there is no vertical
+> surface left to see. In the overworld there are no walls to begin with. The
+> extrusion pass is working correctly and has almost nothing to stand up.
+
+The one building in the game that reads as a building is Elderbrook's family
+home, and it does not get that from extrusion at all. It gets it from the
+hand-built projected front elevation in the `familyHome` branch of
+`drawForestHouseRoof`, which pulls the roof up off the south wall so a facade
+shows underneath. Exactly one house in the game has that.
+
+---
+
+## What feeling 2.5D requires
+
+Written 2026-08-16 as the replacement for "the conversion is complete". These are
+not more phases of the same plan; Phases 0-6 built the machinery and the
+machinery works. These are the things that were assumed would follow from it and
+did not. Ordered by felt-difference per unit of work, which is a different order
+from the original plan's risk ordering.
+
+**A is BUILT as of 2026-08-16.** A0, A1 and A2 landed; A3 is the USER's verdict
+and is open. The detail, the measurements and the verification are in
+`oblique-conversion-todo.md` under "Item A: cottage facades". Two findings from
+building it that this section did not anticipate and that change what comes
+next:
+
+- **The dependency note below was right, and stronger than it reads.** A hero on
+  a cottage doorstep is not merely overlapped by the eave shadow; without the
+  depth sort he is painted over from the shoulders down by the threshold and
+  sill of the house he is standing in front of. A0 is not a precaution, it is
+  the thing that makes a facade drawable at all.
+- **An existing save cannot see item A**, because post-Ashfall Elderbrook has
+  `roofsApply` false and therefore no roofs and no facades. That is not a bug in
+  A, it is the pilot map being a ruin, and it means the felt result depends
+  entirely on maps the USER has to travel to. If the verdict on A is lukewarm,
+  weigh that before concluding the facades did not work.
+
+**A. Give buildings a visible face.** Generalise the family home's projected
+elevation to every cottage: raise the roof off the south wall by roughly two
+tiles and draw a facade in the gap, the way `drawForestHouseRoof` already does
+for one house. This is the highest-leverage item because it attacks the actual
+cause above rather than the gate. It also composes with the village sheet
+(`village-sprite.js`, added 2026-08-16), which already has `wall_face` and
+`door_face` frames authored for exactly this and currently reachable only on the
+pilot. Verify by rendering a village street before and after; the difference
+should be obvious without being told where to look.
+
+**A carries a dependency that this section understated when first written.** A
+facade occupies the tile row SOUTH of the house, which is ground the player
+walks on, and on a flat map the roof pass draws after the player:
+`drawPlayer` is `render.js:3381`, `drawForestVillageRoofs` is `render.js:3386`.
+Today that is harmless, because a roof only covers its own footprint and
+`forestRoofVisible` hides the whole roof the moment the player steps inside it.
+A facade breaks both halves of that: it hangs over walkable ground, and a player
+standing in front of a house is not inside it, so nothing hides it. He would be
+painted over by the wall he is standing in front of.
+
+The family home does not hit this because on the pilot map roofs go through
+`drawDepthLayer` at `DEPTH_ROOF`, sorted on `h.r2`, which is exactly the "sorts
+after every actor on its own row" rule at `render.js:2053`. So **A needs village
+roofs in the depth sort**. That is a slice of C, not all of it: the minimum is
+letting `drawDepthLayer` run for village maps, which does NOT require extruding
+their walls. Do that slice as the first step of A rather than discovering it
+halfway through, and leave the full `isObliqueMap` widening for C.
+
+**B. Place ledges, and design something to do with them.** The first call to
+`stampLedgeShelf` in the project's history. This is the only item that changes
+how the game *plays* rather than how it looks, and it needs USER decisions that
+no amount of code reading can supply: which region gets them, how many per map,
+what is on top that is worth the climb, and whether an enemy above you can shoot
+down. Start with one hand-placed shelf on one overworld map and play it, before
+touching any generator. The mechanic is already built and gated correctly, so
+this is level design, not engine work.
+
+**C is BUILT as of 2026-08-16**, and two things in the paragraph below turned out
+to be wrong. The measurements are in the todo under "Item C: widen the gate".
+
+- **"Expect the depth merge, not the extrusion, to be the cost" is backwards.**
+  The merge does walk the whole tall-tile list every frame, 14,497 entries on a
+  forest overworld, and it costs 0.045 to 0.15 ms. The extrusion draw is the
+  cost. Optimise the rasteriser, not the merge.
+- **"Widen it in one step" cannot be done literally.** Extruding `T.TREE` on an
+  overworld hides the hero completely behind the trunks in front of him. Trees
+  are gated to village maps, where they are architecture rather than terrain.
+
+**C. Then widen `isObliqueMap`.** Deliberately third. The A/B above shows the
+gate changes almost nothing on its own from outside a building, so widening it
+first would spend the perf budget and the regression risk for a result the USER
+would not see. After A it is worth doing, because by then there are faces to
+sort against. Widen it in one step (villages, then everything), re-run the phone
+check at TILE_PX 24, and expect the depth merge, not the extrusion, to be the
+cost.
+
+**D. Consider raising the amplitude, and be honest that this is a redesign.**
+If A through C still do not land, the remaining lever is the projection itself:
+an actual vertical compression of the ground plane, longer cast shadows, and
+larger `TILE_HEIGHT` values. That is not finishing this conversion, it is
+starting a different one, and it would invalidate the "every existing draw body
+keeps working" property in the Architecture section below that made Phases 1-4
+cheap. Do not drift into it. Decide it explicitly with the USER first.
+
+**What not to do.** Do not add more Z *state*. Jump, hover and projectile arcs
+are done, correct, and are not what is missing. Do not re-art anything before A
+lands; the village sheet showed that better art on a flat-reading building
+produces a better-looking flat building.
 
 ## How to run this across sessions
 
@@ -43,9 +224,12 @@ from Phase 1.
    verified against the real source. Do not re-explore ground it covers.
 2. Read `oblique-conversion-todo.md` in the repo root for the checkbox state. If
    it does not exist, create it from the Session checklist section below.
-3. Work the lowest phase with unchecked boxes. Do not skip ahead, and do not
-   start two phases at once. The order encodes real dependencies.
-4. Verify using that phase's "Done when" line, which names who checks what.
+3. Every Phase 0-6 box is ticked, and that does NOT mean the work is done. Read
+   "What actually shipped" and "What feeling 2.5D requires" above, and work item
+   A. Those two sections supersede the phase list, which describes machinery that
+   is finished rather than an outcome that is.
+4. Verify against that item's own closing line, or, for the historical phases,
+   that phase's "Done when" line. Both name who checks what.
 5. Update the Current state block above and the todo file before the session
    ends, even if the phase is incomplete.
 6. Stop at every phase boundary and report before starting the next one.

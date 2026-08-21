@@ -145,6 +145,12 @@ function getTileSprite(t, s) {
 // Draw one map tile. Pure tiles (CACHEABLE_TILES) are painted once and blitted
 // from cache here; every other tile falls through to the procedural switch.
 function drawTile(col, row, t, sx, sy, s) {
+  // Forest-village building sheet, ahead of both caches on purpose. Those key
+  // art on tile type alone, so a village-only look for T.WALL or T.PILLAR baked
+  // into one would follow the tile onto every other map that uses it. See
+  // village-sprite.js; it declines on every map but the forest villages, and
+  // whenever its sheet has not loaded.
+  if (typeof villageTileArt === 'function' && villageTileArt(col, row, t, sx, sy, s)) return;
   if (CACHEABLE_TILES.has(t)) {
     const spr = getTileSprite(t, s);
     if (spr) {
@@ -202,8 +208,11 @@ function drawPlayer(ts) {
   const P_GOLD = '#d8b24a';
   const P_SHIELD = '#5e7a49', P_TREE = '#dbe2e6';
 
-  // Subtle walking bob — only oscillates when a movement key is held
-  const moving = !!(keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown']);
+  // Walk animation follows both keyboard input and the smoothed tile glide. The
+  // latter matters for touch joystick and tap-to-travel, which do not press the
+  // Arrow keys but still move the same player state.
+  const moving = !!(keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown']) ||
+    Math.abs(player.renderX - player.x) > 0.035 || Math.abs(player.renderY - player.y) > 0.035;
   // Unrounded: snapping the bob to whole pixels jerked the sprite ±1px at each
   // sine crossing, which read as frame jitter on top of the tile glide.
   const walkBob = moving ? Math.sin(Date.now() / 110) : 0;
@@ -2061,6 +2070,12 @@ const DEPTH_ROOF     = 6;
 const TALL_EXTRUDE  = 0;
 const TALL_COLOSSAL = 1;
 const TALL_LANDMARK = 2;
+// A forest tree, boulder or flower drift, drawn from the sheet anchored at its
+// foot (forest-sprite.js). In the merge for the same reason the colossal trees
+// are: the art overhangs its own tile by a long way northward, so an actor
+// standing south of the foot has to be drawn in front of it and one standing
+// north of the foot behind it.
+const TALL_TERRAIN   = 3;
 
 // Per-map, memoized, row-sorted list of every tall tile, as flat triples
 // (col, row, subKind). Flat because a forest is ~35% TREE and this list can run
@@ -2079,13 +2094,38 @@ function mapTallTiles(mapObj) {
   if (list) return list;
   list = [];
   const g = mapObj.map;
+  // A map can be on the depth merge without extruding anything (item A0: forest
+  // villages sort their roofs against the actors, but their walls stay flat).
+  // So membership in this list is not "is it tall", it is "does this map stand
+  // this kind of thing up".
+  //
+  // Ledges are the exception and are in whatever the map's answer is, because a
+  // ledge's height is gameplay rather than decoration. That is the same rule
+  // the flat renderer's own ledge pass follows in render().
+  //
+  // Safe to bake into the memo: isObliqueMap is a pure function of mapObj.type,
+  // which never changes for a live map object.
+  const extrudes = isObliqueMap(mapObj);
+  const trees = extrudes && mapExtrudesTrees(mapObj);
+  // Forest props take precedence over tree extrusion: on a forest map a T.TREE
+  // becomes a sheet sprite with its own trunk and canopy, and extruding it as
+  // well would stand a face band up behind art that already has height.
+  //
+  // Gated on terrainArtMap, which is pure in mapObj, NOT on whether the sheet
+  // has loaded. This list is memoized per map and would otherwise bake in
+  // whatever the load state was on the first frame; drawTallTile asks about
+  // readiness instead, at draw time, and falls back to the flat tile.
+  const terrainProps = typeof terrainArtMap === 'function' && terrainArtMap(mapObj);
   for (let r = 0; r < MROWS; r++) {
     const row = g[r];
     for (let c = 0; c < MCOLS; c++) {
       const t = row[c];
-      if (t === T.COLOSSAL_TREE)          list.push(c, r, TALL_COLOSSAL);
-      else if (BIG_LANDMARK_TILES.has(t)) list.push(c, r, TALL_LANDMARK);
-      else if (EXTRUDED_TILES.has(t))     list.push(c, r, TALL_EXTRUDE);
+      if (terrainProps && terrainPropTile(mapObj, t)) list.push(c, r, TALL_TERRAIN);
+      else if (t === T.COLOSSAL_TREE)               list.push(c, r, TALL_COLOSSAL);
+      else if (BIG_LANDMARK_TILES.has(t))           list.push(c, r, TALL_LANDMARK);
+      else if (t === T.LEDGE || t === T.LEDGE_FACE) list.push(c, r, TALL_EXTRUDE);
+      else if (t === T.TREE)                        { if (trees) list.push(c, r, TALL_EXTRUDE); }
+      else if (extrudes && EXTRUDED_TILES.has(t))   list.push(c, r, TALL_EXTRUDE);
     }
   }
   mapObj._tallTiles = list;
@@ -2118,22 +2158,29 @@ function mapLedgeTiles(mapObj) {
 // Anything that edits a tile has to drop the memoized scans, or the depth layer
 // keeps drawing a wall that was blown up and skips one that appeared.
 //
-// Nothing in the game currently edits a tile that is IN these lists (the bomb
-// takes ROCK and SNOW_DRIFT, the shrines swap gates for floor), so this is
-// insurance rather than a fix. It is wired anyway, because the failure mode is
-// silent and the next tall tile type added could easily be a destructible one.
+// This used to be insurance rather than a fix: nothing the game could edit was
+// IN these lists, because the bomb takes ROCK and SNOW_DRIFT and the shrines
+// swap gates for floor. The forest art changed that. T.ROCK is now a boulder
+// prop in _tallTiles, so bombing one leaves a boulder drawn over bare turf
+// until the map is left and re-entered.
+//
+// The baked forest ground goes with it. The whole chunk cache is dropped rather
+// than the one chunk containing the edit, because callers here work at map
+// granularity and a re-bake costs a few milliseconds on an event that happens
+// a handful of times per map.
 function invalidateTallTiles(mapObj) {
   if (!mapObj) return;
   mapObj._tallTiles = null;
   mapObj._ledgeTiles = null;
   mapObj._colossalTrees = null;
   mapObj._bigLandmarks = null;
+  if (typeof terrainGroundReset === 'function') terrainGroundReset();
 }
 
 // Draw one tall tile, with the cull margins its art needs. Each kind overhangs
 // its own tile differently, so the margins are per-kind and are the same ones
 // the three separate passes used before they were folded in here.
-function drawTallTile(map, c, r, sub, ts, startC, startR, endC, endR) {
+function drawTallTile(mapObj, map, c, r, sub, ts, startC, startR, endC, endR) {
   switch (sub) {
     case TALL_EXTRUDE:
       // A wall lifted 1.6 tiles up the screen is drawn from an anchor that can
@@ -2148,6 +2195,18 @@ function drawTallTile(map, c, r, sub, ts, startC, startR, endC, endR) {
     case TALL_LANDMARK:
       if (c >= startC - 3 && c <= endC + 3 && r >= startR - 2 && r <= endR + 4)
         drawBigLandmark(map[r][c], c, r, ts);
+      break;
+    case TALL_TERRAIN:
+      // A prop frame is 2 tiles wide and 3 tall with its foot at the bottom, so
+      // it reaches 1 tile either side and nearly 3 tiles up the screen from its
+      // anchor. The cull margins are those extents: a tree whose foot sits two
+      // rows below the viewport still has its canopy in view.
+      if (c >= startC - 2 && c <= endC + 2 && r >= startR - 1 && r <= endR + 4) {
+        // Falls back to the flat tile when the sheet has not loaded (or 404'd),
+        // because the tile loop skipped this cell on the assumption we'd draw it.
+        if (!drawTerrainProp(mapObj, c, r, map[r][c], ts))
+          drawTile(c, r, map[r][c], Math.floor((c - camC) * ts), Math.floor((r - camR) * ts), ts);
+      }
       break;
   }
 }
@@ -2205,7 +2264,7 @@ function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
     // `<=` so a tall tile on the same row as an actor is drawn first, which is
     // the DEPTH_TALL = 0 tie-break expressed as a comparison.
     while (ti < tall.length && tall[ti + 1] <= act.y) {
-      drawTallTile(map, tall[ti], tall[ti + 1], tall[ti + 2], ts, startC, startR, endC, endR);
+      drawTallTile(mapObj, map, tall[ti], tall[ti + 1], tall[ti + 2], ts, startC, startR, endC, endR);
       ti += 3;
     }
     switch (act.k) {
@@ -2219,7 +2278,7 @@ function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
   }
   // Everything still standing south of the last actor.
   while (ti < tall.length) {
-    drawTallTile(map, tall[ti], tall[ti + 1], tall[ti + 2], ts, startC, startR, endC, endR);
+    drawTallTile(mapObj, map, tall[ti], tall[ti + 1], tall[ti + 2], ts, startC, startR, endC, endR);
     ti += 3;
   }
 }
@@ -2296,13 +2355,33 @@ function forestShopSignStyle(doorTile) {
   return null;
 }
 
-// Painted boards hang beneath the front gable, where they remain readable even
-// while the roof hides the shop interior. Simple geometric emblems keep each
-// trade recognisable without relying on emoji or platform-specific fonts.
-function drawForestShopSign(doorTile, centreX, bottom, ts) {
+// Painted boards hang from the eave, beside the shop's door, where they remain
+// readable even while the roof hides the interior. Simple geometric emblems
+// keep each trade recognisable without relying on emoji or platform-specific
+// fonts.
+//
+// `hangY` is the line the hooks bite into and `centreX` the board's centre.
+// Both used to be implicit: the board hung below the house's SOUTH EDGE,
+// centred on the door. That worked while a cottage was a bare roof plane with
+// open ground beneath it. Item A put a wall there, and the board went on
+// hanging in front of it, floating on the grass with its hooks buried in the
+// sill. It hangs off the eave now, in the blank bay next to the door.
+//
+// `scale` shrinks the whole board rather than any one part of it, so a bay
+// narrower than the authored 1.24 tiles gets a smaller sign and not a squashed
+// one. Applied as a transform about the hanging point so the hooks stay put.
+function drawForestShopSign(doorTile, centreX, hangY, ts, scale = 1) {
   const style = forestShopSignStyle(doorTile);
   if (!style) return;
 
+  if (scale !== 1) {
+    ctx.save();
+    ctx.translate(centreX, hangY);
+    ctx.scale(scale, scale);
+    ctx.translate(-centreX, -hangY);
+  }
+
+  const bottom = hangY;
   const boardW = ts * 1.24;
   const boardH = ts * 0.92;
   const boardX = centreX - boardW / 2;
@@ -2360,6 +2439,8 @@ function drawForestShopSign(doorTile, centreX, bottom, ts) {
     ctx.fillRect(-ts * 0.23, -ts * 0.21, ts * 0.46, ts * 0.15);
     ctx.restore();
   }
+
+  if (scale !== 1) ctx.restore();
 }
 
 // The enlarged Elderbrook family home is the 2.5D art-direction pilot. It keeps
@@ -2379,8 +2460,71 @@ function drawForestShopSign(doorTile, centreX, bottom, ts) {
 //
 // Deliberately NOT isIntactElderbrookHome: the ruin is the same village with the
 // same walls, and its walls should stand up too.
+//
+// WIDENED TO EVERY MAP by item C (2026-08-16), after item A gave buildings a
+// front worth sorting against. Written as a scope statement rather than a bare
+// `true` so narrowing it again is a one-line change, which matters: the phone
+// check at TILE_PX 24 is the one number that could still force a retreat, and
+// the flat branches in render() are deliberately left in place as the landing
+// ground for that retreat rather than deleted as dead code.
+//
+// Measured before committing, and the plan's expectation was wrong in a useful
+// way. It predicted the depth MERGE would dominate, on the grounds that it
+// walks the whole tall-tile list every frame. It does walk it, and on a forest
+// overworld that list is 14,497 entries, but the walk costs 0.045 to 0.15 ms
+// everywhere: it is a cheap loop with a cull test. The cost is the extrusion
+// DRAW, for the few hundred tiles that survive the cull.
 function isObliqueMap(mapObj) {
-  return !!mapObj && mapObj.type === 'homevillage';
+  return !!mapObj;
+}
+
+// Does this map draw its actors through the depth merge? A strictly wider
+// question than isObliqueMap, and the two were the same thing until item A.
+//
+// A cottage facade hangs over the walkable tile row SOUTH of its house, and in
+// the flat renderer the roof pass runs after drawPlayer (see render()), so a
+// hero standing in front of a house would be painted over by the wall he is
+// standing in front of. Sorting the roofs against the actors is what fixes
+// that, and it does NOT require standing the village's walls up: this gate
+// buys the sort alone.
+//
+// Deliberately kept apart from isObliqueMap rather than widening it. That one
+// still answers "does this map extrude", which is the expensive half and the
+// half with the perf and regression risk; widening it is item C and is
+// supposed to happen after there are facades worth sorting against.
+//
+// Forest villages only, matching roofsApply: a fire or ice village has no
+// forest-village roofs to sort in the first place, so putting it on the merge
+// would reorder its actors for no gain at all.
+//
+// Since item C widened isObliqueMap to every map, this returns true for every
+// map too, and the two questions have converged. Both are kept, and kept
+// distinct, because they are not the same question and the answers can part
+// company again: "does this map SORT its actors" is nearly free (0.045 to
+// 0.15 ms), while "does this map EXTRUDE" is the expensive one and is what a
+// failed phone check would narrow.
+function isDepthSortedMap(mapObj) {
+  if (isObliqueMap(mapObj)) return true;
+  return !!mapObj && mapObj.type === 'village' && mapObj.biome === 'forest';
+}
+
+// T.TREE is the one extruded type whose reading depends on the MAP rather than
+// on the tile, and it is the reason item C is not simply "extrude everywhere".
+//
+// Around a village the trees are a solid sealed mass (71% of the pilot map is
+// ensureConnectivity's seal), and standing them up builds a wall that frames
+// the playable area. The USER approved exactly that in 6c. On an OVERWORLD the
+// same tile is the terrain the hero walks through, scattered at ~35% density
+// all over the play area, and standing it up puts a 1.80-tile face band on
+// every trunk south of him. Rendered and looked at: the hero disappears
+// completely behind the trees in front of him, and the open ground and water
+// fill with dark slabs. That is not a tuning problem, it is the wrong thing to
+// draw.
+//
+// So walls, doorways and ledges stand up on every map, and trees stand up only
+// where they are architecture.
+function mapExtrudesTrees(mapObj) {
+  return !!mapObj && (mapObj.type === 'homevillage' || mapObj.type === 'village');
 }
 
 function isIntactElderbrookHome(mapObj) {
@@ -2789,9 +2933,10 @@ function roofsApply(mapObj) {
 
 function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
   if (!roofsApply(mapObj)) return;
-  // On the pilot the roofs are depth-sorted with everything else instead (see
-  // drawDepthLayer), so this pass must not draw them a second time.
-  if (isObliqueMap(mapObj)) return;
+  // Wherever the depth merge runs, the roofs are sorted with everything else
+  // instead (see drawDepthLayer), so this pass must not draw them a second
+  // time. That is the pilot AND, since item A0, every forest village.
+  if (isDepthSortedMap(mapObj)) return;
 
   for (const h of mapForestHouseRoofs(mapObj)) {
     if (!forestRoofVisible(h, ts, startC, startR, endC, endR)) continue;
@@ -2810,6 +2955,376 @@ function forestRoofVisible(h, ts, startC, startR, endC, endR) {
   return true;
 }
 
+// ─── Projected front elevation ────────────────────────────────────────────────
+// How far the roof stops short of the house's south edge, in tiles, which is
+// also how tall the facade beneath it is. The family home's 2.08 is the tuned
+// prologue value and must not move.
+//
+// Cottages get less, because they are smaller: every house in Village of the
+// Lost is 9x7, giving a roof rect 7.65 tiles high, and 2.08 of that is a
+// quarter of the building. Chosen by rendering at both zooms, not by
+// arithmetic.
+const FACADE_TILES_FAMILY  = 2.08;
+const FACADE_TILES_COTTAGE = 1.75;
+
+// The sheet roof refuses anything under VILLAGE_ROOF_MIN_H tiles tall, because
+// its five bands would overlap. A facade eats into exactly that budget, so a
+// short house would silently drop back to the procedural planes and stop
+// matching its neighbours. Give the roof its minimum first and let the facade
+// have what is left. Elderbrook has one 10x5 house, a roof rect of 5.65 tiles,
+// which is the case this exists for.
+function facadeDepthFor(roofRectTiles, want) {
+  const floor = (typeof VILLAGE_ROOF_MIN_H !== 'undefined' ? VILLAGE_ROOF_MIN_H : 3.4) + 0.1;
+  return Math.max(0, Math.min(want, roofRectTiles - floor));
+}
+
+// Which elements a facade carries. The family home's entry reproduces what its
+// bespoke branch drew, element for element; the cottage entry is the same body
+// with less on it, because a 9-wide front cannot hold two lanterns and four
+// braces without turning to mush at TILE_PX 24.
+const FACADE_FAMILY = {
+  skin: 'plaster', windowsAt: [-0.25, 0.25], braces: 'full',
+  lanterns: true, plasterMarks: 28, mullions: true, flowerBox: true,
+};
+const FACADE_COTTAGE = {
+  skin: 'sheet', windowsAt: [-0.26, 0.26], braces: 'outer',
+  lanterns: false, plasterMarks: 12, mullions: false, flowerBox: true,
+  // A door is door-height whatever the wall behind it is. The family home has
+  // no entry here and keeps its full-height opening, which is right for a hall
+  // door under a 2.08-tile front; a cottage opening stretched to match left
+  // half a tile of empty jamb above the panel, reading as a gap rather than a
+  // transom.
+  doorTiles: 1.30,
+};
+
+// Braces run between the bays the windows and the door cut the frontage into,
+// alternating up and down so the frame reads as trussed rather than combed.
+// The two-window layout is the family home's own, kept exactly so its frame
+// does not move; 'outer' drops the two that flank the door, which is what stops
+// a cottage's narrower bays filling with timber.
+function facadeBraces(winXs, centreX, facadeLeft, facadeRight, braceTop, braceBottom, ts, mode) {
+  if (winXs.length !== 2) return [];
+  const [lw, rw] = winXs;
+  const all = [
+    [facadeLeft + ts * 0.18, braceBottom, lw - ts * 0.62, braceTop],
+    [lw + ts * 0.62, braceTop, centreX - ts * 0.68, braceBottom],
+    [centreX + ts * 0.68, braceBottom, rw - ts * 0.62, braceTop],
+    [rw + ts * 0.62, braceTop, facadeRight - ts * 0.18, braceBottom],
+  ];
+  if (mode === 'outer') return [all[0], all[3]];
+  return mode === 'none' ? [] : all;
+}
+
+// The projected front elevation itself: warm infill, oak frame, inset windows
+// and a panelled door, standing in the gap the roof left above the south wall.
+// This is deliberately taller than one tile, so the player sees a house FRONT
+// as well as its top-down roof plane, which is the whole of item A.
+//
+// Was the body of drawForestHouseRoof's familyHome branch. It is a function now
+// so one body serves every cottage in the game rather than being copied, and
+// every literal in it is the tuned prologue value: the family home passes
+// FACADE_FAMILY and gets a byte-identical frame out.
+function drawForestHouseFacade(o, d) {
+  const { left, right, bottom, roofBottom, width, centreX, ts, seed } = o;
+  const facadeTop = roofBottom - ts * 0.03;
+  const facadeBottom = bottom + ts * 0.10;
+  // Pull the front plane inside the roof silhouette. Matching shallow wall
+  // returns keep the depth cue without distorting either end of the house.
+  const facadeLeft = left + ts * 0.42;
+  const facadeRight = right - ts * 0.42;
+  const facadeH = facadeBottom - facadeTop;
+  if (facadeH <= ts * 0.2 || facadeRight - facadeLeft <= ts * 0.5) return;
+
+  ctx.fillStyle = 'rgba(28,17,10,0.52)';
+  ctx.fillRect(facadeLeft + ts * 0.18, facadeTop + ts * 0.24,
+    facadeRight - facadeLeft, facadeH);
+
+  // Deep west/east returns sit behind the front wall. Their angled lower
+  // edges and different light values establish the building's actual depth.
+  ctx.fillStyle = '#735338';
+  ctx.beginPath();
+  ctx.moveTo(left + ts * 0.18, facadeTop - ts * 0.08);
+  ctx.lineTo(facadeLeft, facadeTop + ts * 0.12);
+  ctx.lineTo(facadeLeft, facadeBottom);
+  ctx.lineTo(left + ts * 0.20, facadeBottom - ts * 0.27);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#513722';
+  ctx.beginPath();
+  ctx.moveTo(facadeRight, facadeTop + ts * 0.12);
+  ctx.lineTo(right - ts * 0.18, facadeTop - ts * 0.08);
+  ctx.lineTo(right - ts * 0.16, facadeBottom - ts * 0.30);
+  ctx.lineTo(facadeRight, facadeBottom);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(37,22,13,0.72)';
+  ctx.lineWidth = Math.max(1, ts * 0.04);
+  ctx.beginPath();
+  ctx.moveTo(facadeRight, facadeTop + ts * 0.12);
+  ctx.lineTo(facadeRight, facadeBottom);
+  ctx.stroke();
+
+  // The wall material. Cottages take the village sheet's own boards, which are
+  // the same boards an extruded wall shows on Elderbrook and were until now
+  // reachable only through that path. The plaster gradient is the fallback and
+  // is what the family home always uses: its front is tuned against prologue
+  // beats the sheet knows nothing about.
+  const sheetSkin = d.skin === 'sheet' &&
+    typeof drawVillageFacadeWall === 'function' &&
+    drawVillageFacadeWall(facadeLeft, facadeTop, facadeRight, facadeBottom, ts);
+  if (!sheetSkin) {
+    const face = ctx.createLinearGradient(facadeLeft, facadeTop, facadeRight, facadeBottom);
+    face.addColorStop(0, '#cdb27f'); face.addColorStop(0.58, '#b18a5c'); face.addColorStop(1, '#805c3e');
+    ctx.fillStyle = face;
+    ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, facadeH);
+  }
+
+  // A hard roof contact shadow separates the upper plane from the vertical
+  // wall and makes the eave appear to float in front of it.
+  const eaveShade = ctx.createLinearGradient(0, facadeTop, 0, facadeTop + ts * 0.42);
+  eaveShade.addColorStop(0, 'rgba(24,14,8,0.64)');
+  eaveShade.addColorStop(1, 'rgba(24,14,8,0)');
+  ctx.fillStyle = eaveShade;
+  ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, ts * 0.42);
+
+  // Hand-trowelled plaster variation. Deterministic marks keep the front from
+  // becoming a featureless rectangle without adding animation noise. Skipped
+  // over sheet boards, which already carry their own grain.
+  if (!sheetSkin) {
+    ctx.strokeStyle = 'rgba(93,62,39,0.18)';
+    ctx.lineWidth = Math.max(0.65, ts * 0.015);
+    for (let i = 0; i < d.plasterMarks; i++) {
+      const fx = facadeLeft + ts * 0.35 +
+        ((Math.sin(seed * 0.13 + i * 4.17) * 0.5 + 0.5) * (facadeRight - facadeLeft - ts * 0.70));
+      const fy = facadeTop + ts * 0.28 +
+        ((Math.sin(seed * 0.29 + i * 7.31) * 0.5 + 0.5) * (facadeH - ts * 0.72));
+      ctx.beginPath(); ctx.moveTo(fx - ts * 0.07, fy); ctx.lineTo(fx + ts * 0.08, fy + ts * 0.025); ctx.stroke();
+    }
+  }
+
+  // Stone sill / foundation projects forward below the timber wall.
+  ctx.fillStyle = '#4c433a';
+  ctx.fillRect(facadeLeft - ts * 0.05, facadeBottom - ts * 0.23,
+    facadeRight - facadeLeft + ts * 0.10, ts * 0.27);
+  ctx.fillStyle = '#716358';
+  for (let x = facadeLeft; x < facadeRight; x += ts * 0.72) {
+    ctx.fillRect(x, facadeBottom - ts * 0.20, ts * 0.60, ts * 0.06);
+  }
+  ctx.strokeStyle = '#342e29'; ctx.lineWidth = Math.max(0.8, ts * 0.022);
+  for (let x = facadeLeft + ts * 0.52; x < facadeRight; x += ts * 0.72) {
+    ctx.beginPath(); ctx.moveTo(x, facadeBottom - ts * 0.22); ctx.lineTo(x, facadeBottom); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(198,181,157,0.38)';
+  ctx.fillRect(facadeLeft, facadeBottom - ts * 0.22, facadeRight - facadeLeft, ts * 0.035);
+
+  // Offset beam shadows put the timber frame physically in front of the
+  // plaster rather than painting brown lines directly onto it.
+  ctx.fillStyle = 'rgba(29,17,10,0.42)';
+  ctx.fillRect(facadeLeft + ts * 0.07, facadeTop + ts * 0.08,
+    facadeRight - facadeLeft, ts * 0.16);
+  ctx.fillRect(facadeLeft + ts * 0.07, facadeBottom - ts * 0.24,
+    facadeRight - facadeLeft, ts * 0.14);
+  ctx.fillRect(facadeLeft + ts * 0.07, facadeTop + ts * 0.08, ts * 0.16, facadeH);
+  ctx.fillRect(facadeRight - ts * 0.09, facadeTop + ts * 0.08, ts * 0.16, facadeH);
+
+  // Continuous beams and end posts make the face read as one structure, not
+  // a row of separate tile squares.
+  ctx.fillStyle = '#422719';
+  ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, ts * 0.16);
+  ctx.fillRect(facadeLeft, facadeBottom - ts * 0.31, facadeRight - facadeLeft, ts * 0.14);
+  ctx.fillRect(facadeLeft, facadeTop, ts * 0.16, facadeH);
+  ctx.fillRect(facadeRight - ts * 0.16, facadeTop, ts * 0.16, facadeH);
+  if (d.mullions) {
+    for (const x of [centreX - width * 0.30, centreX + width * 0.30]) {
+      ctx.fillRect(x - ts * 0.06, facadeTop + ts * 0.08, ts * 0.12, facadeH - ts * 0.34);
+    }
+  }
+
+  const winXs = d.windowsAt.map(f => centreX + width * f);
+  const braceTop = facadeTop + ts * 0.24;
+  const braceBottom = facadeBottom - ts * 0.36;
+  const braces = facadeBraces(winXs, centreX, facadeLeft, facadeRight,
+    braceTop, braceBottom, ts, d.braces);
+  if (braces.length) {
+    ctx.strokeStyle = '#57341f'; ctx.lineWidth = Math.max(2, ts * 0.10);
+    ctx.lineCap = 'square';
+    for (const [x1, y1, x2, y2] of braces) {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(202,139,77,0.32)'; ctx.lineWidth = Math.max(0.8, ts * 0.025);
+      ctx.beginPath();
+      ctx.moveTo(x1 - ts * 0.025, y1 - ts * 0.025);
+      ctx.lineTo(x2 - ts * 0.025, y2 - ts * 0.025);
+      ctx.stroke();
+      ctx.strokeStyle = '#57341f'; ctx.lineWidth = Math.max(2, ts * 0.10);
+    }
+    ctx.lineCap = 'butt';
+  }
+
+  const drawFacadeWindow = (cx) => {
+    const wx = cx - ts * 0.54, wy = facadeTop + ts * 0.46;
+    // Carve a dark opening first, then build four visible reveal planes
+    // around the glass. This reads as a deep window niche at game scale.
+    ctx.fillStyle = '#25170f';
+    ctx.fillRect(wx - ts * 0.14, wy - ts * 0.14, ts * 1.36, ts * 1.04);
+    ctx.fillStyle = '#d1b27d';
+    ctx.beginPath();
+    ctx.moveTo(wx - ts * 0.14, wy - ts * 0.14);
+    ctx.lineTo(wx + ts * 1.22, wy - ts * 0.14);
+    ctx.lineTo(wx + ts * 1.08, wy);
+    ctx.lineTo(wx, wy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#6b482e';
+    ctx.beginPath();
+    ctx.moveTo(wx + ts * 1.08, wy);
+    ctx.lineTo(wx + ts * 1.22, wy - ts * 0.14);
+    ctx.lineTo(wx + ts * 1.22, wy + ts * 0.90);
+    ctx.lineTo(wx + ts * 1.08, wy + ts * 0.76); ctx.closePath(); ctx.fill();
+    const pane = ctx.createLinearGradient(wx, wy, wx + ts * 1.08, wy + ts * 0.76);
+    pane.addColorStop(0, '#9ed3a1'); pane.addColorStop(0.48, '#4f8d72'); pane.addColorStop(1, '#274b46');
+    ctx.fillStyle = pane; ctx.fillRect(wx, wy, ts * 1.08, ts * 0.76);
+    ctx.strokeStyle = '#d6aa61'; ctx.lineWidth = Math.max(1, ts * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(cx, wy); ctx.lineTo(cx, wy + ts * 0.76);
+    ctx.moveTo(wx, wy + ts * 0.38); ctx.lineTo(wx + ts * 1.08, wy + ts * 0.38); ctx.stroke();
+    ctx.fillStyle = 'rgba(239,255,211,0.55)';
+    ctx.fillRect(wx + ts * 0.07, wy + ts * 0.06, ts * 0.24, ts * 0.06);
+    if (!d.flowerBox) return;
+    // Projecting sill and flower box bring the windows forward from the wall.
+    ctx.fillStyle = '#4a2c1b'; ctx.fillRect(wx - ts * 0.13, wy + ts * 0.76, ts * 1.34, ts * 0.13);
+    ctx.fillStyle = '#704224'; ctx.fillRect(wx - ts * 0.04, wy + ts * 0.86, ts * 1.16, ts * 0.22);
+    ctx.fillStyle = '#3f5f2e';
+    for (const dx of [0.10,0.32,0.54,0.76,0.98]) {
+      ctx.beginPath(); ctx.arc(wx + ts * dx, wy + ts * 0.84, ts * 0.10, 0, Math.PI * 2); ctx.fill();
+    }
+    for (const [dx,color] of [[0.18,'#f2cf55'],[0.49,'#e86d6d'],[0.82,'#eee4a0']]) {
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(wx + ts * dx, wy + ts * 0.78, ts * 0.045, 0, Math.PI * 2); ctx.fill();
+    }
+  };
+  for (const wx of winXs) drawFacadeWindow(wx);
+
+  const doorW = ts * 0.88;
+  const doorX = centreX - doorW / 2;
+  const doorTop = facadeTop + ts * 0.23;
+  const doorFoot = facadeBottom - ts * 0.23;
+  // Without doorTiles the opening runs the full height of the front, which is
+  // what the family home has always done and must keep doing.
+  const doorY = d.doorTiles ? Math.max(doorTop, doorFoot - ts * d.doorTiles) : doorTop;
+  const doorH = doorFoot - doorY;
+  // Deep jamb and header reveal put the door behind the facade plane.
+  ctx.fillStyle = '#21140d';
+  ctx.fillRect(doorX - ts * 0.18, doorY - ts * 0.16, doorW + ts * 0.36, doorH + ts * 0.16);
+  ctx.fillStyle = '#b48b59';
+  ctx.beginPath();
+  ctx.moveTo(doorX - ts * 0.18, doorY - ts * 0.16);
+  ctx.lineTo(doorX + doorW + ts * 0.18, doorY - ts * 0.16);
+  ctx.lineTo(doorX + doorW, doorY);
+  ctx.lineTo(doorX, doorY); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#5d3d28';
+  ctx.beginPath();
+  ctx.moveTo(doorX + doorW, doorY);
+  ctx.lineTo(doorX + doorW + ts * 0.18, doorY - ts * 0.16);
+  ctx.lineTo(doorX + doorW + ts * 0.18, doorY + doorH);
+  ctx.lineTo(doorX + doorW, doorY + doorH); ctx.closePath(); ctx.fill();
+  // The sheet's own door panel for cottages, drawn at the panel's aspect and
+  // sat on the threshold rather than stretched to the whole opening, so the
+  // planks stay the width they were authored at.
+  const sheetDoor = d.skin === 'sheet' &&
+    typeof drawVillageDoorPanelRect === 'function' &&
+    drawVillageDoorPanelRect(doorX, doorY, doorW, doorH);
+  if (!sheetDoor) {
+    const doorFace = ctx.createLinearGradient(doorX, doorY, doorX + doorW, doorY + doorH);
+    doorFace.addColorStop(0, '#966039'); doorFace.addColorStop(1, '#55321f');
+    ctx.fillStyle = doorFace; ctx.fillRect(doorX, doorY, doorW, doorH);
+    ctx.strokeStyle = '#3d2417'; ctx.lineWidth = Math.max(1, ts * 0.04);
+    ctx.strokeRect(doorX + ts * 0.12, doorY + ts * 0.12, doorW - ts * 0.24, doorH * 0.30);
+    ctx.strokeRect(doorX + ts * 0.12, doorY + doorH * 0.52, doorW - ts * 0.24, doorH * 0.32);
+    // Blacksmith-made strap hinges and nail heads give the door real hardware.
+    ctx.fillStyle = '#292727';
+    for (const fy of [0.20,0.67]) {
+      ctx.fillRect(doorX + ts * 0.04, doorY + doorH * fy, doorW * 0.52, ts * 0.075);
+      ctx.beginPath(); ctx.arc(doorX + ts * 0.13, doorY + doorH * fy + ts * 0.037, ts * 0.025, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(doorX + doorW * 0.46, doorY + doorH * fy + ts * 0.037, ts * 0.025, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#d6a84f';
+    ctx.beginPath(); ctx.arc(doorX + doorW * 0.76, doorY + doorH * 0.54, ts * 0.055, 0, Math.PI * 2); ctx.fill();
+  }
+  // Projecting threshold: light top plane, dark front riser and ground shadow.
+  ctx.fillStyle = 'rgba(24,14,9,0.48)';
+  ctx.fillRect(doorX - ts * 0.28, doorY + doorH + ts * 0.12, doorW + ts * 0.56, ts * 0.18);
+  ctx.fillStyle = '#8b765e';
+  ctx.beginPath();
+  ctx.moveTo(doorX - ts * 0.18, doorY + doorH);
+  ctx.lineTo(doorX + doorW + ts * 0.18, doorY + doorH);
+  ctx.lineTo(doorX + doorW + ts * 0.30, doorY + doorH + ts * 0.14);
+  ctx.lineTo(doorX - ts * 0.30, doorY + doorH + ts * 0.14);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#4f4438';
+  ctx.fillRect(doorX - ts * 0.30, doorY + doorH + ts * 0.14,
+    doorW + ts * 0.60, ts * 0.11);
+
+  if (d.lanterns) {
+    const drawEntryLantern = (lx) => {
+      const ly = facadeTop + ts * 0.83;
+      const glow = ctx.createRadialGradient(lx, ly, ts * 0.04, lx, ly, ts * 0.72);
+      glow.addColorStop(0, 'rgba(255,205,99,0.32)'); glow.addColorStop(1, 'rgba(255,164,55,0)');
+      ctx.fillStyle = glow; ctx.fillRect(lx - ts * 0.72, ly - ts * 0.72, ts * 1.44, ts * 1.44);
+      ctx.strokeStyle = '#2d261f'; ctx.lineWidth = Math.max(1.2, ts * 0.045);
+      ctx.beginPath(); ctx.moveTo(lx, ly - ts * 0.32); ctx.lineTo(lx, ly - ts * 0.16); ctx.stroke();
+      ctx.fillStyle = '#342b22'; ctx.fillRect(lx - ts * 0.12, ly - ts * 0.16, ts * 0.24, ts * 0.38);
+      ctx.fillStyle = '#ffc45f'; ctx.fillRect(lx - ts * 0.065, ly - ts * 0.09, ts * 0.13, ts * 0.20);
+      ctx.fillStyle = '#1f1b17'; ctx.fillRect(lx - ts * 0.16, ly + ts * 0.20, ts * 0.32, ts * 0.07);
+    };
+    drawEntryLantern(centreX - ts * 0.82);
+    drawEntryLantern(centreX + ts * 0.82);
+  }
+
+  // A visible soffit, exposed rafter tails, and fascia turn the roof edge into
+  // a thick overhang rather than a single line at the top of the wall.
+  ctx.fillStyle = '#26180f';
+  ctx.beginPath();
+  ctx.moveTo(left + ts * 0.18, roofBottom - ts * 0.16);
+  ctx.lineTo(right - ts * 0.18, roofBottom - ts * 0.16);
+  ctx.lineTo(right - ts * 0.36, roofBottom + ts * 0.20);
+  ctx.lineTo(left + ts * 0.36, roofBottom + ts * 0.20);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#5b3822';
+  for (let x = left + ts * 0.48; x < right - ts * 0.38; x += ts * 0.72) {
+    ctx.fillRect(x, roofBottom + ts * 0.02, ts * 0.14, ts * 0.28);
+  }
+  ctx.fillStyle = '#3a2417'; ctx.fillRect(left + ts * 0.18, roofBottom - ts * 0.18, width - ts * 0.36, ts * 0.22);
+  ctx.fillStyle = '#bd8150'; ctx.fillRect(left + ts * 0.26, roofBottom - ts * 0.18, width - ts * 0.52, ts * 0.055);
+
+  // Handed back so the shop board can hang off this front instead of below the
+  // house, and can find the blank bay between the door and the window.
+  return { facadeTop, facadeBottom, facadeLeft, facadeRight, doorX, doorW, winXs };
+}
+
+// Where a shop board hangs on a finished front: the middle of the widest blank
+// bay beside the door, and how much it has to shrink to fit there.
+//
+// Right bay first, because that is the side the light comes from and a board
+// there does not sit in the eave shadow, then the left if the right is too
+// tight. A window is drawn from its centre minus 0.68 tiles to plus 0.68, which
+// is what bounds the bay on the outer side.
+function facadeSignSpot(fg, ts) {
+  if (!fg) return null;
+  const gap = ts * 0.10;
+  const doorL = fg.doorX, doorR = fg.doorX + fg.doorW;
+  const right = fg.winXs.filter(x => x > doorR).sort((a, b) => a - b)[0];
+  const left = fg.winXs.filter(x => x < doorL).sort((a, b) => b - a)[0];
+  const bays = [
+    [doorR + gap, (right !== undefined ? right - ts * 0.68 : fg.facadeRight - ts * 0.20) - gap],
+    [(left !== undefined ? left + ts * 0.68 : fg.facadeLeft + ts * 0.20) + gap, doorL - gap],
+  ];
+  let best = null;
+  for (const [a, b] of bays) {
+    if (b - a <= ts * 0.45) continue;             // too narrow to read at all
+    if (!best || (b - a) > best.w) best = { x: (a + b) / 2, w: b - a };
+  }
+  if (!best) return null;
+  // The board plus its trim is 1.38 tiles wide as authored. Never enlarge it:
+  // a wide bay should get the sign at its designed size, not a billboard.
+  return { x: best.x, y: fg.facadeTop + ts * 0.16,
+           scale: Math.min(1, best.w / (ts * 1.38)) };
+}
+
 // One house's roof. Was the body of the loop above; it is a function now so the
 // pilot map can draw each roof at its own depth instead of stacking them all on
 // top of every actor at the end of the frame.
@@ -2821,9 +3336,15 @@ function drawForestHouseRoof(h, mapObj, ts) {
     const right = (h.c2 + 1 - camC + 0.28) * ts;
     const bottom = (h.r2 + 1 - camR + 0.20) * ts;
     const familyHome = isFamilyHomeRoof(h, mapObj);
-    // The pilot roof stops short of the south edge so a projected front wall can
-    // stand beneath it. Generic cottages retain their established full footprint.
-    const roofBottom = familyHome ? bottom - ts * 2.08 : bottom;
+    // Every roof stops short of its south edge so a projected front wall can
+    // stand beneath it. Until item A that was the family home alone, which is
+    // why exactly one building in the game read as a building: a top-down house
+    // hides its own height under its own roof, and the extrusion pass has
+    // nothing to stand up from outside.
+    const facadeTiles = familyHome
+      ? FACADE_TILES_FAMILY
+      : facadeDepthFor((bottom - top) / ts, FACADE_TILES_COTTAGE);
+    const roofBottom = bottom - ts * facadeTiles;
     const width = right - left, height = bottom - top;
     const roofHeight = roofBottom - top;
     const ridgeY = top + roofHeight * 0.43;
@@ -2840,6 +3361,20 @@ function drawForestHouseRoof(h, mapObj, ts) {
     ctx.fillStyle = familyHome ? 'rgba(26,17,9,0.58)' : 'rgba(18,10,5,0.48)';
     ctx.fillRect(left + ts * 0.14, top + ts * 0.28, width, height);
 
+    // Concept-art roof for the generic cottages: staggered shingle courses
+    // inside a heavy dark timber frame with a pale ridge beam, tiled from
+    // village-sheet.png (see village-sprite.js).
+    //
+    // Declined in two cases, and the procedural planes below then draw exactly
+    // as they always did. The family home is one: its planes are the base layer
+    // its bespoke projected facade is built on, and that facade is tuned
+    // against prologue beats this sheet knows nothing about. A sheet that has
+    // not loaded is the other.
+    const sheetRoof = !familyHome &&
+      typeof drawVillageRoofPlanes === 'function' &&
+      drawVillageRoofPlanes(left, top, right, roofBottom, ridgeY, ts);
+
+    if (!sheetRoof) {
     // North and south roof planes, with clipped corners and a bright ridge.
     ctx.beginPath();
     ctx.moveTo(left + ts * 0.22, top);
@@ -2876,6 +3411,7 @@ function drawForestHouseRoof(h, mapObj, ts) {
     for (let y = top + ts * 0.38; y < ridgeY - ts * 0.12; y += ts * 0.52) {
       ctx.beginPath(); ctx.moveTo(left + ts * 0.22, y); ctx.lineTo(right - ts * 0.22, y); ctx.stroke();
     }
+    }   // end of the procedural roof planes
 
     if (familyHome) {
       // Staggered shingle joints and a thick south fascia make the larger pilot
@@ -2889,256 +3425,29 @@ function drawForestHouseRoof(h, mapObj, ts) {
           ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, Math.min(y + ts * 0.42, roofBottom - ts * 0.18)); ctx.stroke();
         }
       }
-
-      // Projected front elevation: warm infill, oak frame, two inset windows and
-      // a panelled door. This is deliberately taller than one tile so the player
-      // sees a house facade as well as its top-down roof plane.
-      const facadeTop = roofBottom - ts * 0.03;
-      const facadeBottom = bottom + ts * 0.10;
-      // Pull the front plane inside the roof silhouette. Matching shallow wall
-      // returns keep the depth cue without distorting either end of the house.
-      const facadeLeft = left + ts * 0.42;
-      const facadeRight = right - ts * 0.42;
-      const facadeH = facadeBottom - facadeTop;
-      ctx.fillStyle = 'rgba(28,17,10,0.52)';
-      ctx.fillRect(facadeLeft + ts * 0.18, facadeTop + ts * 0.24,
-        facadeRight - facadeLeft, facadeH);
-
-      // Deep west/east returns sit behind the front wall. Their angled lower
-      // edges and different light values establish the building's actual depth.
-      ctx.fillStyle = '#735338';
-      ctx.beginPath();
-      ctx.moveTo(left + ts * 0.18, facadeTop - ts * 0.08);
-      ctx.lineTo(facadeLeft, facadeTop + ts * 0.12);
-      ctx.lineTo(facadeLeft, facadeBottom);
-      ctx.lineTo(left + ts * 0.20, facadeBottom - ts * 0.27);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#513722';
-      ctx.beginPath();
-      ctx.moveTo(facadeRight, facadeTop + ts * 0.12);
-      ctx.lineTo(right - ts * 0.18, facadeTop - ts * 0.08);
-      ctx.lineTo(right - ts * 0.16, facadeBottom - ts * 0.30);
-      ctx.lineTo(facadeRight, facadeBottom);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(37,22,13,0.72)';
-      ctx.lineWidth = Math.max(1, ts * 0.04);
-      ctx.beginPath();
-      ctx.moveTo(facadeRight, facadeTop + ts * 0.12);
-      ctx.lineTo(facadeRight, facadeBottom);
-      ctx.stroke();
-
-      const face = ctx.createLinearGradient(facadeLeft, facadeTop, facadeRight, facadeBottom);
-      face.addColorStop(0, '#cdb27f'); face.addColorStop(0.58, '#b18a5c'); face.addColorStop(1, '#805c3e');
-      ctx.fillStyle = face;
-      ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, facadeH);
-
-      // A hard roof contact shadow separates the upper plane from the vertical
-      // wall and makes the eave appear to float in front of it.
-      const eaveShade = ctx.createLinearGradient(0, facadeTop, 0, facadeTop + ts * 0.42);
-      eaveShade.addColorStop(0, 'rgba(24,14,8,0.64)');
-      eaveShade.addColorStop(1, 'rgba(24,14,8,0)');
-      ctx.fillStyle = eaveShade;
-      ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, ts * 0.42);
-
-      // Hand-trowelled plaster variation. Deterministic marks keep the front from
-      // becoming a featureless rectangle without adding animation noise.
-      ctx.strokeStyle = 'rgba(93,62,39,0.18)';
-      ctx.lineWidth = Math.max(0.65, ts * 0.015);
-      for (let i = 0; i < 28; i++) {
-        const fx = facadeLeft + ts * 0.35 +
-          ((Math.sin(seed * 0.13 + i * 4.17) * 0.5 + 0.5) * (facadeRight - facadeLeft - ts * 0.70));
-        const fy = facadeTop + ts * 0.28 +
-          ((Math.sin(seed * 0.29 + i * 7.31) * 0.5 + 0.5) * (facadeH - ts * 0.72));
-        ctx.beginPath(); ctx.moveTo(fx - ts * 0.07, fy); ctx.lineTo(fx + ts * 0.08, fy + ts * 0.025); ctx.stroke();
-      }
-
-      // Stone sill / foundation projects forward below the timber wall.
-      ctx.fillStyle = '#4c433a';
-      ctx.fillRect(facadeLeft - ts * 0.05, facadeBottom - ts * 0.23,
-        facadeRight - facadeLeft + ts * 0.10, ts * 0.27);
-      ctx.fillStyle = '#716358';
-      for (let x = facadeLeft; x < facadeRight; x += ts * 0.72) {
-        ctx.fillRect(x, facadeBottom - ts * 0.20, ts * 0.60, ts * 0.06);
-      }
-      ctx.strokeStyle = '#342e29'; ctx.lineWidth = Math.max(0.8, ts * 0.022);
-      for (let x = facadeLeft + ts * 0.52; x < facadeRight; x += ts * 0.72) {
-        ctx.beginPath(); ctx.moveTo(x, facadeBottom - ts * 0.22); ctx.lineTo(x, facadeBottom); ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(198,181,157,0.38)';
-      ctx.fillRect(facadeLeft, facadeBottom - ts * 0.22, facadeRight - facadeLeft, ts * 0.035);
-
-      // Offset beam shadows put the timber frame physically in front of the
-      // plaster rather than painting brown lines directly onto it.
-      ctx.fillStyle = 'rgba(29,17,10,0.42)';
-      ctx.fillRect(facadeLeft + ts * 0.07, facadeTop + ts * 0.08,
-        facadeRight - facadeLeft, ts * 0.16);
-      ctx.fillRect(facadeLeft + ts * 0.07, facadeBottom - ts * 0.24,
-        facadeRight - facadeLeft, ts * 0.14);
-      ctx.fillRect(facadeLeft + ts * 0.07, facadeTop + ts * 0.08, ts * 0.16, facadeH);
-      ctx.fillRect(facadeRight - ts * 0.09, facadeTop + ts * 0.08, ts * 0.16, facadeH);
-
-      // Continuous beams and end posts make the face read as one structure, not
-      // a row of separate tile squares.
-      ctx.fillStyle = '#422719';
-      ctx.fillRect(facadeLeft, facadeTop, facadeRight - facadeLeft, ts * 0.16);
-      ctx.fillRect(facadeLeft, facadeBottom - ts * 0.31, facadeRight - facadeLeft, ts * 0.14);
-      ctx.fillRect(facadeLeft, facadeTop, ts * 0.16, facadeH);
-      ctx.fillRect(facadeRight - ts * 0.16, facadeTop, ts * 0.16, facadeH);
-      for (const x of [centreX - width * 0.30, centreX + width * 0.30]) {
-        ctx.fillRect(x - ts * 0.06, facadeTop + ts * 0.08, ts * 0.12, facadeH - ts * 0.34);
-      }
-
-      // Four diagonal braces make the timber frame structural and break the long
-      // horizontal frontage into readable bays.
-      const leftWindowX = centreX - width * 0.25;
-      const rightWindowX = centreX + width * 0.25;
-      const braceTop = facadeTop + ts * 0.24;
-      const braceBottom = facadeBottom - ts * 0.36;
-      ctx.strokeStyle = '#57341f'; ctx.lineWidth = Math.max(2, ts * 0.10);
-      ctx.lineCap = 'square';
-      const braces = [
-        [facadeLeft + ts * 0.18, braceBottom, leftWindowX - ts * 0.62, braceTop],
-        [leftWindowX + ts * 0.62, braceTop, centreX - ts * 0.68, braceBottom],
-        [centreX + ts * 0.68, braceBottom, rightWindowX - ts * 0.62, braceTop],
-        [rightWindowX + ts * 0.62, braceTop, facadeRight - ts * 0.18, braceBottom],
-      ];
-      for (const [x1,y1,x2,y2] of braces) {
-        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-        ctx.strokeStyle = 'rgba(202,139,77,0.32)'; ctx.lineWidth = Math.max(0.8, ts * 0.025);
-        ctx.beginPath();
-        ctx.moveTo(x1 - ts * 0.025, y1 - ts * 0.025);
-        ctx.lineTo(x2 - ts * 0.025, y2 - ts * 0.025);
-        ctx.stroke();
-        ctx.strokeStyle = '#57341f'; ctx.lineWidth = Math.max(2, ts * 0.10);
-      }
-      ctx.lineCap = 'butt';
-
-      const drawFacadeWindow = (cx) => {
-        const wx = cx - ts * 0.54, wy = facadeTop + ts * 0.46;
-        // Carve a dark opening first, then build four visible reveal planes
-        // around the glass. This reads as a deep window niche at game scale.
-        ctx.fillStyle = '#25170f';
-        ctx.fillRect(wx - ts * 0.14, wy - ts * 0.14, ts * 1.36, ts * 1.04);
-        ctx.fillStyle = '#d1b27d';
-        ctx.beginPath();
-        ctx.moveTo(wx - ts * 0.14, wy - ts * 0.14);
-        ctx.lineTo(wx + ts * 1.22, wy - ts * 0.14);
-        ctx.lineTo(wx + ts * 1.08, wy);
-        ctx.lineTo(wx, wy); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#6b482e';
-        ctx.beginPath();
-        ctx.moveTo(wx + ts * 1.08, wy);
-        ctx.lineTo(wx + ts * 1.22, wy - ts * 0.14);
-        ctx.lineTo(wx + ts * 1.22, wy + ts * 0.90);
-        ctx.lineTo(wx + ts * 1.08, wy + ts * 0.76); ctx.closePath(); ctx.fill();
-        const pane = ctx.createLinearGradient(wx, wy, wx + ts * 1.08, wy + ts * 0.76);
-        pane.addColorStop(0, '#9ed3a1'); pane.addColorStop(0.48, '#4f8d72'); pane.addColorStop(1, '#274b46');
-        ctx.fillStyle = pane; ctx.fillRect(wx, wy, ts * 1.08, ts * 0.76);
-        ctx.strokeStyle = '#d6aa61'; ctx.lineWidth = Math.max(1, ts * 0.035);
-        ctx.beginPath();
-        ctx.moveTo(cx, wy); ctx.lineTo(cx, wy + ts * 0.76);
-        ctx.moveTo(wx, wy + ts * 0.38); ctx.lineTo(wx + ts * 1.08, wy + ts * 0.38); ctx.stroke();
-        ctx.fillStyle = 'rgba(239,255,211,0.55)';
-        ctx.fillRect(wx + ts * 0.07, wy + ts * 0.06, ts * 0.24, ts * 0.06);
-        // Projecting sill and flower box bring the windows forward from the wall.
-        ctx.fillStyle = '#4a2c1b'; ctx.fillRect(wx - ts * 0.13, wy + ts * 0.76, ts * 1.34, ts * 0.13);
-        ctx.fillStyle = '#704224'; ctx.fillRect(wx - ts * 0.04, wy + ts * 0.86, ts * 1.16, ts * 0.22);
-        ctx.fillStyle = '#3f5f2e';
-        for (const dx of [0.10,0.32,0.54,0.76,0.98]) {
-          ctx.beginPath(); ctx.arc(wx + ts * dx, wy + ts * 0.84, ts * 0.10, 0, Math.PI * 2); ctx.fill();
-        }
-        for (const [dx,color] of [[0.18,'#f2cf55'],[0.49,'#e86d6d'],[0.82,'#eee4a0']]) {
-          ctx.fillStyle = color; ctx.beginPath(); ctx.arc(wx + ts * dx, wy + ts * 0.78, ts * 0.045, 0, Math.PI * 2); ctx.fill();
-        }
-      };
-      drawFacadeWindow(leftWindowX);
-      drawFacadeWindow(rightWindowX);
-
-      const doorW = ts * 0.88;
-      const doorX = centreX - doorW / 2;
-      const doorY = facadeTop + ts * 0.23;
-      const doorH = facadeBottom - doorY - ts * 0.23;
-      // Deep jamb and header reveal put the door behind the facade plane.
-      ctx.fillStyle = '#21140d';
-      ctx.fillRect(doorX - ts * 0.18, doorY - ts * 0.16, doorW + ts * 0.36, doorH + ts * 0.16);
-      ctx.fillStyle = '#b48b59';
-      ctx.beginPath();
-      ctx.moveTo(doorX - ts * 0.18, doorY - ts * 0.16);
-      ctx.lineTo(doorX + doorW + ts * 0.18, doorY - ts * 0.16);
-      ctx.lineTo(doorX + doorW, doorY);
-      ctx.lineTo(doorX, doorY); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#5d3d28';
-      ctx.beginPath();
-      ctx.moveTo(doorX + doorW, doorY);
-      ctx.lineTo(doorX + doorW + ts * 0.18, doorY - ts * 0.16);
-      ctx.lineTo(doorX + doorW + ts * 0.18, doorY + doorH);
-      ctx.lineTo(doorX + doorW, doorY + doorH); ctx.closePath(); ctx.fill();
-      const doorFace = ctx.createLinearGradient(doorX, doorY, doorX + doorW, doorY + doorH);
-      doorFace.addColorStop(0, '#966039'); doorFace.addColorStop(1, '#55321f');
-      ctx.fillStyle = doorFace; ctx.fillRect(doorX, doorY, doorW, doorH);
-      ctx.strokeStyle = '#3d2417'; ctx.lineWidth = Math.max(1, ts * 0.04);
-      ctx.strokeRect(doorX + ts * 0.12, doorY + ts * 0.12, doorW - ts * 0.24, doorH * 0.30);
-      ctx.strokeRect(doorX + ts * 0.12, doorY + doorH * 0.52, doorW - ts * 0.24, doorH * 0.32);
-      // Blacksmith-made strap hinges and nail heads give the door real hardware.
-      ctx.fillStyle = '#292727';
-      for (const fy of [0.20,0.67]) {
-        ctx.fillRect(doorX + ts * 0.04, doorY + doorH * fy, doorW * 0.52, ts * 0.075);
-        ctx.beginPath(); ctx.arc(doorX + ts * 0.13, doorY + doorH * fy + ts * 0.037, ts * 0.025, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(doorX + doorW * 0.46, doorY + doorH * fy + ts * 0.037, ts * 0.025, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.fillStyle = '#d6a84f';
-      ctx.beginPath(); ctx.arc(doorX + doorW * 0.76, doorY + doorH * 0.54, ts * 0.055, 0, Math.PI * 2); ctx.fill();
-      // Projecting threshold: light top plane, dark front riser and ground shadow.
-      ctx.fillStyle = 'rgba(24,14,9,0.48)';
-      ctx.fillRect(doorX - ts * 0.28, doorY + doorH + ts * 0.12, doorW + ts * 0.56, ts * 0.18);
-      ctx.fillStyle = '#8b765e';
-      ctx.beginPath();
-      ctx.moveTo(doorX - ts * 0.18, doorY + doorH);
-      ctx.lineTo(doorX + doorW + ts * 0.18, doorY + doorH);
-      ctx.lineTo(doorX + doorW + ts * 0.30, doorY + doorH + ts * 0.14);
-      ctx.lineTo(doorX - ts * 0.30, doorY + doorH + ts * 0.14);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#4f4438';
-      ctx.fillRect(doorX - ts * 0.30, doorY + doorH + ts * 0.14,
-        doorW + ts * 0.60, ts * 0.11);
-
-      const drawEntryLantern = (lx) => {
-        const ly = facadeTop + ts * 0.83;
-        const glow = ctx.createRadialGradient(lx, ly, ts * 0.04, lx, ly, ts * 0.72);
-        glow.addColorStop(0, 'rgba(255,205,99,0.32)'); glow.addColorStop(1, 'rgba(255,164,55,0)');
-        ctx.fillStyle = glow; ctx.fillRect(lx - ts * 0.72, ly - ts * 0.72, ts * 1.44, ts * 1.44);
-        ctx.strokeStyle = '#2d261f'; ctx.lineWidth = Math.max(1.2, ts * 0.045);
-        ctx.beginPath(); ctx.moveTo(lx, ly - ts * 0.32); ctx.lineTo(lx, ly - ts * 0.16); ctx.stroke();
-        ctx.fillStyle = '#342b22'; ctx.fillRect(lx - ts * 0.12, ly - ts * 0.16, ts * 0.24, ts * 0.38);
-        ctx.fillStyle = '#ffc45f'; ctx.fillRect(lx - ts * 0.065, ly - ts * 0.09, ts * 0.13, ts * 0.20);
-        ctx.fillStyle = '#1f1b17'; ctx.fillRect(lx - ts * 0.16, ly + ts * 0.20, ts * 0.32, ts * 0.07);
-      };
-      drawEntryLantern(centreX - ts * 0.82);
-      drawEntryLantern(centreX + ts * 0.82);
-
-      // A visible soffit, exposed rafter tails, and fascia turn the roof edge into
-      // a thick overhang rather than a single line at the top of the wall.
-      ctx.fillStyle = '#26180f';
-      ctx.beginPath();
-      ctx.moveTo(left + ts * 0.18, roofBottom - ts * 0.16);
-      ctx.lineTo(right - ts * 0.18, roofBottom - ts * 0.16);
-      ctx.lineTo(right - ts * 0.36, roofBottom + ts * 0.20);
-      ctx.lineTo(left + ts * 0.36, roofBottom + ts * 0.20);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#5b3822';
-      for (let x = left + ts * 0.48; x < right - ts * 0.38; x += ts * 0.72) {
-        ctx.fillRect(x, roofBottom + ts * 0.02, ts * 0.14, ts * 0.28);
-      }
-      ctx.fillStyle = '#3a2417'; ctx.fillRect(left + ts * 0.18, roofBottom - ts * 0.18, width - ts * 0.36, ts * 0.22);
-      ctx.fillStyle = '#bd8150'; ctx.fillRect(left + ts * 0.26, roofBottom - ts * 0.18, width - ts * 0.52, ts * 0.055);
     }
 
     // Generic cottages retain their small front gable. The larger family house
     // uses a clean, uninterrupted eave above the door.
     if (!familyHome) {
       const gableHalf = Math.min(ts * 1.45, width * 0.22);
-      const gablePeakY = ridgeY - ts * 0.10;
-      const gableBaseY = bottom + ts * 0.12;
+      // Sits on the roof's own south edge, not on the house's south edge. Those
+      // were the same line until item A gave cottages a facade; leaving it at
+      // `bottom` would hang the gable down over the front wall it is supposed
+      // to shelter.
+      const gableBaseY = roofBottom + ts * 0.12;
+      // And it is a dormer now rather than a full-height crease. It used to run
+      // from the eave all the way to the ridge, which on a bare roof plane read
+      // as the one thing marking the door. The facade marks the door now, so
+      // the gable's job is to break up the shingle field, and a 2.9 by 3.5 tile
+      // spike does that by dominating it. Capped at 1.75 tiles, still clamped
+      // so it can never poke through the ridge on a squat roof.
+      const gablePeakY = Math.max(ridgeY - ts * 0.10, gableBaseY - ts * 1.75);
+      // Shingled gable to match a sheet roof. Only when the roof itself came
+      // from the sheet: a sheet gable over procedural planes would be the same
+      // material clash the other way round.
+      if (!(sheetRoof && typeof drawVillageGable === 'function' &&
+            drawVillageGable(centreX, gablePeakY, gableHalf, gableBaseY, ts))) {
       ctx.beginPath();
       ctx.moveTo(centreX, gablePeakY);
       ctx.lineTo(centreX + gableHalf, gableBaseY);
@@ -3151,7 +3460,18 @@ function drawForestHouseRoof(h, mapObj, ts) {
       ctx.moveTo(centreX, gablePeakY + ts * 0.14);
       ctx.lineTo(centreX, gableBaseY - ts * 0.10);
       ctx.stroke();
+      }   // end of the procedural gable
     }
+
+    // The projected front elevation. One body for every house in the game now,
+    // rather than a hand-built one on the family home and nothing anywhere
+    // else. Drawn after the gable so the soffit tucks the gable's base behind
+    // the eave instead of leaving it hanging over the wall.
+    const facadeGeom = facadeTiles > 0.01
+      ? drawForestHouseFacade(
+          { left, right, bottom, roofBottom, width, centreX, ts, seed },
+          familyHome ? FACADE_FAMILY : FACADE_COTTAGE)
+      : null;
 
     // Chimney and a restrained patch of moss tie the cottages to the forest.
     const chimneyX = right - ts * (1.35 + (seed % 3) * 0.18);
@@ -3264,7 +3584,15 @@ function drawForestHouseRoof(h, mapObj, ts) {
 
     // Read the live door tile instead of caching it with the footprint. Forest
     // villages assign their four shop types after the base map is generated.
-    drawForestShopSign(mapObj.map[h.r2][h.doorC], centreX, bottom, ts);
+    //
+    // With a front to hang from, the board goes on the wall beside the door.
+    // Without one (a house too short to spare the tiles, so facadeDepthFor
+    // clamped it to nothing) it falls back to the old anchor below the south
+    // edge, which is still correct for a bare roof plane.
+    const signSpot = facadeSignSpot(facadeGeom, ts);
+    const doorTile = mapObj.map[h.r2][h.doorC];
+    if (signSpot) drawForestShopSign(doorTile, signSpot.x, signSpot.y, ts, signSpot.scale);
+    else drawForestShopSign(doorTile, centreX, bottom, ts);
     ctx.restore();
   }
 }
@@ -3294,6 +3622,17 @@ function render() {
   const endC = Math.ceil(camC + PW/TILE_PX) + 1;
   const endR = Math.ceil(camR + PH/TILE_PX) + 1;
 
+  // Baked forest ground, ahead of the tile loop. Turf, cobble, marble, dirt and
+  // water on a forest map come from chunk canvases painted once (forest-sprite.js),
+  // where a paved area is one rounded region rather than a run of squares. The
+  // loop below then skips exactly the tiles that bake claims, and draws every
+  // other tile — walls, doors, bridges, chests — unchanged.
+  //
+  // Returns false on any map this art does not own, and on every frame before
+  // its sheet has loaded, in which case nothing below changes at all.
+  const bakedGround = typeof drawTerrainGround === 'function' &&
+                      drawTerrainGround(mapObj, map, ts, startC, startR, endC, endR);
+
   for (let mr = startR; mr <= endR; mr++) {
     for (let mc = startC; mc <= endC; mc++) {
       const sx = Math.floor((mc - camC) * ts);
@@ -3304,7 +3643,17 @@ function render() {
         ctx.fillRect(sx, sy, tw, tw);
         continue;
       }
-      drawTile(mc, mr, map[mr][mc], sx, sy, ts);
+      const t = map[mr][mc];
+      if (bakedGround) {
+        const cov = terrainGroundCovers(mapObj, t);
+        // FULL: the bake owns the whole cell (and a tree's canopy comes later,
+        // from the depth merge). OVERLAY: the bake owns the ground, but the
+        // tile's own decoration still draws, minus the opaque square that would
+        // otherwise punch a hole through the turf.
+        if (cov === 1) continue;
+        if (cov === 2) { drawTileOverlay(mc, mr, t, sx, sy, ts); continue; }
+      }
+      drawTile(mc, mr, t, sx, sy, ts);
     }
   }
 
@@ -3330,16 +3679,17 @@ function render() {
   // over the flat tile pass but under actors and the removable roof layer.
   drawElderbrookFamilyHomeDepth(mapObj, ts);
 
-  // Entities. On the 2.5D pilot they are merged with the tall tiles into one
-  // back-to-front order (see drawDepthLayer, which also draws the extrusions,
-  // colossal trees and big landmarks that the passes below still handle for
-  // every other map). Everywhere else this is the fixed order it has always
-  // been, which is what makes "nothing else changes" structural.
+  // Entities. On a depth-sorted map they are merged with the tall tiles into
+  // one back-to-front order (see drawDepthLayer, which also draws the
+  // extrusions, colossal trees and big landmarks that the passes below still
+  // handle for every other map). Everywhere else this is the fixed order it has
+  // always been, which is what makes "nothing else changes" structural.
   //
   // Worth being explicit, because it is a shipped feel that this ends: the
   // player is no longer unconditionally on top. He stays on top within his own
-  // row, but a wall one row south of him now covers him.
-  if (isObliqueMap(mapObj)) {
+  // row, but a wall one row south of him now covers him. Since item A0 that is
+  // true in the forest villages too, not only on the pilot.
+  if (isDepthSortedMap(mapObj)) {
     drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR);
   } else {
     drops.forEach(d => drawDrop(d, ts));
@@ -3405,10 +3755,14 @@ function render() {
   // off-screen still pokes its canopy into view.
   //
   // This pass, and the landmark pass below it, are the FLAT renderer's version of
-  // depth: tall things drawn after every actor, unconditionally. On the pilot map
-  // both are folded into drawDepthLayer instead, along with the extrusions, so a
-  // hero south of a giant is now in front of it rather than always behind it.
-  if (!isObliqueMap(mapObj)) {
+  // depth: tall things drawn after every actor, unconditionally. On a depth-sorted
+  // map both are folded into drawDepthLayer instead, along with the extrusions, so
+  // a hero south of a giant is now in front of it rather than always behind it.
+  //
+  // The gate is isDepthSortedMap, not isObliqueMap: a forest village runs the
+  // merge without extruding, and the merge already draws its colossal trees,
+  // landmarks and ledges. Leaving this pass on for it would draw all three twice.
+  if (!isDepthSortedMap(mapObj)) {
   const colossalTrees = mapFeatureTiles(mapObj, T.COLOSSAL_TREE, '_colossalTrees');
   for (let i = 0; i < colossalTrees.length; i += 2) {
     const mc = colossalTrees[i], mr = colossalTrees[i + 1];
