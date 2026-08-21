@@ -13,6 +13,15 @@ and the per-phase "Done when" lines. This file only records what is ticked.
 Work the lowest phase with unchecked boxes. Do not start two phases at once, and
 do not skip ahead: the order encodes real dependencies.
 
+> **Every box below is ticked, and the conversion is still not done.** On
+> 2026-08-16 the USER played it and reported it does not feel different, and an
+> audit confirmed that outside the prologue's Elderbrook the game still renders
+> through the flat path. The boxes are accurate: that work was really done. What
+> they do not capture is that the pilot gate was never widened and no level was
+> ever authored to use the Z axis. Do not read a fully ticked file as "nothing
+> left". Go to "What actually shipped" and "What feeling 2.5D requires" in
+> `oblique-conversion-plan.md`, which are now the live sections.
+
 ---
 
 ## Verification rig (built during Phase 1, reusable for every later phase)
@@ -67,6 +76,38 @@ console capture, JS evaluation and screenshots.
 - Walking the hero: dispatch `KeyboardEvent` on **`document`**, not `window`.
   The handler is `document.addEventListener('keydown', ...)` at `main.js:250`,
   and events dispatched on `window` never reach it.
+
+Four things item A added to the rig, all of which cost a wrong answer first:
+
+- **`canvas.toDataURL` throws.** The sprite sheets are `file://` images, so they
+  taint the canvas and export is a `SecurityError`. `Page.captureScreenshot`
+  goes through the compositor and is not subject to that. `sweep.js` renders a
+  whole table of scenes in ONE page load and photographs each, which is how a
+  "nothing else changed" claim gets hashed instead of reasoned about.
+- **Stubbing `Math.random` does not make generation reproducible.**
+  `map-helpers.js:42` does `let _genRandom = Math.random` at module load, before
+  any probe can run, so the ~150 `rnd()` call sites keep drawing from the native
+  generator no matter what the probe assigns. Measured: `buildVillageMap`
+  consumes **zero** draws from a stubbed `Math.random`, and three builds under
+  one reseed gave three different maps. Wrap generation in the game's own
+  `beginSeededGeneration(seed)` / `endSeededGeneration(prev)` instead: three
+  builds then hash identically and a different seed hashes differently. Only
+  `mapgen-biomes.js` calls that pair today, which is exactly why overworlds were
+  already reproducible and villages, caves, dungeons and towers were not.
+- **Two renders in ONE page load are not comparable.** Ambient layers carry
+  state that advances every frame (drifting motes, `render.js:1759`), so an A
+  frame and a B frame taken back to back differ by ~0.1% of pixels at low
+  amplitude whatever is being tested. Control: the same gate rendered twice in
+  one load differed by 884 pixels. Run the A and the B as two separate LOADS
+  with an identical call sequence, which is byte-reproducible: 15 of 15 scenes
+  matched across two loads.
+- **A positive control is mandatory, not a flourish.** See A0 below: the first
+  version of the sweep was blind, and only the control revealed it.
+
+`crop.js` writes a magnified crop of a region so an 88x48 change can be looked
+at. It borrows `readPNG` from `pngdiff.js` and must take the channel count from
+it: assuming 4 channels against a 3-channel screenshot produces vertical RGB
+stripes, which is what it did the first time.
 
 ---
 
@@ -1167,6 +1208,681 @@ wall run screenshots as continuous masonry with an opening set into it.
 
 `EXTRUDED_TILES` is now WALL, BURNT_WALL, LEDGE, LEDGE_FACE, TREE, and the six
 doorway types.
+
+---
+
+## Item A: cottage facades
+
+The live work. Supersedes the ticked phases above. Full reasoning is in
+`oblique-conversion-plan.md` under "What feeling 2.5D requires"; read item A
+there, including its dependency note, before starting.
+
+**The goal, in one line:** a player walking down a village street should see the
+FRONTS of houses, not only their roofs. Success is the USER looking at a before
+and after and not needing to be told where to look.
+
+### A0: village roofs into the depth sort (do this first)
+
+A facade hangs over the walkable tile row south of a house, and on a flat map the
+roof pass draws after the player (`drawPlayer` at `render.js:3381`,
+`drawForestVillageRoofs` at `render.js:3386`). Build the facade first and the
+player gets painted over by the wall he is standing in front of.
+
+- [x] Let `drawDepthLayer` run for forest village maps, NOT just `homevillage`
+- [x] Keep wall extrusion off for them: this is the roof-sorting slice of C only
+- [x] Confirm `drawForestVillageRoofs` early-returns for them, or roofs draw twice
+- [x] MEASURE render() ms on Village of the Lost before and after, TILE_PX 48 and 24
+- [x] VERIFY: player walking north past a cottage passes BEHIND its roof
+- [x] VERIFY: every non-village map still renders byte-identically (hash the PNGs)
+
+**Done when:** the depth sort is on for villages, nothing extrudes that did not
+extrude before, the perf delta is recorded here, and the non-village hash check
+is green. **All four met.**
+
+**What changed.** A new `isDepthSortedMap` beside `isObliqueMap` in `render.js`,
+and the three `isObliqueMap` call sites in the render path now ask the new one.
+`isObliqueMap` is untouched and still means "does this map EXTRUDE", which is
+the expensive half and stays item C. The new gate is the pilot plus forest
+villages, matching `roofsApply`: a fire or ice village has no forest roofs to
+sort, so putting it on the merge would reorder its actors for nothing.
+
+`mapTallTiles` gained one condition. A map can now be on the merge without
+extruding, so membership is no longer "is it tall" but "does this map stand this
+kind of thing up": colossal trees and landmarks always, ledges always (their
+height is gameplay, the same rule the flat ledge pass follows), and the rest of
+`EXTRUDED_TILES` only when `isObliqueMap`. Safe to bake into the per-map memo
+because `isObliqueMap` is a pure function of `mapObj.type`.
+
+Third call site matters and is easy to miss: the flat renderer's colossal-tree /
+landmark / ledge block is now gated on `!isDepthSortedMap`, not
+`!isObliqueMap`. Left on `isObliqueMap` it would have drawn all three twice on
+every forest village.
+
+**Measured, on Village of the Lost, 40 roofs, 15 enemies, 12 villagers**,
+interleaved A/B in one page load:
+
+| zoom | merge on | merge off | delta |
+|---|---|---|---|
+| TILE_PX 48 | 1.028 ms | 1.020 ms | **+0.008 ms** |
+| TILE_PX 24 | 3.020 ms | 2.960 ms | **+0.060 ms** |
+
+0.4% of a 16.7 ms budget at the zoomed-out worst case. It is this cheap because
+the village does not extrude: its tall-tile list is **14 entries**, not the
+5,493 it would be if `EXTRUDED_TILES` applied, and the pilot's is 17,702.
+`performance.now` is coarsened to 0.1 ms in this headless build, so each sample
+times a batch of 25 renders and divides; timing single renders reports a delta
+of exactly zero at both zooms and means nothing.
+
+**The visual result**, hero standing one row south of a cottage door at TILE_PX
+48: before, he is buried under the roof's eave shadow with his head and sword
+clipped by the roof's south edge; after, he stands fully in front of it. The
+diff is 3,510 pixels confined to an 88x48 box around him and **nothing else in
+the frame moved**. Two rows south is byte-identical (the roof does not reach),
+north is byte-identical (he is still behind it, since the roof's key is the
+house's south row), and inside is byte-identical (`forestRoofVisible` drops the
+roof either way).
+
+**Counted rather than argued**, one frame each: forest village draws 2 roofs,
+0 extrusions, 1 landmark, no roof twice, with the gate on AND off. The
+Elderbrook pilot still extrudes 63 tiles. The fire village draws nothing new.
+
+**The hash check, and the proof it can fail.** 15 scenes across villages,
+overworlds in five biomes, a cave, a dungeon and a tower floor, rendered in one
+page load and hashed:
+
+- pre-A0 vs A0: **3 differ, 12 identical.** The three are the forest villages.
+- pre-A0 vs `isDepthSortedMap = () => true` (item C, as a positive control):
+  **12 differ, 3 identical.** Fire village, ice village, all five overworlds and
+  the tower floor all move.
+
+The control is not decoration. The **first** version of this sweep parked the
+hero on open ground, and under it the forced-everything control changed 0 of 15
+frames: there was nothing on screen whose order could differ, so a green result
+proved nothing. The sweep now stands the hero one row south of a tall tile on
+every map that has one. The two frames still identical under the control are the
+cave and the dungeon, which have zero tall tiles, so there is genuinely nothing
+there to reorder.
+
+### A1: the facade itself
+
+`drawForestHouseRoof`'s `familyHome` branch is the reference. It sets
+`roofBottom = bottom - ts * 2.08` so the roof stops short of the south edge, then
+builds a front elevation between `facadeTop` and `facadeBottom`.
+
+- [x] Pull the facade out of the `familyHome` branch into a function taking the
+      rect plus a size, so one body serves both instead of a second copy
+- [x] Scale it: forest cottages are 9x7 tiles and the family home is much larger.
+      A flat 2.08-tile facade eats a third of a cottage. Pick the fraction by
+      rendering, not by arithmetic
+- [x] Decide per-cottage detail level. The family home has two windows, four
+      braces and two lanterns; a 9-wide cottage probably wants one window and no
+      lanterns. Fewer, larger elements read better at TILE_PX 24
+- [x] Use the village sheet for the material: `wall_face` and `door_face` are
+      already authored and are currently reachable only through the extrusion
+      path. See `drawVillageWallFace` / `drawVillageDoorPanel` in
+      `village-sprite.js`
+- [x] Keep the family home's own look unchanged. It is a tuned prologue set piece;
+      if the shared function changes it at all, hash its frame before and after
+- [x] VERIFY at TILE_PX 48 AND 24. The second is where detail turns to mush
+
+**Done when:** USER looks at a street render and says it reads as buildings.
+That judgement is theirs and cannot be made here. **Everything checkable is
+checked; the verdict is outstanding and is A3.**
+
+**What changed.** `drawForestHouseFacade(o, d)` in `render.js`, lifted out of
+`drawForestHouseRoof`'s `familyHome` branch, plus a small detail table:
+`FACADE_FAMILY` reproduces what that branch drew element for element and
+`FACADE_COTTAGE` is the same body with less on it. `roofBottom` is now
+`bottom - ts * facadeTiles` for every house rather than only the pilot.
+
+**The fraction is 1.75 tiles**, against the family home's 2.08, picked by
+rendering three whole trees at 1.40, 1.75 and 2.10 and looking at them at TILE_PX
+24. 1.40 squeezes the door until it has no headroom and pushes the windows onto
+the sill; 2.10 is top-heavy and opens a dark gap above the door. Every cottage in
+Village of the Lost is 9x7, giving a roof rect of 7.65 tiles, so 1.75 takes 23%
+of it.
+
+`facadeDepthFor` clamps the facade so the roof keeps at least
+`VILLAGE_ROOF_MIN_H`. Below that the sheet roof refuses the job and silently
+falls back to procedural planes, so a short house would stop matching its
+neighbours. Elderbrook's one 10x5 house is the case this exists for: a 5.65-tile
+roof rect, which 1.75 leaves at 3.90 and a naive 2.08 would have left at 3.57.
+
+**Cottage detail**, decided by rendering: sheet `wall_face` boards instead of the
+plaster gradient, sheet `door_face` instead of the procedural planks, two windows
+with flower boxes, the two OUTER braces only, no lanterns, no mullions. Two
+windows rather than the predicted one: the facade is 8.72 tiles wide between its
+posts, which holds two 1.36-tile windows either side of the door comfortably, and
+one would have left the front lopsided against a centred door.
+
+The door needed its own rule. Its opening ran the full height of the front, which
+is right under the family home's 2.08 but on a cottage left half a tile of empty
+jamb above the sheet panel, reading as a gap rather than a transom. `doorTiles:
+1.30` anchors it at the threshold instead. The family home passes no `doorTiles`
+and keeps the full-height opening.
+
+Two new entry points in `village-sprite.js`: `drawVillageFacadeWall` (tiles
+`wall_face` over a rect) and `drawVillageDoorPanelRect` (`door_face` at an
+explicit rect, since the existing `drawVillageDoorPanel` is a square tile blit,
+which is what an extruded wall's foot is and not what a door opening is).
+
+**The family home is byte-identical.** Proved, not asserted. There was no pre-A1
+copy of `render.js` in any scratchpad, so one was reconstructed from the original
+source and the pixels were left to judge the reconstruction: the family home's
+roof drawn ALONE, with every neighbour's suppressed by filtering the memoized
+roof list, hashes the same in both trees at TILE_PX 48 and 24. A whole-frame hash
+could not have answered this, because a frame centred on the family home also
+contains ordinary Elderbrook cottages and those do change.
+
+**A0 was a real dependency, and now there is a picture of it.** Hero standing on
+a cottage doorstep at TILE_PX 48, one row south of the south wall: with the depth
+sort off he is cut off at the shoulders by the threshold and sill, painted over
+by the house he is standing in front of; with it on he stands complete in front
+of the wall. 3,773 pixels differ, all inside an 88x51 box around him.
+
+**Measured**, A/B by stubbing `drawForestHouseFacade` (the same control Phase 3
+established), standing where the MOST facades are on screen rather than at a
+fixed spot:
+
+| zoom | facades on screen | with | without | delta |
+|---|---|---|---|---|
+| TILE_PX 48 | 4 | 1.324 ms | 1.148 ms | **+0.176 ms** |
+| TILE_PX 24 | 7 | 3.020 ms | 2.528 ms | **+0.492 ms** |
+
+About 44 us per facade at both zooms. Worst case 3.02 ms of a 16.7 ms budget.
+
+**The 15-scene sweep still says 12 identical, 3 differ** against the pre-A0
+baseline, the three being the forest villages. A1 only reaches maps `roofsApply`
+accepts, so this is what it should say, and the positive control recorded under
+A0 is what makes that mean something.
+
+**Provisional, and A2's to settle:** the cottage gable's base moved from
+`bottom` to `roofBottom`, so it sits on the roof's own south edge. Left where it
+was it would hang down over the front wall it is supposed to shelter. At TILE_PX
+24 it now reads as a large triangle high on the south slope, which is legible but
+prominent.
+
+### A2: the things a facade sits next to
+
+Each of these already draws relative to the roof rect and will move when
+`roofBottom` does.
+
+- [x] Shop signs (`forestShopSignStyle`) hang beneath the front gable. Four shops
+      per village, and they must stay readable and still point at the right door
+- [x] The generic gable (`if (!familyHome)`, now sheet-drawn via
+      `drawVillageGable`) overlaps the facade zone. It may become the porch roof,
+      or it may go
+- [x] Chimney and moss anchor to the south slope
+- [x] `mapForestHouseRoofs` detection must be untouched: it scans doors and wall
+      runs, not roof pixels, so it should be safe. Confirm rather than assume
+- [x] `forestRoofVisible` hides a roof when the player is inside. Decide whether
+      the facade hides with it (probably yes, or he is behind a wall he cannot see
+      past)
+- [x] Elderbrook is also a forest village and shares this code. Check both, in
+      the prologue AND post-Ashfall
+
+**Done when:** all six are checked and the prologue still plays through Beat 3
+without a visual regression. **All six done.**
+
+**Shop signs were genuinely broken by A1 and are fixed.** The board hung below
+the house's SOUTH EDGE, centred on the door, which was right while a cottage was
+a bare roof plane with open ground under it. A1 put a wall there and the board
+went on hanging in front of it: floating on the grass, hooks buried in the sill,
+reading as a signboard someone had propped against the lawn.
+
+It hangs from the eave now, in the blank bay next to the door.
+`drawForestHouseFacade` returns its geometry and `facadeSignSpot` picks the
+wider of the two bays (right first, since that side is out of the eave shadow)
+and works out how much the board has to shrink to fit. `drawForestShopSign`
+takes a hang line and a scale instead of assuming both; the scale is applied as
+a transform about the hanging point, so a narrow bay gets a smaller sign rather
+than a squashed one. Measured on all four shops in Village of the Lost: **4 of 4
+drawn, all at scale 0.845, all with the board inside the facade rect, clear of
+the door and clear of the window.** A house too short for a facade falls back to
+the old anchor, which is still correct for a bare roof plane.
+
+**The gable stays, as a dormer.** It used to run from the eave to the ridge,
+which was fine when it was the only thing marking a cottage's door. The facade
+marks the door now, so a 2.9 by 3.5 tile spike was dominating the roof rather
+than breaking it up. Capped at 1.75 tiles tall and still clamped so it can never
+poke through the ridge on a squat roof. It did NOT become a porch: a canopy over
+the door would have covered the top of the door it was meant to announce.
+
+**Chimney and moss needed no change, which was checked and not assumed.** The
+cottage chimney anchors to `top`, the roof's north edge, which item A never
+moves. The moss anchors to `ridgeY`, which moves up with the shortened roof and
+therefore stays on the roof, which is where it belongs. Both confirmed visible
+and correctly placed at TILE_PX 48 and 24.
+
+**`mapForestHouseRoofs` is untouched, compared rect by rect rather than by
+count.** 40 houses in different places would still be 40, so the check dumps
+every `c1,r1,c2,r2,doorC` and compares the strings: **identical in both trees**,
+on Village of the Lost (40) and on intact Elderbrook (16), with the family home
+still detected in both.
+
+**The facade hides with the roof**, because it is drawn inside
+`drawForestHouseRoof` and `forestRoofVisible` gates that. Counted:
+`drawForestHouseRoof` fires once for a house when the hero is on its doorstep
+and zero times when he is inside it, identically in both trees. That is the
+right answer, and not only by default: a hero indoors would otherwise be looking
+at the back of a wall he cannot see past.
+
+**Elderbrook, both states.** Post-Ashfall is unaffected in full: `roofsApply`
+returns false once `village_burning` or `prologue_complete` is set, so the ruin
+has no roofs and therefore no facades, in both trees. This is worth stating
+plainly because it is the state every existing save sits in: **item A changes
+nothing the USER's current save can see on its own map.** Intact Elderbrook, the
+prologue's village, gets facades on its 14 cottages while the family home stays
+byte-identical.
+
+**Beat 3 and Beat 4 hold up.** Staged over the intact village by setting
+`prologueEmperor` directly. Beat 3's frame differs from the baseline only in a
+184x143 box at the left edge, which is one neighbouring cottage's new front; the
+square, the fountain and the family home are untouched. Beat 4's landing draws
+the Emperor and his swelling ground shadow correctly over a village of fronts.
+The Emperor's draw order is unchanged: roofs came before him in the flat path
+and come before him in the merge, so nothing about the prologue's layering
+moved.
+
+**Total facade cost after A2**, same A/B and same worst viewpoint: +0.196 ms at
+TILE_PX 48 with 4 facades on screen, +0.596 ms at TILE_PX 24 with 7. Whole frame
+3.14 ms of a 16.7 ms budget.
+
+**A rig trap worth recording:** `prologueEmperor` is a top-level `let`
+(`cutscene.js:50`), so it is NOT a window property. `window.prologueEmperor = ...`
+creates a separate property the renderer never reads and the dragon silently
+does not appear. Bare assignment reaches the real binding. The same is true of
+every top-level `let`/`const` in this codebase, including `TILE_PX`, and it is
+the opposite of `function` declarations, which ARE window properties and are
+what makes the gate-swapping A/B possible.
+
+### A3: does it actually help
+
+- [x] Render the same village street before and after, side by side, for the USER
+- [x] Record the total perf delta for A0 through A2 here
+- [x] USER verdict: does it feel different now, yes or no
+- [x] If NO: stop. Do not start B or C. Go back to the plan's item D and have the
+      explicit conversation about the projection, which is a different project
+
+**VERDICT, 2026-08-16: YES.** The USER looked at the before/after set and said
+"I like it", and to carry on. Item A is closed. B and C are unblocked, and the
+plan's item D stays where it is.
+
+Still outstanding from A and carried forward into C: **the phone check at
+TILE_PX 24 has not been done for item A.** C re-runs it anyway, so it is folded
+into C3 rather than left dangling here.
+
+**The before/after set.** Four stacked pairs, before on top of after with an
+orange divider, same seed and same camera in both halves: a street at TILE_PX 48
+and 24, an approach at 24, and intact Elderbrook at 48. Villagers are cleared
+from all of them, deliberately: they are the one thing on screen whose positions
+are not reproducible across two page loads, and a before/after in which people
+have moved is not a before/after.
+
+The "before" tree is `base-a1` (pre-A1 and pre-A2 by construction) with
+`isDepthSortedMap` pointed at `isObliqueMap`, which takes A0 back out too. So it
+is the shipped game as of the start of this session, not an approximation of it.
+
+**Total cost of item A**, both levers pulled together in one page load (the
+depth-sort gate back to `isObliqueMap` and the facade stubbed), standing where
+the most houses are on screen:
+
+| zoom | houses on screen | item A on | item A off | total delta | frame vs 16.7 ms |
+|---|---|---|---|---|---|
+| TILE_PX 48 | 4 | 1.676 ms | 1.448 ms | **+0.228 ms** | 10.0% |
+| TILE_PX 24 | 7 | 3.688 ms | 3.072 ms | **+0.616 ms** | 22.1% |
+
+15 enemies and 12 villagers live in both columns. The shop board moving and the
+gable shrinking are not captured by this A/B, because both draw the same number
+of shapes wherever they sit. Desktop only: **the phone check at TILE_PX 24 is
+the USER's and is outstanding.**
+
+**How to actually see this in play, which is not obvious and is a real problem.**
+Post-Ashfall Elderbrook has `roofsApply` false, so the ruin has no roofs and no
+facades: an existing save shows item A nothing on its own map. Reaching a
+Village of the Lost legitimately means visiting 20 forest maps, and there is no
+dev warp in this project. Two options:
+
+1. Start a new game and play the prologue. Intact Elderbrook has 14 cottages
+   with fronts plus the untouched family home.
+2. Open devtools (F12) on the running game, load a save, and paste:
+
+```js
+(() => { const id = worldMaps.length;
+  const vm = makeVillageMapAt(id, 99, 99, 0, {left:true,right:true,up:true,down:true}, null);
+  worldMaps.push(vm); currentMapId = id; vm.visited = true;
+  if (typeof activateVillage === 'function') activateVillage(vm);
+  if (typeof spawnEnemiesForMap === 'function') spawnEnemiesForMap(id);
+  player.x = 56; player.y = 63; player.renderX = player.x; player.renderY = player.y;
+  clampCam(true); return currentMap().name; })()
+```
+
+Verified in a live unfrozen game: warps to Village of the Lost with 12 villagers
+and 15 enemies, the hero walks, and the loop is still running seconds later.
+Paste it only after the save has finished loading. It creates a throwaway map
+that is not registered in `worldGrid`, so walk back out through a gate rather
+than saving from inside it.
+
+---
+
+## Item C: widen the gate
+
+Unblocked by A3's YES. Full reasoning in `oblique-conversion-plan.md` under
+"What feeling 2.5D requires", item C.
+
+### C0: measure before widening (do this first)
+
+- [x] A/B the widened gate by swapping the two gate functions, no source change
+- [x] Separate the MERGE cost from the EXTRUSION DRAW cost
+- [x] Record which maps gain nothing, so the widening is not sold as universal
+
+**The plan's prediction was wrong, and usefully so.** It said to "expect the
+depth merge, not the extrusion, to be the cost", on the grounds that the merge
+walks the whole tall-tile list every frame regardless of culling. It does walk
+it, and on a forest overworld that list is **14,497 entries**, but the walk costs
+**0.045 to 0.15 ms** on every map measured. It is a cheap loop with a cull test.
+The cost is the extrusion DRAW, for the few hundred tiles that survive the cull:
++2.53 ms on a forest overworld at TILE_PX 24, +1.55 ms in a dungeon, +0.42 ms in
+a village. Anyone optimising this later should go at the rasteriser, not at the
+merge.
+
+**Maps that gain nothing, measured rather than assumed:**
+
+- **Caves.** `T.CAVE_WALL` has a height of 1.60 in `TILE_HEIGHT` but is NOT in
+  `EXTRUDED_TILES`, so a cave's tall list is 0 entries before and after. Adding
+  it is a separate decision with its own look to judge, not part of widening a
+  gate.
+- **Villages at close zoom.** Counted on Village of the Lost at TILE_PX 48: **18
+  wall faces are drawn and the frame is byte-identical.** Every one of them is
+  under a roof. That is the audit's central finding ("a top-down building hides
+  its own height under its own roof") confirmed at the level of the gate, and it
+  is why item A had to come first.
+
+### C1: the widening, and the one thing it could not include
+
+- [x] Widen `isObliqueMap` to every map
+- [x] Keep `isDepthSortedMap` as a separate question even though it now agrees
+- [x] Leave the flat branches in `render()` in place as the retreat path
+- [x] VERIFY: console clean, existing named save loads, hero walks
+- [x] VERIFY: hash every map before and after
+
+**Trees had to be pulled back out, and the render is why.** Widening the gate
+literally, so that every map extrudes everything, makes a forest overworld
+unplayable: at ~35% tree density scattered through the play area, every trunk
+south of the hero stands a 1.80-tile face band up the screen, and **the hero
+disappears entirely** behind the trees in front of him while the open ground and
+water fill with dark slabs. This is not a tuning problem. It is the wrong thing
+to draw.
+
+`mapExtrudesTrees` is the answer: `T.TREE` stands up on `homevillage` and
+`village` maps and nowhere else. Around a village the trees are a sealed mass
+(71% of the pilot map is `ensureConnectivity`'s seal) and standing them up
+builds the wall the USER approved in 6c. On an overworld the same tile is the
+terrain the hero walks through. Walls, doorways and ledges stand up everywhere;
+trees stand up only where they are architecture.
+
+With that in place, a forest overworld differs from its pre-C frame by **1,491
+pixels in a 78x26 box around the hero**, which is the depth sort putting him in
+front of a boulder, and nothing else.
+
+**What C actually buys, by map:**
+
+| map | verdict |
+|---|---|
+| dungeon, castle tower | The win. Wall runs get visible height, hero fully visible. |
+| forest overworld | Depth sorting only, trees deliberately flat. |
+| other overworlds | Depth sorting against landmarks: a hero south of an obelisk is now in front of it. |
+| villages | Almost nothing at close zoom (walls are under roofs); the tree border at wide zoom. |
+| caves | Nothing. `T.CAVE_WALL` is not in `EXTRUDED_TILES`. |
+
+**Measured, item A's gate versus item C's, same page load, interleaved:**
+
+| map | zoom | tall list | before | after | delta | frame vs 16.7 ms |
+|---|---|---|---|---|---|---|
+| dungeon | 24 | 0 -> 11,103 | 2.050 ms | 3.610 ms | **+1.560 ms** | 21.6% |
+| dungeon | 48 | 0 -> 11,103 | 0.675 ms | 1.010 ms | +0.335 ms | 6.0% |
+| forest village | 24 | 14 -> 5,500 | 4.710 ms | 5.100 ms | +0.390 ms | 30.5% |
+| necrotic overworld | 24 | 106 | 7.555 ms | 7.700 ms | +0.145 ms | 46.1% |
+| fire overworld | 24 | 22 | 2.620 ms | 2.680 ms | +0.060 ms | 16.0% |
+| forest overworld | 24 | 12 | 2.205 ms | 2.150 ms | -0.055 ms | 12.9% |
+| cave | 24 | 0 | 4.455 ms | 4.255 ms | -0.200 ms | 25.5% |
+
+Negative deltas are run-to-run noise on a 0.1 ms timer, not gains.
+
+**Worth flagging and NOT caused by this work: the necrotic overworld already
+costs 7.56 ms per frame at TILE_PX 24 before item C touches it**, 45% of the
+budget, and item C adds 0.145 ms to that. It has 106 tall tiles and no walls, so
+none of this is the extrusion. It is the single hottest map measured and it was
+already that way. Someone should look at it; it is not item C's to fix.
+
+**Hash sweep**, 15 scenes, corrected (see below): pre-item-A to item C is **13 of
+15 changed**. The two unchanged are the cave (nothing extrudable) and Village of
+the Lost at TILE_PX 48 (walls under roofs).
+
+**A harness bug this turn caught, worth recording.** The sweep positioned the
+hero next to the nearest tall tile by reading `mapTallTiles`, which bakes
+`isObliqueMap` into the list it builds. The moment C widened that gate the list
+went from 12 entries to 14,497 and "the nearest tall tile" became a different
+tile, so the hero stood somewhere else and the before/after compared two
+different scenes. It surfaced as a forest village hashing IDENTICAL across a
+change that could not possibly have left it alone. The anchor is now scanned
+directly for the kinds that are in the list under every gate. **Every A-phase
+result above is unaffected**, because those runs never changed the tall list on
+the maps being compared; this only became reachable once C moved it.
+
+### C2: still open
+
+- [ ] USER: does the game hold up on a real phone at TILE_PX 24 (carries item A's
+      outstanding phone check with it, and the dungeon is now the case to test)
+- [ ] USER: do dungeon and tower walls read right, and is a village at close zoom
+      being unchanged acceptable
+- [ ] Decide whether `T.CAVE_WALL` joins `EXTRUDED_TILES` (its own look to judge)
+
+---
+
+## Item B: place ledges
+
+The first call to `stampLedgeShelf` in the project's history. Level design, not
+engine work: the mechanic is built, gated and verified (see 5d), and its
+call-site count is still zero.
+
+### B0: the USER's four decisions, answered 2026-08-16
+
+1. **Which region.** Earth AND desert (the `fire` region: sand, cactus, mesas).
+   The USER's words: "i know they have mesas that need a ledge."
+2. **How many per map.** Half a map's worth, enough to feel the difference.
+   NOT the plan's "one hand-placed shelf" starting point; the USER asked for
+   more than that on purpose.
+3. **What is on top.** A shortcut across the map.
+4. **Can an enemy above shoot down at you.** No, leave it. That is also the
+   no-work answer: projectiles spawn at `z: 0` and only the bomb has an arc, so
+   an archer on a shelf has its own arrow stopped by its own 1.00-tall rim
+   today. Making it yes would mean projectiles inheriting the shooter's
+   `groundZ`, which 5b's comment explicitly warns against.
+
+Answers 1, 2 and 3 converge on one design rather than three: **the desert mesa
+becomes climbable, and its top is the shortcut.** `addDesertPlateau`
+(`mapgen-biomes.js:373`) already stamps a band edge to edge, so a walkable top
+IS a route across the whole map, and a band is already about half a map's worth
+of structure.
+
+**What a mesa is today, which matters because it is not what it looks like.**
+The band is solid `T.PLATEAU` and `carveClimbV`/`carveClimbH` cut 3-wide
+`T.CLIMB` corridors THROUGH it with a sand lip on each face. So a mesa is a wall
+you tunnel through, not a plateau you climb onto. Turning the top into a shelf
+is precisely the change the plan flags as a separate project: "Converting
+`CLIFF`, `PLATEAU` or `MOUNTAIN` to standable terraces changes traversability on
+every desert and earth map." The USER has now asked for it explicitly, which
+resolves the flag but does not remove the risk.
+
+**Two risks that are real and have to be settled before code:**
+
+- **`stampLedgeShelf` stamps its whole rect unconditionally.** The current
+  plateau pass deliberately skips `isProtectedFeature` tiles, water, oasis water
+  and existing climbs. A naive swap would pave over a chest, a dungeon door or a
+  shrine. Skipping them instead punches holes in the perimeter, and an unfaced
+  perimeter is the exact failure the invariant in `config.js` exists to prevent.
+- **Existing saves.** A visited map that was never modified stores no tiles and
+  is rebuilt from `mapSeed` on load (`mapNeedsStoredTiles`, `save.js:41`).
+  Changing desert generation means every unmodified desert map in an existing
+  save comes back with different terrain. Not a crash, and it self-corrects on
+  the next save, but the world changes under the player.
+
+Earth is a separate problem from desert and is NOT the same fix: the earth
+region has no `PLATEAU` bands at all. It builds with `T.MOUNTAIN` and `T.CLIFF`
+(`addEarthCaveEntrances`, `mapgen-biomes.js:16`), so it needs a shelf pass of
+its own rather than a conversion.
+
+**Measured on 12 desert maps from fixed seeds, and it moved the design:**
+
+| | |
+|---|---|
+| maps with any mesa at all | **7 of 12** |
+| bands per map | `rnd(1, 4) - 1`, so 0 to 3, and 0 is common |
+| average mesa tiles per map | **881 of 22,500**, about 4% |
+| earth maps with a mesa | **none**, the region has no `PLATEAU` |
+
+Two consequences the decisions did not anticipate:
+
+- **A mesa is not reliably there.** Converting mesas alone leaves 5 of 12 desert
+  maps with no ledge and every earth map with no ledge, which is not "half a map
+  as needed to see the difference" so much as "a coin flip".
+- **4% of tiles is not half a map**, though a band spanning edge to edge is a
+  big feature to look at. The two readings of decision 2 point different ways.
+
+**The USER's answer to both, 2026-08-16:** mesa tops become climbable AND a new
+causeway pass covers earth maps and mesa-less desert maps, so every map in both
+regions gets a shortcut. And the save impact is accepted: unmodified earth and
+desert maps in an existing save will rebuild with ledges in them.
+
+### B1: the desert mesa becomes a shelf
+
+- [x] Stamp the band `T.LEDGE` instead of `T.PLATEAU`
+- [x] Cut ramps UP onto it, not only corridors through it
+- [x] Face the perimeter, given the band is not a rectangle
+- [x] VERIFY: zero unfaced edges, every shelf reachable
+- [x] Region-appropriate colour and rock texture
+- [ ] VERIFY: connectivity seals identically, existing save loads
+- [ ] The causeway pass for earth and mesa-less desert maps
+
+**`faceLedgeEdges` is new, in `map-helpers.js` beside `stampLedgeShelf`.** The
+rect stamper could not be used here: a mesa flows around chests, shrines, water
+and the climb corridors already cut through it, so it is not a rectangle, and
+every tile it skips is a hole whose rim would be unfaced. Unfaced rims are the
+exact failure `config.js`'s invariant exists to prevent. `faceLedgeEdges`
+discovers the perimeter from the tiles instead of assuming a shape, leaves
+`T.CLIMB` alone so ramps are not walled off, and collects before it writes so a
+tile turned into a face cannot make its neighbour look like an edge in turn and
+erode the shelf inward.
+
+**`rampUpToMesa` is what makes it a shelf rather than a wall.** A mesa was solid
+`T.PLATEAU` with 3-wide `T.CLIMB` corridors cut THROUGH it. Those corridors stay,
+so every existing route across a desert map still works; what is added is a
+`T.CLIMB` one tile inside each face on the corridor's centre line, so the hero
+can turn off the corridor and walk UP. Ramps are placed before the facing pass,
+because facing would otherwise wall them off.
+
+**Verified on 12 desert maps from fixed seeds:** 7 have a mesa (unchanged, the
+band count is still `rnd(1, 4) - 1`), all `T.PLATEAU` is gone from them, and
+`findUnfacedLedgeEdges` returns **0 unfaced edges on all 12**. Every shelf has
+between 8 and 58 ramp tiles touching it, so none is stranded.
+
+### B1a: tint and texture
+
+`ledgePalette()` in `render-tiles.js` derives the whole shelf palette from
+`region.ground` rather than hand-authoring thirteen, so every region is covered
+by construction and a fourteenth would be too. The slab is darkened to 0.82 of
+its ground: a shelf exactly the colour of the floor around it reads as a painted
+patch rather than as rock. Memoized per biome id, a pure key, so the derivation
+runs once and not per tile per frame.
+
+**Safe only because neither ledge tile is cacheable.** `getTileSprite`'s contract
+is that art is a pure function of (type, size), and this makes it a function of
+the map as well. The existing comment in the `T.LEDGE` case already flagged the
+neighbour-dependent lip as the thing that breaks if either tile is ever added to
+`CACHEABLE_TILES`; the palette is now a second reason. The extruded face never
+goes through the cache at all, by design.
+
+The cap is faceted rock now instead of flat colour plus speckles: lit facet
+upper-left, shadowed recess lower-right, a hashed fracture between them, lit the
+same way the mesa art is. The vertical face takes the same palette plus
+horizontal strata, hashed off the column so the beds do not line up into one
+continuous stripe along a shelf that runs the width of the map.
+
+**Verified:** the 15-scene sweep is **15 identical, 0 differ** against the
+pre-tint build, because no map in it contains a ledge; the invariant check still
+reports 0 unfaced edges on all 12 desert maps; console clean.
+
+**Still not right, and this one is NOT a palette problem.** The mesa top now
+reads as sandstone, but the frame is dominated by stacked vertical face bands.
+The cause is geometric, not artistic: `carveClimbV`/`carveClimbH` cut a 3-wide
+corridor at every column where a path crossed the band, and map 0 alone has 138
+climb tiles. Every corridor is a hole, `faceLedgeEdges` correctly faces its
+north rim, and each of those rims draws its own full-height face band. About a
+quarter of the band ends up as face. A mesa with a dozen canyons through it is
+what was asked for geometrically and is not what a mesa should look like.
+
+### B1b: fewer crossings
+
+`thinMesaCrossings` caps a band at **2 corridors**, kept 30 tiles apart. The old
+pass cut one at every column a path crossed, which is six or seven on a real
+map, and every corridor is a hole whose rim draws its own face band. Two is
+enough now that the shelf is not a wall: a corridor is a convenience for someone
+who does not want to climb, and the climb goes anywhere there is a ramp. A band
+no path crossed still gets one in the middle and a second far from it.
+
+Measured across 8 desert maps: climb tiles fell from 48-378 to **10-93**, and the
+mesa reads as one plateau with a canyon through it rather than as a comb.
+
+### B2: the causeway
+
+`addLedgeCauseway` is the **first real call site of `stampLedgeShelf` in the
+project's history**. Deliberately the rect stamper rather than the mesa's
+discover-the-rim path: a causeway can be a clean rectangle, and a rect is faced
+correctly by construction instead of by inspection. Runs on every earth map, and
+on desert maps that rolled no mesa.
+
+Two things it took a measurement to get right, both recorded because the first
+version of each was wrong and shipped-looking:
+
+- **Thickness 5, not 3.** `stampLedgeShelf` faces the whole perimeter, so a
+  3-thick causeway is two rows of solid rim around ONE walkable row: measured,
+  143 walkable tiles against 292 of face. That is a wall with a slot in it. Five
+  gives three walkable rows between parapets: 429 against 296.
+- **Ramp positions are searched, not fixed.** Fixed offsets put a ramp wherever
+  they landed, including against a pool that `demoteWaterToMedium` turns solid
+  AFTER this pass runs, and a ramp opening onto water is not a way up. Measured
+  before the fix: **one desert map in eight had a causeway nothing could reach.**
+  A column now qualifies only if the ground just outside BOTH faces is walkable,
+  and the pass declines to build at all rather than lay a wall it cannot climb.
+
+**Verified across 17 maps (8 desert, 8 earth, 1 ice control):**
+
+- `findUnfacedLedgeEdges`: **0 unfaced edges on all 17.**
+- Shelf reachability, flooded from the map centre: **17 of 17 fully reachable**,
+  every ledge tile of every shelf.
+- The ice control has zero ledge tiles, so no region got one that should not.
+- The 15-scene sweep is unchanged against the pre-B build (the three forest
+  villages differ from pre-A0, as they have since item A; nothing else moved).
+- Console clean, existing named save loads, hero walks.
+
+**A rig lesson worth keeping.** The reachability check first flooded from the
+first passable tile in raster order, which can land in a border pocket
+`ensureConnectivity` legitimately left alone, and it reported a perfectly
+reachable shelf as unreachable on one earth map. It floods from the map centre
+now. Both the false positive and the real defect it was masking were found by
+distrusting the first green result.
+
+**Open for the USER:** whether a canyon cut through a mesa should show a wall
+face at every step down its length. It is geometrically correct for an oblique
+camera and it does stack visibly at TILE_PX 24.
+
+**A note on this measurement's own limits, so the next session does not overread
+it.** The protected-feature and water columns were computed over each map's
+plateau BOUNDING RECT, and a map with both a horizontal and a vertical band has
+a bounding rect covering nearly the whole map. Those two columns are therefore
+meaningless on multi-band maps and were not used to decide anything. The band
+counts, the map counts and the tile totals are sound.
 
 ---
 
