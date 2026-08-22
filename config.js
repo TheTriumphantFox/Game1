@@ -350,7 +350,40 @@ const T = {
   // drawRuneMark in abilities.js). Deliberately NOT solid and deliberately not
   // in CACHEABLE_TILES — how it draws depends on player state, which a cache
   // keyed on tile type alone cannot express.
-  RUNE_MARK:188
+  RUNE_MARK:188,
+
+  // ── Ledges (Phase 5d) ──
+  // A raised shelf, built from a PAIR of tiles rather than by making an existing
+  // solid tile's top walkable.
+  //
+  //   LEDGE       the walkable top surface. PASSABLE, and the one tile in the
+  //               game you stand ON TOP OF rather than walk THROUGH, so it is
+  //               the single exception in surfaceZ() (map-helpers.js).
+  //   LEDGE_FACE  the vertical face below the shelf's southern rim. SOLID.
+  //
+  // The split exists for the connectivity flood-fill, and it only works if you
+  // hold it right. LEDGE is passable, so the flood walks onto it from ANY
+  // adjacent tile, in all four directions. The step-up gate in player.js refuses
+  // that same step from any lower tile. Those two disagree unless every exposed
+  // edge of a shelf is LEDGE_FACE.
+  //
+  // THE INVARIANT: a shelf's entire perimeter must be LEDGE_FACE, except where a
+  // T.CLIMB ramp deliberately lets actors up. Face only the southern rim and the
+  // flood strolls in from the east, west or north, routes through the shelf to
+  // whatever is behind it, and ensureConnectivity leaves a pocket unsealed that
+  // no player can ever reach. That is the PLATEAU hazard this design exists to
+  // avoid, moved to the unfaced edges.
+  //
+  // Do not hand-place these. Use stampLedgeShelf() in map-helpers.js, which
+  // faces the whole perimeter by construction, and findUnfacedLedgeEdges() to
+  // audit a map that was built some other way.
+  //
+  // Both carry the same height and both extrude, so the shelf reads as one
+  // raised surface with a face wherever the ground beside it is lower.
+  //
+  // No generator emits either of these yet. Placement is level design and waits
+  // for Phase 6, so every existing map and save is untouched by their existence.
+  LEDGE:189, LEDGE_FACE:190
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -405,7 +438,101 @@ const SOLID_TILES = new Set([
   T.SHRINE_WALL, T.SHRINE_GATE, T.SHRINE_CRACKED,
   T.SHRINE_REWARD, T.SHRINE_RESET, T.SHRINE_BRAZIER, T.SHRINE_VALVE,
   T.SHRINE_MIRROR, T.SHRINE_EMITTER, T.SHRINE_RECEIVER, T.SHRINE_PRISM,
+  // The vertical face under a ledge's southern rim. This is the ONLY addition
+  // this set has taken for the oblique conversion, and it is purely additive:
+  // no existing entry moved, and no generator emits LEDGE_FACE, so the id
+  // appears in zero tile arrays. The flood-fill inverts this set, and an id
+  // that is present nowhere contributes nothing to the inversion, so every
+  // existing map and every existing save floods exactly as it did before.
+  // T.LEDGE is deliberately NOT here: the top of a shelf is walkable, and the
+  // face below it is what blocks.
+  T.LEDGE_FACE,
 ].filter(v => v !== undefined));
+
+// ─── Tile heights ─────────────────────────────────────────────────────────────
+// How tall a tile stands, in WORLD units where 1.0 is one tile edge. A height
+// reads the same at TILE_PX 48 and TILE_PX 24, so nothing here is a pixel count.
+//
+// This is a RENDERING table. It says how tall a thing looks, not what an actor
+// can stand on: see surfaceZ() in map-helpers.js for that, and read its comment
+// before using these numbers for anything to do with movement. It is deliberately
+// NOT connected to SOLID_TILES. Height and solidity are different questions, and
+// wiring them together is what would drag the connectivity flood-fill into this.
+//
+// Absent means 0 means flat, so the ~130 flat types need no entry and any NEW
+// tile defaults flat. That is the same fail-safe-by-omission rule CACHEABLE_TILES
+// relies on (render.js): forgetting a tile leaves it correct but unstyled, rather
+// than wrong.
+//
+// Low foliage (ferns, flowers, the passable prop layer) is deliberately absent
+// even though it has real-world height. It is passable, so surfaceZ() reports 0
+// for it regardless, and it sits under the depth pass's DEPTH_SORT_MIN_Z floor,
+// so an entry would change nothing today. Add them when the art wants them.
+const TILE_HEIGHT_SPEC = [
+  // Built walls. The pilot extrusion, and the reason 1.60 is the reference
+  // height: tall enough to hide a 1.0 hero standing behind one, short enough
+  // that a room's far wall does not swallow its own interior.
+  [T.WALL, 1.60], [T.CAVE_WALL, 1.60], [T.SHRINE_WALL, 1.60],
+  [T.BLIGHTED_WALL, 1.60], [T.POISON_WALL, 1.60], [T.SHADOW_WALL, 1.60],
+  [T.SHRINE_GATE, 1.60],
+  // Castle dressings are wall swaps and must match the wall they replace, or a
+  // banner reads as a hole in the wall it hangs on.
+  [T.CASTLE_WINDOW, 1.60], [T.BANNER, 1.60],
+  // A wall the fire took is a stump of one: half a metre of standing masonry
+  // rather than a wall, and less than a third of the 1.60 it used to be. Paired
+  // with the collapse rule in render-tiles.js, which drops half of them flat, so
+  // the ruin reads as broken rather than as a shorter intact village.
+  [T.BURNT_WALL, 0.50], [T.RUBBLE, 0.35],
+  // Trees.
+  [T.TREE, 1.80], [T.SNOW_PINE, 1.90], [T.DEAD_TREE, 1.50],
+  [T.MANGROVE, 1.60], [T.GREAT_TREE, 2.20],
+  // Terrain masses.
+  [T.ROCK, 0.40], [T.PLATEAU, 1.20], [T.CLIFF, 1.40],
+  [T.MOUNTAIN, 2.20], [T.GLACIER, 1.80], [T.VOLCANIC_ROCK, 1.30],
+  [T.CACTUS, 1.10], [T.FALLEN_LOG, 0.45], [T.TOMBSTONE, 0.70],
+  // Standing stone and metalwork.
+  [T.PILLAR, 2.00], [T.LIGHT_PILLAR, 2.00], [T.STATUE, 1.50],
+  [T.LUMINOUS_CRYSTAL, 1.40], [T.MANA_CRYSTAL, 1.40], [T.THRONE, 1.10],
+  // Interior fixtures. Waist height and below, so an actor behind a table is
+  // still visible over it.
+  [T.TORCH, 0.90], [T.TABLE, 0.55], [T.CHAIR, 0.65], [T.BED, 0.35],
+  [T.FOUNTAIN_SPOUT, 0.80],
+  // Region border cloud and storm banks.
+  [T.CLOUDWALL, 1.60], [T.CLOUD_EDGE, 1.20], [T.SKY_GROUND, 1.20],
+  [T.STORM_CLOUD, 1.60], [T.STORM_EDGE, 1.20],
+  // The enlarged landmarks and the colossal trees. These MUST agree with
+  // BIG_LANDMARK_SCALE (render-tiles.js), which blows the same art up about its
+  // foot into "~2.5-tile-tall giants". If that constant moves, move these too,
+  // or the depth sort orders them against art of a different size.
+  [T.COLOSSAL_TREE, 2.50],
+  [T.MOSS_BOULDER, 2.50], [T.DESERT_OBELISK, 2.50], [T.DRIFTWOOD, 2.50],
+  [T.ICE_SPIRE, 2.50], [T.STANDING_STONE, 2.50],
+  [T.CLOUD_SPIRE, 2.50], [T.STORM_SPIRE, 2.50],
+  [T.OBSIDIAN_SPIRE, 2.50], [T.SHADOW_MONOLITH, 2.50],
+  // Ledges. Both the walkable top and the face below it stand at the same
+  // height, which is what makes a shelf read as one surface rather than as a
+  // step with a lip. One full tile: high enough that the hero cannot step up it
+  // (see STEP_UP_MAX in map-helpers.js) and must find a ramp or a way around,
+  // is the entire mechanic.
+  [T.LEDGE, 1.00], [T.LEDGE_FACE, 1.00],
+  // Liquids and holes are listed EXPLICITLY at 0, even though absent would give
+  // the same answer. They are solid to movement, so the one wrong assumption
+  // available here is "solid implies tall", and a reader who checks finds these
+  // rather than an omission they might treat as an oversight. A waterfall is a
+  // sheet of falling water, not a ledge; a rift is a gap, not a step.
+  [T.WATER, 0], [T.DEEP_WATER, 0], [T.MEDIUM_WATER, 0], [T.WHIRLPOOL, 0],
+  [T.LAVA, 0], [T.OASIS_WATER, 0], [T.BOG_POOL, 0],
+  [T.FOUNTAIN_WATER, 0], [T.WATERFALL, 0], [T.SHADOW_RIFT, 0],
+].filter(e => e[0] !== undefined);
+
+// Baked into a flat array for lookup. This is read once per visible tile per
+// frame (~2600 at TILE_PX 24), so an array index beats a Map or object hash.
+// 256 entries because tile ids are stored in a Uint8Array (see the map format
+// note at the top of this file); max T today is 190 (T.LEDGE_FACE), leaving 65
+// ids. Update this number when you spend one, because it is what the tile-id
+// budget is read from.
+const TILE_HEIGHT = new Float32Array(256);
+for (const [tile, h] of TILE_HEIGHT_SPEC) TILE_HEIGHT[tile] = h;
 
 // Fallback colors used by the minimap renderer (richer art in render.js)
 const TILE_COLORS = {
@@ -592,6 +719,10 @@ const TILE_COLORS = {
   [T.CHARRED_GRASS]: '#403a34',   [T.SCORCHED_FLOOR]: '#463a30',
   [T.BURNT_WALL]: '#231f1c',      [T.RUBBLE]: '#4a423a',
   [T.EMBER]: '#b8501a',
+  // Ledges. The top reads as the grassy shelf you walk on; the face is the bare
+  // earth under it, and is also the colour drawTileExtrusion fills the vertical
+  // band with before shading it.
+  [T.LEDGE]: '#5f8a44',           [T.LEDGE_FACE]: '#6b5334',
 };
 
 // ─── Monster trophies ─────────────────────────────────────────────────────────

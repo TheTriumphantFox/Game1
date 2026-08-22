@@ -851,9 +851,15 @@ function stepVillagers(dt, map) {
 // Simple top-down humanoid: hooded robe + head + tiny boots. Each "kind" only
 // varies in robe / hair / skin colour and slight scale (children are smaller).
 function drawVillager(v, ts) {
-  const sx = (v.renderX - camC) * ts, sy = (v.renderY - camR) * ts;
+  // Tile corner Y, still needed for the fallen pose's rotation pivot, which is a
+  // point on the GROUND and so stays tile-anchored rather than box-anchored.
+  const sy = (v.renderY - camR) * ts;
   const s = ts * v.size;
-  const ox = (ts - s) / 2, oy = (ts - s) / 2;
+  // Foot-anchored, same as enemies and the hero. Identical at size 1.0; the
+  // smaller kinds (children) now stand on their own shadow instead of floating
+  // a few pixels above it. Everything below derives from px/py/cx, so the whole
+  // body follows the box.
+  const vfb = footBox(v.renderX, v.renderY, 0, s);
   const phase = (v.id || 0) * 1.3;
   // `pgFallen` is the pose only — deliberately separate from `pgDying`, which is
   // the dialogue state (see talkPrologueNpc in prologue.js). Grandmother is
@@ -864,27 +870,19 @@ function drawVillager(v, ts) {
   // lays them over. The pose costs one rotation rather than a second sprite.
   const fallen = !!v.pgFallen;
   const bob = fallen ? 0 : Math.sin(Date.now() / 220 + phase) * 1.2;
-  const px = sx + ox, py = sy + oy + bob;
-  const cx = sx + ts / 2;
+  const px = vfb.x, py = vfb.y + bob;
+  const cx = vfb.x + s / 2;
 
   ctx.save();
 
   // Shadow at feet — anchored to the un-bobbed position. A body on the ground
-  // pools a longer, softer one; drawn before the rotation so it stays flat.
-  ctx.fillStyle = fallen ? 'rgba(0, 0, 0, 0.28)' : 'rgba(0, 0, 0, 0.35)';
-  const homeLight = typeof isInsideIntactElderbrookHomePosition === 'function' &&
-                    isInsideIntactElderbrookHomePosition(v.renderX, v.renderY);
-  const homeShadowX = homeLight ? ts * 0.045 : 0;
-  const homeShadowY = homeLight ? ts * 0.018 : 0;
-  ctx.beginPath();
+  // pools a longer, softer one; drawn before the rotation so it stays flat, so
+  // the fallen variant overrides the shared SHADOW_Y with its own lower anchor.
   if (fallen) {
-    ctx.ellipse(cx + homeShadowX, sy + ts * 0.86 + homeShadowY,
-      ts * 0.44 * v.size, ts * 0.12 * v.size, 0, 0, Math.PI * 2);
+    groundShadow(v.renderX, v.renderY, 0, 0.44 * v.size, 0.12 * v.size, 0.28, 0, 0.86);
   } else {
-    ctx.ellipse(sx + ts / 2 + homeShadowX, sy + ts * 0.93 + homeShadowY,
-      ts * 0.26 * v.size, ts * 0.06 * v.size, 0, 0, Math.PI * 2);
+    groundShadow(v.renderX, v.renderY, 0, 0.26 * v.size, 0.06 * v.size, 0.35);
   }
-  ctx.fill();
 
   // Lay them down: rotate the whole sprite about the feet. The direction
   // alternates by id so a street of the fallen doesn't look stamped from one

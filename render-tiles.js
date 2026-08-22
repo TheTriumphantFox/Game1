@@ -10,13 +10,23 @@
 // tiles it's invoked once by buildTileSprite to populate the cache; the thin
 // drawTile() wrapper above blits that cache thereafter. Animated / hashed /
 // autotiled / stateful tiles reach here every frame.
-// When true, drawTileProcedural is running as the enlarged-landmark overlay pass
-// (see drawBigLandmark): the region's signature open-ground landmarks skip their
-// flat ground fill and draw only their object art (which the overlay has scaled up
-// ~2.6× about its foot), so the giant sits on the real clearing floor drawn by the
-// normal tile pass instead of over a stamped square of its own base colour. Default
-// false — the normal tile pass and the sprite cache draw landmarks ground-only.
-let landmarkOverlayPass = false;
+// When true, drawTileProcedural is running as an OVERLAY: it skips the flat
+// ground fill and draws only its object art, so the result sits on the real
+// floor the normal tile pass already drew instead of over a stamped square of
+// its own base colour. Two passes set it, and both re-issue a tile's own art at
+// a transform the flat pass cannot produce:
+//
+//   drawBigLandmark    blows the art up about its foot into a multi-tile giant
+//   drawTileExtrusion  lifts the art to the top of an extruded column
+//
+// Default false, so the normal tile pass and the sprite cache are unaffected and
+// still draw these tiles ground-only.
+//
+// Neither overlay may ever run through drawTile/getTileSprite. The cache's
+// contract is that art is a pure function of (type, size); an overlay depends on
+// a transform and, for extrusions, on which neighbours are tall, so a cached
+// sprite would be silently wrong. Both call drawTileProcedural directly.
+let tileOverlayPass = false;
 
 // Castle tower heraldry — per-region [deep cloth, bright trim] hues for the
 // BANNER and CASTLE_WINDOW tiles. Each tower floor carries its region's id in
@@ -41,7 +51,7 @@ const TOWER_ELEMENT_HUES = {
 
 function drawTileProcedural(col, row, t, sx, sy, s) {
   const x = sx, y = sy;
-  if (!landmarkOverlayPass) {                 // overlay pass paints no base square
+  if (!tileOverlayPass) {                 // overlay pass paints no base square
     ctx.fillStyle = TILE_COLORS[t] || '#111';
     ctx.fillRect(x, y, s, s);
   }
@@ -2427,7 +2437,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // A solid shaft of radiant light rising from the sanctum floor — a luminous
       // landmark. A warm-gold crystalline column with a brilliant white core,
       // breathing a soft halo, capped in light at the top.
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#f4ead0'; ctx.fillRect(x, y, s, s); break; }
+      if (!tileOverlayPass) { ctx.fillStyle = '#f4ead0'; ctx.fillRect(x, y, s, s); break; }
       const pulse = 0.5 + 0.5 * Math.sin(Date.now()/700 + col*0.4 + row*0.4);
       ctx.fillStyle = `rgba(255,246,206,${0.4 + pulse*0.25})`;
       ctx.beginPath(); ctx.arc(x + s*0.5, y + s*0.5, s*0.5, 0, Math.PI*2); ctx.fill();
@@ -2631,7 +2641,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // side (per hash), a chiselled cross, a fracture, and dead lichen at its foot.
       const h = (col * 137 + row * 71);
       const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.16;
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s); break; }   // blight base
+      if (!tileOverlayPass) { ctx.fillStyle = '#352637'; ctx.fillRect(x, y, s, s); break; }   // blight base
       ctx.fillStyle = '#221820';                                       // cast shadow
       ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.86, s*0.34, s*0.09, 0,0,Math.PI*2); ctx.fill();
       ctx.save();
@@ -3410,6 +3420,44 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
         if (downOpen) { ctx.fillStyle = SHB;  ctx.fillRect(x, y + s - bv, s, bv); }
       }
       break; }
+    case T.LEDGE:
+    case T.LEDGE_FACE: {
+      // The TOP of a shelf (5d). Both tiles draw the same cap on purpose: LEDGE
+      // is the walkable interior and LEDGE_FACE is its southern rim, and a rim
+      // with different art from the middle would read as a painted stripe
+      // instead of one raised surface. The vertical face below the rim is not
+      // drawn here at all; drawTileExtrusion paints it from
+      // TILE_COLORS[T.LEDGE_FACE] so it can shade against its neighbours.
+      ctx.fillStyle = '#5f8a44'; ctx.fillRect(x, y, s, s);
+      // Speckled turf, hashed off the tile's own coordinates so the pattern is
+      // identical on every frame and cannot shimmer. Same one-shot mulberry32
+      // mixing burntWallStands uses, for the same reason: a shelf edge is a
+      // straight run, and a low-period hash lays a visible repeat along it.
+      let lh = Math.imul(col, 0x27d4eb2d) ^ Math.imul(row, 0x165667b1);
+      for (let i = 0; i < 5; i++) {
+        lh = Math.imul(lh ^ (lh >>> 15), 1 | lh);
+        const fx = ((lh >>> 8) & 255) / 255, fy = ((lh >>> 16) & 255) / 255;
+        ctx.fillStyle = (i & 1) ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.10)';
+        ctx.fillRect(x + fx * s * 0.85, y + fy * s * 0.85,
+                     Math.max(1, s * 0.10), Math.max(1, s * 0.07));
+      }
+      // Lit lip along the north edge, same light convention as the extruded
+      // face, so a shelf and a wall agree about where the sun is. Drawn ONLY
+      // where the shelf actually ends: giving every row its own lip stripes a
+      // multi-row shelf into terraces instead of reading as one surface.
+      //
+      // This makes the art neighbour-dependent, which is safe here and would not
+      // be if these tiles were ever cached: getTileSprite's contract is that art
+      // is a pure function of (type, size). Neither ledge tile is in
+      // CACHEABLE_TILES, so both always come through this procedural path. If
+      // one is ever added there, this lip is the thing that breaks first.
+      const _lm = mapData();
+      const _north = (row > 0 && _lm) ? _lm[row - 1][col] : -1;
+      if (_north !== T.LEDGE && _north !== T.LEDGE_FACE) {
+        ctx.fillStyle = 'rgba(255,255,255,0.16)';
+        ctx.fillRect(x, y, s, Math.max(1, s * 0.07));
+      }
+      break; }
     case T.PLATEAU: {
       // Raised sandstone mesa with real relief. Craggy rock texture (faceted like
       // the cave walls) under a sunlit cap and shadow foot that rotate with the
@@ -3769,7 +3817,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // the grass, raked by weathered cracks, with cushions of moss on its crown. Solid.
       const h = (col*137 + row*71);
       const j = (a, n) => (((h >> a) & 3) / 3) * n;
-      if (!landmarkOverlayPass) {
+      if (!tileOverlayPass) {
         ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x, y, s, s);           // grass base
         ctx.fillStyle = '#3d7530'; ctx.fillRect(x+2, y+3, 4, 2); ctx.fillRect(x+s-6, y+s-5, 4, 2);
         break; }
@@ -3796,7 +3844,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       const cx = x+s*0.5;
       const top = y+s*0.06, capH = s*0.13, shTop = top+capH, bot = y+s*0.9;
       const htop = s*0.07, hbot = s*0.15;                              // half-widths at cap base / ground
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s); break; }   // sand base
+      if (!tileOverlayPass) { ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s); break; }   // sand base
       ctx.fillStyle = '#b89055';                                       // sand drift / cast shadow
       ctx.beginPath(); ctx.ellipse(cx+s*0.06, bot, s*0.28, s*0.08, 0, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#cbb27e';                                       // shaft — lit left face
@@ -3821,7 +3869,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // grooves, and exposed end grain, over a cast shadow on the sand. Static. Solid.
       const h = (col*131 + row*83);
       const j = (a, n) => (((h >> a) & 3) / 3) * n;
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s); break; }   // sand base
+      if (!tileOverlayPass) { ctx.fillStyle = '#d4b070'; ctx.fillRect(x, y, s, s); break; }   // sand base
       ctx.fillStyle = '#b8945a';                                       // cast shadow on sand
       ctx.beginPath(); ctx.ellipse(x+s*0.52, y+s*0.66, s*0.40, s*0.12, -0.12, 0, Math.PI*2); ctx.fill();
       ctx.save();
@@ -3850,7 +3898,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // shadow facet, a smaller shard at its foot, a cool cast shadow, and a glint. Solid.
       const h = (col*137 + row*71);
       const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#e4ecf2'; ctx.fillRect(x, y, s, s); break; }   // snow base
+      if (!tileOverlayPass) { ctx.fillStyle = '#e4ecf2'; ctx.fillRect(x, y, s, s); break; }   // snow base
       ctx.fillStyle = '#cdd9e6';                                       // cast shadow on snow
       ctx.beginPath(); ctx.ellipse(x+s*0.54, y+s*0.86, s*0.34, s*0.09, 0, 0, Math.PI*2); ctx.fill();
       const apexX = x+s*(0.48+j(0,0.10)), apexY = y+s*0.06;
@@ -3872,7 +3920,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // and bearing a faint carved ring, over a cast shadow on the rubble. Solid.
       const h = (col*131 + row*71);
       const lean = (((h >> 0) & 3) / 3 - 0.5) * 0.16;
-      if (!landmarkOverlayPass) {
+      if (!tileOverlayPass) {
         ctx.fillStyle = '#8a8174'; ctx.fillRect(x, y, s, s);           // scree base
         ctx.fillStyle = '#766d61'; ctx.fillRect(x+s*0.18, y+s*0.20, 3, 2); ctx.fillRect(x+s*0.66, y+s*0.74, 3, 2);   // rubble flecks
         break; }
@@ -3900,7 +3948,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // Solid.
       const h = (col*131 + row*83);
       const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#dde6f2'; ctx.fillRect(x, y, s, s); break; }   // cloud base
+      if (!tileOverlayPass) { ctx.fillStyle = '#dde6f2'; ctx.fillRect(x, y, s, s); break; }   // cloud base
       const puff = (px, py, r, shade, lit) => {
         ctx.fillStyle = shade; ctx.beginPath(); ctx.arc(x+s*px, y+s*py, s*r, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = lit;   ctx.beginPath(); ctx.arc(x+s*(px-0.05), y+s*(py-0.05), s*r*0.62, 0, Math.PI*2); ctx.fill();
@@ -3917,7 +3965,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // lightning region's open-ground landmark. Animated flicker. Solid.
       const h = (col*131 + row*83);
       const j = (a, n) => (((h >> a) & 3) / 3 - 0.5) * n;
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#313749'; ctx.fillRect(x, y, s, s); break; }   // storm floor base
+      if (!tileOverlayPass) { ctx.fillStyle = '#313749'; ctx.fillRect(x, y, s, s); break; }   // storm floor base
       const puff = (px, py, r, shade, lit) => {
         ctx.fillStyle = shade; ctx.beginPath(); ctx.arc(x+s*px, y+s*py, s*r, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = lit;   ctx.beginPath(); ctx.arc(x+s*(px-0.05), y+s*(py-0.05), s*r*0.62, 0, Math.PI*2); ctx.fill();
@@ -4065,7 +4113,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // warm molten glow bleeding from its base, and a bright edge glint. Static.
       const h=(col*137+row*71);
       const j=(a,n)=>(((h>>a)&3)/3-0.5)*n;
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s); break; }   // caldera base
+      if (!tileOverlayPass) { ctx.fillStyle = '#4a3b34'; ctx.fillRect(x, y, s, s); break; }   // caldera base
       ctx.fillStyle = 'rgba(255,90,20,0.28)';                          // molten glow at foot
       ctx.beginPath(); ctx.ellipse(x+s*0.5, y+s*0.86, s*0.34, s*0.10, 0, 0, Math.PI*2); ctx.fill();
       const apexX=x+s*(0.48+j(0,0.10)), apexY=y+s*0.06;
@@ -4183,7 +4231,7 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       // and a faint light-drinking halo, over a cast shadow. Hashed lean; static.
       const h=(col*131+row*71);
       const lean=(((h>>0)&3)/3-0.5)*0.08;
-      if (!landmarkOverlayPass) { ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s); break; }   // umbral base
+      if (!tileOverlayPass) { ctx.fillStyle = '#241d33'; ctx.fillRect(x, y, s, s); break; }   // umbral base
       ctx.fillStyle = 'rgba(90,60,150,0.18)';                          // light-drinking halo
       ctx.beginPath(); ctx.arc(x+s*0.5, y+s*0.5, s*0.44, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#150f22';                                       // cast shadow
@@ -4292,7 +4340,7 @@ function drawColossalTree(col, row, ts) {
 // blown up ~2.6× about its foot into a multi-tile giant that overhangs the clearing.
 // Like drawColossalTree this runs after the entity pass so the hero and enemies walk
 // BEHIND the overhang. It re-issues the landmark's own tile art via drawTileProcedural
-// with landmarkOverlayPass set, so the object is drawn (scaled) without its flat
+// with tileOverlayPass set, so the object is drawn (scaled) without its flat
 // ground square — the base tile itself already rendered as plain clearing floor.
 // The poison FALLEN_LOG keeps its own seamless multi-tile run and is not enlarged here.
 const BIG_LANDMARK_SCALE = 3.0;   // ~2.5-tile-tall giants, matching the colossal trees
@@ -4305,10 +4353,181 @@ function drawBigLandmark(tile, col, row, ts) {
   ctx.translate(baseX, baseY);
   ctx.scale(BIG_LANDMARK_SCALE, BIG_LANDMARK_SCALE);
   ctx.translate(-baseX, -baseY);
-  landmarkOverlayPass = true;
+  tileOverlayPass = true;
   try { drawTileProcedural(col, row, tile, x, y, s); }
-  finally { landmarkOverlayPass = false; }
+  finally { tileOverlayPass = false; }
   ctx.restore();
+}
+
+// ─── Tile extrusion ───────────────────────────────────────────────────────────
+// Stand a tall tile up. The projection is oblique, so this is not a perspective
+// box: the tile's ground square is lifted straight up the screen by its height
+// and the gap it leaves behind is filled with a side face.
+//
+//   cap    the tile's own art, re-issued at the lifted position. Reusing the art
+//          rather than inventing a "top" colour is what keeps an extruded wall
+//          recognisably the same wall the flat pass draws on every other map.
+//   face   the south side, from the lifted square's bottom edge back down to the
+//          real ground line. This is the surface that reads as height.
+//
+// Together they always cover the flat square the tile pass already painted, for
+// any height >= 0, so there is no seam and no need to suppress the flat pass.
+//
+// Runs procedurally, never through drawTile/getTileSprite: the face depends on
+// the south neighbour (see below), which breaks the cache's "pure function of
+// (type, size)" contract. See the tileOverlayPass comment at the top of the file.
+const EXTRUDE_FACE_TOP_SHADE = 0.34;   // shade where the face meets its own cap
+const EXTRUDE_FACE_BOT_SHADE = 0.62;   // and where it meets the ground
+
+// Which tile types the extrusion pass actually stands up. Having a height in
+// TILE_HEIGHT is NOT enough: a tree is 1.80 and is still drawn flat, so asking
+// the height table "is my neighbour tall?" would have a wall skip a face that
+// nothing then draws, leaving a hole. Ask extrudedHeight instead.
+// Ledges stand up here too, and BOTH halves do. The face tile alone would give
+// a shelf a raised rim with a flat interior behind it. Because they carry the
+// same height, the southTall test below suppresses the interior's own faces and
+// leaves exactly one face at the rim, which is what an oblique camera should
+// see. A LEDGE left with open ground to its south draws a face nothing blocks;
+// that is a level-design mistake rather than a code one, and it looks like the
+// mistake it is.
+const EXTRUDED_TILES = new Set([T.WALL, T.BURNT_WALL, T.LEDGE, T.LEDGE_FACE,
+  T.TREE,
+  T.DOOR, T.STORE_DOOR, T.INN_DOOR, T.SMITH_DOOR, T.HERB_DOOR, T.CASTLE_WINDOW]
+  .filter(v => v !== undefined));
+
+// Tiles that are a HOLE IN A WALL rather than a thing of their own: doorways and
+// the castle window. Phase 3 left them flat, which punched a notch through an
+// otherwise standing wall run wherever a house had a door.
+//
+// They are handled apart from every other extruded tile in two ways. Their
+// height is taken from the wall they are set into rather than from the height
+// table, because a door is exactly as tall as its wall and nothing else; and
+// their art is drawn on the FACE, at the foot of it, instead of as a cap, since
+// a doorway is a vertical feature you look at rather than a surface you look
+// down on.
+const DOORWAY_TILES = new Set([T.DOOR, T.STORE_DOOR, T.INN_DOOR, T.SMITH_DOOR,
+  T.HERB_DOOR, T.CASTLE_WINDOW].filter(v => v !== undefined));
+
+const DOORWAY_NEIGHBOURS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+// The wall tile a doorway is set into, or null if it stands alone.
+function doorwayWallTile(map, c, r) {
+  for (const [dc, dr] of DOORWAY_NEIGHBOURS) {
+    const row = map[r + dr];
+    const t = row && row[c + dc];
+    if (t === T.WALL || t === T.BURNT_WALL) return t;
+  }
+  return null;
+}
+
+// Half the burnt walls came down. Which half is a hash of the tile's own
+// coordinates, so it is decided the same way on every frame, every reload and
+// every save, with nothing stored and no new map field.
+//
+// The mixing is mulberry32's (map-helpers.js), used as a one-shot hash rather
+// than a stream. The cheap `(col * 73) ^ (row * 41)` style used by
+// VARIANT_TILE_HASH is not good enough here: a wall run is a straight line, so a
+// low-period mix lays down a visible repeating dashes pattern along it, which is
+// the one thing a ruin must not look like.
+function burntWallStands(c, r) {
+  let a = Math.imul(c, 0x27d4eb2d) ^ Math.imul(r, 0x165667b1);
+  a = Math.imul(a ^ (a >>> 15), 1 | a);
+  a = (a + Math.imul(a ^ (a >>> 7), 61 | a)) ^ a;
+  return (((a ^ (a >>> 14)) >>> 0) & 1023) < 512;
+}
+
+// The height a tile ACTUALLY stands at in this pass: its table height, or 0 if
+// it is not extruded at all, or is one of the collapsed burnt walls.
+//
+// One function so the two questions that must agree cannot drift: "should I draw
+// this tile?" and "will my south neighbour cover my face?". Answering the second
+// from TILE_HEIGHT while the first consults the collapse rule is exactly how a
+// standing wall ends up with a missing face.
+function extrudedHeight(map, c, r) {
+  if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return 0;
+  const t = map[r][c];
+  if (!EXTRUDED_TILES.has(t)) return 0;
+  if (t === T.BURNT_WALL && !burntWallStands(c, r)) return 0;
+  // A doorway stands exactly as tall as the wall around it, so it closes the
+  // notch instead of guessing a height of its own. Taken as the max over its
+  // wall neighbours, which means a doorway in a run of burnt wall that happened
+  // to collapse stays flat WITH it rather than standing alone in the rubble.
+  // No recursion: only WALL and BURNT_WALL are consulted, never another doorway.
+  if (DOORWAY_TILES.has(t)) {
+    let h = 0;
+    for (const [dc, dr] of DOORWAY_NEIGHBOURS) {
+      const row = map[r + dr];
+      const nt = row && row[c + dc];
+      if (nt === T.WALL || nt === T.BURNT_WALL) {
+        const nh = extrudedHeight(map, c + dc, r + dr);
+        if (nh > h) h = nh;
+      }
+    }
+    return h;
+  }
+  return TILE_HEIGHT[t];
+}
+
+function drawTileExtrusion(map, col, row, ts) {
+  // Read the tile from the map rather than taking it as an argument: the pass
+  // walks a memoized coordinate list, and this way the art can never disagree
+  // with what is actually on the tile.
+  const tile = map[row][col];
+  const h = extrudedHeight(map, col, row);
+  if (!(h > 0)) return;
+
+  const x = worldX(col), y = worldY(row);
+  const lift = h * ts;
+
+  // Skip the face when the tile to the SOUTH stands at least as tall, because
+  // that neighbour's own cap lands exactly on this band and covers it. For a
+  // north-south run of wall this is what makes the middle of the run read as a
+  // row of wall TOPS with a single side face at the near end, which is what an
+  // oblique camera should see. It is also why this cannot be cached.
+  const southTall = extrudedHeight(map, col, row + 1) >= h;
+
+  // A doorway wears the masonry of the wall it is set into, not its own colour,
+  // so the run reads as continuous stone with an opening in it.
+  const doorway = DOORWAY_TILES.has(tile);
+  const faceTile = doorway ? (doorwayWallTile(map, col, row) || tile) : tile;
+
+  if (!southTall) {
+    const faceTop = y + ts - lift;
+    ctx.fillStyle = TILE_COLORS[faceTile] || '#555';
+    ctx.fillRect(x, faceTop, ts, lift);
+
+    // Graded so a tall face is a surface rather than a flat band of colour.
+    const g = ctx.createLinearGradient(0, faceTop, 0, y + ts);
+    g.addColorStop(0, `rgba(0,0,0,${EXTRUDE_FACE_TOP_SHADE})`);
+    g.addColorStop(1, `rgba(0,0,0,${EXTRUDE_FACE_BOT_SHADE})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(x, faceTop, ts, lift);
+
+    // Same light convention the flat WALL art uses: dark on the left edge,
+    // light on the right, so an extruded wall and a flat one agree about where
+    // the sun is.
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.fillRect(x, faceTop, 2, lift);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(x + ts - 2, faceTop, 2, lift);
+  }
+
+  // The cap, drawn last so it trims the top of the face cleanly. A doorway caps
+  // with its WALL, because what sits above a door is the lintel and more
+  // masonry, never a door lying on its back.
+  tileOverlayPass = true;
+  try { drawTileProcedural(col, row, faceTile, x, y - lift, ts); }
+  finally { tileOverlayPass = false; }
+
+  // Then the doorway itself, at the FOOT of the face. The face band runs from
+  // faceTop down to y + ts, so the tile's own square is its bottom tile: drawing
+  // the door art at its normal position lands it exactly where a door belongs,
+  // standing on the ground with wall above it.
+  //
+  // Deliberately NOT an overlay pass: the door paints its own base square, so it
+  // reads as a solid panel set into the masonry rather than a translucent
+  // sketch with the wall showing through.
+  if (doorway) drawTileProcedural(col, row, tile, x, y, ts);
 }
 
 // ─── Whirlpool suction overlay ────────────────────────────────────────────────

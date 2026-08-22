@@ -4,6 +4,29 @@
 // `swims: true` enemies treat the MEDIUM_WATER shelf as open ground (see
 // stepEnemies in projectiles.js); everyone else stops at the shallows.
 
+// `hover` (optional) is how high above the ground this creature rides, in world
+// units where 1.0 is one tile edge. It lifts the sprite up the screen and
+// tightens its shadow, and that is ALL it does.
+//
+// It is deliberately not `flies`. Those two words sound like the same idea and
+// are not. `flies` means "ignores solid terrain" (stepEnemies, projectiles.js)
+// and is on exactly one creature, the final-boss dragon. Reusing it to get a
+// harpy off the ground would also let the harpy cross walls and drift off the
+// map edge, so altitude is its own field and the two never imply each other.
+//
+// IT MUST STAY VISUAL. Nothing about damage, targeting, melee reach, arrow
+// collision or pathing may read `hover` or `e.z`. The moment altitude gates a
+// hit, every hovering enemy becomes unhittable and the whole air region breaks.
+// If a later pass wants airborne creatures to be harder to hit, that is a
+// gameplay change with its own balance work, not a side effect of this field.
+//
+// Who gets it: creatures that spend their time in the air rather than merely
+// being able to leave the ground. Deliberately excluded, each for a reason:
+// the gargoyle perches, the mephits are ground skirmishers here, the undead
+// floaters (ghost, wraith, shadow_demon) drift but are drawn standing, and the
+// final-boss dragon is left at 0 in this pass because its fight is tuned and
+// its sprite is bespoke. Any of them becomes one number when the art wants it.
+
 // `element` (optional) tags the element this enemy's attacks deal. When the
 // player wears matching elemental armor, that damage is halved (see
 // applyElementalArmor in elements.js). It also makes the enemy vulnerable to its
@@ -19,7 +42,7 @@ const DND_ENEMIES = {
   // ── Tier 0 · Forest — fey, beasts & plants. Gentlest region. ──
   goblin:         { name: 'Goblin',              hp: 7,   spd: 600,  dmg: 1,  xp: 50,    color: '#558844', size: 0.6,  cr: '1/4' },
   wolf:           { name: 'Wolf',                hp: 11,  spd: 450,  dmg: 2,  xp: 100,   color: '#886644', size: 0.7,  cr: '1/4' },
-  pixie:          { name: 'Pixie Swarm',         hp: 9,   spd: 400,  dmg: 1,  xp: 50,    color: '#88aaff', size: 0.5,  ranged: true, cr: '1/4', element: 'luminous' },
+  pixie:          { name: 'Pixie Swarm',         hp: 9,   spd: 400,  dmg: 1,  xp: 50,    color: '#88aaff', size: 0.5,  ranged: true, cr: '1/4', element: 'luminous', hover: 0.40 },
   dryad:          { name: 'Dryad',               hp: 22,  spd: 650,  dmg: 3,  xp: 450,   color: '#44aa44', size: 0.8,  cr: 1, element: 'poison' },
   giant_spider:   { name: 'Giant Spider',        hp: 24,  spd: 500,  dmg: 3,  xp: 450,   color: '#4a3a55', size: 0.8,  ranged: true, cr: 1, element: 'poison' },
   owlbear:        { name: 'Owlbear',             hp: 28,  spd: 550,  dmg: 3,  xp: 450,   color: '#8a6622', size: 0.95, cr: 3 },
@@ -68,23 +91,23 @@ const DND_ENEMIES = {
   stone_giant:    { name: 'Stone Giant',         hp: 120, spd: 700,  dmg: 10, xp: 2900,  color: '#8a857a', size: 1.5,  cr: 7, element: 'earth' },
 
   // ── Tier 5 · Air — harpies, griffons, wyverns & rocs of the high sky. ──
-  harpy:          { name: 'Harpy',               hp: 82,  spd: 500,  dmg: 7,  xp: 1800,  color: '#a88a55', size: 0.85, ranged: true, cr: 1, element: 'air' },
-  griffon:        { name: 'Griffon',             hp: 90,  spd: 450,  dmg: 8,  xp: 1800,  color: '#b8915a', size: 1.1,  cr: 2 },
+  harpy:          { name: 'Harpy',               hp: 82,  spd: 500,  dmg: 7,  xp: 1800,  color: '#a88a55', size: 0.85, ranged: true, cr: 1, element: 'air', hover: 0.30 },
+  griffon:        { name: 'Griffon',             hp: 90,  spd: 450,  dmg: 8,  xp: 1800,  color: '#b8915a', size: 1.1,  cr: 2, hover: 0.28 },
   manticore:      { name: 'Manticore',           hp: 98,  spd: 500,  dmg: 8,  xp: 1800,  color: '#9a5a3a', size: 1.1,  ranged: true, cr: 3 },
-  air_elemental:  { name: 'Air Elemental',       hp: 115, spd: 400,  dmg: 9,  xp: 2900,  color: '#ccd8e8', size: 1.25, cr: 5, element: 'air' },
-  wyvern:         { name: 'Wyvern',              hp: 120, spd: 550,  dmg: 9,  xp: 3900,  color: '#775522', size: 1.3,  ranged: true, cr: 6, element: 'air' },
-  roc:            { name: 'Roc',                 hp: 142, spd: 600,  dmg: 11, xp: 5900,  color: '#8a6a4a', size: 1.7,  cr: 11, element: 'air' },
+  air_elemental:  { name: 'Air Elemental',       hp: 115, spd: 400,  dmg: 9,  xp: 2900,  color: '#ccd8e8', size: 1.25, cr: 5, element: 'air', hover: 0.35 },
+  wyvern:         { name: 'Wyvern',              hp: 120, spd: 550,  dmg: 9,  xp: 3900,  color: '#775522', size: 1.3,  ranged: true, cr: 6, element: 'air', hover: 0.32 },
+  roc:            { name: 'Roc',                 hp: 142, spd: 600,  dmg: 11, xp: 5900,  color: '#8a6a4a', size: 1.7,  cr: 11, element: 'air', hover: 0.40 },
 
   // ── Tier 6 · Lightning — will-o'-wisps, behir, blue dragons & storm giants. ──
-  will_o_wisp:    { name: "Will-o'-Wisp",        hp: 105, spd: 350,  dmg: 9,  xp: 2900,  color: '#ccff66', size: 0.5,  ranged: true, cr: 2, element: 'lightning' },
+  will_o_wisp:    { name: "Will-o'-Wisp",        hp: 105, spd: 350,  dmg: 9,  xp: 2900,  color: '#ccff66', size: 0.5,  ranged: true, cr: 2, element: 'lightning', hover: 0.50 },
   blue_wyrmling:  { name: 'Blue Dragon Wyrmling',hp: 118, spd: 550,  dmg: 10, xp: 2900,  color: '#3a7acc', size: 0.95, ranged: true, cr: 3, element: 'lightning' },
   behir:          { name: 'Behir',               hp: 150, spd: 600,  dmg: 12, xp: 5900,  color: '#2a6aaa', size: 1.4,  ranged: true, cr: 11, element: 'lightning' },
   young_blue_dragon:{ name: 'Young Blue Dragon', hp: 162, spd: 600,  dmg: 12, xp: 5900,  color: '#3a88dd', size: 1.4,  ranged: true, cr: 9, element: 'lightning' },
   storm_giant:    { name: 'Storm Giant',         hp: 172, spd: 700,  dmg: 13, xp: 7200,  color: '#88aadd', size: 1.65, ranged: true, cr: 13, element: 'lightning' },
 
   // ── Tier 7 · Luminous — celestials: couatls, unicorns & angels. ──
-  pegasus:        { name: 'Pegasus',             hp: 124, spd: 500,  dmg: 10, xp: 3900,  color: '#eef2ff', size: 1.1,  cr: 2, element: 'luminous' },
-  couatl:         { name: 'Couatl',              hp: 132, spd: 500,  dmg: 11, xp: 3900,  color: '#ffcc66', size: 1.0,  ranged: true, cr: 4, element: 'luminous' },
+  pegasus:        { name: 'Pegasus',             hp: 124, spd: 500,  dmg: 10, xp: 3900,  color: '#eef2ff', size: 1.1,  cr: 2, element: 'luminous', hover: 0.26 },
+  couatl:         { name: 'Couatl',              hp: 132, spd: 500,  dmg: 11, xp: 3900,  color: '#ffcc66', size: 1.0,  ranged: true, cr: 4, element: 'luminous', hover: 0.34 },
   unicorn:        { name: 'Unicorn',             hp: 142, spd: 450,  dmg: 12, xp: 3900,  color: '#fff0f6', size: 1.1,  cr: 5, element: 'luminous' },
   ki_rin:         { name: 'Ki-rin',              hp: 175, spd: 550,  dmg: 14, xp: 7200,  color: '#ffe89a', size: 1.3,  ranged: true, cr: 12, element: 'luminous' },
   deva:           { name: 'Deva',                hp: 182, spd: 550,  dmg: 14, xp: 7200,  color: '#fff2c0', size: 1.2,  ranged: true, cr: 10, element: 'luminous' },
@@ -150,6 +173,61 @@ const DND_ENEMIES = {
   // fire-breath fan instead of the stock single shot (see stepEnemyRanged).
   adult_red_dragon: { name: 'ADULT RED DRAGON',  hp:2200,  spd: 450, dmg: 40, xp:250000, color: '#aa1100', size: 2.8, ranged: true, boss: true, cr: 'Boss', element: 'fire', flies: true, breath: 'fire', finalBoss: true },
 };
+
+// ─── Airborne altitude ────────────────────────────────────────────────────────
+
+// How fast altitude closes on its target, as the fraction of the remaining gap
+// covered per 16ms frame. An exponential ease rather than a fixed climb rate, so
+// a creature settles into its hover without an arrival corner and a Roc at 0.40
+// takes no longer to look settled than a Pegasus at 0.26.
+const HOVER_EASE_PER_FRAME = 0.08;
+
+// The altitude this creature is currently heading for.
+//
+// Reads the type table when the instance has no `hover` of its own, which makes
+// this independent of construction order. Guild elites and the Man-Eater bounty
+// are injected into `enemies` AFTER spawnEnemiesForMap's defaulting pass (see
+// ensureGuildElitesOnMap), so an instance-only lookup would leave a guild-quarry
+// harpy sitting on the floor.
+//
+// A sleeping creature rests on the ground: the dormant dragon is on its hoard,
+// not holding a hover in its sleep. It eases back up when it wakes.
+function enemyHoverTarget(e) {
+  if (e.dead || e.dormant) return 0;
+  if (typeof e.hover === 'number') return e.hover;
+  const base = DND_ENEMIES[e.type];
+  return (base && base.hover) || 0;
+}
+
+// Ease one enemy's altitude toward its target. Called every frame from
+// stepEnemies, deliberately OUTSIDE that function's step-cadence gate: enemies
+// only act every e.spd ms (350 to 1000), so easing inside the gate would make a
+// climb stair-step a third of a tile at a time.
+//
+// Always writes a number, so a record from a save that predates `hover` can
+// never leave e.z undefined and turn into NaN the first time the renderer
+// multiplies it by TILE_PX.
+// `map` is the grid stepEnemies resolved this enemy's movement against, and is
+// passed in rather than fetched, so an enemy's standing height can never come
+// from a different grid than the one it is walking on.
+function stepEnemyHover(e, dt, map) {
+  // The surface it is standing on (5d), derived from the tile every frame for
+  // the same reason the hero's is: nothing has to remember to update it. Snaps
+  // rather than eases, because an enemy steps a whole tile at a time anyway and
+  // there is no drop animation on this side yet.
+  const _m = map || ((typeof mapData === 'function') ? mapData() : null);
+  e.groundZ = _m ? surfaceZ(_m, e.x, e.y) : 0;
+
+  const target = enemyHoverTarget(e);
+  const z = e.z || 0;
+  if (z === target) { e.z = target; return; }
+  const k = Math.min(1, HOVER_EASE_PER_FRAME * (dt / 16));
+  const next = z + (target - z) * k;
+  // Snap the last sliver so a hovering creature reaches a stable altitude
+  // instead of asymptotically approaching it forever, which would keep the
+  // shadow's alpha changing in the last decimal place every frame.
+  e.z = Math.abs(target - next) < 0.001 ? target : next;
+}
 
 // Difficulty curve — one pool per region, in progression order. Each region's
 // REGIONS.enemyTier indexes straight into this table (forest = 0 … shadow = 12),
@@ -441,6 +519,11 @@ function spawnEnemiesForMap(mid) {
         // pinnacle spawned after a reload gets an inert dragon (savedEnemies
         // clones and the JSON save carry these automatically).
         flies: base.flies || false,
+        // Altitude. `hover` is the height it rides at, `z` is where it is right
+        // now; a spawn starts on the ground and eases up, so a Roc drops into
+        // the map rather than blinking into existence a third of a tile up.
+        hover: base.hover || 0,
+        z: 0,
         breath: base.breath || null,
         dormant: !!def.dormant,
         finalBoss: !!def.finalBoss || !!base.finalBoss,
@@ -460,6 +543,19 @@ function spawnEnemiesForMap(mid) {
   // enemy — `corrupted` is a derived field that happens to persist.
   if (typeof syncEnemyListCorruption === 'function') {
     syncEnemyListCorruption(enemies, isMapCorrupted(rm));
+  }
+  // Same reasoning, for altitude. The savedEnemies branch above spreads its
+  // records verbatim, so a roster saved before `hover` existed carries neither
+  // field and no Object.assign anywhere covers it. Normalising both here, after
+  // both branches, is what keeps the saved shape of an enemy stable from now on.
+  // stepEnemyHover is written to tolerate their absence anyway, so this is about
+  // the shape on disk rather than about avoiding a crash.
+  for (const e of enemies) {
+    if (typeof e.hover !== 'number') {
+      const base = DND_ENEMIES[e.type];
+      e.hover = (base && base.hover) || 0;
+    }
+    if (typeof e.z !== 'number') e.z = 0;
   }
   projectiles = [];
   particles = [];

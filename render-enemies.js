@@ -49,9 +49,35 @@ function dragonSmoke(px, pyd, s, tt, phase) {
 // ─── Enemy sprites ────────────────────────────────────────────────────────────
 // Each type has hand-drawn pixel art. Generic fallback at the end.
 function drawEnemy(e, ts) {
+  // Tile corner. Still needed: the one-tile aura backdrops further down, and
+  // the HP bar / name tag centring, anchor to the TILE, not to the sprite box.
   const sx = (e.x - camC) * ts, sy = (e.y - camR) * ts;
   const s = ts * e.size;
-  const ox = (ts - s) / 2, oy = (ts - s) / 2;
+
+  // The sprite box is planted on the ground instead of being centred in its
+  // tile. At size 1.0 this is exactly the box it always was, because the old
+  // (ts - s) / 2 offsets were both 0 there. At every other size it puts the
+  // creature's feet on its own shadow: a size-0.6 goblin used to stand 21px
+  // above its shadow and the size-2.8 dragon hovered 43px above its own.
+  //
+  // boxTop is the UN-bobbed top edge. HP bars and tags read that, so they stay
+  // still while the body idles, which is what the old `oy` did.
+  // groundZ is the surface it stands on (a ledge top, 5d), e.z is hover above
+  // that. Lifted by the sum, with the shadow left down on the surface itself.
+  const fb = footBox(e.x, e.y, (e.z || 0) + (e.groundZ || 0), s);
+  const boxTop = fb.y;
+
+  // The 14 one-tile aura backdrops further down paint through `fb` too. They
+  // build a radial gradient centred on (cx, cy) and then fill a rectangle with
+  // it, so the rectangle has to be the box or the gradient is clipped
+  // off-centre: a size-1.65 storm giant put its gradient centre 15.6px above
+  // the middle of a tile-anchored rect, which roughly doubled the alpha at the
+  // rect's top edge and turned it into a visible seam.
+  //
+  // Deliberately fb and not px/py: the rect never included the idle bob while
+  // the gradient always did, so a tiny wobble between the two is existing
+  // behaviour. Using fb keeps that untouched and keeps size 1.0 byte-identical,
+  // since fb.x/fb.y/s are exactly sx/sy/ts there.
 
   // Per-enemy idle bob — phase by id so a swarm doesn't bob in unison.
   const phase = (e.id || 0) * 0.74;
@@ -63,16 +89,37 @@ function drawEnemy(e, ts) {
   // 'lastHit' set elsewhere if needed; default off).
   const hurt = e.hurtT && e.hurtT > 0 ? Math.min(1, e.hurtT / 150) : 0;
 
-  const px = sx + ox, py = sy + oy + bob;
-  const cx = sx + ts / 2, cy = sy + ts / 2 + bob;
+  const px = fb.x, py = fb.y + bob;
+  // Body centre, which the ~400 cx/cy sites in the art below draw against. It
+  // has to track the box rather than the tile, or a sprite drawn partly from
+  // px/py and partly from cx/cy would tear itself apart at any size but 1.0.
+  // Identical to the old sx + ts/2, sy + ts/2 at size 1.0.
+  const cx = fb.x + s / 2, cy = fb.y + s / 2 + bob;
 
   ctx.save();
 
   // ── Shadow under feet ────────────────────────────────────────────────
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
-  ctx.beginPath();
-  ctx.ellipse(sx + ts / 2, sy + ts * 0.93, ts * 0.30 * e.size, ts * 0.07 * e.size, 0, 0, Math.PI * 2);
-  ctx.fill();
+  // Skipped for a cutscene actor: the prologue's Red Dragon Emperor is drawn
+  // with a bespoke altitude shadow by drawPrologueEmperor (render.js), and a
+  // second one under him would be a new mark on screen.
+  //
+  // This is NOT quite a no-op, and the earlier claim here that his copy of the
+  // ellipse was hidden behind his own body was wrong. Measured against a
+  // pre-Phase-2 build at Beat 3's closest state (scale 1.5, alt 5, so a sprite
+  // 8.25 tiles tall), a sliver of it did show: 49 pixels of ~844,000, max
+  // channel delta 12, every one of them very slightly lighter. It is the bottom
+  // arc of the ellipse, which the measured band (x 565 to 691, 5 rows) matches
+  // to within a few pixels. The beat's other three scripted states are byte
+  // identical.
+  //
+  // Restoring exact parity is not the right fix and would be a bigger change
+  // than the one it undoes. The old ellipse sat at the tile row the sprite was
+  // CENTRED on; drawing it now, from the foot row, would put it about 174px
+  // lower. So the sliver goes, deliberately.
+  if (!e.cutsceneActor) {
+    groundShadow(e.x, e.y, (e.z || 0) + (e.groundZ || 0), 0.30 * e.size,
+                 0.07 * e.size, 0.38, 0, undefined, e.groundZ || 0);
+  }
 
   // ── Elemental aura (behind the sprite) ───────────────────────────────
   // Enemies whose attacks carry an element wear that element's signature FX,
@@ -522,7 +569,7 @@ function drawEnemy(e, ts) {
       aura.addColorStop(0, `rgba(100,160,200,${0.45 + flap * 0.25})`);
       aura.addColorStop(1, 'rgba(100,160,200,0)');
       ctx.fillStyle = aura;
-      ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Tattered robe — wavering bottom
       ctx.fillStyle = '#2a3a4a';
       ctx.beginPath();
@@ -941,7 +988,7 @@ function drawEnemy(e, ts) {
       const ha = ctx.createRadialGradient(cx, py + s*0.55, 0, cx, py + s*0.55, s*0.5);
       ha.addColorStop(0, `rgba(255,120,30,${0.35 + flap*0.25})`);
       ha.addColorStop(1, 'rgba(255,60,10,0)');
-      ctx.fillStyle = ha; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = ha; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Body
       ctx.fillStyle = '#1a1010'; ctx.fillRect(px + s*0.14, py + s*0.46, s*0.62, s*0.34);
       ctx.fillStyle = '#33201c'; ctx.fillRect(px + s*0.14, py + s*0.46, s*0.62, s*0.16);
@@ -996,7 +1043,7 @@ function drawEnemy(e, ts) {
       const sga = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.5);
       sga.addColorStop(0, `rgba(255,110,30,${0.3 + flap*0.2})`);
       sga.addColorStop(1, 'rgba(255,60,10,0)');
-      ctx.fillStyle = sga; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = sga; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Coiled serpent body
       ctx.strokeStyle = '#cc3a14'; ctx.lineWidth = Math.max(4, s*0.16); ctx.lineCap = 'round';
       ctx.beginPath();
@@ -1140,7 +1187,7 @@ function drawEnemy(e, ts) {
       const sha = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.5);
       sha.addColorStop(0, `rgba(90,180,90,${0.25 + flap*0.2})`);
       sha.addColorStop(1, 'rgba(90,180,90,0)');
-      ctx.fillStyle = sha; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = sha; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Ragged robe
       ctx.fillStyle = '#2f5a3a';
       ctx.beginPath(); ctx.moveTo(px + s*0.26, py + s*0.40); ctx.lineTo(px + s*0.74, py + s*0.40);
@@ -1586,7 +1633,7 @@ function drawEnemy(e, ts) {
       const wg = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.5);
       wg.addColorStop(0, `rgba(200,255,120,${0.6+flap*0.3})`);
       wg.addColorStop(1, 'rgba(180,255,80,0)');
-      ctx.fillStyle = wg; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = wg; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Electric tendrils
       ctx.strokeStyle = `rgba(230,255,160,${0.5+flap*0.5})`; ctx.lineWidth = Math.max(1.5, s*0.03);
       for (let i=0;i<4;i++){ const a = Date.now()/200 + i*Math.PI/2 + phase; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a)*s*0.34, cy + Math.sin(a)*s*0.34 + Math.sin(Date.now()/90+i)*s*0.04); ctx.stroke(); }
@@ -1680,7 +1727,7 @@ function drawEnemy(e, ts) {
       const sgaa = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.55);
       sgaa.addColorStop(0, `rgba(150,180,255,${0.2+flap*0.2})`);
       sgaa.addColorStop(1, 'rgba(150,180,255,0)');
-      ctx.fillStyle = sgaa; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = sgaa; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Legs
       ctx.fillStyle = '#6f86b8'; ctx.fillRect(px + s*0.30, py + s*0.66, s*0.16, s*0.26); ctx.fillRect(px + s*0.54, py + s*0.66, s*0.16, s*0.26);
       // Torso
@@ -1774,7 +1821,7 @@ function drawEnemy(e, ts) {
       const kga = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.5);
       kga.addColorStop(0, `rgba(255,230,140,${0.25+flap*0.2})`);
       kga.addColorStop(1, 'rgba(255,230,140,0)');
-      ctx.fillStyle = kga; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = kga; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Sinuous body
       ctx.strokeStyle = '#e8c24a'; ctx.lineWidth = Math.max(4, s*0.15); ctx.lineCap = 'round';
       ctx.beginPath();
@@ -1823,7 +1870,7 @@ function drawEnemy(e, ts) {
       const pla = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.55);
       pla.addColorStop(0, `rgba(255,250,210,${0.25+flap*0.2})`);
       pla.addColorStop(1, 'rgba(255,250,210,0)');
-      ctx.fillStyle = pla; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = pla; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Wings
       ctx.fillStyle = '#fbfcff';
       ctx.beginPath(); ctx.moveTo(cx - s*0.06, py + s*0.38); ctx.lineTo(px - s*0.02, py + s*0.10/plf); ctx.lineTo(px + s*0.12, py + s*0.24); ctx.lineTo(px + s*0.16, py + s*0.40); ctx.lineTo(px + s*0.08, py + s*0.58); ctx.closePath(); ctx.fill();
@@ -2020,7 +2067,7 @@ function drawEnemy(e, ts) {
       const mfa = ctx.createRadialGradient(cx, py + s*0.30, 0, cx, py + s*0.30, s*0.4);
       mfa.addColorStop(0, `rgba(160,90,220,${0.3+flap*0.25})`);
       mfa.addColorStop(1, 'rgba(160,90,220,0)');
-      ctx.fillStyle = mfa; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = mfa; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       // Robe
       ctx.fillStyle = '#3a2a52';
       ctx.beginPath(); ctx.moveTo(px + s*0.30, py + s*0.42); ctx.lineTo(px + s*0.70, py + s*0.42); ctx.lineTo(px + s*0.78, py + s*0.90); ctx.lineTo(px + s*0.22, py + s*0.90); ctx.closePath(); ctx.fill();
@@ -2421,7 +2468,7 @@ function drawEnemy(e, ts) {
       // trailing heat, with two burning eyes. Fiery aura pulse.
       const ga = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.5);
       ga.addColorStop(0, `rgba(255,120,30,${0.32+flap*0.22})`); ga.addColorStop(1, 'rgba(255,60,10,0)');
-      ctx.fillStyle = ga; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = ga; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       ctx.fillStyle = '#2a1206';
       ctx.beginPath(); ctx.arc(cx, py + s*0.58, s*0.26, 0, Math.PI*2); ctx.fill();       // body
       ctx.fillRect(px + s*0.24, py + s*0.72, s*0.16, s*0.20); ctx.fillRect(px + s*0.60, py + s*0.72, s*0.16, s*0.20);   // legs
@@ -2442,7 +2489,7 @@ function drawEnemy(e, ts) {
       // viper head with a glowing forked tongue. Heat shimmer.
       const ga = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.5);
       ga.addColorStop(0, `rgba(255,110,30,${0.28+flap*0.2})`); ga.addColorStop(1, 'rgba(255,60,10,0)');
-      ctx.fillStyle = ga; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = ga; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       ctx.strokeStyle = '#b8300f'; ctx.lineWidth = Math.max(3, s*0.14); ctx.lineCap='round';
       ctx.beginPath();
       ctx.moveTo(px + s*0.14, py + s*0.86);
@@ -2552,7 +2599,7 @@ function drawEnemy(e, ts) {
       // violet eyes, wrapped in a dark aura. Insubstantial.
       const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.55);
       aura.addColorStop(0, `rgba(120,80,190,${0.4+flap*0.22})`); aura.addColorStop(1, 'rgba(70,40,120,0)');
-      ctx.fillStyle = aura; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = aura; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       ctx.fillStyle = '#160f22';
       ctx.beginPath();
       ctx.moveTo(px + s*0.24, py + s*0.26); ctx.lineTo(px + s*0.76, py + s*0.26);
@@ -2572,7 +2619,7 @@ function drawEnemy(e, ts) {
       // violet eye, a maw of pale fangs, and a smoky tail. Shadowy aura.
       const aura = ctx.createRadialGradient(cx, py + s*0.55, 0, cx, py + s*0.55, s*0.5);
       aura.addColorStop(0, `rgba(110,70,180,${0.3+flap*0.2})`); aura.addColorStop(1, 'rgba(60,30,110,0)');
-      ctx.fillStyle = aura; ctx.fillRect(sx - ts*0.1, sy - ts*0.1, ts*1.2, ts*1.2);
+      ctx.fillStyle = aura; ctx.fillRect(fb.x - s*0.1, fb.y - s*0.1, s*1.2, s*1.2);
       ctx.fillStyle = '#120c1c'; ctx.fillRect(px + s*0.14, py + s*0.46, s*0.62, s*0.34);
       ctx.fillStyle = '#221636'; ctx.fillRect(px + s*0.14, py + s*0.46, s*0.62, s*0.14);
       ctx.fillStyle = '#120c1c';
@@ -2653,7 +2700,7 @@ function drawEnemy(e, ts) {
       // wisps of unlight rising off it. The waste's apex horror.
       const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, s*0.6);
       aura.addColorStop(0, `rgba(90,50,160,${0.4+flap*0.2})`); aura.addColorStop(1, 'rgba(40,20,80,0)');
-      ctx.fillStyle = aura; ctx.fillRect(sx - ts*0.15, sy - ts*0.15, ts*1.3, ts*1.3);
+      ctx.fillStyle = aura; ctx.fillRect(fb.x - s*0.15, fb.y - s*0.15, s*1.3, s*1.3);
       ctx.fillStyle = '#080510';                                                          // long torso
       ctx.beginPath(); ctx.moveTo(px + s*0.38, py + s*0.28); ctx.lineTo(px + s*0.62, py + s*0.28); ctx.lineTo(px + s*0.58, py + s*0.88); ctx.lineTo(px + s*0.42, py + s*0.88); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = '#080510'; ctx.lineWidth = Math.max(2.5, s*0.06); ctx.lineCap='round';   // long arms
@@ -2752,7 +2799,7 @@ function drawEnemy(e, ts) {
       if (dragonSheetReady()) {
         const anim = dragonPickAnim(e);
         if (anim === 'dormant') {
-          const pyd = sy + oy;                     // no idle bob — it's asleep
+          const pyd = boxTop;                      // no idle bob — it's asleep
           drawDragonSprite(px, pyd, s, 'dormant', phase);
           dragonSmoke(px, pyd, s, tt, phase);
         } else {
@@ -2774,7 +2821,7 @@ function drawEnemy(e, ts) {
 
       if (e.dormant) {
         // ── Asleep on the gold ──
-        const pyd = sy + oy;                       // no idle bob — it's asleep
+        const pyd = boxTop;                        // no idle bob — it's asleep
         const breath = Math.sin(tt / 900 + phase) * 0.5 + 0.5;   // slow swell
         const bw = 1 + breath * 0.035;
         // Coiled tail wrapping the body — drawn first, underneath.
@@ -3025,15 +3072,15 @@ function drawEnemy(e, ts) {
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#000';
     const tag = `💤 ${e.name}`;
-    ctx.strokeText(tag, sx + ts / 2, sy + oy - 6);
+    ctx.strokeText(tag, sx + ts / 2, boxTop - 6);
     ctx.fillStyle = '#ffb066';
-    ctx.fillText(tag, sx + ts / 2, sy + oy - 6);
+    ctx.fillText(tag, sx + ts / 2, boxTop - 6);
     ctx.textAlign = 'left';
     ctx.restore();
     return;
   }
   const barW = ts * e.size * 0.92;
-  const barX = sx + ox + s * 0.04, barY = sy + oy - 8;
+  const barX = fb.x + s * 0.04, barY = boxTop - 8;
   const barH = 5;
   ctx.fillStyle = '#000';
   ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);

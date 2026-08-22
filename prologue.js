@@ -1101,6 +1101,13 @@ function skipPrologue() {
     pgLayToRest(pgFind('grandmother'));
     pgLayOutTheDead();
     home.map = buildRuinedHomeVillage();
+    // This is the only place in the game that swaps a live map's whole tile
+    // array, and the renderer memoizes per-map scans of it. Without this the
+    // depth layer keeps the INTACT village's list: measured, 1204 of the ruin's
+    // 1606 burnt walls then never draw, and it only rights itself on a reload,
+    // because that rebuilds the map object. Silent, and easy to mistake for the
+    // 2.5D pass being broken rather than stale.
+    if (typeof invalidateTallTiles === 'function') invalidateTallTiles(home);
   } else {
     spawnVillagersForMap(0);      // legacy map 0 (the old starter cabin)
   }

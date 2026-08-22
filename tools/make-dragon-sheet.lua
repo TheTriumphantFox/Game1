@@ -19,9 +19,16 @@
 -- glow, rising embers and nostril smoke stay procedural in render-enemies.js so
 -- they keep their own periods and alpha.
 --
--- Regenerate:
---   aseprite --batch --script-param out=dragon-sheet.aseprite \
---            --script tools/make-dragon-sheet.lua
+-- Regenerate (run from the repo root; verified byte-identical to the
+-- committed dragon-sheet.png/.json/.aseprite on aseprite 1.3.18.2-dev):
+--   aseprite -b --script-param out=dragon-sheet.aseprite --script tools/make-dragon-sheet.lua
+--   aseprite -b dragon-sheet.aseprite --sheet dragon-sheet.png --data dragon-sheet.json ^
+--            --format json-array --sheet-type rows --sheet-columns 6 --list-tags
+--
+-- Two steps because the sprite the script builds is not left "open" for the
+-- CLI's own --sheet/--data flags to see when they are chained onto the same
+-- invocation as --script; --list-tags is required or frameTags is omitted
+-- from the JSON. --sheet-columns matches SHEET_COLS below.
 
 local W, H    = 168, 168
 local S       = 134.0        -- body box == ts * e.size (2.8 tiles at TILE_PX 48)
@@ -30,10 +37,8 @@ local N_DORM, N_AWAKE = 4, 8
 local N_FLY, N_RUN, N_BREATH, N_FIGHT = 6, 6, 6, 6
 local SHEET_COLS = 6           -- 36 frames laid out 6x6, not one huge strip
 
-local function hex(h)
-  return app.pixelColor.rgba(
-    tonumber(h:sub(2,3),16), tonumber(h:sub(4,5),16), tonumber(h:sub(6,7),16), 255)
-end
+local lib = dofile("tools/aseprite-lib.lua")
+local hex = lib.hex
 
 local TAIL_D  = hex('#7a1206')
 local BODY_D  = hex('#8a1408')
@@ -62,37 +67,18 @@ local OUTLINE = hex('#1a0603')
 
 ----------------------------------------------------------------------
 -- rasteriser (fraction space: 0..1 maps across the body box)
+--
+-- px/polyPx/ellipsePx/linePx/outlineSilhouette live in
+-- tools/aseprite-lib.lua, shared with make-hero-sheet.lua; only the
+-- fraction-of-S wrappers and the dragon-only bezier helpers below stay
+-- local, since they close over this script's own W, H, OX, OY, S.
 ----------------------------------------------------------------------
+local raster = lib.newRaster(W, H)
+local px, polyPx, ellipsePx, linePx, outlineSilhouette =
+  raster.px, raster.polyPx, raster.ellipsePx, raster.linePx, raster.outlineSilhouette
+
 local function X(f) return OX + f * S end
 local function Y(f) return OY + f * S end
-
-local function px(img, x, y, c)
-  x = math.floor(x); y = math.floor(y)
-  if x < 0 or y < 0 or x >= W or y >= H then return end
-  img:drawPixel(x, y, c)
-end
-
-local function polyPx(img, P, c)
-  local miny, maxy = 1e9, -1e9
-  for i = 1, #P do
-    if P[i][2] < miny then miny = P[i][2] end
-    if P[i][2] > maxy then maxy = P[i][2] end
-  end
-  for y = math.max(0, math.floor(miny)), math.min(H-1, math.ceil(maxy)) do
-    local yc, xs, n = y + 0.5, {}, #P
-    for i = 1, n do
-      local j = (i % n) + 1
-      local ax, ay, bx, by = P[i][1], P[i][2], P[j][1], P[j][2]
-      if (ay <= yc and by > yc) or (by <= yc and ay > yc) then
-        xs[#xs+1] = ax + (yc - ay) / (by - ay) * (bx - ax)
-      end
-    end
-    table.sort(xs)
-    for k = 1, #xs - 1, 2 do
-      for x = math.floor(xs[k]+0.5), math.floor(xs[k+1]+0.5) - 1 do px(img, x, y, c) end
-    end
-  end
-end
 
 local function polyF(img, P, c)
   local Q = {}
@@ -117,39 +103,14 @@ local function append(dst, src, skipFirst)
   return dst
 end
 
-local function ellipsePx(img, cx, cy, rx, ry, c, rot)
-  rot = rot or 0
-  local ca, sa = math.cos(-rot), math.sin(-rot)
-  local rr = math.max(rx, ry)
-  for y = math.max(0, math.floor(cy-rr)), math.min(H-1, math.ceil(cy+rr)) do
-    for x = math.max(0, math.floor(cx-rr)), math.min(W-1, math.ceil(cx+rr)) do
-      local ux, uy = x + 0.5 - cx, y + 0.5 - cy
-      local rxp, ryp = ux*ca - uy*sa, ux*sa + uy*ca
-      if (rxp/rx)^2 + (ryp/ry)^2 <= 1.0 then px(img, x, y, c) end
-    end
-  end
-end
-
 local function ellipseF(img, fcx, fcy, frx, fry, c, rot)
   ellipsePx(img, X(fcx), Y(fcy), frx*S, fry*S, c, rot)
 end
 
-local function linePx(img, x0, y0, x1, y1, wdt, c)
-  local dx, dy = x1-x0, y1-y0
-  local steps = math.max(1, math.ceil(math.max(math.abs(dx), math.abs(dy)) * 2))
-  local r = wdt / 2
-  for i = 0, steps do
-    local t = i / steps
-    local cx, cy = x0 + dx*t, y0 + dy*t
-    for y = math.floor(cy-r), math.ceil(cy+r) do
-      for x = math.floor(cx-r), math.ceil(cx+r) do
-        local ddx, ddy = x + 0.5 - cx, y + 0.5 - cy
-        if ddx*ddx + ddy*ddy <= r*r + 0.25 then px(img, x, y, c) end
-      end
-    end
-  end
-end
-
+-- lineF's width is a fraction of S -- unchanged. This is the canonical
+-- semantics both scripts now use (see make-hero-sheet.lua's LINE_W comment
+-- for why the hero sheet, which used to take raw pixels, was the one that
+-- moved).
 local function lineF(img, x0, y0, x1, y1, wf, c)
   linePx(img, X(x0), Y(y0), X(x1), Y(y1), wf*S, c)
 end
@@ -161,41 +122,29 @@ local function strokePts(img, pts, wf, c)
   end
 end
 
-local function outlineSilhouette(img, col)
-  local solid = {}
-  for y = 0, H-1 do
-    solid[y] = {}
-    for x = 0, W-1 do solid[y][x] = app.pixelColor.rgbaA(img:getPixel(x,y)) > 0 end
-  end
-  for y = 0, H-1 do
-    for x = 0, W-1 do
-      if not solid[y][x] then
-        if (x>0 and solid[y][x-1]) or (x<W-1 and solid[y][x+1]) or
-           (y>0 and solid[y-1][x]) or (y<H-1 and solid[y+1][x]) then
-          img:drawPixel(x, y, col)
-        end
-      end
-    end
-  end
-end
-
 ----------------------------------------------------------------------
 -- the crown -- gold circlet with jagged points, matching drawEmperorCrown
 ----------------------------------------------------------------------
+-- Dark-to-light ramp lit toward lib.LIGHT_DIR: the shadowed underside of the
+-- band, the gold band/points, the glint on the lit edge. lib.ramp(_, (i-1)/2)
+-- reproduces CROWN_D, CROWN, CROWN_L exactly.
+local CROWN_RAMP = { CROWN_D, CROWN, CROWN_L }
+assert(lib.LIGHT_DIR.y < 0, "CROWN_RAMP is ordered dark-to-light assuming an overhead/upper light")
+
 local function drawCrown(img, cx, cy, halfW, bandH, pointH)
   -- band
-  polyF(img, { {cx-halfW, cy}, {cx+halfW, cy}, {cx+halfW*0.92, cy+bandH}, {cx-halfW*0.92, cy+bandH} }, CROWN)
+  polyF(img, { {cx-halfW, cy}, {cx+halfW, cy}, {cx+halfW*0.92, cy+bandH}, {cx-halfW*0.92, cy+bandH} }, lib.ramp(CROWN_RAMP, 1/2))
   polyF(img, { {cx-halfW*0.92, cy+bandH*0.62}, {cx+halfW*0.92, cy+bandH*0.62},
-               {cx+halfW*0.92, cy+bandH}, {cx-halfW*0.92, cy+bandH} }, CROWN_D)
+               {cx+halfW*0.92, cy+bandH}, {cx-halfW*0.92, cy+bandH} }, lib.ramp(CROWN_RAMP, 0/2))
   -- points: tallest at centre, stepping down outward
   local pts = { {-1.0, 0.58}, {-0.55, 0.82}, {0.0, 1.0}, {0.55, 0.82}, {1.0, 0.58} }
   for _, p in ipairs(pts) do
     local bx = cx + p[1] * halfW * 0.86
     local h  = pointH * p[2]
-    polyF(img, { {bx - halfW*0.15, cy + 0.004}, {bx, cy - h}, {bx + halfW*0.15, cy + 0.004} }, CROWN)
+    polyF(img, { {bx - halfW*0.15, cy + 0.004}, {bx, cy - h}, {bx + halfW*0.15, cy + 0.004} }, lib.ramp(CROWN_RAMP, 1/2))
   end
   -- glint along the lit edge
-  lineF(img, cx - halfW*0.80, cy + bandH*0.28, cx - halfW*0.10, cy + bandH*0.28, 0.008, CROWN_L)
+  lineF(img, cx - halfW*0.80, cy + bandH*0.28, cx - halfW*0.10, cy + bandH*0.28, 0.008, lib.ramp(CROWN_RAMP, 2/2))
 end
 
 ----------------------------------------------------------------------

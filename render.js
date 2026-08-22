@@ -178,7 +178,13 @@ function drawTile(col, row, t, sx, sy, s) {
 function drawPlayer(ts) {
   // Use smoothed render coords so the sprite glides rather than tile-snaps.
   const px = player.renderX, py = player.renderY;
-  const sx = (px - camC) * ts, sy = (py - camR) * ts, s = ts;
+  const s = ts;
+  // Foot-anchored like every other actor now. The hero is size 1.0, so this is
+  // exactly the tile corner it has always been and nothing moves today. What it
+  // buys is the seam for Phase 5a, where the hop becomes real player.z state
+  // instead of an offset invented inside the renderer.
+  const pfb = footBox(px, py, 0, s);
+  const sx = pfb.x, sy = pfb.y;
   const blink = player.invincible > 0 && Math.floor(Date.now() / 80) % 2 === 0;
   if (blink) return;
 
@@ -205,8 +211,7 @@ function drawPlayer(ts) {
   // ── Climb / jump animation ──────────────────────────────────────────────────
   // Climbing: an effortful scramble (faster vertical bob + slight side sway)
   // while standing on a CLIMB ramp through a plateau. Jumping: a short hop arc
-  // when mounting or leaving a ramp lip (playerJumpStart is set on the step that
-  // crosses the climb/ground boundary — see stepPlayerMovement).
+  // when mounting or leaving a ramp lip, or crossing the waterline.
   const _pmap = (typeof mapData === 'function') ? mapData() : null;
   const onClimb = !!(_pmap && _pmap[player.y] && _pmap[player.y][player.x] === T.CLIMB);
   // Swimming through MEDIUM_WATER (Water armor): the lower body is underwater.
@@ -214,12 +219,19 @@ function drawPlayer(ts) {
   // ring is drawn at the surface so the sprite reads as submerged, not cropped.
   const swimming = !!(_pmap && _pmap[player.y] && _pmap[player.y][player.x] === T.MEDIUM_WATER);
   const WATERLINE = 0.55;
-  let jumpLift = 0;
-  if (typeof playerJumpStart !== 'undefined' && playerJumpStart >= 0) {
-    const jt = (Date.now() - playerJumpStart) / PLAYER_JUMP_MS;
-    if (jt >= 1) playerJumpStart = -1;
-    else jumpLift = Math.sin(jt * Math.PI) * s * 0.45;   // hop arc up to ~0.45 tile
-  }
+  // The hop is real state now (player.z, stepped by stepPlayerJump in player.js).
+  // This reads it and converts world units to pixels; it no longer owns the arc,
+  // and it no longer CLEARS anything, which is what stops the renderer mutating
+  // game state.
+  //
+  // Applied through `bob` rather than by passing z into footBox, deliberately.
+  // The swimming clip below is a world-space waterline: it has to stay at the
+  // surface while the hero hops out of it. Lifting the box would carry the clip
+  // up with him and he would haul out of a rising hole in the water.
+  // groundZ is the shelf he is standing on, z is the hop and any remaining drop
+  // above it. The body is lifted by the sum; the shadow below is placed on the
+  // shelf and shrinks only with z. See the field comments on `player`.
+  const jumpLift = ((player.z || 0) + (player.groundZ || 0)) * s;
   let climbLift = 0, climbSway = 0;
   if (onClimb) {
     const cph = Date.now() / 95;
@@ -251,19 +263,21 @@ function drawPlayer(ts) {
     ctx.shadowBlur = s * (0.30 + 0.40 * dangerPulse);
   }
 
-  // Shadow ellipse — stays on the ground, tightening and fading as the player
+  // Shadow ellipse. Stays on the ground, tightening and fading as the player
   // rises, and tracks the climbing sway so it sits under the body.
-  const airT = Math.max(0, Math.min(1, (jumpLift + climbLift) / (s * 0.45)));
-  const shScale = 1 - 0.45 * airT;
-  ctx.fillStyle = `rgba(0,0,0,${(0.40 * (1 - 0.4 * airT)).toFixed(3)})`;
-  const homeLight = typeof isInsideIntactElderbrookHomePosition === 'function' &&
-                    isInsideIntactElderbrookHomePosition(px, py);
-  const homeShadowX = homeLight ? s * 0.045 : 0;
-  const homeShadowY = homeLight ? s * 0.018 : 0;
-  ctx.beginPath();
-  ctx.ellipse(sx + s/2 + climbSway + homeShadowX, sy + s*0.93 + homeShadowY,
-    s*0.28*shScale, s*0.07*shScale, 0, 0, Math.PI*2);
-  ctx.fill();
+  //
+  // Altitude is now player.z and ONLY player.z. Until Phase 5a this was fed the
+  // combined hop + scramble offset, because that is what the old airT used and
+  // matching it verbatim is what kept Phase 2 pixel-identical. But a scramble is
+  // not altitude: the hero is still standing on the ramp, so shrinking his
+  // shadow every time he walks up a slope was always wrong, it was just wrong
+  // consistently. climbLift and climbSway stay what they are, a body animation.
+  // The sway is still passed, so the shadow keeps tracking sideways under him.
+  //
+  // The Elderbrook interior sun offset and the airborne shrink/fade live inside
+  // groundShadow, so enemies and villagers get them too.
+  groundShadow(px, py, (player.z || 0) + (player.groundZ || 0), 0.28, 0.07, 0.40,
+               climbSway / s, undefined, player.groundZ || 0);
   // Sway the body horizontally during a climb (shadow already placed above).
   if (climbSway) ctx.translate(climbSway, 0);
 
@@ -657,13 +671,39 @@ function finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming) {
 function drawDrop(d, ts) {
   // Blink during the final 2 seconds
   if (d.life < 2000 && Math.floor(d.life / 140) % 2 === 0) return;
-  const cx = (d.x - camC + 0.5) * ts;
-  const baseY = (d.y - camR + 0.5) * ts;
-  const bobOff = Math.sin(d.bob / 220) * ts * 0.10;
-  const cy = baseY + bobOff;
+  // A drop keeps the TILE-CENTRE anchor (see the contract note on screenPX in
+  // projectiles.js): it is a floating pickup, not a creature standing on the
+  // ground, so it is not foot-anchored.
+  const cx = worldX(d.x + 0.5);
+  const baseY = worldY(d.y + 0.5);
+  // The bob is now a real height in world units rather than a raw pixel offset,
+  // with +z up, matching every other z in the renderer. Same arc and the same
+  // pixels as the old downward bobOff; what it buys is a shadow that can react
+  // to it. Deliberately a local and not written onto `d`: the renderer should
+  // not be writing game state, and this value is a pure function of d.bob, which
+  // is stepped elsewhere. drawPlayer used to be the counter-example, clearing
+  // playerJumpStart as it drew; Phase 5a moved that arc out to stepPlayerJump so
+  // there is no longer a precedent here to follow.
+  const z = -Math.sin(d.bob / 220) * 0.10;
+  const cy = baseY - z * ts;
   const pulse = 1 + Math.sin(d.bob / 180) * 0.07;
 
   ctx.save();
+
+  // Ground shadow. New here: a bobbing drop with nothing under it reads as
+  // sliding along the floor rather than floating above it. Small and faint,
+  // because a drop is small, and it tightens as the bob lifts.
+  //
+  // It needs its own yFrac. SHADOW_Y (0.93) is built for an ACTOR, whose box
+  // bottom is the foot plane at 1.00, and it sits one shadow-radius above that
+  // so the ellipse's lower edge just touches the feet. A drop is anchored at
+  // its tile CENTRE instead, so the default would leave the shadow 0.43 tiles
+  // (20.6px at TILE_PX 48) below the item, detached from it with bare floor in
+  // between. The same construction applied to a drop: the art reaches about
+  // 0.24 tile below the centre (the heart's V is the deepest, at 0.238 before
+  // its pulse), so 0.74 is this item's own "foot plane" and 0.69 puts the
+  // ellipse's lower edge on it.
+  groundShadow(d.x, d.y, z, 0.15, 0.05, 0.28, 0, 0.69);
 
   // Soft glow tinted to the drop type
   const trophy = (typeof TROPHY_META !== 'undefined') ? TROPHY_META[d.type] : null;
@@ -1205,11 +1245,20 @@ function drawProjectile(p) {
     }
   } else if (p.type === 'bomb') {
     const br = TILE_PX * 0.22;
-    ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(sx,sy,br,0,Math.PI*2); ctx.fill();
+    // A thrown bomb rides its arc (5c). The shadow stays on the ground and
+    // tightens as it rises, which is the thing that actually sells the throw:
+    // without it the bomb just slides up the screen. tx/ty are tile CENTRES, so
+    // step back half a tile to get the tile coordinate groundShadow wants, and
+    // put the ellipse at the bomb's own underside (0.5 + 0.22) rather than at an
+    // actor's foot plane.
+    const bz = p.z || 0;
+    groundShadow(p.tx - 0.5, p.ty - 0.5, bz, 0.18, 0.06, 0.35, 0, 0.72);
+    const by = sy - bz * TILE_PX;
+    ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(sx,by,br,0,Math.PI*2); ctx.fill();
     // Fuse spark blinks
     if (Math.floor(Date.now()/100 + p.life) % 2 === 0) {
       ctx.fillStyle = '#ff4400';
-      ctx.beginPath(); ctx.arc(sx, sy - br, br*0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx, by - br, br*0.5, 0, Math.PI*2); ctx.fill();
     }
   } else {
     // Enemy projectile (magic ball). Elemental attacks carry their element's
@@ -1657,13 +1706,24 @@ function drawPrologueEmperor(ts) {
   ctx.fill();
   ctx.restore();
 
-  // The dragon himself, lifted up the screen by his altitude.
+  // The dragon himself, lifted up the screen by his altitude. That lift is now
+  // a real z on the actor rather than a translate wrapped around the call, so
+  // he goes through exactly the same path as every other sprite.
+  //
+  // The y offset is not a fudge, it is the beat's authored composition. This
+  // cutscene was hand-placed against drawEnemy's OLD tile-centred box, which
+  // for a 5.5-tile sprite sank his feet (size - 1) / 2 tiles below his tile
+  // row. Foot anchoring would otherwise jump him 2.25 tiles up the screen mid
+  // beat, and Beat 3 is the most visible sprite in the game. Passing the foot
+  // plane the art was composed for reproduces it exactly. Genuinely replanting
+  // him on the ground is an art decision for Phase 6, not a refactor.
+  const emperorSize = 5.5 * scale;
+  const emperorFootY = E.y + (emperorSize - 1) / 2;
   ctx.save();
-  ctx.translate(0, -alt * ts);
   drawEnemy({
     type: 'adult_red_dragon',
-    x: E.x, y: E.y,
-    size: 5.5 * scale,
+    x: E.x, y: emperorFootY, z: alt,
+    size: emperorSize,
     hp: 1, maxHp: 1,
     name: 'The Red Dragon Emperor',
     element: 'fire',     // gives him the fire aura every fire-element enemy wears
@@ -1973,6 +2033,197 @@ const BIG_LANDMARK_TILES = new Set([
 
 // Like mapFeatureTiles but collects every enlarged-landmark tile in one scan, sorted
 // top-to-bottom so lower (nearer) giants paint over higher ones. Cached per map.
+// ─── The depth layer ──────────────────────────────────────────────────────────
+// Everything that can occlude or be occluded, drawn in one back-to-front order
+// instead of the fixed pass order the flat renderer uses.
+//
+// Kinds are small ints, ordered so that a plain numeric compare breaks ties the
+// way the flat renderer already did. For objects on the SAME row the order below
+// reproduces render()'s old sequence exactly, so the only behavioural change is
+// across rows, which is the whole point.
+//
+// Tall tiles sort FIRST within a row: a wall and an actor standing beside it are
+// on the same row, and the actor should be in front of it.
+const DEPTH_TALL     = 0;
+const DEPTH_DROP     = 1;
+const DEPTH_PROJ     = 2;
+const DEPTH_ENEMY    = 3;
+const DEPTH_VILLAGER = 4;
+const DEPTH_PLAYER   = 5;
+// A forest-village roof sorts AFTER every actor on its own row, because its job
+// is to hide the people inside the house. Its key is the house's south row, so
+// an actor inside (rows r1..r2) is covered while one standing south of the door
+// (r2 + 1) is not. That replaces redrawPlayerInFront, which drew the whole hero
+// a second time to get the same effect for the one pilot cottage.
+const DEPTH_ROOF     = 6;
+
+// Sub-kinds for a tall tile, so the merge can dispatch without a string compare.
+const TALL_EXTRUDE  = 0;
+const TALL_COLOSSAL = 1;
+const TALL_LANDMARK = 2;
+
+// Per-map, memoized, row-sorted list of every tall tile, as flat triples
+// (col, row, subKind). Flat because a forest is ~35% TREE and this list can run
+// to a thousand entries: an array of objects would be a thousand allocations to
+// walk past every frame. Row-major scan order means it comes out sorted by row
+// for free, which is what lets the merge below be a merge and not a sort.
+//
+// Membership is by EXPLICIT SET, not by height. The plan called for a
+// DEPTH_SORT_MIN_Z = 0.6 floor to keep short props out; that floor is not used,
+// because nothing here is selected by height in the first place. Applying it
+// would in fact be wrong now: burnt walls stand at 0.50 and must be in this
+// list. When tall tiles are one day chosen by consulting TILE_HEIGHT, that is
+// the moment to add the floor.
+function mapTallTiles(mapObj) {
+  let list = mapObj._tallTiles;
+  if (list) return list;
+  list = [];
+  const g = mapObj.map;
+  for (let r = 0; r < MROWS; r++) {
+    const row = g[r];
+    for (let c = 0; c < MCOLS; c++) {
+      const t = row[c];
+      if (t === T.COLOSSAL_TREE)          list.push(c, r, TALL_COLOSSAL);
+      else if (BIG_LANDMARK_TILES.has(t)) list.push(c, r, TALL_LANDMARK);
+      else if (EXTRUDED_TILES.has(t))     list.push(c, r, TALL_EXTRUDE);
+    }
+  }
+  mapObj._tallTiles = list;
+  return list;
+}
+
+// Just the ledge tiles, for the flat renderer. The pilot map gets these through
+// mapTallTiles and the depth merge; every other map needs them too, because a
+// ledge's height is gameplay rather than decoration, and it is the one extruded
+// type that must not be left flat off-pilot (see the pass in render()).
+//
+// A separate memoized list rather than a filter over mapTallTiles, so the common
+// case (a forest with ~1000 tall tiles and no ledges) is an empty array and not
+// a thousand comparisons every frame.
+function mapLedgeTiles(mapObj) {
+  let list = mapObj._ledgeTiles;
+  if (list) return list;
+  list = [];
+  const g = mapObj.map;
+  for (let r = 0; r < MROWS; r++) {
+    const row = g[r];
+    for (let c = 0; c < MCOLS; c++) {
+      if (row[c] === T.LEDGE || row[c] === T.LEDGE_FACE) list.push(c, r);
+    }
+  }
+  mapObj._ledgeTiles = list;
+  return list;
+}
+
+// Anything that edits a tile has to drop the memoized scans, or the depth layer
+// keeps drawing a wall that was blown up and skips one that appeared.
+//
+// Nothing in the game currently edits a tile that is IN these lists (the bomb
+// takes ROCK and SNOW_DRIFT, the shrines swap gates for floor), so this is
+// insurance rather than a fix. It is wired anyway, because the failure mode is
+// silent and the next tall tile type added could easily be a destructible one.
+function invalidateTallTiles(mapObj) {
+  if (!mapObj) return;
+  mapObj._tallTiles = null;
+  mapObj._ledgeTiles = null;
+  mapObj._colossalTrees = null;
+  mapObj._bigLandmarks = null;
+}
+
+// Draw one tall tile, with the cull margins its art needs. Each kind overhangs
+// its own tile differently, so the margins are per-kind and are the same ones
+// the three separate passes used before they were folded in here.
+function drawTallTile(map, c, r, sub, ts, startC, startR, endC, endR) {
+  switch (sub) {
+    case TALL_EXTRUDE:
+      // A wall lifted 1.6 tiles up the screen is drawn from an anchor that can
+      // sit off the bottom edge while its cap is still plainly in view.
+      if (c >= startC - 1 && c <= endC + 1 && r >= startR - 1 && r <= endR + 3)
+        drawTileExtrusion(map, c, r, ts);
+      break;
+    case TALL_COLOSSAL:
+      if (c >= startC - 3 && c <= endC + 3 && r >= startR - 1 && r <= endR + 4)
+        drawColossalTree(c, r, ts);
+      break;
+    case TALL_LANDMARK:
+      if (c >= startC - 3 && c <= endC + 3 && r >= startR - 2 && r <= endR + 4)
+        drawBigLandmark(map[r][c], c, r, ts);
+      break;
+  }
+}
+
+// The depth layer: one back-to-front walk over the tall tiles and the actors.
+//
+// A MERGE, not a sort. The tall-tile list is already row-sorted at build time
+// and can be a thousand entries; the actors are at most a few dozen. So the
+// actors get the comparison sort and are then walked alongside the tall list in
+// O(n + m), with no sort of the big list at all.
+//
+// The key is the FOOT ROW and only the foot row. Not foot row plus z: in an
+// oblique projection the camera sits at a fixed angle, so screen depth is world
+// Y. A bird five tiles up over row 10 must still be hidden by a wall on row 12,
+// and lifting its key by its altitude would pop it in front of that wall.
+function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
+  const actors = [];
+  // Pushed in the flat renderer's own pass order, so a stable sort leaves
+  // same-row, same-kind objects (enemies by spawn order, villagers by spawn
+  // order) exactly where they were.
+  for (const d of drops) actors.push({ y: d.y, k: DEPTH_DROP, o: d });
+  // A projectile is anchored differently from everything else in this list: it
+  // carries tx/ty, not x/y, and its ty is a tile CENTRE (spawned at y + 0.5),
+  // whereas every actor here keys on its tile ROW. So subtract the half tile.
+  //
+  // Keying on the non-existent p.y instead put `undefined` into the sort. That
+  // is not merely wrong for the projectile: (a.y - b.y) is then NaN, NaN is
+  // falsy, so the comparator silently fell through to the kind compare and
+  // stopped being a consistent total order, which can misorder unrelated actors
+  // anywhere in the frame.
+  for (const p of projectiles) actors.push({ y: p.ty - 0.5, k: DEPTH_PROJ, o: p });
+  for (const e of enemies) { if (!e.dead) actors.push({ y: e.y, k: DEPTH_ENEMY, o: e }); }
+  if (typeof villagers !== 'undefined') {
+    for (const v of villagers) actors.push({ y: v.renderY, k: DEPTH_VILLAGER, o: v });
+  }
+  actors.push({ y: player.renderY, k: DEPTH_PLAYER, o: player });
+  // Roofs join the same stream rather than getting a third one: a village has a
+  // handful of houses, and this is what lets a hero standing at the door be in
+  // front of the roof he is standing under the eaves of.
+  if (typeof mapForestHouseRoofs === 'function' && roofsApply(mapObj)) {
+    for (const h of mapForestHouseRoofs(mapObj)) {
+      if (forestRoofVisible(h, ts, startC, startR, endC, endR))
+        actors.push({ y: h.r2, k: DEPTH_ROOF, o: h });
+    }
+  }
+
+  // Array.prototype.sort is stable in every engine this runs on, so equal
+  // (y, kind) pairs keep insertion order and spawn order survives.
+  actors.sort((a, b) => (a.y - b.y) || (a.k - b.k));
+
+  const tall = mapTallTiles(mapObj);
+  let ti = 0;
+
+  for (const act of actors) {
+    // `<=` so a tall tile on the same row as an actor is drawn first, which is
+    // the DEPTH_TALL = 0 tie-break expressed as a comparison.
+    while (ti < tall.length && tall[ti + 1] <= act.y) {
+      drawTallTile(map, tall[ti], tall[ti + 1], tall[ti + 2], ts, startC, startR, endC, endR);
+      ti += 3;
+    }
+    switch (act.k) {
+      case DEPTH_DROP:     drawDrop(act.o, ts); break;
+      case DEPTH_PROJ:     drawProjectile(act.o); break;
+      case DEPTH_ENEMY:    drawEnemy(act.o, ts); break;
+      case DEPTH_VILLAGER: drawVillager(act.o, ts); break;
+      case DEPTH_PLAYER:   drawPlayer(ts); break;
+      case DEPTH_ROOF:     drawForestHouseRoof(act.o, mapObj, ts); break;
+    }
+  }
+  // Everything still standing south of the last actor.
+  while (ti < tall.length) {
+    drawTallTile(map, tall[ti], tall[ti + 1], tall[ti + 2], ts, startC, startR, endC, endR);
+    ti += 3;
+  }
+}
+
 function mapBigLandmarkTiles(mapObj) {
   let list = mapObj._bigLandmarks;
   if (list) return list;
@@ -2116,6 +2367,22 @@ function drawForestShopSign(doorTile, centreX, bottom, ts) {
 // shell with timber, plaster, depth shadows and local light inspired by the
 // forest-village concept art. The ruin deliberately keeps its established
 // scorched rendering so Ashfall still destroys the warm home shown in Beat 1.
+// Does this map render in 2.5D? Elderbrook is the art pilot and the only map
+// that does, so every other map keeps today's flat renderer exactly.
+//
+// The plan called for a stored `mapObj._oblique` flag. This is derived from the
+// map's type instead, for two reasons. Map objects are long-lived and carry
+// memoized render caches (_tallTiles, _colossalTrees, _bigLandmarks), so adding
+// a stored field raises a "does this reach the save?" question that a pure
+// function does not raise at all. And derived means every Elderbrook already in
+// an existing save is covered without a migration, including the ruined one.
+//
+// Deliberately NOT isIntactElderbrookHome: the ruin is the same village with the
+// same walls, and its walls should stand up too.
+function isObliqueMap(mapObj) {
+  return !!mapObj && mapObj.type === 'homevillage';
+}
+
 function isIntactElderbrookHome(mapObj) {
   if (!mapObj || mapObj.type !== 'homevillage' || typeof HOME === 'undefined') return false;
   return !(typeof hasFlag === 'function' &&
@@ -2506,20 +2773,48 @@ function drawElderbrookFamilyHomeDepth(mapObj, ts) {
   ctx.restore();
 }
 
-function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
+// Does this map have forest-village roofs at all? Split out so the depth layer
+// can ask it without duplicating the rule.
+function roofsApply(mapObj) {
   if (!mapObj || mapObj.biome !== 'forest' ||
-      (mapObj.type !== 'village' && mapObj.type !== 'homevillage')) return;
+      (mapObj.type !== 'village' && mapObj.type !== 'homevillage')) return false;
   // Once the Ashfall begins, Elderbrook's intact roofs are gone; the charred
-  // wall and rubble tiles beneath become the visible ruined architecture.
+  // wall and rubble tiles beneath become the visible ruined architecture. This
+  // is why the roof layer is dead on the pilot map in every post-prologue save:
+  // it only ever draws during the prologue.
   if (mapObj.type === 'homevillage' && typeof hasFlag === 'function' &&
-      (hasFlag('village_burning') || hasFlag('prologue_complete'))) return;
+      (hasFlag('village_burning') || hasFlag('prologue_complete'))) return false;
+  return true;
+}
 
-  let redrawPlayerInFront = false;
+function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
+  if (!roofsApply(mapObj)) return;
+  // On the pilot the roofs are depth-sorted with everything else instead (see
+  // drawDepthLayer), so this pass must not draw them a second time.
+  if (isObliqueMap(mapObj)) return;
+
   for (const h of mapForestHouseRoofs(mapObj)) {
-    if (h.c2 < startC - 1 || h.c1 > endC + 1 || h.r2 < startR - 1 || h.r1 > endR + 1) continue;
-    // Crossing the doorway counts as entering: the whole roof vanishes at once
-    // and exposes walls, floor, furniture, villagers, and the hero underneath.
-    if (player.x >= h.c1 && player.x <= h.c2 && player.y >= h.r1 && player.y <= h.r2) continue;
+    if (!forestRoofVisible(h, ts, startC, startR, endC, endR)) continue;
+    drawForestHouseRoof(h, mapObj, ts);
+  }
+}
+
+// Is this house's roof drawn at all this frame? Off-screen, or the player is
+// inside it. Split out so the depth layer can ask the same question before
+// entering a roof into the merge.
+function forestRoofVisible(h, ts, startC, startR, endC, endR) {
+  if (h.c2 < startC - 1 || h.c1 > endC + 1 || h.r2 < startR - 1 || h.r1 > endR + 1) return false;
+  // Crossing the doorway counts as entering: the whole roof vanishes at once
+  // and exposes walls, floor, furniture, villagers, and the hero underneath.
+  if (player.x >= h.c1 && player.x <= h.c2 && player.y >= h.r1 && player.y <= h.r2) return false;
+  return true;
+}
+
+// One house's roof. Was the body of the loop above; it is a function now so the
+// pilot map can draw each roof at its own depth instead of stacking them all on
+// top of every actor at the end of the frame.
+function drawForestHouseRoof(h, mapObj, ts) {
+  {
 
     const left = (h.c1 - camC - 0.28) * ts;
     const top = (h.r1 - camR - 0.45) * ts;
@@ -2970,16 +3265,8 @@ function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
     // Read the live door tile instead of caching it with the footprint. Forest
     // villages assign their four shop types after the base map is generated.
     drawForestShopSign(mapObj.map[h.r2][h.doorC], centreX, bottom, ts);
-    if (familyHome && player.y > h.r2 && player.y <= h.r2 + 2 &&
-        player.x >= h.c1 - 1 && player.x <= h.c2 + 1) {
-      redrawPlayerInFront = true;
-    }
     ctx.restore();
   }
-  // Roofs are a foreground layer so they can hide interior actors. The family
-  // facade is different: an approaching hero stands in front of it, so redraw
-  // only that narrowly-scoped overlap after the architecture is complete.
-  if (redrawPlayerInFront) drawPlayer(ts);
 }
 
 function render() {
@@ -3043,16 +3330,29 @@ function render() {
   // over the flat tile pass but under actors and the removable roof layer.
   drawElderbrookFamilyHomeDepth(mapObj, ts);
 
-  drops.forEach(d => drawDrop(d, ts));
-  projectiles.forEach(p => drawProjectile(p));
-  for (const e of enemies) {
-    if (e.dead) continue;
-    drawEnemy(e, ts);
+  // Entities. On the 2.5D pilot they are merged with the tall tiles into one
+  // back-to-front order (see drawDepthLayer, which also draws the extrusions,
+  // colossal trees and big landmarks that the passes below still handle for
+  // every other map). Everywhere else this is the fixed order it has always
+  // been, which is what makes "nothing else changes" structural.
+  //
+  // Worth being explicit, because it is a shipped feel that this ends: the
+  // player is no longer unconditionally on top. He stays on top within his own
+  // row, but a wall one row south of him now covers him.
+  if (isObliqueMap(mapObj)) {
+    drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR);
+  } else {
+    drops.forEach(d => drawDrop(d, ts));
+    projectiles.forEach(p => drawProjectile(p));
+    for (const e of enemies) {
+      if (e.dead) continue;
+      drawEnemy(e, ts);
+    }
+    if (typeof villagers !== 'undefined') {
+      villagers.forEach(v => drawVillager(v, ts));
+    }
+    drawPlayer(ts);
   }
-  if (typeof villagers !== 'undefined') {
-    villagers.forEach(v => drawVillager(v, ts));
-  }
-  drawPlayer(ts);
 
   // Intact forest roofs are a foreground layer: they hide indoor activity from
   // outside, then disappear for the one cottage the player has entered.
@@ -3081,11 +3381,34 @@ function render() {
   // of them, and before the canopy pass so a tree can still occlude him.
   drawPrologueEmperor(ts);
 
+  // Extruded walls — the 2.5D pilot. Joins the existing family of "tall things
+  // drawn after the entity pass" below, which is where a thing an actor can
+  // stand behind has always gone. Ordering these tall passes against each other,
+  // and against the actors, is the depth merge in Phase 4; this one only has to
+  // stand up.
+  //
+  // Per-map, so every other map in the game renders exactly as before. The list
+  // is the same memoized per-map scan the colossal trees use.
+  //
+  // Culled one tile wide and, crucially, well below the viewport: a wall lifted
+  // 1.6 tiles up the screen is drawn from an anchor that can sit off the bottom
+  // edge while its cap is still plainly in view.
+  // Both wall types, because Elderbrook is two villages. The intact one the
+  // prologue plays in is built from 443 T.WALL; every post-prologue save sits in
+  // the ruin, which has none of those and 1606 T.BURNT_WALL instead. Extruding
+  // only T.WALL stood up a village the player sees once.
+  //
   // Colossal-tree canopies — drawn AFTER the entities (drops, enemies, villagers,
   // player) so the player and enemies pass BEHIND the overhanging canopy, and after
   // the tile grid so neighbours can't overdraw the giant. The scan range is widened
   // a few tiles below / either side of the viewport so a giant whose anchor sits just
   // off-screen still pokes its canopy into view.
+  //
+  // This pass, and the landmark pass below it, are the FLAT renderer's version of
+  // depth: tall things drawn after every actor, unconditionally. On the pilot map
+  // both are folded into drawDepthLayer instead, along with the extrusions, so a
+  // hero south of a giant is now in front of it rather than always behind it.
+  if (!isObliqueMap(mapObj)) {
   const colossalTrees = mapFeatureTiles(mapObj, T.COLOSSAL_TREE, '_colossalTrees');
   for (let i = 0; i < colossalTrees.length; i += 2) {
     const mc = colossalTrees[i], mr = colossalTrees[i + 1];
@@ -3103,6 +3426,25 @@ function render() {
     if (mc >= startC - 3 && mc <= endC + 3 && mr >= startR - 2 && mr <= endR + 4)
       drawBigLandmark(map[mr][mc], mc, mr, ts);
   }
+
+  // Ledges stand up on EVERY map, not just the 2.5D pilot.
+  //
+  // Walls extrude only on the pilot, and that is right: a flat wall still reads
+  // as a wall, so leaving it flat elsewhere costs nothing. A ledge is different
+  // in kind. Its height is not decoration, it is the gameplay: surfaceZ and the
+  // step-up gate apply on every map, so a shelf drawn flat would be an invisible
+  // wall to walk into and would draw the hero standing a full tile above ground
+  // that looks level. The feature has to be visible wherever it works.
+  //
+  // Costs nothing on the 100+ maps that have no ledges: the scan is memoized per
+  // map and comes back empty, so this loop does not execute.
+  const ledges = mapLedgeTiles(mapObj);
+  for (let i = 0; i < ledges.length; i += 2) {
+    const mc = ledges[i], mr = ledges[i + 1];
+    if (mc >= startC - 1 && mc <= endC + 1 && mr >= startR - 1 && mr <= endR + 3)
+      drawTileExtrusion(map, mc, mr, ts);
+  }
+  }   // end of the flat renderer's tall passes
 
   // Lightning-region storm flash — over the world, under the HUD/minimap.
   drawStormFlash();
