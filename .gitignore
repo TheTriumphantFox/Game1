@@ -8,3 +8,4 @@ desktop.ini
 
 # Generated workbook exports, one directory per run.
 outputs/
+.claude/settings.local.json
