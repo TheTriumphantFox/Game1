@@ -92,6 +92,9 @@ function makeContext() {
   ctx.navigator = { userAgent: 'node', maxTouchPoints: 0, vibrate: noop };
   ctx.location = { href: '' };
   ctx.addEventListener = noop;
+  ctx.getComputedStyle = () => ({
+    getPropertyValue: () => '', style: {},
+  });
   ctx.matchMedia = () => ({ matches: false, addEventListener: noop });
   ctx.performance = { now: () => 0 };
   return vm.createContext(ctx);
