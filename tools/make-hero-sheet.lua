@@ -1,4 +1,4 @@
--- Build the player sprite sheet for The RPG Game, drawn from the painted
+-- Build the player sprite sheet for Hero of Stormdrift, drawn from the painted
 -- character portrait (hero-portrait.png) rather than from drawPlayer().
 --
 -- The portrait is the character's real design and differs from what the game

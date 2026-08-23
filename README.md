@@ -1,6 +1,6 @@
-# The RPG Game
+# Hero of Stormdrift
 
-A top-down Zelda-style adventure RPG that runs in the browser. Procedurally
+A top-down action-adventure RPG that runs in the browser. Procedurally
 generated maps across 13 elemental regions, D&D 5e enemies, persistent map
 memory, an elemental crafting economy, side quests, and named save slots —
 ending in a multi-floor castle tower and a final dragon.
@@ -59,7 +59,7 @@ laptop) swaps the UI without a reload.
 
 The 🎮 button on the title screen and the radial menu's **Controls** entry cycle
 **Auto → Touch → Desktop** if you want to pin one. The choice is stored per
-device (`the_rpg_game_ui_mode` in localStorage), not in your save file, so
+device (`stormdrift_ui_mode` in localStorage), not in your save file, so
 carrying a save to another device doesn't drag a phone's controls along with it.
 
 Everything keys off a single `data-ui` attribute on `<html>`, set in

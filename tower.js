@@ -241,7 +241,7 @@ function playEmperorDeath(dragon, cm) {
     { wait: 600 },
     { run: () => {
         letterboxLevel = 0;
-        showMapMsg('⚔️  T H E   R P G   G A M E   ·   E P I L O G U E');
+        showMapMsg('⚔️  H E R O   O F   S T O R M D R I F T   ·   E P I L O G U E');
       } },
     { wait: 3000 },
     { fade: 0, ms: 1400 },

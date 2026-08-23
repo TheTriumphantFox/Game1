@@ -59,7 +59,7 @@
 //   boss_line_15          the 15% HP stagger and flicker have fired
 //   boss_monologue_done   the dying monologue finished; wonGame may now be set
 //
-// See .claude/skills/the-rpg-game/references/prologue-script.md for the beats
+// See .claude/skills/hero-of-stormdrift/references/prologue-script.md for the beats
 // these correspond to.
 
 // Set a flag. Defaults to true because nearly every use is "this happened".

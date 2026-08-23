@@ -1,4 +1,4 @@
-Bug Report — The RPG Game
+Bug Report — Hero of Stormdrift
 Generated: 2026-08-13 (local)
 
 Scope:   Game1/ — 45 files, ~33,500 lines of vanilla ES, no build step, no dependencies.
@@ -380,7 +380,7 @@ irreproducible, and leaves tools/seed-preview.html unable to do the job it was b
 for.
 
 Note: this is NOT a new discovery. The project's own conventions document
-(.claude/skills/the-rpg-game/SKILL.md) already records it as a known pre-existing gap,
+(.claude/skills/hero-of-stormdrift/SKILL.md) already records it as a known pre-existing gap,
 and sets the bar for fixing it: "threading an actual seeded PRNG through every
 generation file that currently ignores `seed` — not just changing one call site and
 calling it done." The plan below is scoped to meet that bar. It is listed here because
@@ -396,7 +396,7 @@ L5: The project's documented dependency graph is stale
 
 Reproduction:
     diff the <script> tags in index.html against the load order printed in
-    .claude/skills/the-rpg-game/SKILL.md ("Before writing any code", item 1).
+    .claude/skills/hero-of-stormdrift/SKILL.md ("Before writing any code", item 1).
 
 Actual: index.html loads 43 scripts; the documented graph lists 34. Nine files are
 missing from it entirely:
@@ -413,7 +413,7 @@ missing from it entirely:
 
 Expected: the documented order matches index.html exactly.
 
-Location: .claude/skills/the-rpg-game/SKILL.md, "Before writing any code", item 1.
+Location: .claude/skills/hero-of-stormdrift/SKILL.md, "Before writing any code", item 1.
 
 Impact: the same document states that the order of index.html's script tags "IS the
 dependency graph" and that "anything you add has to be inserted at a point where its
@@ -630,7 +630,7 @@ Math.random() was introduced in a generation path.
                  the keydown overlay chain (Escape closes; no 'v' close, since V is a
                  letter someone may want in a save name).
       save.js    e.stopPropagation() on modal-name-input, matching #name-input.
-      VERIFIED   "Zelda Vault P2" now types in full, spaces included. No radial menu,
+      VERIFIED   "Stormdrift Vault P2" now types in full, spaces included. No radial menu,
                  no sword swing, no potion, no minimap toggle, and the hero does not
                  move under the modal.
 
@@ -681,7 +681,7 @@ FIX LOG — 2026-08-13, third pass: the remaining three
 H2 (fog packing), L4 (seeded generation) and L5 (docs) all landed. The PLANNED WORK
 section above is the plan this followed; where reality differed, it is called out.
 
-  L5  .claude/skills/the-rpg-game/SKILL.md — dependency graph regenerated from
+  L5  .claude/skills/hero-of-stormdrift/SKILL.md — dependency graph regenerated from
       index.html (43 files, was 34), with a line telling the next contributor to update
       it in the same change that adds a script.
 
@@ -774,7 +774,7 @@ NOT VERIFIED VISUALLY
   game is actually played from file://. To confirm by hand, open index.html directly
   (double-click, not the test server) and:
     1. V -> MENU ring -> Game Menu -> Save Game -> click an empty slot, and type a name
-       with a space in it, e.g. "Zelda Vault". The space should appear; the menu ring
+       with a space in it, e.g. "Stormdrift Vault". The space should appear; the menu ring
        should not open; the hero should not move.
     2. Load an existing named save from before this change and confirm it still loads.
     3. Talk to a shopkeeper in a cleared village while holding an arrow key — the hero

@@ -1,7 +1,7 @@
 # Prologue Script — "Ashfall"
 
 *The Withering Crown* — Prologue. Tracks **DOCX v3**
-(`../../../../the-rpg-game-main-quest-script-3.docx`) and the code that implements it
+(`../../../../hero-of-stormdrift-main-quest-script-3.docx`) and the code that implements it
 (`prologue.js`, `mapgen-prologue.js`).
 
 This is the shooting script for the opening. Dialogue here is **canon and final** — if you
@@ -249,7 +249,7 @@ Then the hero crosses the room to the chest, and the grant fires there.
 > The lock is gone, burned through. Inside, wrapped and unburnt, is a sword, and a quiver of
 > ten plain arrows.
 
-**[SCREEN FADES. TITLE CARD: THE RPG GAME]**
+**[SCREEN FADES. TITLE CARD: HERO OF STORMDRIFT]**
 
 *(The same card the Skip Prologue path shows, so the two entry points into the open world
 are the same game.)*

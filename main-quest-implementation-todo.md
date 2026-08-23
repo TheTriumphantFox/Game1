@@ -13,7 +13,7 @@ Consolidated, ordered implementation checklist for the main quest.
 
 **Sources** (both left unchanged):
 
-- `../the-rpg-game-main-quest-script-3.docx` — **DOCX v3, the latest authority**
+- `../hero-of-stormdrift-main-quest-script-3.docx` — **DOCX v3, the latest authority**
 - `../story-decisions-todo.md` — earlier decision log; compatible decisions preserved below,
   superseded ones recorded explicitly in [Superseded decisions](#superseded-decisions)
 
@@ -30,7 +30,7 @@ Each stage carries an **Audit** note recording what was actually found in the re
 
 ## 1. Reconcile canon and repository documentation
 
-**Audit:** `.claude/skills/the-rpg-game/references/story-bible.md` and `prologue-script.md`
+**Audit:** `.claude/skills/hero-of-stormdrift/references/story-bible.md` and `prologue-script.md`
 both exist and are still at the pre-v3 canon. `story.js` documents seven flags, none of the
 new ones.
 
@@ -342,7 +342,7 @@ save/load round trip, and for a hand-faked pre-stage-7 save through the migratio
 > `skipPrologue` granted the weapons *before* rebuilding the ruin, and the rebuild
 > (`hvPinGrandmother`) laid a second bow back on the floor of a room the hero had
 > supposedly just picked it up from; the chest was never marked open; and its title card
-> still read `HYRULE QUEST`, the pre-rename title. The bow half is belt-and-braces now:
+> still read a stale pre-rename title. The bow half is belt-and-braces now:
 > `buildRuinedHomeVillage` itself won't lay one down once `revenge_triggered` is set, which
 > also covers the save-with-no-stored-tiles and fresh-world-with-the-flag paths.
 >

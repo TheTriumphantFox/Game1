@@ -161,7 +161,12 @@
 }
 #title-tagline {
   font-size: 13px;
-  color: #7a9a7a;
+  color: #9dbd9d;
+  /* The tagline runs wider than the centre scrim and crosses the panorama's
+     bright strips (sky, sand), where a flat muted green all but disappears.
+     Same trick the heading uses: a tight shadow for edge contrast plus a soft
+     halo to darken whatever is immediately behind the glyphs. */
+  text-shadow: 0 1px 4px #000, 0 0 12px rgba(6, 10, 6, 0.95);
   margin-bottom: 28px;
 }
 .title-btn {

@@ -1,11 +1,11 @@
 // ─── Save / load: named slot system ───────────────────────────────────────────
-// Stores each save under `the_rpg_game_slot_N` in localStorage, plus a
-// metadata index (`the_rpg_game_index`) with slot names and timestamps.
-// Saves written before the game was renamed live under a `hyrule_quest_`
-// prefix; config.js copies them onto these keys on first load, so nothing here
-// has to know about the old names.
+// Stores each save under `stormdrift_slot_N` in localStorage, plus a
+// metadata index (`stormdrift_index`) with slot names and timestamps.
+// Saves written under either of the game's earlier names live under their own
+// prefixes; config.js copies them onto these keys on first load, so nothing
+// here has to know about the old names.
 
-const SAVE_KEY_PREFIX = 'the_rpg_game_slot_';
+const SAVE_KEY_PREFIX = 'stormdrift_slot_';
 // Slot indices are 0-based here and displayed as i + 1, so this is also the
 // highest slot number the player sees. Raising it only widens the list: every
 // existing save keeps its own index and key, so nothing has to be migrated.
@@ -15,11 +15,11 @@ let modalMode = null;        // 'save' | 'load'
 let pendingSlot = null;      // slot index currently being named
 
 function getSaveIndex() {
-  const raw = localStorage.getItem('the_rpg_game_index');
+  const raw = localStorage.getItem('stormdrift_index');
   return raw ? JSON.parse(raw) : {};
 }
 function setSaveIndex(idx) {
-  localStorage.setItem('the_rpg_game_index', JSON.stringify(idx));
+  localStorage.setItem('stormdrift_index', JSON.stringify(idx));
 }
 
 // Does this map's tile array have to go into the save, or can it be regenerated?
@@ -570,7 +570,7 @@ function applyLoadData(data) {
 // of the named slots. `lastCheckpoint` holds the most recent save payload of
 // ANY kind — manual save, auto-save, or the save just loaded — and is what a
 // death reload restores from.
-const AUTOSAVE_KEY = 'the_rpg_game_autosave';
+const AUTOSAVE_KEY = 'stormdrift_autosave';
 let lastCheckpoint = null;
 
 function autoSave(label) {
