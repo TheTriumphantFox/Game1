@@ -1,11 +1,48 @@
-# The RPG Game — Story Bible
+# Hero of Stormdrift — Story Bible
 
 Canon reference. Read before writing dialogue, NPCs, quest text, item flavor, or story triggers.
 
-Authority: `../../../../the-rpg-game-main-quest-script-3.docx` (**DOCX v3**) is the source
+Authority: `../../../../hero-of-stormdrift-main-quest-script-3.docx` (**DOCX v3**) is the source
 this file tracks. Where the two disagree, v3 wins and this file is wrong. The
 implementation checklist that turned v3 into code is `main-quest-implementation-todo.md`
 at the repo root, including the decisions that were made *against* v3 and why.
+
+## The setting: Stormdrift
+
+**Not from DOCX v3.** The name was set by the project owner after v3 was written, and the
+flavor below was invented to give the title screen something to stand on. v3 never mentions
+it, so there is nothing here for v3 to overrule — but a later draft that names the land
+something else wins, and this section becomes wrong.
+
+**Stormdrift is the whole land the game takes place in** — all 13 elemental regions and the
+castle tower beyond them. It is not one region among the thirteen, and there is no smaller
+"Stormdrift region" around Elderbrook. Everywhere the player can walk is Stormdrift.
+
+The title *Hero of Stormdrift* is territorial, not a rank: it says where the player is
+from, not something anyone awarded them. No character calls the player that, and none
+should.
+
+**Watch the word "region".** In this project `region` is a load-bearing technical term —
+`regions.js`, the `REGIONS` table, 13 of them, each with an element, a border tile and a
+boss. Stormdrift contains all of them, so never call Stormdrift "a region" in prose,
+dialogue or a comment; it reads as a fourteenth entry in that table. It is the land, the
+country, or just Stormdrift.
+
+What the flavor commits to, which is deliberately not much:
+
+- **Storm country.** The weather is what the land is named for and what its people organise
+  their lives around. It is old and it is bad, and it long predates the blight. Stormdrift
+  was not a gentle place the Emperor ruined; it was a hard place that got worse. This also
+  gives the 13 elements somewhere to live: a country of storms is a country where weather
+  comes in kinds, which is why fire, ice, lightning and the rest read as native to it
+  rather than as a game mechanic wearing a coat.
+- **It keeps what it kills.** The title-screen tagline, and the only line of this flavor
+  that currently ships. The land does not give back what it takes: nobody is recovered,
+  nothing comes back whole. Treat it as the land's reputation, not as a rule. Enemy respawn
+  and checkpoint death are systems, and the two should not be made to explain each other in
+  either direction.
+- **Elderbrook sits inside it**, in the forest region. Keep the names straight: Elderbrook
+  is the village that burns, Stormdrift is the country it burns in.
 
 ## Premise: The Withering Crown
 

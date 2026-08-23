@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthesize dragon-roar.wav for The RPG Game's prologue Beat 3.
+"""Synthesize dragon-roar.wav for Hero of Stormdrift's prologue Beat 3.
 
 The script's cue is "a long way off, a roar" — so this is deliberately a DISTANT
 roar: slow attack, heavy low-pass (air absorbs highs over distance), and a long

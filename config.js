@@ -1026,40 +1026,55 @@ function buzz(pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) { /* ignore */ }
 }
 
-// ─── localStorage key migration: hyrule_quest_* → the_rpg_game_* ────────────
-// The game was renamed to "The RPG Game" and the storage keys were renamed to
-// match. Anyone who played before the rename has saves, an autosave, and a UI
-// mode pref sitting under the old prefix, so carry them across once on the
-// first load afterwards. This lives in config.js because it is the first
-// script loaded — save.js and the UI-mode block below then only ever see the
-// new keys, and neither needs to know the old ones existed.
+// ─── localStorage key migration: legacy prefixes → stormdrift_* ─────────────
+// The game has been renamed twice, and the storage keys were renamed with it
+// each time. Anyone who played under an earlier name has saves, an autosave and
+// a UI mode pref sitting under an old prefix, so carry them across once on the
+// first load afterwards. This lives in config.js because it is the first script
+// loaded — save.js and the UI-mode block below then only ever see the current
+// keys, and neither needs to know the old ones existed.
 //
-// Two deliberate choices:
-//   - Keys are COPIED, not moved. The pre-rename standalone build
-//     (`the_rpg_game.html`, one folder up) still reads the old keys, so leaving
-//     them means going back to it doesn't show an empty save list.
-//   - The marker key makes this one-shot. Without it, deleting a save in the
-//     renamed game would be undone by the next reload re-copying it.
-const STORAGE_MIGRATION_KEY = 'the_rpg_game_migrated_keys';
+// Three deliberate choices:
+//   - LEGACY_PREFIXES is ordered newest first, and a copy never overwrites a
+//     key that already has a value. So when a player has saves under both old
+//     prefixes in the same slot, the more recent one wins.
+//   - Keys are COPIED, not moved. The oldest standalone build
+//     (`hero-of-stormdrift-legacy.html`, one folder up) still reads the original
+//     keys, so leaving them means going back to it doesn't show an empty save
+//     list.
+//   - The marker key makes this one-shot, and it is per-rename: a player who
+//     already ran an earlier migration has that rename's marker, not this one,
+//     so this pass still runs for them exactly once. Without a marker, deleting
+//     a save would be undone by the next reload re-copying it.
+const STORAGE_MIGRATION_KEY = 'stormdrift_migrated_keys';
+const STORAGE_PREFIX = 'stormdrift_';
 
 (function migrateLegacyStorageKeys() {
-  const OLD_PREFIX = 'hyrule_quest_';
-  const NEW_PREFIX = 'the_rpg_game_';
+  // Newest first — see the ordering note above.
+  const LEGACY_PREFIXES = ['the_rpg_game_', 'hyrule_quest_'];
   try {
     if (localStorage.getItem(STORAGE_MIGRATION_KEY)) return;
     // Snapshot the key names before writing anything — localStorage.key(i)
     // walks a live list, and inserting during the loop shifts the indices.
-    const oldKeys = [];
+    const existing = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.indexOf(OLD_PREFIX) === 0) oldKeys.push(k);
+      if (k) existing.push(k);
     }
-    for (const k of oldKeys) {
-      const target = NEW_PREFIX + k.slice(OLD_PREFIX.length);
-      // Never clobber a new-key value: a second migration pass (marker cleared,
-      // storage wiped by hand) must not overwrite real post-rename progress.
-      if (localStorage.getItem(target) === null) {
-        localStorage.setItem(target, localStorage.getItem(k));
+    for (const oldPrefix of LEGACY_PREFIXES) {
+      for (const k of existing) {
+        if (k.indexOf(oldPrefix) !== 0) continue;
+        const suffix = k.slice(oldPrefix.length);
+        // Each rename left its own marker behind. Copying one forward would
+        // stamp this migration as already done before it has run.
+        if (suffix === 'migrated_keys') continue;
+        const target = STORAGE_PREFIX + suffix;
+        // Never clobber a value that is already there: both a real post-rename
+        // save and an older prefix's copy earlier in this loop are worth more
+        // than what a still-older prefix holds.
+        if (localStorage.getItem(target) === null) {
+          localStorage.setItem(target, localStorage.getItem(k));
+        }
       }
     }
     localStorage.setItem(STORAGE_MIGRATION_KEY, '1');
@@ -1083,7 +1098,7 @@ const STORAGE_MIGRATION_KEY = 'the_rpg_game_migrated_keys';
 // This lives here rather than main.js because config.js loads first, so the
 // attribute is set before the first paint and there's no flash of the wrong UI.
 
-const UI_MODE_KEY = 'the_rpg_game_ui_mode';
+const UI_MODE_KEY = 'stormdrift_ui_mode';
 
 // Capability sniff, used only as the *starting* guess for 'auto'. Note the
 // `any-pointer: fine` term: a touchscreen laptop and an iPad with a trackpad

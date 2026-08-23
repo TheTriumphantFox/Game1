@@ -16,7 +16,7 @@
 // per-device cost is still worth re-checking as the pilot map gets more art.
 // Deleting it is a three-line job with no other site to update: drop this file,
 // drop its <script> tag from index.html, and decrement the count in the script
-// list in .claude/skills/the-rpg-game/SKILL.md. Nothing references it.
+// list in .claude/skills/hero-of-stormdrift/SKILL.md. Nothing references it.
 
 const PERF_ON = typeof location !== 'undefined' &&
                 /(^|[#&])perf\b/.test(location.hash || '');

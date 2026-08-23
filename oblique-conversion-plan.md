@@ -1,4 +1,4 @@
-# Converting The RPG Game to an Oblique (2.5D) Renderer
+# Converting Hero of Stormdrift to an Oblique (2.5D) Renderer
 
 ## Current state
 
@@ -298,7 +298,7 @@ or swim boundary. That hop is render-only and gets promoted rather than replaced
 
 Reads `TILE_PX` and `camC/camR` at call time only, so declaration order does not
 matter. Add to `index.html` and to the stale script list in
-`.claude/skills/the-rpg-game/SKILL.md:18`, which names 42 files while
+`.claude/skills/hero-of-stormdrift/SKILL.md:18`, which names 42 files while
 `index.html` has 44 (it is missing `dragon-sprite.js` and `hero-sprite.js`).
 
 Two constants, both no-ops by construction:
@@ -516,7 +516,7 @@ root**, matching the existing `main-quest-implementation-todo.md` convention, so
 progress survives a context reset. Update it at the end of every session.
 
 Each phase has a **Done when** line naming who verifies what. Claude can drive
-the browser itself through the Browser pane (the `the-rpg-game` config in
+the browser itself through the Browser pane (the `hero-of-stormdrift` config in
 `.claude/launch.json` serves on :8765), read the console, and take screenshots.
 Two things Claude cannot judge and must hand back: performance on a real phone,
 and whether a changed feel is acceptable. Those are marked USER.

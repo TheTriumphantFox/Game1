@@ -1,4 +1,4 @@
-# Code Audit — The RPG Game
+# Code Audit — Hero of Stormdrift
 
 Date: 2026-08-13
 Scope: `Game1/` — 45 files, ~33,500 lines of vanilla ES, no build step, no dependencies.

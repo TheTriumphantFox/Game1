@@ -1,4 +1,4 @@
--- Build the forest-village building sheet for The RPG Game, drawn from the
+-- Build the forest-village building sheet for Hero of Stormdrift, drawn from the
 -- village concept art (concept-art/village-layouts/01-village-of-the-lost.png)
 -- rather than from the procedural roof/wall code.
 --

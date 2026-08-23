@@ -1,4 +1,4 @@
--- Build the terrain art for The RPG Game from the village concept sketches in
+-- Build the terrain art for Hero of Stormdrift from the village concept sketches in
 -- concept-art/village-layouts/, replacing the oldest and most-visible cases in
 -- render-tiles.js. One region per invocation.
 --

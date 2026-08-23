@@ -1,6 +1,6 @@
 // ─── Prologue: "Ashfall" ──────────────────────────────────────────────────────
 // The five opening beats, as data. Every line here is verbatim from
-// .claude/skills/the-rpg-game/references/prologue-script.md — that file is the
+// .claude/skills/hero-of-stormdrift/references/prologue-script.md — that file is the
 // script, this one is the staging. If a line needs to change, change it there
 // first and copy it across, so the writing and the build can't drift.
 //
@@ -920,7 +920,7 @@ function playWhatsLeftBeat() {
     { run: () => {
         burnLevel = 0.25;      // the fire burns down but the ruin keeps smouldering
         letterboxLevel = 0;
-        showMapMsg('⚔️  T H E   R P G   G A M E');
+        showMapMsg('⚔️  H E R O   O F   S T O R M D R I F T');
       } },
     { wait: 2600 },
     { fade: 0, ms: 1600 },
@@ -1122,10 +1122,10 @@ function skipPrologue() {
   minimapDirty = true;
   clampCam(true);
   updateHUD();
-  // Same card Beat 5 shows. It said HYRULE QUEST, which is the pre-rename title
-  // and the one thing a skipped prologue put on screen that a played one never
-  // did (see the storage-key migration in config.js for the rename itself).
-  showMapMsg('⚔️  T H E   R P G   G A M E');
+  // Same card Beat 5 shows. It used to lag a rename behind and show the old
+  // title — the one thing a skipped prologue put on screen that a played one
+  // never did (see the storage-key migration in config.js for the renames).
+  showMapMsg('⚔️  H E R O   O F   S T O R M D R I F T');
 }
 
 // ─── Restoring a save ─────────────────────────────────────────────────────────

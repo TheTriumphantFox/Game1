@@ -802,7 +802,7 @@ function drawDrop(d, ts) {
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
   } else if (d.type === 'ruby') {
-    // Hexagonal-ish green Zelda-style ruby
+    // Hexagonal-ish green adventure-game ruby
     const w = ts * 0.12 * pulse, h = ts * 0.20 * pulse;
     ctx.fillStyle = '#22aa3a';
     ctx.beginPath();
