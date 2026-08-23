@@ -1,0 +1,22 @@
+# The repo has been edited from both Windows and Linux, which produced whole-file
+# CRLF/LF flips in the history. Normalize every text file to LF in the index so
+# formatting churn stops riding along with real changes.
+* text=auto eol=lf
+
+# Binary assets: never touch these, and never try to diff them as text.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.wav    binary
+*.mp3    binary
+*.ogg    binary
+*.aseprite binary
+*.ase    binary
+*.xlsx   binary
+*.docx   binary
+*.pdf    binary
+
+# PowerShell wants CRLF on Windows; this one is a leftover from the old machine.
+*.ps1    text eol=crlf
