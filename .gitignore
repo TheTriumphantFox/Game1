@@ -6,6 +6,10 @@ desktop.ini
 # and no part of the game itself, which has no build step or dependencies.
 .codex-tmp/
 
+# Session state for the pi coding agent — transcripts and scratch files, local
+# to this machine and no part of the game.
+.pi/
+
 # Generated workbook exports, one directory per run.
 outputs/
 .claude/settings.local.json
