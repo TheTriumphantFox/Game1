@@ -31,7 +31,24 @@ const HERO_FRAME   = HERO_ATLAS_OK ? HERO_ATLAS.frame  : 64;
 const HERO_BODY    = HERO_ATLAS_OK ? HERO_ATLAS.body   : 48;
 const HERO_BODY_OX = HERO_ATLAS_OK ? HERO_ATLAS.bodyOX : 8;
 const HERO_BODY_OY = HERO_ATLAS_OK ? HERO_ATLAS.bodyOY : 7;
-const HERO_COLS    = HERO_ATLAS_OK ? HERO_ATLAS.cols   : 52;
+// Frames per DIRECTION, and frames per SHEET ROW. They are the same number
+// only while a direction's whole run fits on one row of the PNG; at a 128px
+// frame, 52 columns would be a 6656px-wide texture, which is past where mobile
+// GPUs stop hardware-accelerating a drawImage source, so the generator wraps a
+// direction across two rows of 26. `perDir` is the anim layout, `sheetCols` is
+// the image layout, and heroFrameXY below is the only place that knows both.
+//
+// Both fall back to the older atlas's single `cols`, so an atlas emitted before
+// the wrap existed still indexes correctly: with sheetCols === perDir the
+// division collapses to the row-per-direction arithmetic it replaced.
+const HERO_PER_DIR   = HERO_ATLAS_OK ? (HERO_ATLAS.perDir    ?? HERO_ATLAS.cols) : 52;
+const HERO_SHEET_COLS = HERO_ATLAS_OK ? (HERO_ATLAS.sheetCols ?? HERO_PER_DIR)   : 52;
+// Blade reach for the swing, in BODY pixels, used to place the elemental sword
+// FX at the tip. Shipped by the generator rather than copied here — it grew
+// from 30 to 35 when the figure did, and a stale copy would leave the FX
+// bursting from the middle of the blade.
+const HERO_SWORD_LEN = (HERO_ATLAS_OK && typeof HERO_ATLAS.swordLen === 'number')
+  ? HERO_ATLAS.swordLen : 30;
 // Where the boot soles sit, as a fraction down the body box. 0.96, not 1.0: the
 // character does not quite fill her own box. Defaulted to 1.0 rather than 0.96
 // when the atlas is missing, because 1.0 is the "plant the box bottom" rule the
@@ -116,10 +133,26 @@ function heroBodyOrigin(sx, sy, s) {
   return { x: sx, y: sy + s * (1 - HERO_FOOT_F) };
 }
 
+// Top-left of one frame in the sheet, given a facing and a column within that
+// facing's run. The sheet is laid out as one flat sequence of frames — all of
+// `down`, then all of `up`, and so on — wrapped every HERO_SHEET_COLS frames,
+// so a direction does not necessarily start at the left edge of a row and does
+// not necessarily end on the same row it started.
+//
+// This used to be inline as `col * FRAME, dirRow * FRAME`, which silently
+// assumed one row per direction. That held while the sheet was 52 columns wide
+// and stopped holding the moment it wrapped.
+function heroFrameXY(facing, col) {
+  const i = HERO_DIR_ROW[facing] * HERO_PER_DIR + col;
+  return { x: (i % HERO_SHEET_COLS) * HERO_FRAME,
+           y: Math.floor(i / HERO_SHEET_COLS) * HERO_FRAME };
+}
+
 // Blit the current hero frame so its 48px body box lands on the tile box at
-// (sx, sy, s, s), foot row on the ground. The frame is twice the body, and the
-// surplus is deliberate overhang (raised blade, ear tips, cloak, downward
-// swings) which is allowed to spill outside the tile.
+// (sx, sy, s, s), foot row on the ground. The body box is her FOOTPRINT, not her
+// height: she stands about 1.26 boxes tall and the frame is 128 to hold that
+// plus a raised blade. All of that surplus is deliberate overhang and is
+// allowed to spill outside the tile.
 function drawHeroSprite(sx, sy, s, facing, moving) {
   const [requestedAnim, t] = heroPickAnim(moving);
   // A stale sheet/atlas pair should degrade to a known idle frame rather than
@@ -134,12 +167,13 @@ function drawHeroSprite(sx, sy, s, facing, moving) {
   const k  = s / HERO_BODY;
   const dw = HERO_FRAME * k;
   const org = heroBodyOrigin(sx, sy, s);
+  const src = heroFrameXY(facing, col0 + fi);
   const smoothing = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false;      // keep the pixel art crisp at any zoom
   ctx.drawImage(
     heroSheetImg,
-    (col0 + fi) * HERO_FRAME, HERO_DIR_ROW[facing] * HERO_FRAME, HERO_FRAME, HERO_FRAME,
-    org.x - HERO_BODY_OX * k, org.y - HERO_BODY_OY * k,          dw,         dw);
+    src.x, src.y, HERO_FRAME, HERO_FRAME,
+    org.x - HERO_BODY_OX * k, org.y - HERO_BODY_OY * k, dw, dw);
   ctx.imageSmoothingEnabled = smoothing;
 }
 
@@ -149,11 +183,11 @@ function heroSwordTip(sx, sy, s) {
   const sd = player.swordDir;
   const phase = 1 - Math.max(0, Math.min(1, player.swordTimer / HERO_SWORD_MS));
   const a = Math.atan2(sd.y, sd.x) - (Math.PI * 0.85) / 2 + (Math.PI * 0.85) * phase;
-  // 30/48 of a tile: SW_LEN in the generator, which is a length in BODY pixels
-  // and so is unchanged by the frame growing around it. Still shorter than the
-  // 1.25 tiles the hitbox reaches; the 96px frame now has room for a longer
-  // blade if the art ever wants one, which the 64px frame did not.
-  const len = s * (30 / HERO_BODY);
+  // SW_LEN in the generator, a length in BODY pixels, and so unchanged by the
+  // frame growing around it. Read from the atlas rather than repeated here:
+  // it was the literal 30 while the generator also said 30, and the generator
+  // now says 35. Still shorter than the 1.25 tiles the hitbox reaches.
+  const len = s * (HERO_SWORD_LEN / HERO_BODY);
   // Anchored on the body box, not the tile box, so the tip follows the same 2px
   // foot-anchoring shift the sprite does.
   const org = heroBodyOrigin(sx, sy, s);
