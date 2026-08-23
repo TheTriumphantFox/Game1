@@ -412,12 +412,13 @@ function addDesertPlateau(m) {
         const t = m[r][c];
         if (isProtectedFeature(t) || t === T.WATER || t === T.OASIS_WATER ||
             t === T.CLIMB) continue;
-        m[r][c] = T.PLATEAU;
+        m[r][c] = T.LEDGE;
       }
     // Fallback: a band no path happened to cross still needs a way through, or
     // ensureConnectivity would seal off the far side.
-    if (cols.size === 0) { cols.add(EXIT_COL); cols.add(rnd(10, MCOLS - 11)); }
-    for (const cc of cols) carveClimbV(m, r0, thick, cc);
+    const cuts = thinMesaCrossings(cols, MCOLS);
+    for (const cc of cuts) carveClimbV(m, r0, thick, cc);
+    rampUpToMesa(m, true, r0, thick, cuts);
   } else {
     // Vertical band: pick a column entirely left OR right of the N/S corridor.
     let c0 = 0;
@@ -440,11 +441,171 @@ function addDesertPlateau(m) {
         const t = m[r][c];
         if (isProtectedFeature(t) || t === T.WATER || t === T.OASIS_WATER ||
             t === T.CLIMB) continue;
-        m[r][c] = T.PLATEAU;
+        m[r][c] = T.LEDGE;
       }
-    if (rows.size === 0) { rows.add(EXIT_ROW); rows.add(rnd(10, MROWS - 11)); }
-    for (const rr of rows) carveClimbH(m, c0, thick, rr);
+    const cutsV = thinMesaCrossings(rows, MROWS);
+    for (const rr of cutsV) carveClimbH(m, c0, thick, rr);
+    rampUpToMesa(m, false, c0, thick, cutsV);
   }
+}
+
+// Cut the ways UP onto a mesa, and face everything else about it.
+//
+// A mesa used to be solid T.PLATEAU: a wall you tunnelled through at the CLIMB
+// corridors, never something you stood on. Item B makes its top the shelf, so
+// the band is stamped T.LEDGE above and this turns it into a real shelf:
+//
+//   1. Ramps first. Each crossing already has a 3-wide CLIMB corridor cut
+//      through the band; the tile just inside each face becomes CLIMB too, so
+//      the hero can turn off the corridor and walk UP instead of only through.
+//      Placed before the facing pass, because faceLedgeEdges leaves CLIMB alone
+//      and would otherwise wall the ramp off.
+//   2. Then face the perimeter. The band is not a rectangle (it flows around
+//      chests, shrines, water and the corridors), so the rim is discovered from
+//      the tiles rather than assumed, which is what faceLedgeEdges is for.
+//
+// `horiz` says whether the band runs east-west; `p0` is its first row or column
+// and `crossings` the columns or rows the corridors were cut at.
+// How many corridors to cut THROUGH a mesa, now that its top can be walked.
+//
+// The old pass cut one at every column a path happened to cross, which on a
+// real map is six or seven. That was right when the band was a solid wall and a
+// corridor was the only way past it: miss one and ensureConnectivity seals off
+// the far side. It is wrong now. Every corridor is a hole, every hole's north
+// rim draws its own full-height face band, and a quarter of the band ends up as
+// rim: the mesa reads as a comb rather than as a mesa.
+//
+// Two is enough, because the shelf is no longer a wall. A crossing is now a
+// convenience for someone who does not want to climb, and the climb itself goes
+// anywhere there is a ramp. Kept far apart so the two are genuinely different
+// routes rather than a double-width gap.
+const MESA_CROSSINGS_MAX = 2;
+const MESA_CROSSING_GAP = 30;
+
+function thinMesaCrossings(candidates, span) {
+  const sorted = Array.from(candidates).sort((a, b) => a - b);
+  const kept = [];
+  for (const v of sorted) {
+    if (kept.length >= MESA_CROSSINGS_MAX) break;
+    if (kept.some(k => Math.abs(k - v) < MESA_CROSSING_GAP)) continue;
+    kept.push(v);
+  }
+  // A band that no path crossed still needs at least one way through, and a
+  // second one far from it, or the only route is over the top.
+  if (kept.length === 0) kept.push(Math.floor(span / 2));
+  if (kept.length === 1 && span > MESA_CROSSING_GAP * 2) {
+    const alt = kept[0] < span / 2 ? span - 12 : 12;
+    if (Math.abs(alt - kept[0]) >= MESA_CROSSING_GAP) kept.push(alt);
+  }
+  return kept;
+}
+
+function rampUpToMesa(m, horiz, p0, thick, crossings) {
+  const inBounds = (c, r) => c > 0 && r > 0 && c < MCOLS - 1 && r < MROWS - 1;
+  for (const x of crossings) {
+    // One tile in from each face, on the corridor's own centre line.
+    const spots = horiz
+      ? [[x, p0], [x, p0 + thick - 1]]
+      : [[p0, x], [p0 + thick - 1, x]];
+    for (const [c, r] of spots) {
+      if (!inBounds(c, r)) continue;
+      if (m[r][c] === T.LEDGE) m[r][c] = T.CLIMB;
+    }
+  }
+  faceLedgeEdges(m);
+}
+
+// A raised causeway: a narrow shelf running the width or height of the map, for
+// regions and maps that have no mesa to climb. Earth has no PLATEAU bands at
+// all, and the desert's band count is rnd(1, 4) - 1, so it comes up zero on
+// roughly two maps in five. Without this, item B's shortcut would be a coin
+// flip.
+//
+// This is the first real call site of stampLedgeShelf in the project's history,
+// and it is deliberately the RECT one rather than the mesa's discover-the-rim
+// path: a causeway can be a clean rectangle, and a rect is faced correctly by
+// construction instead of by inspection. The footprint is rejected and re-rolled
+// until it lands on ground worth paving, which is what keeps it a rect.
+// Five, not three. stampLedgeShelf faces the whole perimeter, so a 3-thick
+// causeway is two rows of solid rim around ONE walkable row: measured, 143
+// walkable tiles against 292 of face. That is a wall with a slot in it, not a
+// road. Five gives three walkable rows between the parapets.
+const CAUSEWAY_THICK = 5;
+
+function addLedgeCauseway(m) {
+  const horiz = genRandom() < 0.5;
+  const span = horiz ? MROWS : MCOLS;
+  const across = horiz ? MCOLS : MROWS;
+
+  // Never pave over anything the map needs, and never bridge water: a causeway
+  // is a shortcut, not a dam. Kept off the exit axis so it cannot swallow an
+  // exit corridor, the same rule addDesertPlateau follows.
+  const clear = (p0) => {
+    for (let d = 0; d < CAUSEWAY_THICK; d++) {
+      const p = p0 + d;
+      if (p <= 1 || p >= span - 2) return false;
+      for (let q = 1; q < across - 1; q++) {
+        const t = horiz ? m[p][q] : m[q][p];
+        if (isProtectedFeature(t) || t === T.WATER || t === T.OASIS_WATER ||
+            t === T.MEDIUM_WATER || t === T.CLIMB ||
+            t === T.LEDGE || t === T.LEDGE_FACE) return false;
+      }
+    }
+    return true;
+  };
+
+  const axis = horiz ? EXIT_ROW : EXIT_COL;
+  let p0 = -1;
+  for (let tries = 0; tries < 24; tries++) {
+    const cand = (genRandom() < 0.5)
+      ? rnd(8, Math.max(9, axis - CAUSEWAY_THICK - 6))
+      : rnd(axis + 6, Math.max(axis + 7, span - CAUSEWAY_THICK - 9));
+    if (clear(cand)) { p0 = cand; break; }
+  }
+  if (p0 < 0) return false;      // no clear strip; this map simply gets none
+
+  // Ramps at three points along it, on both faces, so the causeway can be joined
+  // from either side and is never a one-way trap.
+  //
+  // The position is SEARCHED, not fixed. Fixed offsets put a ramp wherever they
+  // landed, including against a pool that demoteWaterToMedium turns solid after
+  // this pass runs, and a ramp that opens onto water is not a way up. Measured
+  // before this: one desert map in eight had a causeway nothing could reach.
+  // A column qualifies only if the ground just outside BOTH faces is walkable.
+  const groundOK = (c, r) => {
+    if (c < 1 || r < 1 || c >= MCOLS - 1 || r >= MROWS - 1) return false;
+    const t = m[r][c];
+    return !isSolid(m, c, r) && t !== T.MEDIUM_WATER && t !== T.WATER &&
+           t !== T.OASIS_WATER && !isProtectedFeature(t);
+  };
+  const joinable = (q) => horiz
+    ? (groundOK(q, p0 - 1) && groundOK(q, p0 + CAUSEWAY_THICK))
+    : (groundOK(p0 - 1, q) && groundOK(p0 + CAUSEWAY_THICK, q));
+
+  const ramps = [];
+  const placed = [];
+  for (const want of [12, Math.floor(across / 2), across - 13]) {
+    let q = -1;
+    for (let off = 0; off < 40 && q < 0; off++) {
+      for (const cand of [want - off, want + off]) {
+        if (cand < 4 || cand > across - 5) continue;
+        if (placed.some(p => Math.abs(p - cand) < 8)) continue;
+        if (joinable(cand)) { q = cand; break; }
+      }
+    }
+    if (q < 0) continue;
+    placed.push(q);
+    for (let d = 0; d < CAUSEWAY_THICK; d++) {
+      ramps.push(horiz ? [q, p0 + d] : [p0 + d, q]);
+    }
+  }
+  // A causeway nothing can climb is worse than no causeway: it is a wall across
+  // the map that ensureConnectivity then has to seal around.
+  if (!placed.length) return false;
+  const r = horiz
+    ? stampLedgeShelf(m, 1, p0, MCOLS - 2, p0 + CAUSEWAY_THICK - 1, ramps)
+    : stampLedgeShelf(m, p0, 1, p0 + CAUSEWAY_THICK - 1, MROWS - 2, ramps);
+  return r.ledge > 0;
 }
 
 // Sprinkle a cluster of passable FLOWERING_CACTUS tiles onto the SAND/GRASS
@@ -615,6 +776,9 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
   // (next) re-links anything the plateau happened to wall off.
   const plateauCount = rnd(1, 4) - 1;
   for (let i = 0; i < plateauCount; i++) addDesertPlateau(m);
+  // A desert map that rolled no mesa still gets its shortcut (item B). Only
+  // when there is no mesa: two raised routes across one map is one too many.
+  if (plateauCount === 0) addLedgeCauseway(m);
 
   // Desert is outside the water region: demote its pools and OASIS_WATER to
   // MEDIUM_WATER so no deep/standing water survives here.
@@ -859,6 +1023,12 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
 
   // Seal any orphan passable pockets with the region's border tile so the
   // visual matches the surrounding wall instead of leaking forest TREE. Rescue
+  // Earth region: a raised causeway across the map (item B). The earth region
+  // has no PLATEAU bands to convert, so its shortcut is stamped rather than
+  // found. BEFORE the seal, exactly like the desert's mesas, so
+  // ensureConnectivity can re-link anything the shelf happened to wall off.
+  if (region.id === 'earth') addLedgeCauseway(m);
+
   // corridors use the region's corridor tile so they blend in too.
   ensureConnectivity(m, false, BORDER, PATHTILE);
 

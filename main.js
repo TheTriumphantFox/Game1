@@ -126,6 +126,7 @@ function update(dt) {
   if (transitionCooldown   > 0) transitionCooldown   -= dt;
   if (player.swordTimer    > 0) player.swordTimer    -= dt;
   if (player.punchTimer    > 0) player.punchTimer    -= dt;
+  if (player.bowTimer      > 0) player.bowTimer      -= dt;
   // Elixir elemental immunity counts down; clear it (and notify) when it lapses.
   if (player.immunityTimer > 0) {
     player.immunityTimer -= dt;

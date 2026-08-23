@@ -1,0 +1,263 @@
+{ "frames": [
+   {
+    "filename": "terrain-air-props 0.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 1.aseprite",
+    "frame": { "x": 96, "y": 0, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 2.aseprite",
+    "frame": { "x": 192, "y": 0, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 3.aseprite",
+    "frame": { "x": 288, "y": 0, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 4.aseprite",
+    "frame": { "x": 0, "y": 144, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 5.aseprite",
+    "frame": { "x": 96, "y": 144, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 6.aseprite",
+    "frame": { "x": 192, "y": 144, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 7.aseprite",
+    "frame": { "x": 288, "y": 144, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 8.aseprite",
+    "frame": { "x": 0, "y": 288, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 9.aseprite",
+    "frame": { "x": 96, "y": 288, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 10.aseprite",
+    "frame": { "x": 192, "y": 288, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 11.aseprite",
+    "frame": { "x": 288, "y": 288, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 12.aseprite",
+    "frame": { "x": 0, "y": 432, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 13.aseprite",
+    "frame": { "x": 96, "y": 432, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 14.aseprite",
+    "frame": { "x": 192, "y": 432, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 15.aseprite",
+    "frame": { "x": 288, "y": 432, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 16.aseprite",
+    "frame": { "x": 0, "y": 576, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 17.aseprite",
+    "frame": { "x": 96, "y": 576, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 18.aseprite",
+    "frame": { "x": 192, "y": 576, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 19.aseprite",
+    "frame": { "x": 288, "y": 576, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 20.aseprite",
+    "frame": { "x": 0, "y": 720, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 21.aseprite",
+    "frame": { "x": 96, "y": 720, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 22.aseprite",
+    "frame": { "x": 192, "y": 720, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 23.aseprite",
+    "frame": { "x": 288, "y": 720, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 24.aseprite",
+    "frame": { "x": 0, "y": 864, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 25.aseprite",
+    "frame": { "x": 96, "y": 864, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 26.aseprite",
+    "frame": { "x": 192, "y": 864, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   },
+   {
+    "filename": "terrain-air-props 27.aseprite",
+    "frame": { "x": 288, "y": 864, "w": 96, "h": 144 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 144 },
+    "sourceSize": { "w": 96, "h": 144 },
+    "duration": 100
+   }
+ ],
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18.2-dev",
+  "image": "terrain-air-props.png",
+  "format": "RGBA8888",
+  "size": { "w": 384, "h": 1008 },
+  "scale": "1"
+ }
+}

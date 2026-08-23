@@ -20,7 +20,9 @@ const HERO_SHEET_SRC = 'hero-sheet.png';
 
 // The unarmed anims are used until player.hasSword flips in prologue Beat 5.
 // render.js is explicit that no blade may be drawn before the player owns one,
-// so those poses carry no sword.
+// so those poses carry no sword. Bow, jump, swim, and climb are authored states
+// in the same sheet rather than procedural overlays, keeping the silhouette
+// consistent with the portrait-inspired idle and walk frames.
 const HERO_ATLAS_OK = typeof HERO_ATLAS !== 'undefined' && !!HERO_ATLAS &&
                       !!HERO_ATLAS.anims && !!HERO_ATLAS.dirRow &&
                       HERO_ATLAS.frame > 0 && HERO_ATLAS.body > 0;
@@ -29,7 +31,7 @@ const HERO_FRAME   = HERO_ATLAS_OK ? HERO_ATLAS.frame  : 64;
 const HERO_BODY    = HERO_ATLAS_OK ? HERO_ATLAS.body   : 48;
 const HERO_BODY_OX = HERO_ATLAS_OK ? HERO_ATLAS.bodyOX : 8;
 const HERO_BODY_OY = HERO_ATLAS_OK ? HERO_ATLAS.bodyOY : 7;
-const HERO_COLS    = HERO_ATLAS_OK ? HERO_ATLAS.cols   : 21;
+const HERO_COLS    = HERO_ATLAS_OK ? HERO_ATLAS.cols   : 52;
 // Where the boot soles sit, as a fraction down the body box. 0.96, not 1.0: the
 // character does not quite fill her own box. Defaulted to 1.0 rather than 0.96
 // when the atlas is missing, because 1.0 is the "plant the box bottom" rule the
@@ -42,6 +44,7 @@ const HERO_ANIMS   = HERO_ATLAS_OK ? HERO_ATLAS.anims  : {};
 
 const HERO_PUNCH_MS = 150;    // must match doPunch in player.js
 const HERO_SWORD_MS = 180;    // must match doSword in player.js
+const HERO_BOW_MS   = 280;     // must match firePlayerArrow in projectiles.js
 
 let heroSheetImg   = null;
 let heroSheetState = 'idle';  // 'idle' | 'loading' | 'ready' | 'error'
@@ -69,12 +72,33 @@ function heroSheetReady() {
 // looping idle/walk cycles (those run off the wall clock instead).
 function heroPickAnim(moving) {
   const armed = !!player.hasSword;
+  const bowing = !!player.hasBow && player.weapon === 'bow';
   if (player.swordTimer > 0) {
     return ['sword', 1 - Math.max(0, Math.min(1, player.swordTimer / HERO_SWORD_MS))];
   }
   if (player.punchTimer > 0) {
     return ['punch', 1 - Math.max(0, Math.min(1, player.punchTimer / HERO_PUNCH_MS))];
   }
+  if (player.bowTimer > 0) {
+    return ['bow', 1 - Math.max(0, Math.min(1, player.bowTimer / HERO_BOW_MS))];
+  }
+
+  // A positive player.z is the simulation's hop/fall height. groundZ is a ledge
+  // surface, not an airborne state, so deliberately do not include it here.
+  if ((player.z || 0) > 0.035) {
+    return [bowing ? 'jump_bow' : (armed ? 'jump_armed' : 'jump'), null];
+  }
+
+  const tile = (typeof mapData === 'function') ? mapData() : null;
+  const tileHere = tile && tile[player.y] ? tile[player.y][player.x] : null;
+  if (typeof T !== 'undefined' && tileHere === T.MEDIUM_WATER) {
+    return ['swim', null];
+  }
+  if (typeof T !== 'undefined' && tileHere === T.CLIMB && moving) {
+    return [armed ? 'climb_armed' : 'climb', null];
+  }
+
+  if (bowing) return [moving ? 'walk_bow' : 'idle_bow', null];
   if (moving) return [armed ? 'walk_armed' : 'walk', null];
   return [armed ? 'idle_armed' : 'idle', null];
 }
@@ -97,7 +121,11 @@ function heroBodyOrigin(sx, sy, s) {
 // surplus is deliberate overhang (raised blade, ear tips, cloak, downward
 // swings) which is allowed to spill outside the tile.
 function drawHeroSprite(sx, sy, s, facing, moving) {
-  const [anim, t] = heroPickAnim(moving);
+  const [requestedAnim, t] = heroPickAnim(moving);
+  // A stale sheet/atlas pair should degrade to a known idle frame rather than
+  // throwing from an undefined animation tuple and taking down the render loop.
+  const anim = HERO_ANIMS[requestedAnim] ? requestedAnim :
+    (player.hasSword ? 'idle_armed' : 'idle');
   const [col0, n, ms] = HERO_ANIMS[anim];
   const fi = (t === null)
     ? Math.floor(Date.now() / ms) % n

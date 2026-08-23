@@ -291,6 +291,9 @@ function firePlayerArrow() {
     }
     player.arrows.plain--;
   }
+  // The arrow is still spawned immediately for gameplay, but the sprite now
+  // shows the draw/release action for the same window the player sees the bow.
+  player.bowTimer = 280;
   if (typeof buzz === 'function') buzz(12);
   const elemColor = element ? SWORD_ELEMENTS[element]?.color : null;
   projectiles.push({

@@ -8,10 +8,12 @@
 -- palette and missing shield are approximations of that art; this sheet goes
 -- back to the source.
 --
--- 64x64 frames. Per direction: unarmed idle(2) + walk(4) + punch(4), then armed
--- idle(2) + walk(4) + sword(5) = 21 frames, four directions, 84 frames total,
--- tagged per animation. (This line used to say 11 and 44, from before the
--- unarmed set and the punch existed.)
+-- 96x96 frames. Per direction: unarmed idle(2) + walk(4) + punch(4) + jump(4)
+-- + swim(4) + climb(4), sword idle(2) + walk(4) + jump(4), and bow idle(2)
+-- + walk(4) + jump(4) + fire(5) = 52 frames. Four directions make 208 frames,
+-- tagged per animation. The extra states are deliberately authored here rather
+-- than faked with canvas transforms: the shield, cloak, ears, bow, and sword all
+-- need different silhouettes when the hero leaves the ground or enters water.
 --
 -- Step 1 also writes hero-atlas.js, the frame layout the game reads at runtime.
 --
@@ -19,7 +21,7 @@
 -- committed hero-sheet.png/.json/.aseprite on aseprite 1.3.18.2-dev):
 --   aseprite -b --script-param out=hero-sheet.aseprite --script tools/make-hero-sheet.lua
 --   aseprite -b hero-sheet.aseprite --sheet hero-sheet.png --data hero-sheet.json ^
---            --format json-array --sheet-type rows --sheet-columns 21 --list-tags
+--            --format json-array --sheet-type rows --sheet-columns 52 --list-tags
 --
 -- Two steps because the sprite the script builds is not left "open" for the
 -- CLI's own --sheet/--data flags to see when they are chained onto the same
@@ -38,9 +40,11 @@
 -- reach does not fit in a 64px frame". 24px of margin all round fixes that.
 local W, H   = 96, 96
 local DIRS   = { "down", "up", "left", "right" }
-local N_IDLE, N_WALK, N_PUNCH, N_SWING = 2, 4, 4, 5
--- unarmed idle+walk+punch, then armed idle+walk+sword
-local PER_DIR = N_IDLE + N_WALK + N_PUNCH + N_IDLE + N_WALK + N_SWING
+local N_IDLE, N_WALK, N_PUNCH, N_JUMP = 2, 4, 4, 4
+local N_SWIM, N_CLIMB, N_BOW, N_SWING = 4, 4, 5, 5
+-- unarmed idle+walk+punch+jump+swim+climb, then sword and bow sets
+local PER_DIR = N_IDLE + N_WALK + N_PUNCH + N_JUMP + N_SWIM + N_CLIMB +
+                N_IDLE + N_WALK + N_JUMP + N_IDLE + N_WALK + N_JUMP + N_BOW + N_SWING
 local S       = 48.0
 local OX, OY  = 24.0, 24.0
 
@@ -449,15 +453,142 @@ local function drawFist(img, facing, phase, bob)
   ellipsePx(img, cx - r*0.22, cy - r*0.22, r*0.70, r*0.70, SKIN)
 end
 
+-- Mid-air pose. The body keeps its normal proportions so the renderer's real
+-- player.z can lift it cleanly; only the legs and arms change silhouette here.
+local function drawJumpPose(img, facing, phase, bob)
+  local d = DIR_VEC[facing]
+  local side = { -d[2], d[1] }
+  local tuck = math.sin(phase * math.pi)
+  local cy0 = SW_CY + bob * S
+  local lift = S * (0.04 + tuck * 0.09)
+
+  -- Arms open for balance, with the leading hand slightly higher.
+  for sign = -1, 1 do
+    local spread = S * (0.17 + tuck * 0.04)
+    local handX = SW_CX + side[1] * sign * spread + d[1] * S * 0.06
+    local handY = cy0 + side[2] * sign * spread + d[2] * S * 0.06 - lift
+    linePx(img, SW_CX + side[1] * sign * 5, cy0 + side[2] * sign * 5,
+                handX, handY, S * 0.10, OUTLINE)
+    linePx(img, SW_CX + side[1] * sign * 5, cy0 + side[2] * sign * 5,
+                handX, handY, S * 0.060, LEATHER)
+    ellipsePx(img, handX, handY, S * 0.075, S * 0.075, SKIN_D)
+  end
+
+  -- Tucked knees and boots, alternating slightly so the loop has a clear rhythm.
+  for sign = -1, 1 do
+    local kneeX = SW_CX + side[1] * sign * S * 0.12 + d[1] * S * 0.06
+    local kneeY = Y(0.79) + side[2] * sign * S * 0.12 - lift
+    local bootX = kneeX + d[1] * S * 0.08
+    local bootY = kneeY + d[2] * S * 0.08
+    linePx(img, kneeX, kneeY, bootX, bootY, S * 0.12, OUTLINE)
+    linePx(img, kneeX, kneeY, bootX, bootY, S * 0.07, LEATHER)
+    ellipsePx(img, bootX, bootY, S * 0.09, S * 0.06, LEATHER_D)
+  end
+end
+
+-- Compact recurved bow. The string pulls back through the five fire frames and
+-- the arrow stays nocked until release, so the action reads at low frame rates.
+local function drawBow(img, facing, phase, bob)
+  local d = DIR_VEC[facing]
+  local side = { -d[2], d[1] }
+  local handX = SW_CX + d[1] * S * 0.15
+  local handY = SW_CY + d[2] * S * 0.15 + bob * S
+  local bowCX = handX + d[1] * S * 0.05
+  local bowCY = handY + d[2] * S * 0.02
+  local span = S * 0.22
+  local curve = S * 0.065
+  local draw = S * (0.05 + phase * 0.12)
+  local topX = bowCX + side[1] * span + d[1] * curve
+  local topY = bowCY + side[2] * span + d[2] * curve
+  local botX = bowCX - side[1] * span + d[1] * curve
+  local botY = bowCY - side[2] * span + d[2] * curve
+  local stringX = bowCX - d[1] * draw
+  local stringY = bowCY - d[2] * draw
+
+  -- Arms reach into a two-handed draw stance.
+  linePx(img, SW_CX + side[1] * S * 0.08, SW_CY + side[2] * S * 0.08 + bob*S,
+              bowCX, bowCY, S * 0.12, OUTLINE)
+  linePx(img, SW_CX + side[1] * S * 0.08, SW_CY + side[2] * S * 0.08 + bob*S,
+              bowCX, bowCY, S * 0.07, LEATHER)
+  linePx(img, SW_CX - side[1] * S * 0.08, SW_CY - side[2] * S * 0.08 + bob*S,
+              stringX, stringY, S * 0.10, OUTLINE)
+  linePx(img, SW_CX - side[1] * S * 0.08, SW_CY - side[2] * S * 0.08 + bob*S,
+              stringX, stringY, S * 0.055, LEATHER)
+
+  -- Bow limbs, string, and arrow shaft. A dark pass keeps the silhouette crisp
+  -- against bright terrain; the warm pass picks up the portrait's equipment.
+  linePx(img, topX, topY, bowCX, bowCY, S * 0.075, OUTLINE)
+  linePx(img, bowCX, bowCY, botX, botY, S * 0.075, OUTLINE)
+  linePx(img, topX, topY, bowCX, bowCY, S * 0.040, GOLD_D)
+  linePx(img, bowCX, bowCY, botX, botY, S * 0.040, GOLD)
+  linePx(img, topX, topY, stringX, stringY, S * 0.018, STEEL_L)
+  linePx(img, stringX, stringY, botX, botY, S * 0.018, STEEL_L)
+
+  local arrowEndX = stringX + d[1] * S * 0.42
+  local arrowEndY = stringY + d[2] * S * 0.42
+  linePx(img, stringX - d[1] * S * 0.10, stringY - d[2] * S * 0.10,
+              arrowEndX, arrowEndY, S * 0.040, OUTLINE)
+  linePx(img, stringX - d[1] * S * 0.08, stringY - d[2] * S * 0.08,
+              arrowEndX, arrowEndY, S * 0.018, STEEL_H)
+  linePx(img, arrowEndX, arrowEndY,
+              arrowEndX - d[1] * S * 0.06 + side[1] * S * 0.04,
+              arrowEndY - d[2] * S * 0.06 + side[2] * S * 0.04, S * 0.018, STEEL_H)
+  linePx(img, arrowEndX, arrowEndY,
+              arrowEndX - d[1] * S * 0.06 - side[1] * S * 0.04,
+              arrowEndY - d[2] * S * 0.06 - side[2] * S * 0.04, S * 0.018, STEEL_H)
+end
+
+-- Swimming keeps the upper body recognizable while render.js clips the lower
+-- half at the waterline. Alternating paddles make it read as movement, not a
+-- standing sprite behind a translucent tile.
+local function drawSwimPose(img, facing, phase, bob)
+  local d = DIR_VEC[facing]
+  local side = { -d[2], d[1] }
+  local stroke = math.sin(phase * math.pi * 2)
+  local cy0 = SW_CY + bob * S
+  for sign = -1, 1 do
+    local reach = S * (0.13 + 0.08 * math.max(0, stroke * sign))
+    local handX = SW_CX + d[1] * S * 0.05 + side[1] * sign * reach
+    local handY = cy0 + d[2] * S * 0.05 + side[2] * sign * reach - S * 0.08
+    linePx(img, SW_CX + side[1] * sign * S * 0.08, cy0 + side[2] * sign * S * 0.08,
+                handX, handY, S * 0.11, OUTLINE)
+    linePx(img, SW_CX + side[1] * sign * S * 0.08, cy0 + side[2] * sign * S * 0.08,
+                handX, handY, S * 0.06, LEATHER)
+    ellipsePx(img, handX, handY, S * 0.075, S * 0.075, SKIN_D)
+  end
+end
+
+-- Short alternating hand motion for the existing CLIMB ramp state.
+local function drawClimbPose(img, facing, phase, bob)
+  local d = DIR_VEC[facing]
+  local side = { -d[2], d[1] }
+  local stroke = math.sin(phase * math.pi * 2)
+  local cy0 = SW_CY + bob * S
+  for sign = -1, 1 do
+    local handX = SW_CX + side[1] * sign * S * 0.14 + d[1] * S * 0.04
+    local handY = cy0 + side[2] * sign * S * 0.14 + d[2] * S * 0.04 - S * (0.06 + stroke * sign * 0.04)
+    linePx(img, SW_CX + side[1] * sign * 4, cy0 + side[2] * sign * 4,
+                handX, handY, S * 0.11, OUTLINE)
+    linePx(img, SW_CX + side[1] * sign * 4, cy0 + side[2] * sign * 4,
+                handX, handY, S * 0.06, LEATHER)
+    ellipsePx(img, handX, handY, S * 0.07, S * 0.07, SKIN_D)
+  end
+end
+
 ----------------------------------------------------------------------
 -- frame assembly
 ----------------------------------------------------------------------
-local ARMED = { idle_armed = true, walk_armed = true, sword = true }
+local ARMED = { idle_armed = true, walk_armed = true, jump_armed = true, sword = true,
+                climb_armed = true }
+local BOW_KINDS = { idle_bow = true, walk_bow = true, jump_bow = true, bow = true }
+local SWIM_KINDS = { swim = true }
+local CLIMB_KINDS = { climb = true, climb_armed = true }
 
 local function drawFrame(img, facing, kind, i, n)
   local bob, sway, swing, a, trail = 0, 0, 0, IDLE_ANGLE[facing], false
   local pcx, pcy = IDLE_PIVOT[facing][1], IDLE_PIVOT[facing][2]
-  local punchPhase = nil
+  local punchPhase, actionPhase = nil, nil
+  local airborne = false
 
   if kind == 'idle' or kind == 'idle_armed' then
     bob = (i == 2) and (1.0 / S) or 0
@@ -466,12 +597,34 @@ local function drawFrame(img, facing, kind, i, n)
     swing = math.sin(t * math.pi * 2) * 0.045
     bob   = (math.abs(math.sin(t * math.pi * 2)) > 0.5) and (-1.0 / S) or 0
     sway  = -math.sin(t * math.pi * 2) * 0.05
+  elseif kind == 'jump' or kind == 'jump_armed' or kind == 'jump_bow' then
+    actionPhase = (i - 0.5) / n
+    airborne = true
+    sway = -math.sin(actionPhase * math.pi) * 0.04
+  elseif kind == 'swim' then
+    actionPhase = (i - 1) / n
+    sway = -math.sin(actionPhase * math.pi * 2) * 0.04
+  elseif CLIMB_KINDS[kind] then
+    actionPhase = (i - 1) / n
+    sway = -math.sin(actionPhase * math.pi * 2) * 0.035
+    bob = -1.0 / S
+  elseif BOW_KINDS[kind] then
+    actionPhase = (i - 1) / math.max(1, n - 1)
+    if kind == 'idle_bow' then
+      actionPhase = 0.72
+    elseif kind == 'walk_bow' then
+      local t = (i - 1) / n
+      swing = math.sin(t * math.pi * 2) * 0.045
+      bob = (math.abs(math.sin(t * math.pi * 2)) > 0.5) and (-1.0 / S) or 0
+      sway = -math.sin(t * math.pi * 2) * 0.05
+      actionPhase = 0.72
+    end
   elseif kind == 'punch' then
     -- Sampled off the endpoints: sin(0) and sin(pi) are both zero reach, which
     -- parks the fist on her chest instead of showing a jab.
     punchPhase = (i - 0.5) / n
     bob = (punchPhase > 0.3 and punchPhase < 0.7) and (-1.0 / S) or 0
-  else -- sword: pivots at the body centre so the arc reads as a real sweep
+  elseif kind == 'sword' then -- sword: pivots at the body centre so the arc reads as a real sweep
     local phase = (i - 1) / (n - 1)
     local arc = math.pi * 0.85
     a = BASE_ANGLE[facing] - arc/2 + arc*phase
@@ -481,15 +634,39 @@ local function drawFrame(img, facing, kind, i, n)
   end
 
   drawCloak(img, sway, bob)
-  drawLegs(img, facing, swing, bob)
+  -- Lift the legs inside the authored frame as well as lifting the whole frame
+  -- with player.z. This makes a hop read as knees tucked, not a standing pose
+  -- translated upward.
+  drawLegs(img, facing, swing, bob + (airborne and -0.12 or 0))
   drawTorso(img, facing, bob)
-  -- off-arm shield sits behind the blade but in front of the body
-  drawShield(img, facing, bob)
+  -- Bow and swim poses use both arms, so hiding the shield keeps those silhouettes
+  -- readable. The armed jump and climb retain the signature tree shield.
+  if not BOW_KINDS[kind] and not SWIM_KINDS[kind] then
+    drawShield(img, facing, bob)
+  end
   drawHead(img, facing, bob)
   outlineSilhouette(img, OUTLINE)
 
   if punchPhase then
     drawFist(img, facing, punchPhase, bob)
+  elseif kind == 'jump' or kind == 'jump_armed' or kind == 'jump_bow' then
+    if kind == 'jump_bow' then
+      drawBow(img, facing, 0.72, bob)
+    else
+      drawJumpPose(img, facing, actionPhase, bob)
+      if kind == 'jump_armed' then
+        drawBlade(img, IDLE_ANGLE[facing], bob, false, IDLE_PIVOT[facing][1], IDLE_PIVOT[facing][2])
+      end
+    end
+  elseif kind == 'swim' then
+    drawSwimPose(img, facing, actionPhase, bob)
+  elseif CLIMB_KINDS[kind] then
+    drawClimbPose(img, facing, actionPhase, bob)
+    if kind == 'climb_armed' then
+      drawBlade(img, IDLE_ANGLE[facing], bob, false, IDLE_PIVOT[facing][1], IDLE_PIVOT[facing][2])
+    end
+  elseif BOW_KINDS[kind] then
+    drawBow(img, facing, actionPhase, bob)
   elseif ARMED[kind] then
     drawBlade(img, a, bob, trail, pcx, pcy)
   end
@@ -499,8 +676,16 @@ local KINDS = {
   { 'idle',       N_IDLE,  0.28  },   -- unarmed: before prologue Beat 5
   { 'walk',       N_WALK,  0.11  },
   { 'punch',      N_PUNCH, 0.037 },   -- punchTimer is 150ms
+  { 'jump',       N_JUMP,  0.09  },
+  { 'swim',       N_SWIM,  0.14  },
+  { 'climb',      N_CLIMB, 0.11  },
   { 'idle_armed', N_IDLE,  0.28  },   -- armed: sword carried high
   { 'walk_armed', N_WALK,  0.11  },
+  { 'jump_armed', N_JUMP,  0.09  },
+  { 'idle_bow',   N_IDLE,  0.28  },
+  { 'walk_bow',   N_WALK, 0.11  },
+  { 'jump_bow',   N_JUMP,  0.09  },
+  { 'bow',        N_BOW,   0.056 },   -- bowTimer is 280ms
   { 'sword',      N_SWING, 0.036 },   -- swordTimer is 180ms
 }
 

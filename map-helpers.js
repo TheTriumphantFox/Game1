@@ -243,6 +243,45 @@ function stampLedgeShelf(map, c1, r1, c2, r2, ramps) {
   return { ledge: total - face - ramp, face, ramp };
 }
 
+// Face a shelf that is NOT a rectangle.
+//
+// stampLedgeShelf faces a rect by construction, which is the safe case and the
+// one to prefer. A shelf laid over existing terrain cannot be a rect: the
+// desert mesa pass has to flow around chests, shrines, dungeon doors, water and
+// the climb corridors already cut through it, and every tile it skips is a hole
+// whose rim is unfaced. An unfaced rim is the exact failure the invariant in
+// config.js exists to prevent, so the perimeter is DISCOVERED from the tiles
+// rather than assumed from a rectangle.
+//
+// Every LEDGE touching anything that is not part of the shelf becomes
+// LEDGE_FACE. Ramps are left alone: a T.CLIMB inside the shelf is the sanctioned
+// way up and must not be walled off by the pass that seals everything else.
+// Returns how many tiles it faced, so a caller can assert it did something.
+function faceLedgeEdges(map) {
+  const NB4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const edges = [];
+  for (let r = 0; r < MROWS; r++) {
+    for (let c = 0; c < MCOLS; c++) {
+      if (map[r][c] !== T.LEDGE) continue;
+      for (const [dc, dr] of NB4) {
+        const nc = c + dc, nr = r + dr;
+        // The map border counts as "not shelf", so a shelf running off the edge
+        // is faced there too rather than left open.
+        if (nc < 0 || nr < 0 || nc >= MCOLS || nr >= MROWS) { edges.push(c, r); break; }
+        const n = map[nr][nc];
+        if (n === T.LEDGE || n === T.LEDGE_FACE || n === T.CLIMB) continue;
+        edges.push(c, r);
+        break;
+      }
+    }
+  }
+  // Collected first and written after, so a tile turned into a face partway
+  // through the scan cannot make its neighbour look like an edge in turn and
+  // erode the whole shelf inward.
+  for (let i = 0; i < edges.length; i += 2) map[edges[i + 1]][edges[i]] = T.LEDGE_FACE;
+  return edges.length / 2;
+}
+
 // Audit: every LEDGE tile that touches a lower, passable, non-ramp neighbour is
 // a hole in the invariant above, because the flood can walk in there and the
 // player cannot. Returns the offending coordinates, empty when the map is sound.

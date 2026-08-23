@@ -132,6 +132,9 @@ let player = {
   // blade arc, punchTimer the jab (see drawPlayer in render.js). A pre-weapon
   // hero only ever sets this one.
   punchTimer: 0,
+  // Bow draw/release animation clock. The projectile still spawns instantly;
+  // this timer gives the sprite a readable nock, draw, and release pose.
+  bowTimer: 0,
   invincible: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
