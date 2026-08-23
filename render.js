@@ -227,7 +227,14 @@ function drawPlayer(ts) {
   // Everything below this tile-fraction waterline is clipped away, and a ripple
   // ring is drawn at the surface so the sprite reads as submerged, not cropped.
   const swimming = !!(_pmap && _pmap[player.y] && _pmap[player.y][player.x] === T.MEDIUM_WATER);
-  const WATERLINE = 0.55;
+  // A fraction of the TILE, but what it has to look right against is the
+  // FIGURE, and the hero sheet's figure grew from 0.94 to 1.26 tiles tall (see
+  // hero-sprite.js). At the old 0.55 the cut still landed where it always had
+  // on the tile, but that is now only two thirds of the way down her — she
+  // stood in the water from the thigh down and read as wading, not swimming.
+  // 0.42 puts her under at just past the waist again, and leaves the procedural
+  // fallback hero cut at the chest, which is also a swimmer.
+  const WATERLINE = 0.42;
   // The hop is real state now (player.z, stepped by stepPlayerJump in player.js).
   // This reads it and converts world units to pixels; it no longer owns the arc,
   // and it no longer CLEARS anything, which is what stops the renderer mutating
@@ -653,7 +660,11 @@ function finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming) {
     ctx.globalAlpha = 0.16 + 0.26 * dangerPulse;
     ctx.fillStyle = '#ff2020';
     ctx.beginPath();
-    ctx.arc(sx + s/2, sy + s*0.48 + bob, s*0.46, 0, Math.PI*2);
+    // Centred on the FIGURE, not on the tile. The hero stands about 1.26 tiles
+    // tall (see hero-sprite.js), so a circle centred at 0.48 of the tile with a
+    // 0.46 radius reached her belt and stopped — at low HP her head and
+    // shoulders, the part being looked at, were the part left untinted.
+    ctx.arc(sx + s/2, sy + s*0.30 + bob, s*0.72, 0, Math.PI*2);
     ctx.fill();
     ctx.globalAlpha = 1;
   }
