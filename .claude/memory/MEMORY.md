@@ -6,5 +6,5 @@
 - [Aseprite for all artwork](aseprite-for-all-artwork.md) — every sprite and tile comes from a tools/make-*-sheet.lua, never procedural drawing code; the binary's path is machine-specific.
 - [Hero canon art](hero-canon-art.md) — hero-portrait.png is the real player design; hero-atlas.js is generated, drawPlayer() is only the fallback.
 - [Umbral Sanctum work](umbral-sanctum-work.md) — the shadow-village skin and Obsidian Spire; unfinished, and the gate-orientation problem blocks it.
-- [Dev shot harness](dev-shot-harness.md) — iframe harness to screenshot any map or region; not committed, rebuild it, and watch the burnLevel fire wash.
+- [Dev shot harness](dev-shot-harness.md) — iframe harness to screenshot any map or region; watch the burnLevel fire wash.
 - [perf-hud.js is temporary](perf-hud-temporary.md) — diagnostic only; remove before release, three edits.

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>shadow shot</title>
+<style>html,body{margin:0;background:#000}iframe{border:0;display:block}</style>
+<iframe id="f" src="index.html" width="1000" height="820"></iframe>
+<script>
+// Temporary dev harness, same shape as roof-shot.html: boots the game, drops
+// the camera in the SHADOW region village (region index 12) and freezes there.
+// Not part of the game. ?in=1 stands inside a house, ?gate=1 stands on the
+// castle-gate approach so the spire is in frame, py=N sets that row, ts=N sets
+// TILE_PX.
+const q = new URLSearchParams(location.search);
+const inside = q.has('in'), gate = q.has('gate');
+const ts = +(q.get('ts') || 34);
+const py = +(q.get('py') || 24);
+const f = document.getElementById('f');
+f.onload = () => setTimeout(() => {
+  const w = f.contentWindow;
+  const btn = t => [...w.document.querySelectorAll('button')].find(b => b.textContent.includes(t));
+  btn('skip').click();
+  const i = w.document.querySelector('input[type=text]');
+  if (i) i.value = 'Dev';
+  btn('Begin Adventure').click();
+  const stand = gate
+    ? `player.x = EXIT_COL; player.y = ${py};`
+    : `const h = roofs[0]; player.x = h.doorC; player.y = h.r2 + ${inside ? -2 : 4};`;
+  setTimeout(() => {
+    w.eval(`(() => {
+      const vid = getOrCreateActiveRegionVillage(12);
+      currentMapId = vid;
+      const m = worldMaps[vid];
+      TILE_PX = ${ts};
+      resizeCanvas();
+      // Skipping the prologue leaves burnLevel at 0.25, and drawFireWash then
+      // multiplies a warm #ffba8c over every map forever. Zero it here so these
+      // shots show the region's real colour rather than the Ashfall's.
+      burnLevel = 0;
+      const roofs = mapForestHouseRoofs(m);
+      window.__diag = { biome: m.biome, castle: m.castleExitDir, roofs: roofs.length,
+                        foot: JSON.stringify(obsidianSpireFoot(m)) };
+      ${stand}
+      player.renderX = player.x; player.renderY = player.y;
+      clampCam(true);
+    })()`);
+    document.title = 'ready ' + JSON.stringify(w.__diag);
+  }, 500);
+}, 1000);
+</script>

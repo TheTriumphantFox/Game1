@@ -9,8 +9,11 @@ project knowledge and the exact unfinished work found in this checkout.
 > left open. The Shadow-village work is now in Git history as `35bcd12`, this
 > file and `AGENTS.md` are committed, and everything was pushed to
 > `origin/main`. A plain `git clone` on the new computer now retrieves all of
-> it. What was deliberately left out and does *not* exist in the repo:
-> `shadow-shot.html`, `roof-shot.html` and the three `out-*.png` captures.
+> it, including `shadow-shot.html`, `roof-shot.html` and the three `out-*.png`
+> captures, which were committed on request in a later pass. Nothing listed in
+> this document was left behind. Note that the three PNGs remain forest-cottage
+> controls that predate `village-shadow.js`, exactly as described below, so
+> having them in the repo does not mean the Shadow work has been captured.
 > Everything below this line is the snapshot as Codex wrote it, and the
 > unfinished-work and stale-comment sections are still accurate and still the
 > right place to start.

@@ -78,8 +78,8 @@ comment mentioning "30 tiles" or "outside the map" is stale
    taken before this work. They do not validate anything here.
 
 The dev harness used to look at it (`roof-shot.html`, `shadow-shot.html`) and
-those PNGs were deliberately not committed. See [[dev-shot-harness]] for how to
-rebuild one.
+the `out-*.png` captures were committed on 2026-08-27 so they would reach the
+new machine. See [[dev-shot-harness]].
 
 A parallel Codex session wrote `CODEX_HANDOFF.md` and `AGENTS.md` at the repo
 root on 2026-08-27 covering the same ground in more detail, including a wider

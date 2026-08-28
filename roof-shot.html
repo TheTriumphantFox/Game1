@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>roof shot</title>
+<style>html,body{margin:0;background:#000}iframe{border:0;display:block}</style>
+<iframe id="f" src="index.html" width="900" height="780"></iframe>
+<script>
+// Temporary dev harness: boots the game in an iframe, drops the camera on one
+// forest cottage and freezes there so a headless screenshot can be taken.
+// Not part of the game. Query args: ?in=1 to stand inside the house, ts=N tiles.
+// Everything runs through the iframe's own eval so it can reach the game's
+// top-level `let` bindings, which never become window properties.
+const q = new URLSearchParams(location.search);
+const inside = q.has('in');
+const ts = +(q.get('ts') || 30);
+const f = document.getElementById('f');
+f.onload = () => setTimeout(() => {
+  const w = f.contentWindow;
+  const btn = t => [...w.document.querySelectorAll('button')].find(b => b.textContent.includes(t));
+  btn('skip').click();
+  const i = w.document.querySelector('input[type=text]');
+  if (i) i.value = 'Dev';
+  btn('Begin Adventure').click();
+  setTimeout(() => {
+    w.eval(`(() => {
+      const vid = getOrCreateActiveRegionVillage(0);
+      currentMapId = vid;
+      const h = mapForestHouseRoofs(worldMaps[vid])[0];
+      TILE_PX = ${ts};
+      resizeCanvas();
+      player.x = h.doorC;
+      player.y = ${inside ? 'h.r2 - 2' : 'h.r2 + 4'};
+      player.renderX = player.x; player.renderY = player.y;
+      clampCam(true);
+    })()`);
+    document.title = 'ready';
+  }, 400);
+}, 900);
+</script>

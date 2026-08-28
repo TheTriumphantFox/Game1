@@ -8,9 +8,9 @@ metadata:
 ---
 
 To look at a particular map, region or building without playing to it, build a
-throwaway iframe harness. The pattern (used by `roof-shot.html` and
-`shadow-shot.html`, which were **never committed** and so do not exist in a
-fresh clone): load `index.html` in an `<iframe>`, wait for it to boot, click
+throwaway iframe harness. `roof-shot.html` and `shadow-shot.html` are the two
+that exist, committed on 2026-08-27 at the user's request so they would reach
+the new machine. The pattern: load `index.html` in an `<iframe>`, wait for it to boot, click
 past the prologue and the name prompt through `contentWindow`, then `eval` a
 setup block that calls `getOrCreateActiveRegionVillage(n)`, sets `currentMapId`,
 sets `TILE_PX`, places `player.x/y`, syncs `renderX/renderY`, and calls
@@ -23,9 +23,10 @@ actually landed where it meant to.
 and the alternative (reading the drawing code and imagining it) is how art bugs
 survive. This gives a repeatable, parameterised frame.
 
-**How to apply:** keep these files out of the shipped script list in
-`index.html`, and out of git unless the user asks otherwise. Two gotchas worth
-knowing:
+**How to apply:** copy an existing shot file rather than writing one fresh.
+They are dev tools that happen to live in the repo, not game code: keep them out
+of the `<script>` list in `index.html`, and never let the game itself come to
+depend on one. Two gotchas worth knowing:
 
 - **Skipping the prologue leaves `burnLevel` at 0.25**, and `drawFireWash` then
   multiplies a warm `#ffba8c` over *every* map for the rest of the session. Set
