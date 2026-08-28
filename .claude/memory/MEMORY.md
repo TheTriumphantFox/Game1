@@ -2,6 +2,7 @@
 - [Prose style](prose-style.md) — no em dashes in anything user-facing; use commas or separate sentences.
 - [Claude's mistake log](claude-mistake-log.md) — running record of Claude's errors on this project, root cause, and fix.
 - [User's mistake log](user-mistake-log.md) — running record of the user's mistakes and how they self-corrected. Empty so far.
+- [Memories decay](memories-decay.md) — treat notes as hypotheses about the past; audit the whole set at handoff points.
 - [Project renamed to Hero of Stormdrift](project-renamed-stormdrift.md) — the repo, folders and older docs still say Game1; the git repo is the inner Game1\Game1.
 - [Aseprite for all artwork](aseprite-for-all-artwork.md) — every sprite and tile comes from a tools/make-*-sheet.lua, never procedural drawing code; the binary's path is machine-specific.
 - [Hero canon art](hero-canon-art.md) — hero-portrait.png is the real player design; hero-atlas.js is generated, drawPlayer() is only the fallback.

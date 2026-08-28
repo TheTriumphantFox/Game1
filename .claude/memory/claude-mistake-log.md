@@ -42,3 +42,31 @@ Running log. Append a new entry below whenever Claude makes a mistake in this pr
 **What happened:** While writing a handoff memory about the Obsidian Spire, described it as "a thirty-tile tower standing outside the map, two tiles beyond the border ring", quoting a comment in `render.js`. The implementation says otherwise: `SPIRE_TILES_H = 10` and `SPIRE_INSET = 7`, and `village-shadow.js:302` carries a comment block explaining that the outside-the-map anchor was tried, rendered an invisible tower, and was abandoned. A parallel Codex session's handoff doc flagged the contradiction, and checking the source confirmed Codex was right.
 **Why it happened:** Read the comment nearest the code I was documenting and treated it as the source. Comments in a file being actively iterated on are the *most* likely thing to be stale, not the least: the constants get changed and the prose around them does not. [[verify-facts-before-stating]] was followed only as far as "read a file", not as far as "read the code that runs".
 **Fix:** Corrected [[umbral-sanctum-work]] and listed every stale comment site so they can be cleaned once the geometry settles. Going forward, when documenting behaviour, verify against the constants and the control flow, and treat a nearby comment as a claim to check rather than as evidence. Where a comment and the code disagree, say so in the note rather than silently picking one.
+
+---
+
+## The pattern across these entries, noticed 2026-08-27
+
+Read the four entries above together. They are the same mistake wearing
+different clothes:
+
+- Aseprite: four negative search results stood in for the filesystem.
+- The stale sheet: a read that happened too early stood in for what was written.
+- The spire: a comment stood in for the code it sits above.
+
+Each time I took a **secondary signal that was cheap to obtain** and treated it
+as the primary source, then reasoned confidently on top of it. The em-dash
+entry is a variant: a rule checked against short replies stood in for the rule
+applied everywhere.
+
+Writing the individual entries did not prevent the next one, because each felt
+like a different situation in the moment. The generalisation is the useful part,
+so state it as a question to ask before asserting: **what am I actually looking
+at, and is it the thing itself or a description of the thing?** Search results
+describe a filesystem. Comments describe code. A cached read describes a past
+state. Documentation describes an intention. All four are worth reading and none
+of them are evidence.
+
+The tell is confidence arriving too easily. When a conclusion feels settled
+after one cheap check, that is the moment to find the primary source, not after
+the user pushes back.
