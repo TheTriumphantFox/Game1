@@ -19,6 +19,8 @@ Orient yourself in the actual repo rather than assuming — the project has grow
 2. There is no `src/` or `styles/` folder — every `.js` and `.css` file sits flat at the repo root, alongside `index.html` itself. List the repo root and read the files you're about to touch, plus the file that owns the system you're changing.
 3. Only then propose a change.
 
+`.claude/memory/` holds Claude's own running notes on this project: art pipeline rules, what is temporary, the mistake log, and the user's stated preferences. Read `.claude/memory/MEMORY.md` and follow the entries that touch what you are about to change. Its README says how to load them into Claude Code's auto-memory on a new machine.
+
 If a system already exists in some form, extend it. Do not build a parallel second version of it — this codebase has one owner and duplicated systems rot fast.
 
 ## Hard constraints
