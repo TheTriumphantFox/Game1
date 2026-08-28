@@ -4610,10 +4610,16 @@ function drawTileExtrusion(map, col, row, ts) {
   // keep their own art. See village-sprite.js.
   const villageTimber = (faceTile === T.WALL) &&
     typeof villageArtHere === 'function' && villageArtHere();
+  // Same test for Umbral Sanctum's void stone. Kept as its own flag rather
+  // than folded into villageTimber: the two skins share the hook points but
+  // never both apply, and a single flag would hide which one is speaking.
+  const umbralMasonry = (faceTile === T.WALL) &&
+    typeof umbralArtHere === 'function' && umbralArtHere();
 
   if (!southTall) {
     const faceTop = y + ts - lift;
-    if (!(villageTimber && drawVillageWallFace(x, faceTop, ts, lift))) {
+    if (!(villageTimber && drawVillageWallFace(x, faceTop, ts, lift)) &&
+        !(umbralMasonry && drawUmbralWallFace(x, faceTop, ts, lift))) {
       // A ledge face takes the region's rock, like its cap, instead of the one
       // green TILE_COLORS entry that made a desert mesa read as a grass bank.
       const ledgeFace = (faceTile === T.LEDGE || faceTile === T.LEDGE_FACE);
@@ -4658,7 +4664,8 @@ function drawTileExtrusion(map, col, row, ts) {
   // because that is what a wall top IS when you look straight down at it. It
   // does not go through drawTile either: this is a lifted transform, and the
   // sprite cache's contract is that art is a pure function of (type, size).
-  if (!(villageTimber && drawVillageWallCap(x, y - lift, ts))) {
+  if (!(villageTimber && drawVillageWallCap(x, y - lift, ts)) &&
+      !(umbralMasonry && drawUmbralWallCap(x, y - lift, ts))) {
     tileOverlayPass = true;
     try { drawTileProcedural(col, row, faceTile, x, y - lift, ts); }
     finally { tileOverlayPass = false; }
@@ -4673,7 +4680,8 @@ function drawTileExtrusion(map, col, row, ts) {
   // reads as a solid panel set into the masonry rather than a translucent
   // sketch with the wall showing through.
   if (doorway) {
-    if (!(villageTimber && drawVillageDoorPanel(x, y, ts)))
+    if (!(villageTimber && drawVillageDoorPanel(x, y, ts)) &&
+        !(umbralMasonry && drawUmbralDoorPanel(x, y, ts)))
       drawTileProcedural(col, row, tile, x, y, ts);
   }
 }

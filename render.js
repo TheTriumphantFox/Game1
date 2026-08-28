@@ -151,6 +151,7 @@ function drawTile(col, row, t, sx, sy, s) {
   // village-sprite.js; it declines on every map but the forest villages, and
   // whenever its sheet has not loaded.
   if (typeof villageTileArt === 'function' && villageTileArt(col, row, t, sx, sy, s)) return;
+  if (typeof umbralTileArt === 'function' && umbralTileArt(col, row, t, sx, sy, s)) return;
   if (CACHEABLE_TILES.has(t)) {
     const spr = getTileSprite(t, s);
     if (spr) {
@@ -2076,6 +2077,12 @@ const DEPTH_PLAYER   = 5;
 // (r2 + 1) is not. That replaces redrawPlayerInFront, which drew the whole hero
 // a second time to get the same effect for the one pilot cottage.
 const DEPTH_ROOF     = 6;
+// The Obsidian Spire (village-shadow.js). Keyed to its foot row like any actor,
+// which is what lets the hero walk up to the castle gate and pass in FRONT of a
+// thirty-tile tower instead of being painted over by it. Sorts before a roof on
+// the same row for the same reason a roof sorts last: the roof is the only thing
+// meant to hide what is under it.
+const DEPTH_SPIRE    = 7;
 
 // Sub-kinds for a tall tile, so the merge can dispatch without a string compare.
 const TALL_EXTRUDE  = 0;
@@ -2263,6 +2270,13 @@ function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
         actors.push({ y: h.r2, k: DEPTH_ROOF, o: h });
     }
   }
+  // The spire stands OUTSIDE the map, two tiles beyond the border ring on the
+  // castle-gate side, so its foot row is negative (or past MROWS) and it sorts
+  // behind every actor on a walkable row without any special case.
+  if (typeof obsidianSpireFoot === 'function') {
+    const spireFoot = obsidianSpireFoot(mapObj);
+    if (spireFoot) actors.push({ y: spireFoot.y, k: DEPTH_SPIRE, o: null });
+  }
 
   // Array.prototype.sort is stable in every engine this runs on, so equal
   // (y, kind) pairs keep insertion order and spawn order survives.
@@ -2285,6 +2299,7 @@ function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
       case DEPTH_VILLAGER: drawVillager(act.o, ts); break;
       case DEPTH_PLAYER:   drawPlayer(ts); break;
       case DEPTH_ROOF:     drawForestHouseRoof(act.o, mapObj, ts); break;
+      case DEPTH_SPIRE:    drawObsidianSpire(mapObj, ts); break;
     }
   }
   // Everything still standing south of the last actor.
@@ -2516,7 +2531,11 @@ function isObliqueMap(mapObj) {
 // failed phone check would narrow.
 function isDepthSortedMap(mapObj) {
   if (isObliqueMap(mapObj)) return true;
-  return !!mapObj && mapObj.type === 'village' && mapObj.biome === 'forest';
+  if (!mapObj || mapObj.type !== 'village') return false;
+  // Matches roofsApply: a village is on the merge exactly when it has roofs to
+  // sort its actors against. The shadow village also puts the Obsidian Spire
+  // on this stream, which is the other thing here that has to sort by row.
+  return mapObj.biome === 'forest' || mapObj.biome === 'shadow';
 }
 
 // T.TREE is the one extruded type whose reading depends on the MAP rather than
@@ -2931,7 +2950,14 @@ function drawElderbrookFamilyHomeDepth(mapObj, ts) {
 // Does this map have forest-village roofs at all? Split out so the depth layer
 // can ask it without duplicating the rule.
 function roofsApply(mapObj) {
-  if (!mapObj || mapObj.biome !== 'forest' ||
+  if (!mapObj) return false;
+  // Umbral Sanctum. Every village in the game is built from the same shells —
+  // buildVillageMap lays T.WALL rectangles with a south-facing door regardless
+  // of region — so mapForestHouseRoofs finds houses here unchanged, and the
+  // shadow skin in village-shadow.js paints them. Switched on per region as
+  // each one gets art that is not forest shingle; shadow is the first.
+  if (mapObj.biome === 'shadow') return mapObj.type === 'village';
+  if (mapObj.biome !== 'forest' ||
       (mapObj.type !== 'village' && mapObj.type !== 'homevillage')) return false;
   // Once the Ashfall begins, Elderbrook's intact roofs are gone; the charred
   // wall and rubble tiles beneath become the visible ruined architecture. This
@@ -3381,9 +3407,18 @@ function drawForestHouseRoof(h, mapObj, ts) {
     // its bespoke projected facade is built on, and that facade is tuned
     // against prologue beats this sheet knows nothing about. A sheet that has
     // not loaded is the other.
-    const sheetRoof = !familyHome &&
+    // The shadow region's own skin gets first refusal. Same contract as the
+    // sheet path below it: true means it painted the planes and the procedural
+    // ones are skipped, false means nothing was drawn and the fall-through
+    // still happens. `umbral` also suppresses the forest dressing further down
+    // — chimney smoke, a timber stoop and a patch of moss belong to Elderbrook,
+    // not to a lightless waste.
+    const umbral = !familyHome &&
+      typeof drawUmbralRoofPlanes === 'function' &&
+      drawUmbralRoofPlanes(left, top, right, roofBottom, ridgeY, ts);
+    const sheetRoof = umbral || (!familyHome &&
       typeof drawVillageRoofPlanes === 'function' &&
-      drawVillageRoofPlanes(left, top, right, roofBottom, ridgeY, ts);
+      drawVillageRoofPlanes(left, top, right, roofBottom, ridgeY, ts));
 
     if (!sheetRoof) {
     // North and south roof planes, with clipped corners and a bright ridge.
@@ -3439,8 +3474,10 @@ function drawForestHouseRoof(h, mapObj, ts) {
     }
 
     // Generic cottages retain their small front gable. The larger family house
-    // uses a clean, uninterrupted eave above the door.
-    if (!familyHome) {
+    // uses a clean, uninterrupted eave above the door, and the shadow skin
+    // supplies its own ridge treatment instead — the procedural gable below is
+    // forest shingle brown and would be the one warm shape on a black roof.
+    if (!familyHome && !umbral) {
       const gableHalf = Math.min(ts * 1.45, width * 0.22);
       // Sits on the roof's own south edge, not on the house's south edge. Those
       // were the same line until item A gave cottages a facade; leaving it at
@@ -3478,14 +3515,19 @@ function drawForestHouseRoof(h, mapObj, ts) {
     // rather than a hand-built one on the family home and nothing anywhere
     // else. Drawn after the gable so the soffit tucks the gable's base behind
     // the eave instead of leaving it hanging over the wall.
-    const facadeGeom = facadeTiles > 0.01
-      ? drawForestHouseFacade(
-          { left, right, bottom, roofBottom, width, centreX, ts, seed },
-          familyHome ? FACADE_FAMILY : FACADE_COTTAGE)
-      : null;
+    const facadeOpts = { left, right, bottom, roofBottom, width, centreX, ts, seed };
+    const facadeDesc = familyHome ? FACADE_FAMILY : FACADE_COTTAGE;
+    const facadeGeom = facadeTiles <= 0.01 ? null
+      : (umbral && typeof drawUmbralFacade === 'function'
+          ? drawUmbralFacade(facadeOpts, facadeDesc)
+          : drawForestHouseFacade(facadeOpts, facadeDesc));
 
     // Chimney and a restrained patch of moss tie the cottages to the forest.
+    // All of it is skipped under the shadow skin: warm smoke, an oak stoop and
+    // green lichen are Elderbrook's, and each one would be the only saturated
+    // thing in an Umbral Sanctum frame.
     const chimneyX = right - ts * (1.35 + (seed % 3) * 0.18);
+    if (!umbral) {
     if (familyHome) {
       // Anchor the stack to the visible south slope. The enlarged family roof's
       // north edge can sit above the camera while the player approaches.
@@ -3592,6 +3634,7 @@ function drawForestHouseRoof(h, mapObj, ts) {
     ctx.fillStyle = 'rgba(73,105,49,0.64)';
     ctx.beginPath(); ctx.ellipse(left + width * 0.24, ridgeY - ts * 0.18,
       ts * 0.72, ts * 0.26, -0.15, 0, Math.PI * 2); ctx.fill();
+    }   // end of the forest dressing
 
     // Read the live door tile instead of caching it with the footprint. Forest
     // villages assign their four shop types after the base map is generated.
@@ -3683,6 +3726,14 @@ function render() {
     const mc = whirlpools[i], mr = whirlpools[i + 1];
     if (mc >= startC && mc <= endC && mr >= startR && mr <= endR) drawWhirlpoolSuction(mc, mr, ts);
   }
+
+  // The Obsidian Spire's shadow, raked across the village floor. On the GROUND
+  // pass, before any building or actor, so the village stands on top of it —
+  // a shadow drawn after the houses would darken their roofs instead of the
+  // street. Shadow length scales with height everywhere in this game; at thirty
+  // tiles the spire's reaches most of the way across the map, which is the
+  // cheapest possible statement of how big the thing behind the gate is.
+  if (typeof drawObsidianSpireShadow === 'function') drawObsidianSpireShadow(mapObj, ts);
 
   if (typeof drawShrineOverlays === 'function') drawShrineOverlays(ts);
 
