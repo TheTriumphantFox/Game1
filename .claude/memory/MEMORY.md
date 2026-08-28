@@ -7,4 +7,5 @@
 - [Hero canon art](hero-canon-art.md) — hero-portrait.png is the real player design; hero-atlas.js is generated, drawPlayer() is only the fallback.
 - [Umbral Sanctum work](umbral-sanctum-work.md) — the shadow-village skin and Obsidian Spire; unfinished, and the gate-orientation problem blocks it.
 - [Dev shot harness](dev-shot-harness.md) — iframe harness to screenshot any map or region; watch the burnLevel fire wash.
+- [Repo inside Google Drive](repo-inside-google-drive.md) — Drive injects desktop.ini into .git and fakes broken refs; keep the working copy out of synced folders.
 - [perf-hud.js is temporary](perf-hud-temporary.md) — diagnostic only; remove before release, three edits.
