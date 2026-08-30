@@ -15,7 +15,7 @@ Running log. Append a new entry below whenever Claude makes a mistake in this pr
 **How to apply:** Before similar actions, scan the entries below for a matching situation. When a new mistake is caught and fixed, add an entry using this format:
 
 ```
-## YYYY-MM-DD — short title
+## YYYY-MM-DD - short title
 **What happened:** the mistake itself
 **Why it happened:** root cause (wrong assumption, missing check, stale info, etc.)
 **Fix:** what corrected it, and what to do differently next time
@@ -43,11 +43,16 @@ Running log. Append a new entry below whenever Claude makes a mistake in this pr
 **Why it happened:** Read the comment nearest the code I was documenting and treated it as the source. Comments in a file being actively iterated on are the *most* likely thing to be stale, not the least: the constants get changed and the prose around them does not. [[verify-facts-before-stating]] was followed only as far as "read a file", not as far as "read the code that runs".
 **Fix:** Corrected [[umbral-sanctum-work]] and listed every stale comment site so they can be cleaned once the geometry settles. Going forward, when documenting behaviour, verify against the constants and the control flow, and treat a nearby comment as a claim to check rather than as evidence. Where a comment and the code disagree, say so in the note rather than silently picking one.
 
+## 2026-08-30 - Read an uncommitted working tree as the project's intent
+**What happened:** Auditing the memory set, I found 11 tracked files modified or deleted in the working tree: the villager sprites removed and the hero rescaled from 128px frames to 96px. I reported this as "an entire unrecorded working session" and rewrote six notes to describe the 96px state as current, including flagging that the hero now breached the 1.25-tile scale the user had chosen. The user corrected the framing: it was an experiment at reverting the player sprite, and the last commit was the wanted state.
+**Why it happened:** `git status` tells you what the tree looks like, not what anyone decided. I treated a dirty tree as the project's position and let memory be the thing that must have drifted. One command would have settled it: `git reflog` showed a branch literally named `hero-revert-lowres`, sitting at the same commit as main with no commits of its own, which is exactly the signature of an abandoned experiment.
+**Fix:** `git restore .` put the tree back to c43b19d, the low-res work was preserved as a commit on `hero-revert-lowres` rather than discarded, and the six notes were rewritten again to the committed truth. Going forward, before concluding that memory has drifted from the code, check `git status` AND `git reflog`, and remember that uncommitted work is a question to ask the user, not an answer.
+
 ---
 
 ## The pattern across these entries, noticed 2026-08-27
 
-Read the four entries above together. They are the same mistake wearing
+Read the entries above together. They are the same mistake wearing
 different clothes:
 
 - Aseprite: four negative search results stood in for the filesystem.
@@ -67,7 +72,7 @@ describe a filesystem. Comments describe code. A cached read describes a past
 state. Documentation describes an intention. All four are worth reading and none
 of them are evidence.
 
-A fifth instance, from a sprite session on 2026-08-23, is written up separately
+A further instance, from a sprite session on 2026-08-23, is written up separately
 in [[verifiers-fail-correct-code]]: five verifiers I wrote rejected correct
 code, and I read the red FAIL as a verdict on the work rather than on the check.
 Same shape, and it also carries the rule that a verifier is code and has bugs
