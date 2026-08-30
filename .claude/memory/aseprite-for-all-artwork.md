@@ -25,15 +25,18 @@ concept PNG rather than eyeballing it, write both the `.aseprite` and a
 `*-atlas.js` (a plain global assignment, because the game runs from `file://`
 where `fetch` cannot read a sibling `.json`), and pair it with a `*-sprite.js`
 runtime module that declines gracefully when the sheet has not loaded. Existing
-generators: hero, dragon, village, villager, terrain. See
+generators, verified 2026-08-30: hero, dragon, village, villager, terrain, all
+five present. `render-tiles.js` is 264KB with exactly 163 `case T.` arms, as
+claimed. See
 [[perf-hud-temporary]] for the frame budget any new pass has to fit inside.
 
-**Where the binary is:** on the user's original machine it was a source build at
-`C:\aseprite\build\bin\aseprite.exe`, version 1.3.18.2-dev, which is the one
-that produced every committed sheet (`meta.version` in the sheet JSONs matches).
-That path is machine-specific and the user moved to a different computer on
-2026-08-27, so **ask where Aseprite lives rather than assuming the old path, and
-never conclude it is absent from a handful of negative searches**. See
+**Where the binary is:** verified 2026-08-30 on the current (Linux) machine at
+`/usr/bin/aseprite`, reporting version 1.3.18.2-dev, the same version recorded in
+`meta.version` in the committed sheet JSONs, so it should reproduce the existing
+art. It was a source build at `C:\aseprite\build\bin\aseprite.exe` on the old
+Windows machine; that path is dead. The path is machine-specific, so **re-check
+it rather than assuming, and never conclude Aseprite is absent from a handful of
+negative searches**. See
 [[claude-mistake-log]] for the time it was wrongly reported as missing, and for
 the rule that Aseprite's headless CLI must run in its own tool call because it
 returns before its writes land.

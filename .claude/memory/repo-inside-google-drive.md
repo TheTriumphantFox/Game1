@@ -7,6 +7,12 @@ metadata:
   modified: 2026-08-27T21:30:00.000Z
 ---
 
+**Resolved on the current machine, verified 2026-08-30.** The working copy now
+sits at `/home/hm/Projects/Game1/Game1` on Linux, outside any sync client.
+`find .git -name desktop.ini -type f` returns zero, and there is no nested
+`.git/.git`. Keep this note as the reason not to move the repo back under a
+synced folder, not as a description of the present state.
+
 On the original machine the repo lived at `C:\Users\corte\MACortese42\Game1\Game1`,
 and `MACortese42` is a **Google Drive File Stream** synced folder, not an
 ordinary directory. Drive writes a folder-icon `desktop.ini` into every folder

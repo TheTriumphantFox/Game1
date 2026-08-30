@@ -17,7 +17,8 @@ sets `TILE_PX`, places `player.x/y`, syncs `renderX/renderY`, and calls
 `clampCam(true)`. Query flags pick the shot (`?in=1` inside a house, `?gate=1`
 on the castle approach, `py=` row, `ts=` tile size). Put diagnostics on
 `window.__diag` and into `document.title`, so the harness reports whether it
-actually landed where it meant to.
+actually landed where it meant to. Only `shadow-shot.html` actually does this;
+`roof-shot.html` has no `__diag` at all, so copy the shadow one.
 
 **Why:** walking to a shadow-region village by hand to check one roof is slow,
 and the alternative (reading the drawing code and imagining it) is how art bugs
@@ -29,7 +30,8 @@ of the `<script>` list in `index.html`, and never let the game itself come to
 depend on one. Two gotchas worth knowing:
 
 - **Skipping the prologue leaves `burnLevel` at 0.25**, and `drawFireWash` then
-  multiplies a warm `#ffba8c` over *every* map for the rest of the session. Set
+  (`render.js:1558`) multiplies a warm `rgba(255,186,140)`, which is `#ffba8c`,
+  over *every* map for the rest of the session. Set
   `burnLevel = 0` in the harness or every colour judgement you make will be
   wrong, especially in the dark regions.
 - Region 12 is the shadow region. The 500ms/1000ms `setTimeout` waits are load

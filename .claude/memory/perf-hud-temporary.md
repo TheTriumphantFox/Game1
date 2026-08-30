@@ -20,8 +20,12 @@ worth re-checking as the Elderbrook pilot gets more art.
 on it. When release prep starts, deleting it is three edits with nothing else to
 update: drop the file, drop its `<script>` tag from `index.html`, and decrement
 the file count in the script list in `.claude/skills/hero-of-stormdrift/SKILL.md`
-(66 files as of 2026-08-27, and that number has been wrong before, so count
-`index.html`'s `<script>` tags rather than trusting either source). Nothing else
+(it says 66, and that number has been wrong before, so count
+`index.html`'s `<script>` tags rather than trusting either source). Counted on
+2026-08-30: `index.html` has 66 `<script src=>` tags, so SKILL.md is right at the
+moment. It briefly read 64 while an abandoned villager revert sat in the working
+tree, which is the reminder that this count tracks the tree, not the project.
+Nothing else
 in the game references it, though `terrain-art-plan.md` cites its numbers as the
 frame budget baseline. It wraps `render()` rather than editing it precisely so it
 can leave no trace. The same note is in the file's own header, so this is a

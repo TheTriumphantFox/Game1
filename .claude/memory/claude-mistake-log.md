@@ -67,6 +67,12 @@ describe a filesystem. Comments describe code. A cached read describes a past
 state. Documentation describes an intention. All four are worth reading and none
 of them are evidence.
 
+A fifth instance, from a sprite session on 2026-08-23, is written up separately
+in [[verifiers-fail-correct-code]]: five verifiers I wrote rejected correct
+code, and I read the red FAIL as a verdict on the work rather than on the check.
+Same shape, and it also carries the rule that a verifier is code and has bugs
+like code.
+
 The tell is confidence arriving too easily. When a conclusion feels settled
 after one cheap check, that is the moment to find the primary source, not after
 the user pushes back.

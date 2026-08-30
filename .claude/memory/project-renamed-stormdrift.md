@@ -14,8 +14,9 @@ mistakes to fix on sight:
 - The GitHub remote is still `TheTriumphantFox/Game1`.
 - The working copy still lives under a `Game1` folder path.
 - The repo skill was renamed `.claude/skills/the-rpg-game` to
-  `.claude/skills/hero-of-stormdrift`. The old directory still exists on disk
-  but holds no content, so a reference to `the-rpg-game/SKILL.md` is stale.
+  `.claude/skills/hero-of-stormdrift`. As of 2026-08-30 the old directory is
+  gone entirely, so a reference to `the-rpg-game/SKILL.md` now fails outright
+  rather than reading an empty file.
 
 **Why:** memories, plan docs and handoff notes written before the rename point
 at the old skill path and the old title, and following one silently reads the
@@ -25,7 +26,12 @@ wrong (empty) file.
 `.claude/skills/hero-of-stormdrift/SKILL.md` for project conventions, and do not
 propose renaming the GitHub repo or the folders unless the user asks.
 
+**Sibling skills:** `.claude/skills/` also holds `enemy-forge` (CR-based enemy
+balance math) and `design-workbook` (keeps `Game1.xlsx` in sync with the balance
+tables in the source). Both post-date the notes above; check them before
+hand-rolling either job.
+
 **Repo layout gotcha:** the git repository is the *inner* `Game1\Game1`
-directory. The outer folder is not a repo, and holds loose reference material
+directory, which on the current machine is `/home/hm/Projects/Game1/Game1`. The outer folder is not a repo, and holds loose reference material
 (the .docx main-quest script, `Game1.xlsx`, `story-decisions-todo.md`, concept
 PNGs) that is not version controlled and does not travel with a clone.

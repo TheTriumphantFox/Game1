@@ -55,9 +55,21 @@ earlier build anchored it outside the map at a negative row and rendered a
 perfect invisible tower, because a tall object draws upward from its foot and
 `clampCam` never scrolls above row 0. The authoritative explanation is the
 comment block above `SPIRE_INSET` at `village-shadow.js:302`. Every other
-comment mentioning "30 tiles" or "outside the map" is stale
-(`village-shadow.js` lines 281, 283, 364, 584 and `render.js` lines 2082, 2273,
-3733). Fix those comments once the geometry is finally settled, not before.
+comment mentioning "30 tiles" or "outside the map" is stale.
+
+**Re-verified in full on 2026-08-30.** Every constant above still reads as
+stated, `village-shadow.js` is still 724 lines, all nine entry points and
+`umbralArtActive`'s `village` plus `shadow` gate are unchanged, `DEPTH_SPIRE` is
+still 7, `umbralMasonry` is still in `render-tiles.js`, and `drawObsidianSpire`
+still contains no reference to `castleExitDir` or any direction at all, so
+unfinished item 1 below is exactly as described. All seven stale comment sites
+survive: `village-shadow.js` 281, 283, 364, 584 and `render.js` 2081, 2272, 3732.
+The line numbers drift by about one, so grep the phrases rather than jumping to a
+line. `render.js` 2272 is the worst of them: it justifies the depth sort by the
+foot row being negative, whereas the code pushes `spireFoot.y`, which is 7. The
+sort still behaves correctly, because row 7 is inside the unwalkable border ring,
+but the stated reason is not the real one. Fix these once the geometry is finally
+settled, not before.
 
 **Known unfinished work:**
 
