@@ -6,14 +6,12 @@
 // Loaded as a plain script (no modules, no fetch) so it works from
 // file://, and read by hero-sprite.js.
 const HERO_ATLAS = {
-  frame: 128,
+  frame: 96,
   body: 48,
-  bodyOX: 40,
-  bodyOY: 40,
+  bodyOX: 24,
+  bodyOY: 24,
   footF: 0.96,
-  swordLen: 35,
-  perDir: 52,
-  sheetCols: 26,
+  cols: 52,
   dirRow: { down: 0, up: 1, left: 2, right: 3 },
   anims: {
     idle: [0, 2, 280],

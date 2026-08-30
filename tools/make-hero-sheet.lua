@@ -1,11 +1,14 @@
 -- Build the player sprite sheet for Hero of Stormdrift, drawn from the painted
 -- character portrait (hero-portrait.png) rather than from drawPlayer().
 --
--- The portrait is the character's real design: a female elf knight in dark
--- weathered plate, a large verdigris tree-of-life shield on her off arm, a heavy
--- forest cloak, long swept-back ears, and the sword carried high.
+-- The portrait is the character's real design and differs from what the game
+-- currently draws procedurally: a female elf knight in dark weathered plate,
+-- a large verdigris tree-of-life shield on her off arm, a heavy forest cloak,
+-- long swept-back ears, and the sword carried high. drawPlayer's bright-silver
+-- palette and missing shield are approximations of that art; this sheet goes
+-- back to the source.
 --
--- 128x128 frames. Per direction: unarmed idle(2) + walk(4) + punch(4) + jump(4)
+-- 96x96 frames. Per direction: unarmed idle(2) + walk(4) + punch(4) + jump(4)
 -- + swim(4) + climb(4), sword idle(2) + walk(4) + jump(4), and bow idle(2)
 -- + walk(4) + jump(4) + fire(5) = 52 frames. Four directions make 208 frames,
 -- tagged per animation. The extra states are deliberately authored here rather
@@ -14,187 +17,77 @@
 --
 -- Step 1 also writes hero-atlas.js, the frame layout the game reads at runtime.
 --
--- Regenerate (run from the repo root):
+-- Regenerate (run from the repo root; verified byte-identical to the
+-- committed hero-sheet.png/.json/.aseprite on aseprite 1.3.18.2-dev):
 --   aseprite -b --script-param out=hero-sheet.aseprite --script tools/make-hero-sheet.lua
 --   aseprite -b hero-sheet.aseprite --sheet hero-sheet.png --data hero-sheet.json ^
---            --format json-array --sheet-type rows --sheet-columns 26 --list-tags
+--            --format json-array --sheet-type rows --sheet-columns 52 --list-tags
 --
 -- Two steps because the sprite the script builds is not left "open" for the
 -- CLI's own --sheet/--data flags to see when they are chained onto the same
 -- invocation as --script; --list-tags is required or frameTags is omitted
 -- from the JSON.
---
--- SHEET-COLUMNS IS 26, NOT 52. A direction's 52 frames wrap across two sheet
--- rows, so the whole sheet is 3328x1024 rather than 6656x512. Two reasons: a
--- texture over 4096 in any dimension is where mobile GPUs start refusing to
--- hardware-accelerate a drawImage source, and the game ships touch controls. The
--- atlas carries both numbers (perDir and sheetCols) and hero-sprite.js does the
--- wrap, so this is a layout choice the generator owns rather than a constant the
--- renderer has to be told about separately.
 
-----------------------------------------------------------------------
--- geometry
-----------------------------------------------------------------------
--- FRAME vs BODY BOX vs FIGURE. Three different things, easy to conflate:
+-- Frame 96, body 48. The frame is deliberately twice the body: everything is
+-- authored as a fraction of the 48px BODY box, and the surplus is overhang room
+-- for the raised blade, the ear tips, the cloak, and the downward swings.
 --
---   * BODY BOX (S = 48) is the ground footprint. render.js maps it onto one
---     TILE_PX tile, so S:TILE_PX is 1:1 and the art is pixel-perfect on screen.
---     It is NOT the character's height and never was.
---   * FIGURE is how tall she actually stands: 1.26 * S, about 60px, rising well
---     ABOVE the body box. Everything above y=0 in fraction space is overhang.
---   * FRAME (128) is the canvas each pose is drawn into, sized to hold the
---     figure plus a raised blade plus a downward swing.
---
--- The previous sheet made the figure FIT the body box, which is why she was
--- 40x46px and read as a chibi with antenna ears: at ~3 heads tall there was no
--- room for a face, for shoulders, or for a leg to bend. Letting her overhang
--- the tile is the whole point of this revision. The renderer already allowed it
--- ("the surplus is deliberate overhang ... allowed to spill outside the tile"),
--- so nothing outside this file had to change to make room.
-local W, H   = 128, 128
+-- It was 64, which left 8px of margin each side and 7 above. That was not
+-- enough: measured on the old sheet, art reached x=0, x=63 and y=0 in three of
+-- the four direction rows, so poses were being cut off at the frame edge rather
+-- than merely filling it. heroSwordTip's own comment admitted as much, calling
+-- the drawn blade "shorter than the 1.25 tiles the hitbox uses, because the full
+-- reach does not fit in a 64px frame". 24px of margin all round fixes that.
+local W, H   = 96, 96
 local DIRS   = { "down", "up", "left", "right" }
 local N_IDLE, N_WALK, N_PUNCH, N_JUMP = 2, 4, 4, 4
 local N_SWIM, N_CLIMB, N_BOW, N_SWING = 4, 4, 5, 5
 -- unarmed idle+walk+punch+jump+swim+climb, then sword and bow sets
 local PER_DIR = N_IDLE + N_WALK + N_PUNCH + N_JUMP + N_SWIM + N_CLIMB +
                 N_IDLE + N_WALK + N_JUMP + N_IDLE + N_WALK + N_JUMP + N_BOW + N_SWING
--- Frames per row in the exported PNG. See the header note.
-local SHEET_COLS = 26
 local S       = 48.0
--- Body box centred in the frame: (128 - 48) / 2. The 40px of margin above it is
--- what the head, the pauldrons and the raised blade live in.
-local OX, OY  = 40.0, 40.0
+local OX, OY  = 24.0, 24.0
 
 -- Where the boot SOLES sit, as a fraction down the body box. This is the hero's
 -- foot row, and it is the number the renderer plants on the ground.
+--
+-- It is 0.96, not 1.0: the character does not quite fill her own body box. That
+-- is fine and stays as authored, but it used to be invisible, and the renderer
+-- planted the body box BOTTOM instead, which left her floating 2px above the
+-- ground at TILE_PX 48. Naming it here, using it in drawLegs, and shipping it in
+-- the atlas is what lets the renderer plant the feet rather than the box.
 local FOOT_F = 0.96
 
 local lib = dofile("tools/aseprite-lib.lua")
 
 ----------------------------------------------------------------------
--- anatomy
+-- palette sampled from hero-portrait.png
 ----------------------------------------------------------------------
--- The figure's vertical landmarks, as fractions of S measured DOWN from the
--- body box top. Negative is above the box, which is where the entire upper body
--- now lives.
---
--- Stated once, here, because the old file scattered the same landmarks as bare
--- literals through five draw functions -- the belt was 0.575 in drawTorso and
--- 0.60 in the sash polygon and 0.62 in the tasset seam, and nothing said which
--- was the real waist. Moving a landmark now moves every part that references it.
---
--- Proportion check: SKULL_TOP..CHIN is 0.258 * S = 12.4px of head against a
--- HAIR_TOP..SOLE figure of 1.26 * S = 60.5px, so she stands 4.9 heads tall. The
--- old sheet was 3.0. Four to five is the readable range for a sprite this size:
--- below four the head eats the silhouette, above five the face stops resolving.
-local A = {
-  HAIR_TOP  = -0.300,   -- top of the hair mass (the silhouette's true top)
-  SKULL_TOP = -0.278,
-  HAIRLINE  = -0.240,
-  BROW      = -0.190,
-  EYE       = -0.163,   -- eye ROW centre
-  NOSE      = -0.112,
-  MOUTH     = -0.078,
-  CHIN      = -0.020,
-  NECK      =  0.014,
-  SHOULDER  =  0.046,   -- shoulder line / pauldron seat
-  CHEST     =  0.140,   -- bust, breastplate curve
-  RIBS      =  0.250,
-  WAIST     =  0.330,
-  BELT_T    =  0.358,
-  BELT_B    =  0.412,
-  HIP       =  0.430,
-  TASSET_B  =  0.605,   -- bottom of the skirt plates
-  THIGH     =  0.620,
-  KNEE      =  0.760,
-  SHIN      =  0.810,
-  BOOT_T    =  0.855,
-  SOLE      =  FOOT_F,
-}
-
--- Half-widths, as fractions of S out from the centre line at 0.5.
-local HW = {
-  HEAD   = 0.098,   -- face, ear to ear
-  SKULL  = 0.104,
-  HAIR   = 0.132,   -- hair mass, wider than the skull it sits on
-  NECK   = 0.042,
-  SHLD   = 0.132,   -- core torso at the shoulder
-  PAUL   = 0.212,   -- outer edge of a pauldron
-  CHEST  = 0.122,
-  WAIST  = 0.090,
-  HIP    = 0.118,
-  TASSET = 0.130,
-}
-
-----------------------------------------------------------------------
--- palette
-----------------------------------------------------------------------
--- Measured off hero-portrait.png by median-cut clustering each region rather
--- than eyedropping single pixels, then pushed apart in value for sprite
--- legibility. The portrait is lit by warm green forest light, so a literal copy
--- of its clusters comes out olive and muddy; the hue relationships are kept and
--- the value separation is widened, because a 60px figure has to read against
--- snow, lava and shadow terrain alike.
---
--- Three corrections to the old palette, all of them things the portrait plainly
--- shows and the previous sheet got wrong:
---   * The plate is WEATHERED WARM GREY-BROWN, not bright blue-silver. Its
---     clusters run #19150a..#bdad88 -- there is no cool grey anywhere in it.
---   * The cloak is near-black forest green (#0d1408..#5c7139), several stops
---     darker than the old #3b5c31, which read as a bright leaf green.
---   * Her eyes are BLUE. The old sheet used #4a7a5e, a green.
 local hex = lib.hex
 
--- weathered plate, dark to light. PLATE_6 is the etched filigree and the rim
--- light, and is deliberately near-white: it is the only thing on her that is,
--- so it is what the eye catches first.
-local PLATE_0  = hex('#15130c')
-local PLATE_1  = hex('#2b2719')
-local PLATE_2  = hex('#453d29')
-local PLATE_3  = hex('#645a41')
-local PLATE_4  = hex('#8e846a')
-local PLATE_5  = hex('#c2b79b')
-local PLATE_6  = hex('#ece3d0')
-local PLATE_RAMP = { PLATE_0, PLATE_1, PLATE_2, PLATE_3, PLATE_4, PLATE_5, PLATE_6 }
-
--- forest cloak and the sash off the belt
-local CLOAK_0  = hex('#0d1408')
-local CLOAK_1  = hex('#1a2711')
-local CLOAK_2  = hex('#2c3d1a')
-local CLOAK_3  = hex('#42552a')
-local CLOAK_4  = hex('#5c7139')
-
--- sandy blonde, not the old canary gold
-local HAIR_0   = hex('#4a3a1c')
-local HAIR_1   = hex('#6f5a2e')
-local HAIR_2   = hex('#9c8146')
-local HAIR_3   = hex('#c6a866')
-local HAIR_4   = hex('#ecd9a4')
-
-local SKIN_0   = hex('#6e4724')
-local SKIN_1   = hex('#a8784d')
-local SKIN_2   = hex('#cd9a70')
-local SKIN_3   = hex('#e8c096')
-local EAR_T    = hex('#dda87e')   -- ears catch warm backlight in the portrait
-
--- shield: weathered sage field, silver tree, steel rim
-local SH_0     = hex('#232418')
-local SH_1     = hex('#3c4030')
-local SH_2     = hex('#5c6349')
-local SH_3     = hex('#828a6b')
-local SILVER   = hex('#dcd6c2')
-
-local LTHR_0   = hex('#2a1c0d')
-local LTHR_1   = hex('#4a3319')
-local LTHR_2   = hex('#6d4d28')
-
-local BRONZE   = hex('#b08a45')
-local BRONZE_D = hex('#71542a')
-local EYE_L    = hex('#a8c6d2')   -- pale blue, per the portrait
-local EYE_D    = hex('#4d7285')
-local LIP      = hex('#a86a55')
+local STEEL_D  = hex('#3f4340')   -- weathered plate, deep shadow
+local STEEL    = hex('#636761')
+local STEEL_L  = hex('#9aa09a')
+local STEEL_H  = hex('#c6ccc4')   -- rim light
+local CLOAK_D  = hex('#253a20')
+local CLOAK    = hex('#3b5c31')
+local CLOAK_L  = hex('#56803f')
+local HAIR_D   = hex('#9c7530')
+local HAIR     = hex('#d0a54a')
+local HAIR_L   = hex('#f2dc93')
+local SKIN     = hex('#ecc9a0')
+local SKIN_D   = hex('#c39a72')
+local EAR_T    = hex('#d9a184')   -- ears catch warm backlight in the portrait
+local GOLD     = hex('#b8934a')
+local GOLD_D   = hex('#7e6229')
+local SHIELD_F = hex('#6d7f58')   -- verdigris field
+local SHIELD_D = hex('#4d5c3e')
+local TREE     = hex('#dfe3da')   -- silver tree of life
+local LEATHER  = hex('#5a4128')
+local LEATHER_D= hex('#33230f')
+local EYE      = hex('#4a7a5e')   -- green
 local WHITE    = hex('#ffffff')
-local OUTLINE  = hex('#0e0c08')
+local OUTLINE  = hex('#12100c')
 
 ----------------------------------------------------------------------
 -- rasteriser (px/polyPx/ellipsePx/linePx/outlineSilhouette live in
@@ -227,610 +120,281 @@ local function polyF(img, P, c)
   polyPx(img, Q, c)
 end
 
-local function ellipseF(img, fcx, fcy, frx, fry, c, rot)
-  ellipsePx(img, X(fcx), Y(fcy), frx * S, fry * S, c, rot)
+local function ellipseF(img, fcx, fcy, frx, fry, c)
+  ellipsePx(img, X(fcx), Y(fcy), frx * S, fry * S, c)
 end
 
--- lineF's width is a fraction of S, matching every other *F function here and
--- matching make-dragon-sheet.lua. LINE_W is one pixel expressed as that
--- fraction; S cancels exactly, so a LINE_W call is a true hairline at any S.
+-- lineF's width is a fraction of S, matching every other *F function here
+-- and matching make-dragon-sheet.lua (which is the version this reconciles
+-- to -- the hero sheet previously took line width in raw pixels while the
+-- dragon sheet took a fraction of S). LINE_W is every hero call site's
+-- previous literal pixel width (1.0) re-expressed as that fraction; S
+-- cancels out exactly (verified: (1.0/S)*S == 1.0 in Lua's double
+-- arithmetic for S=48), so this is a pure reconciliation, not a redraw.
 local LINE_W = 1.0 / S
 
 local function lineF(img, fx0, fy0, fx1, fy1, wf, c)
   linePx(img, X(fx0), Y(fy0), X(fx1), Y(fy1), wf * S, c)
 end
 
--- One body pixel, as a fraction of S.
---
--- The face is drawn in multiples of this rather than in free fractions. At a
--- 10px-wide face an eye is two pixels, and "two pixels" only survives rectF's
--- floor-and-round if both edges land on integers -- 0.048 of S is 2.3px, which
--- rounds to 2 or 3 depending on where it starts, and an eye that is 3px on one
--- side of the face and 2px on the other reads as a squint. X(k*PXF) is an
--- integer for every integer k, so anything built out of PXF is exact.
-local PXF = 1.0 / 48.0
-
--- Mirror helper. Every part below is authored for the character's own right
--- side and reflected about the centre line for her left, so a pauldron cannot
--- end up a different shape on one shoulder than the other.
-local function mx(f) return 1.0 - f end
-
 ----------------------------------------------------------------------
 -- pieces
 ----------------------------------------------------------------------
 
--- Heavy forest cloak, hung from the shoulders and falling behind the legs.
---
--- It is drawn FIRST, before any of her, so it is pure backdrop: the figure is
--- read against it rather than through it. `sway` trails the walk cycle and
--- `bob` rides the whole body.
---
--- The hem stops at the knee rather than the ankle. A full-length cloak on a
--- 60px figure swallows both legs and the walk cycle stops reading as walking --
--- which is exactly what happened on the old sheet, where the legs were four
--- visible pixels under a cloak that reached the boots.
+-- Heavy forest cloak. Hangs from the shoulders and stops above the boots so
+-- the legs stay legible; sway trails the walk cycle.
 local function drawCloak(img, sway, bob)
   local b = bob
-  local topL, topR = 0.5 - HW.SHLD - 0.01, 0.5 + HW.SHLD + 0.01
-  local hemL, hemR = 0.5 - 0.215 + sway, 0.5 + 0.215 + sway
-  local hem = A.KNEE
-
-  -- Body of the cloak: a trapezoid widening to the hem, split down the middle
-  -- so one half stays a stop darker and the fold reads.
-  --
-  -- CLOAK_1/CLOAK_2 rather than CLOAK_0/CLOAK_1. The darkest two stops of the
-  -- portrait's near-black green are honest to the source but disappear against
-  -- the game's own dark terrain -- shadow, necrotic and cave floors are all
-  -- darker than #1a2711, and the cloak simply stopped existing on them. Lifting
-  -- it one stop keeps it unmistakably a deep forest green while giving the
-  -- silhouette an edge the outline pass can bite on.
-  polyF(img, { {topL, A.SHOULDER+b}, {topR, A.SHOULDER+b},
-               {hemR, hem+b}, {hemL, hem+b} }, CLOAK_1)
-  polyF(img, { {topL, A.SHOULDER+b}, {0.5, A.SHOULDER+b},
-               {0.5 + sway*0.6, hem+b}, {hemL, hem+b} }, CLOAK_2)
-
-  -- Fold lines. Fanning from the shoulders to the hem, not parallel, so the
-  -- cloth reads as hanging off a body instead of as a flat sheet.
-  lineF(img, 0.5,        A.SHOULDER+0.03+b, 0.5+sway*0.6, hem-0.01+b, LINE_W, CLOAK_0)
-  lineF(img, topL+0.045, A.SHOULDER+0.05+b, hemL+0.05,    hem-0.01+b, LINE_W, CLOAK_3)
-  lineF(img, topR-0.045, A.SHOULDER+0.05+b, hemR-0.05,    hem-0.01+b, LINE_W, CLOAK_0)
-
-  -- Lit top edge where the cloth crests the shoulders, per lib.LIGHT_DIR.
-  lineF(img, topL+0.02, A.SHOULDER+0.005+b, topR-0.02, A.SHOULDER+0.005+b, LINE_W, CLOAK_4)
-
-  -- Ragged hem: three notches, so the bottom edge is not a ruler line.
-  polyF(img, { {hemL+0.06, hem-0.02+b}, {hemL+0.11, hem-0.02+b},
-               {hemL+0.085, hem+0.03+b} }, CLOAK_1)
-  polyF(img, { {hemR-0.11, hem-0.02+b}, {hemR-0.06, hem-0.02+b},
-               {hemR-0.085, hem+0.025+b} }, CLOAK_1)
+  polyF(img, { {0.28,0.33+b}, {0.72,0.33+b}, {0.84+sway,0.82+b}, {0.16+sway,0.82+b} }, CLOAK_D)
+  polyF(img, { {0.28,0.33+b}, {0.50,0.33+b}, {0.50+sway,0.82+b}, {0.16+sway,0.82+b} }, CLOAK)
+  lineF(img, 0.50, 0.36+b, 0.50+sway, 0.81+b, LINE_W, CLOAK_D)
+  lineF(img, 0.34, 0.40+b, 0.27+sway, 0.81+b, LINE_W, CLOAK_L)
+  lineF(img, 0.66, 0.40+b, 0.74+sway, 0.81+b, LINE_W, hex('#1b2b17'))
 end
 
--- Armoured legs: thigh, knee cop, greave, boot. `swing` moves the feet through
--- the walk cycle -- vertically head-on, fore/aft in profile.
---
--- There are now four segments where the old sheet had two flat rects, which is
--- what 25px of leg buys over 11px: a knee that bends and a boot that is a boot
--- rather than a brown square.
+-- Armoured legs with plated greaves, and boots. `swing` moves the feet through
+-- the walk cycle: vertically head-on, fore/aft in profile.
 local function drawLegs(img, facing, swing, bob)
   local isSide = (facing == 'left' or facing == 'right')
   local b = bob
-
-  -- Per leg: x offset, y offset, plate ramp index, boot colour.
-  -- Back leg first so the near leg overlaps it.
-  -- Ramp indices 2 and 3, not 2 and 4. The greaves used to sit at PLATE_4 with
-  -- PLATE_5/PLATE_6 knee cops, which made her shins the brightest thing below
-  -- the neck -- the eye went straight to her boots. Legs are in shadow on a
-  -- figure lit from above; the bright plate belongs on the pauldrons.
-  local legs
+  local aX, bX, aY, bY = 0.34, 0.53, b, b
   if isSide then
-    legs = { { swing * 1.7, 0, 2, LTHR_0 }, { -swing * 1.7, 0, 3, LTHR_1 } }
+    aX, bX = 0.34 + swing * 1.6, 0.50 - swing * 1.6
   else
-    legs = { { -0.082, -swing, 2, LTHR_0 }, { 0.082, swing, 3, LTHR_1 } }
+    aY, bY = b + swing, b - swing
   end
-
-  for _, L in ipairs(legs) do
-    local dx, dy, shade, boot = L[1], L[2], L[3], L[4]
-    local cx = 0.5 + dx
-    local hw = 0.055
-    local plate  = PLATE_RAMP[shade]
-    local plateL = PLATE_RAMP[math.min(7, shade + 2)]
-
-    -- thigh -> knee: a taper, wider at the hip
-    polyF(img, { {cx-hw-0.008, A.THIGH+dy+b}, {cx+hw+0.008, A.THIGH+dy+b},
-                 {cx+hw-0.006, A.KNEE+dy+b},  {cx-hw+0.006, A.KNEE+dy+b} }, plate)
-    -- knee cop: the disc that makes a leg look jointed
-    ellipseF(img, cx, A.KNEE+dy+b, hw+0.004, 0.030, plateL)
-    ellipseF(img, cx, A.KNEE-0.006+dy+b, hw-0.014, 0.018, PLATE_RAMP[math.min(7, shade + 2)])
-    -- greave
-    polyF(img, { {cx-hw+0.006, A.KNEE+0.012+dy+b}, {cx+hw-0.006, A.KNEE+0.012+dy+b},
-                 {cx+hw-0.010, A.BOOT_T+dy+b},     {cx-hw+0.010, A.BOOT_T+dy+b} }, plate)
-    lineF(img, cx-0.016, A.SHIN+dy+b, cx-0.018, A.BOOT_T-0.006+dy+b, LINE_W, plateL)
-    -- boot: a toe box forward of the ankle, not a rectangle
-    local toe = isSide and ((facing == 'left') and -0.030 or 0.030) or 0.0
-    polyF(img, { {cx-hw, A.BOOT_T+dy+b}, {cx+hw, A.BOOT_T+dy+b},
-                 {cx+hw+math.max(0,toe), FOOT_F+dy+b},
-                 {cx-hw+math.min(0,toe), FOOT_F+dy+b} }, boot)
-    rectF(img, cx-hw, A.BOOT_T+dy+b, hw*2, 0.014, LTHR_2)   -- cuff
+  -- back leg first so the near leg overlaps it
+  for _, L in ipairs({ { bX, bY, STEEL_D, LEATHER_D }, { aX, aY, STEEL, LEATHER } }) do
+    local lx, ly, plate, boot = L[1], L[2], L[3], L[4]
+    rectF(img, lx, 0.72 + ly, 0.13, 0.16, plate)
+    rectF(img, lx, 0.72 + ly, 0.13, 0.02, STEEL_L)     -- knee cop
+    rectF(img, lx - 0.01, 0.86 + ly, 0.15, 0.09, boot)
+    rectF(img, lx - 0.01, 0.86 + ly, 0.15, 0.02, LEATHER)
     -- The sole, derived from FOOT_F so the declared foot row and the drawn one
-    -- cannot drift apart.
-    rectF(img, cx-hw+math.min(0,toe), FOOT_F-0.020+dy+b,
-               hw*2+math.abs(toe), 0.020, hex('#160f06'))
+    -- cannot drift apart. Was the literal 0.935; FOOT_F - 0.025 is the same
+    -- number, now stated once.
+    rectF(img, lx - 0.01, FOOT_F - 0.025 + ly, 0.15, 0.025, hex('#1a1206'))
   end
 end
 
--- Torso: the portrait's female cuirass -- deep V neckline with a scalloped
--- silver border, etched filigree, layered pauldrons, a leather baldric across
--- the chest, belt, and the green sash hanging off it.
+-- Torso: female cuirass with the portrait's deep V neckline, layered pauldrons,
+-- bronze filigree, belt and the green sash that hangs off it.
 local function drawTorso(img, facing, bob)
   local isSide = (facing == 'left' or facing == 'right')
   local b = bob
-  local shld  = isSide and (HW.SHLD * 0.72) or HW.SHLD
-  local chest = isSide and (HW.CHEST * 0.74) or HW.CHEST
-  local waist = isSide and (HW.WAIST * 0.80) or HW.WAIST
-  local hip   = isSide and (HW.HIP * 0.80) or HW.HIP
+  local L, R = 0.30, 0.70
+  if isSide then L, R = 0.34, 0.66 end
 
-  -- ── tassets / skirt plates (under the belt, over the thighs) ──
-  local tw = isSide and (HW.TASSET * 0.76) or HW.TASSET
-  polyF(img, { {0.5-hip, A.HIP+b}, {0.5+hip, A.HIP+b},
-               {0.5+tw, A.TASSET_B+b}, {0.5-tw, A.TASSET_B+b} }, PLATE_2)
-  polyF(img, { {0.5, A.HIP+b}, {0.5+hip, A.HIP+b},
-               {0.5+tw, A.TASSET_B+b}, {0.5, A.TASSET_B+b} }, PLATE_1)
-  -- three plates, seams between them
-  lineF(img, 0.5-hip*0.42, A.HIP+0.012+b, 0.5-tw*0.46, A.TASSET_B-0.008+b, LINE_W, PLATE_0)
-  lineF(img, 0.5+hip*0.42, A.HIP+0.012+b, 0.5+tw*0.46, A.TASSET_B-0.008+b, LINE_W, PLATE_0)
-  lineF(img, 0.5-tw, A.TASSET_B-0.014+b, 0.5+tw, A.TASSET_B-0.014+b, LINE_W, PLATE_3)
+  -- tassets / skirt plates
+  polyF(img, { {L+0.02,0.60+b}, {R-0.02,0.60+b}, {R+0.02,0.74+b}, {L-0.02,0.74+b} }, LEATHER)
+  polyF(img, { {0.50,0.60+b}, {R-0.02,0.60+b}, {R+0.02,0.74+b}, {0.50,0.74+b} }, LEATHER_D)
+  lineF(img, 0.38, 0.62+b, 0.36, 0.73+b, LINE_W, STEEL_D)
+  lineF(img, 0.62, 0.62+b, 0.64, 0.73+b, LINE_W, STEEL_D)
 
-  -- ── cuirass ──
-  -- Shoulder -> chest -> nipped waist -> flared hip, as four points a side.
-  polyF(img, { {0.5-shld, A.SHOULDER+b}, {0.5+shld, A.SHOULDER+b},
-               {0.5+chest, A.CHEST+b},   {0.5+waist, A.WAIST+b},
-               {0.5+hip*0.92, A.HIP+b},  {0.5-hip*0.92, A.HIP+b},
-               {0.5-waist, A.WAIST+b},   {0.5-chest, A.CHEST+b} }, PLATE_3)
-  -- her left side turns away from the light
-  polyF(img, { {0.5, A.SHOULDER+b}, {0.5+shld, A.SHOULDER+b},
-               {0.5+chest, A.CHEST+b}, {0.5+waist, A.WAIST+b},
-               {0.5+hip*0.92, A.HIP+b}, {0.5, A.HIP+b} }, PLATE_2)
+  -- cuirass
+  polyF(img, { {L,0.37+b}, {R,0.37+b}, {R,0.55+b}, {0.50,0.63+b}, {L,0.55+b} }, STEEL)
+  polyF(img, { {0.50,0.37+b}, {R,0.37+b}, {R,0.55+b}, {0.50,0.63+b} }, STEEL_D)
+  -- breast curve highlights
+  ellipseF(img, 0.42, 0.455+b, 0.075, 0.065, STEEL_L)
+  ellipseF(img, 0.585, 0.455+b, 0.075, 0.065, STEEL)
+  ellipseF(img, 0.405, 0.44+b, 0.035, 0.03, STEEL_H)
+  -- deep V neckline
+  polyF(img, { {0.415,0.365+b}, {0.585,0.365+b}, {0.50,0.50+b} }, SKIN_D)
+  polyF(img, { {0.435,0.365+b}, {0.565,0.365+b}, {0.50,0.475+b} }, SKIN)
+  lineF(img, 0.415, 0.365+b, 0.50, 0.50+b, LINE_W, GOLD)
+  lineF(img, 0.585, 0.365+b, 0.50, 0.50+b, LINE_W, GOLD_D)
+  -- bronze filigree down the flanks
+  lineF(img, L+0.03, 0.40+b, L+0.05, 0.54+b, LINE_W, GOLD_D)
+  lineF(img, R-0.03, 0.40+b, R-0.05, 0.54+b, LINE_W, GOLD_D)
 
-  -- breast curve: two domes, the near one catching the highlight
-  ellipseF(img, 0.5-chest*0.44, A.CHEST+b, chest*0.46, 0.052, PLATE_4)
-  ellipseF(img, 0.5+chest*0.44, A.CHEST+b, chest*0.46, 0.052, PLATE_3)
-  ellipseF(img, 0.5-chest*0.52, A.CHEST-0.018+b, chest*0.24, 0.022, PLATE_5)
+  -- belt, buckle, and the green sash hanging from it
+  rectF(img, L-0.01, 0.575+b, (R-L)+0.02, 0.045, LEATHER_D)
+  rectF(img, 0.475, 0.567+b, 0.055, 0.06, GOLD)
+  rectF(img, 0.489, 0.582+b, 0.026, 0.032, GOLD_D)
+  polyF(img, { {0.40,0.60+b}, {0.50,0.60+b}, {0.48,0.80+b}, {0.37,0.78+b} }, CLOAK)
+  lineF(img, 0.43, 0.63+b, 0.42, 0.77+b, LINE_W, CLOAK_D)
 
-  -- ── deep V neckline with the portrait's pointed silver border ──
-  local vw, vd = chest * 0.50, A.CHEST + 0.038
-  polyF(img, { {0.5-vw, A.SHOULDER+0.014+b}, {0.5+vw, A.SHOULDER+0.014+b},
-               {0.5, vd+b} }, SKIN_0)
-  polyF(img, { {0.5-vw*0.72, A.SHOULDER+0.018+b}, {0.5+vw*0.72, A.SHOULDER+0.018+b},
-               {0.5, vd-0.022+b} }, SKIN_1)
-  lineF(img, 0.5-vw, A.SHOULDER+0.014+b, 0.5, vd+b, LINE_W, PLATE_6)
-  lineF(img, 0.5+vw, A.SHOULDER+0.014+b, 0.5, vd+b, LINE_W, PLATE_5)
-
-  -- ── gorget: the collar plate the V hangs from, with its pendant ──
-  polyF(img, { {0.5-shld*0.56, A.NECK+b}, {0.5+shld*0.56, A.NECK+b},
-               {0.5+shld*0.44, A.SHOULDER+0.020+b}, {0.5-shld*0.44, A.SHOULDER+0.020+b} }, PLATE_3)
-  lineF(img, 0.5-shld*0.34, A.NECK+0.006+b, 0.5+shld*0.34, A.NECK+0.006+b, LINE_W, PLATE_5)
-  polyF(img, { {0.5-0.020, A.SHOULDER+0.010+b}, {0.5+0.020, A.SHOULDER+0.010+b},
-               {0.5, A.SHOULDER+0.052+b} }, PLATE_6)
-
-  -- ── etched filigree down the flanks ──
-  -- One scroll a side. Near-white on dark plate is the portrait's loudest
-  -- signature and the cheapest way to say "not plain armour" in two pixels.
-  lineF(img, 0.5-chest*0.86, A.CHEST+0.030+b, 0.5-waist*0.92, A.WAIST-0.016+b, LINE_W, PLATE_5)
-  lineF(img, 0.5+chest*0.86, A.CHEST+0.030+b, 0.5+waist*0.92, A.WAIST-0.016+b, LINE_W, PLATE_4)
-  lineF(img, 0.5-chest*0.30, A.RIBS+b,        0.5-chest*0.56, A.RIBS+0.036+b, LINE_W, PLATE_4)
-  lineF(img, 0.5+chest*0.30, A.RIBS+b,        0.5+chest*0.56, A.RIBS+0.036+b, LINE_W, PLATE_2)
-
-  -- ── leather baldric across the chest ──
-  if not isSide then
-    lineF(img, 0.5-shld*0.90, A.SHOULDER+0.052+b, 0.5+waist*0.80, A.WAIST-0.010+b, 0.030, LTHR_1)
-    lineF(img, 0.5-shld*0.90, A.SHOULDER+0.052+b, 0.5+waist*0.80, A.WAIST-0.010+b, 0.010, LTHR_2)
-    rectF(img, 0.5+waist*0.10, A.RIBS+0.014+b, 0.030, 0.026, BRONZE)
-  end
-
-  -- ── belt, buckle, and the green sash hanging from it ──
-  rectF(img, 0.5-waist-0.012, A.BELT_T+b, (waist+0.012)*2, A.BELT_B-A.BELT_T, LTHR_1)
-  rectF(img, 0.5-waist-0.012, A.BELT_T+b, (waist+0.012)*2, 0.010, LTHR_2)
-  rectF(img, 0.5-0.026, A.BELT_T-0.006+b, 0.052, (A.BELT_B-A.BELT_T)+0.012, BRONZE)
-  rectF(img, 0.5-0.012, A.BELT_T+0.010+b, 0.024, 0.024, BRONZE_D)
-  -- sash: hangs from the belt on her right, past the tassets
-  -- Half the width it was. At full width it spanned the tassets, so everything
-  -- below the belt came out green and the skirt plates -- the piece that says
-  -- "armour" rather than "dress" -- were never visible at all.
-  polyF(img, { {0.5-0.104, A.BELT_B+b}, {0.5-0.050, A.BELT_B+b},
-               {0.5-0.062, A.TASSET_B+0.060+b}, {0.5-0.116, A.TASSET_B+0.030+b} }, CLOAK_2)
-  lineF(img, 0.5-0.086, A.BELT_B+0.020+b, 0.5-0.078, A.TASSET_B+0.020+b, LINE_W, CLOAK_3)
-
-  -- ── pauldrons and arms ──
+  -- pauldrons: layered plates with a bright top edge
   -- Concentric shells lit toward lib.LIGHT_DIR: rim in shadow, crown of the
-  -- plate catching the highlight, one etched line across the lip.
-  assert(lib.LIGHT_DIR.y < 0, "PLATE_RAMP is ordered dark-to-light assuming an overhead/upper light")
-  local function pauldron(cx, lit)
-    local t = lit and 0 or -1
-    ellipseF(img, cx, A.SHOULDER+0.026+b, 0.086, 0.062, PLATE_RAMP[2])
-    ellipseF(img, cx, A.SHOULDER+0.014+b, 0.076, 0.050, PLATE_RAMP[4+t])
-    ellipseF(img, cx, A.SHOULDER+0.002+b, 0.060, 0.034, PLATE_RAMP[5+t])
-    ellipseF(img, cx, A.SHOULDER-0.008+b, 0.038, 0.018, PLATE_RAMP[6+t])
-    -- etched scroll on the lip
-    lineF(img, cx-0.056, A.SHOULDER+0.042+b, cx+0.056, A.SHOULDER+0.042+b, LINE_W, PLATE_6)
-    lineF(img, cx-0.030, A.SHOULDER+0.020+b, cx+0.030, A.SHOULDER+0.026+b, LINE_W, PLATE_5)
+  -- plate catching the highlight. STEEL_RAMP is dark-to-light
+  -- (STEEL_D, STEEL, STEEL_L, STEEL_H); lib.ramp(_, (i-1)/3) reproduces
+  -- STEEL_D, STEEL_L, STEEL_H exactly (the plain STEEL step is unused here,
+  -- same as before this was expressed as a ramp).
+  local STEEL_RAMP = { STEEL_D, STEEL, STEEL_L, STEEL_H }
+  local function pauldron(cx)
+    ellipseF(img, cx, 0.415+b, 0.095, 0.075, lib.ramp(STEEL_RAMP, 0/3))
+    ellipseF(img, cx, 0.405+b, 0.085, 0.062, lib.ramp(STEEL_RAMP, 2/3))
+    ellipseF(img, cx, 0.392+b, 0.070, 0.042, lib.ramp(STEEL_RAMP, 3/3))
+    lineF(img, cx-0.075, 0.445+b, cx+0.075, 0.445+b, LINE_W, GOLD_D)
   end
-
-  -- upper arm + vambrace hanging off a pauldron
-  local function arm(cx, shade)
-    polyF(img, { {cx-0.042, A.SHOULDER+0.040+b}, {cx+0.042, A.SHOULDER+0.040+b},
-                 {cx+0.038, A.RIBS+b}, {cx-0.038, A.RIBS+b} }, LTHR_1)
-    polyF(img, { {cx-0.038, A.RIBS+b}, {cx+0.038, A.RIBS+b},
-                 {cx+0.034, A.WAIST+0.050+b}, {cx-0.034, A.WAIST+0.050+b} }, PLATE_RAMP[shade])
-    lineF(img, cx-0.030, A.RIBS+0.014+b, cx+0.030, A.RIBS+0.014+b, LINE_W, PLATE_RAMP[math.min(7,shade+2)])
-    -- gauntlet
-    ellipseF(img, cx, A.WAIST+0.062+b, 0.040, 0.030, PLATE_RAMP[math.min(7,shade+1)])
-  end
-
+  assert(lib.LIGHT_DIR.y < 0, "STEEL_RAMP is ordered dark-to-light assuming an overhead/upper light")
   if isSide then
-    local near = (facing == 'left') and (0.5 - 0.088) or (0.5 + 0.088)
-    pauldron(near, true)
-    arm(near, 4)
+    pauldron(facing == 'left' and 0.38 or 0.62)
+    rectF(img, facing == 'left' and 0.34 or 0.54, 0.46+b, 0.12, 0.14, LEATHER)
+    rectF(img, facing == 'left' and 0.34 or 0.54, 0.50+b, 0.12, 0.035, STEEL_L)  -- vambrace
   else
-    pauldron(0.5 - HW.PAUL + 0.086, true)
-    pauldron(0.5 + HW.PAUL - 0.086, false)
-    arm(0.5 - HW.PAUL + 0.070, 4)
-    arm(0.5 + HW.PAUL - 0.070, 2)
+    pauldron(0.24); pauldron(0.76)
+    rectF(img, 0.20, 0.46+b, 0.10, 0.15, LEATHER)
+    rectF(img, 0.70, 0.46+b, 0.10, 0.15, LEATHER)
+    rectF(img, 0.20, 0.50+b, 0.10, 0.035, STEEL_L)
+    rectF(img, 0.70, 0.50+b, 0.10, 0.035, STEEL_L)
   end
 end
 
--- The signature piece: the big tree-of-life shield, carried on her off (left)
--- arm. In the portrait it is a heater -- rounded shoulders tapering to a point
--- -- with a heavy scrolled steel rim and a weathered sage field, not the flat
--- disc the old sheet drew.
--- The tree of life, hand-set at 9x13. This is the one thing on the sheet that
--- is a bitmap rather than a shape, and it has to be.
---
--- Three generated versions failed before this, all the same way: the emblem
--- read as a little humanoid. The cause is not the drawing technique -- a filled
--- canopy with holes punched in it turned into a face just as readily as 1px
--- boughs turned into arms. The cause is the BRANCH COUNT. One vertical stroke,
--- one pair of limbs off it and anything at all on top is a person, and the eye
--- settles on that long before it considers a tree.
---
--- What breaks it is three tiers -- nobody has six arms -- widening toward the
--- bottom, with the trunk forking at the top instead of ending in a crown pixel.
--- And once the design is that specific, generating it is worse than writing it
--- out: linePx puts a disc at every step, so two branches three rows apart merge
--- into a blob and the gaps between them become the eyes of the next face. At
--- 9x13 every pixel is a decision, so every pixel is written down.
-local TREE_OF_LIFE = {
-  "...#.#...",
-  "....#....",
-  ".#..#..#.",
-  "..#.#.#..",
-  "...###...",
-  "....#....",
-  "#...#...#",
-  ".#..#..#.",
-  "..#.#.#..",
-  "...###...",
-  "....#....",
-  "...#.#...",
-  "..#...#..",
-}
-
--- Whether the shield is on the arm NEAR the camera, and so covers her body,
--- rather than the far arm, where it shows from behind her.
---
--- She carries it on her LEFT arm, which decides this per facing and is not a
--- free choice: facing the camera her left is screen-right; facing screen-left
--- (west) her left hand swings toward the camera, so the shield is near; facing
--- screen-right (east) her left hand swings away, so it is behind her. The first
--- pass drew it in front on BOTH profiles, which made her left-handed walking one
--- way and right-handed walking the other, with the sword and shield trading arms
--- mid-stride.
-local function shieldInFront(facing) return facing ~= 'right' end
-
+-- The signature piece: a big verdigris shield with the silver tree of life,
+-- carried on the off arm. Absent from drawPlayer entirely.
 local function drawShield(img, facing, bob)
   if facing == 'up' then return end          -- reads as the shield's back
-  local cx = 0.5 + 0.205
-  if facing == 'left'  then cx = 0.5 - 0.170 end
-  -- Facing east: peeking out from behind her back, which is to screen-left.
-  if facing == 'right' then cx = 0.5 - 0.104 end
-  -- Sized off the torso, not picked: the boss of the shield covers her from
-  -- shoulder to hip, which is what a heater is for. The first attempt ran it
-  -- from above the bust to below the tassets and 14px wide, which buried the
-  -- entire cuirass -- the shield WAS the character.
-  local top, bot = A.CHEST - 0.030 + bob, A.HIP + 0.105 + bob
-  local hw  = (facing == 'down') and 0.122 or 0.116   -- slightly foreshortened in profile
-  local sho = top + (bot - top) * 0.34                 -- widest point
+  local cx = (facing == 'left') and 0.22 or 0.78
+  if facing == 'right' then cx = 0.80 end
+  if facing == 'left'  then cx = 0.20 end
+  local cy = 0.52 + bob
+  local rx, ry = 0.165, 0.205
 
-  -- Silhouette: heater. Two shoulders, straight flanks, a point at the bottom.
-  local function heater(inset, col)
-    local w = hw - inset
-    polyF(img, { {cx-w,        sho},
-                 {cx-w*0.94,   top + inset*0.6},
-                 {cx-w*0.52,   top + inset*0.3},
-                 {cx,          top + inset*0.25},
-                 {cx+w*0.52,   top + inset*0.3},
-                 {cx+w*0.94,   top + inset*0.6},
-                 {cx+w,        sho},
-                 {cx+w*0.60,   bot - inset*1.4},
-                 {cx,          bot - inset},
-                 {cx-w*0.60,   bot - inset*1.4} }, col)
-  end
+  ellipseF(img, cx, cy, rx, ry, STEEL_L)                 -- rim
+  ellipseF(img, cx, cy, rx * 0.86, ry * 0.88, SHIELD_D)  -- rolled edge
+  ellipseF(img, cx, cy, rx * 0.74, ry * 0.78, SHIELD_F)  -- field
+  -- engraved border dots
+  ellipseF(img, cx, cy - ry * 0.86, 0.016, 0.014, STEEL_H)
+  ellipseF(img, cx, cy + ry * 0.86, 0.016, 0.014, STEEL_H)
 
-  heater(0.000, PLATE_1)      -- rim, in shadow
-  heater(0.010, PLATE_4)      -- rim, lit
-  heater(0.022, SH_0)         -- rolled edge
-  heater(0.030, SH_1)         -- field
-  -- field gradient: her near side catches the light, the far side falls away
-  polyF(img, { {cx-hw+0.034, sho-0.030}, {cx-0.006, top+0.036},
-               {cx-0.006, bot-0.034}, {cx-hw*0.52, bot-0.050} }, SH_2)
-
-  -- scrollwork on the rim: two studs a side, which is all that resolves
-  for _, t in ipairs({ 0.24, 0.62 }) do
-    local y = top + (bot - top) * t
-    local w = (hw - 0.016) * (1.0 - math.max(0, (t - 0.55)) * 1.5)
-    ellipseF(img, cx - w, y, 0.010, 0.010, PLATE_6)
-    ellipseF(img, cx + w, y, 0.010, 0.010, PLATE_4)
-  end
-
-  -- ── tree of life ──
-  -- Silver is the brightest value on the whole figure, so the emblem is drawn
-  -- with a strict budget: a 1px trunk, four boughs, and five leaf pixels. The
-  -- first attempt used a 1.8px trunk, six boughs and seven 1.7px leaf blobs,
-  -- which on an 11px-wide field covered most of it -- the shield read as a
-  -- white paddle and pulled every eye away from her face. A tree at this size
-  -- is suggested, not drawn: what has to survive is "pale emblem, branching".
-  -- The emblem is a hand-set BITMAP, not strokes. See TREE_OF_LIFE above.
-  local tx, ty = X(cx), Y(top + (bot - top) * 0.46)
-  local x0 = math.floor(tx - #TREE_OF_LIFE[1] / 2 + 0.5)
-  local y0 = math.floor(ty - #TREE_OF_LIFE / 2 + 0.5)
-  for r = 1, #TREE_OF_LIFE do
-    local row = TREE_OF_LIFE[r]
-    for c = 1, #row do
-      if row:sub(c, c) == '#' then px(img, x0 + c - 1, y0 + r - 1, SILVER) end
-    end
-  end
+  -- Tree of life. Everything is 1px with field showing between: a filled
+  -- canopy at this size collapses the whole emblem into a white smear.
+  local tx, ty = X(cx), Y(cy)
+  local RX, RY = rx * S, ry * S
+  linePx(img, tx, ty + RY*0.60, tx, ty - RY*0.18, 1.4, TREE)          -- trunk
+  linePx(img, tx, ty + RY*0.16, tx - RX*0.44, ty - RY*0.16, 1.0, TREE)
+  linePx(img, tx, ty + RY*0.16, tx + RX*0.44, ty - RY*0.16, 1.0, TREE)
+  linePx(img, tx, ty - RY*0.14, tx - RX*0.34, ty - RY*0.50, 1.0, TREE)
+  linePx(img, tx, ty - RY*0.14, tx + RX*0.34, ty - RY*0.50, 1.0, TREE)
+  -- leaf clusters at the branch tips only
+  ellipsePx(img, tx,             ty - RY*0.46, 1.6, 1.4, TREE)
+  ellipsePx(img, tx - RX*0.40,   ty - RY*0.56, 1.3, 1.2, TREE)
+  ellipsePx(img, tx + RX*0.40,   ty - RY*0.56, 1.3, 1.2, TREE)
+  ellipsePx(img, tx - RX*0.50,   ty - RY*0.20, 1.2, 1.1, TREE)
+  ellipsePx(img, tx + RX*0.50,   ty - RY*0.20, 1.2, 1.1, TREE)
+  -- root flare
+  linePx(img, tx, ty + RY*0.60, tx - RX*0.26, ty + RY*0.70, 1.0, TREE)
+  linePx(img, tx, ty + RY*0.60, tx + RX*0.26, ty + RY*0.70, 1.0, TREE)
 end
 
-----------------------------------------------------------------------
--- head
-----------------------------------------------------------------------
--- Long swept-back ears, a braided crown over sandy blonde, blue eyes.
---
--- The old head was a 14px dome with the ears sticking out HORIZONTALLY, which
--- at that size read as antennae. Here the ears rake up and back at about 35
--- degrees off horizontal -- the portrait's angle -- so they sit against the hair
--- mass instead of projecting off the silhouette.
-
--- The braid crown that runs back from the temples in the portrait. Two strands
--- of alternating shade; at this size the alternation IS the braid.
-local function drawBraid(img, x0, y0, x1, y1)
-  local n = 4
-  for i = 0, n do
-    local t = i / n
-    local bx, by = x0 + (x1-x0)*t, y0 + (y1-y0)*t
-    ellipseF(img, bx, by, 0.019, 0.015, (i % 2 == 0) and HAIR_4 or HAIR_2)
-  end
-end
-
+-- Head: long swept ears, windswept blonde, green eyes.
 local function drawHead(img, facing, bob)
   local b = bob
-  local cy = (A.SKULL_TOP + A.CHIN) / 2 + b     -- head centre
-  local ry = (A.CHIN - A.SKULL_TOP) / 2
-
-  -- ── neck ──
-  rectF(img, 0.5 - HW.NECK, A.CHIN - 0.010 + b, HW.NECK*2, A.NECK - A.CHIN + 0.024, SKIN_1)
-  rectF(img, 0.5 - HW.NECK, A.CHIN - 0.010 + b, HW.NECK*2, 0.020, SKIN_0)
 
   if facing == 'up' then
-    -- ── back of the head ──
-    -- The long fall of hair down her back, then the skull, then the braid seen
-    -- from behind. No face, and the ear tips only just clear the hair.
-    -- The fall NARROWS toward the small of her back. Drawn as a widening
-    -- trapezoid it came out a bell the width of her shoulders, which at this
-    -- size is a mushroom cap or a hood, not hair -- there was no neck and no
-    -- shoulder line, so the whole back view was one pale dome.
-    polyF(img, { {0.5-HW.SKULL, A.EYE+b}, {0.5+HW.SKULL, A.EYE+b},
-                 {0.5+HW.HAIR, A.CHIN+0.030+b},
-                 {0.5+HW.SKULL-0.020, A.CHEST+0.055+b},
-                 {0.5-HW.SKULL+0.020, A.CHEST+0.055+b},
-                 {0.5-HW.HAIR, A.CHIN+0.030+b} }, HAIR_1)
-    polyF(img, { {0.5-HW.SKULL, A.EYE+b}, {0.5-0.010, A.EYE+b},
-                 {0.5-0.024, A.CHEST+0.050+b},
-                 {0.5-HW.SKULL+0.020, A.CHEST+0.055+b},
-                 {0.5-HW.HAIR, A.CHIN+0.030+b} }, HAIR_2)
-    -- ear tips, angled up and back, just proud of the hair
-    polyF(img, { {0.5-HW.SKULL+0.010, A.BROW+0.010+b}, {0.5-HW.HAIR-0.030, A.HAIRLINE+0.026+b},
-                 {0.5-HW.SKULL+0.014, A.EYE+0.030+b} }, EAR_T)
-    polyF(img, { {0.5+HW.SKULL-0.010, A.BROW+0.010+b}, {0.5+HW.HAIR+0.030, A.HAIRLINE+0.026+b},
-                 {0.5+HW.SKULL-0.014, A.EYE+0.030+b} }, EAR_T)
-    -- skull
-    ellipseF(img, 0.5, cy - 0.020, HW.HAIR, ry*0.96, HAIR_2)
-    ellipseF(img, 0.5, cy - 0.044, HW.HAIR*0.80, ry*0.62, HAIR_3)
-    ellipseF(img, 0.5 - 0.026, cy - 0.070, HW.HAIR*0.44, ry*0.28, HAIR_4)
-    -- braid, arcing across the back of the crown
-    drawBraid(img, 0.5-HW.SKULL-0.004, A.BROW-0.006+b, 0.5+HW.SKULL+0.004, A.BROW-0.006+b)
-    -- strand partings down the fall
-    lineF(img, 0.5-0.054, A.CHIN+b, 0.5-0.068, A.CHEST+0.030+b, LINE_W, HAIR_0)
-    lineF(img, 0.5+0.058, A.CHIN+b, 0.5+0.070, A.CHEST+0.030+b, LINE_W, HAIR_0)
-    lineF(img, 0.5+0.006, A.CHIN+0.020+b, 0.5+0.012, A.CHEST+0.040+b, LINE_W, HAIR_3)
+    -- back of the head: the mane, plus the windswept lock trailing to one side
+    polyF(img, { {0.60,0.16+b}, {0.74,0.20+b}, {0.86,0.46+b}, {0.70,0.44+b} }, HAIR_D)
+    ellipseF(img, 0.50, 0.22+b, 0.195, 0.175, HAIR_D)
+    ellipseF(img, 0.50, 0.205+b, 0.165, 0.145, HAIR)
+    ellipseF(img, 0.50, 0.165+b, 0.105, 0.065, HAIR_L)
+    lineF(img, 0.42, 0.13+b, 0.40, 0.30+b, LINE_W, HAIR_D)
+    lineF(img, 0.58, 0.13+b, 0.61, 0.30+b, LINE_W, HAIR_D)
+    -- ear tips just clear the hair
+    polyF(img, { {0.31,0.20+b}, {0.19,0.13+b}, {0.315,0.26+b} }, EAR_T)
+    polyF(img, { {0.69,0.20+b}, {0.81,0.13+b}, {0.685,0.26+b} }, EAR_T)
     return
   end
 
-  local side = (facing == 'left' or facing == 'right')
-  -- Which way she looks, as a signed x direction. Only meaningful in profile.
-  local d = (facing == 'right') and 1 or -1
+  -- hair mass behind the head, sweeping to the character's right
+  polyF(img, { {0.58,0.14+b}, {0.74,0.19+b}, {0.88,0.44+b}, {0.68,0.42+b} }, HAIR_D)
+  lineF(img, 0.70, 0.22+b, 0.84, 0.41+b, LINE_W, HAIR)
+  ellipseF(img, 0.50, 0.21+b, 0.185, 0.165, HAIR_D)
 
-  -- ── hair mass behind the head ──
-  -- Front-on it falls symmetrically off both shoulders; in profile it is all
-  -- swept to the trailing side, which is what makes a profile read as a profile
-  -- before any facial feature does.
-  if side then
-    polyF(img, { {0.5-d*0.020, A.HAIRLINE+b}, {0.5-d*HW.HAIR-d*0.020, A.BROW+b},
-                 {0.5-d*HW.HAIR-d*0.046, A.CHEST+0.030+b},
-                 {0.5-d*0.030, A.CHEST+0.070+b}, {0.5+d*0.040, A.CHIN+b} }, HAIR_1)
-    polyF(img, { {0.5-d*0.040, A.HAIRLINE+0.020+b}, {0.5-d*HW.HAIR-d*0.010, A.EYE+b},
-                 {0.5-d*HW.HAIR-d*0.020, A.CHEST+0.010+b},
-                 {0.5-d*0.050, A.CHEST+0.040+b} }, HAIR_2)
+  -- long pointed ears, angled up and back
+  if facing == 'right' then
+    polyF(img, { {0.34,0.175+b}, {0.19,0.10+b}, {0.35,0.255+b} }, EAR_T)
+    lineF(img, 0.33, 0.175+b, 0.22, 0.125+b, LINE_W, SKIN_D)
+  elseif facing == 'left' then
+    polyF(img, { {0.66,0.175+b}, {0.81,0.10+b}, {0.65,0.255+b} }, EAR_T)
+    lineF(img, 0.67, 0.175+b, 0.78, 0.125+b, LINE_W, SKIN_D)
   else
-    -- Two falls of hair, one either side of the face, tapering to a point at
-    -- the collarbone rather than running straight down. The first attempt drew
-    -- one full-width rectangle from brow to chest, which framed the face in a
-    -- blonde block -- with the face at SKIN_1 and the hair at HAIR_2 (nearly the
-    -- same value) the two merged into a single tan mass. Darker hair at the
-    -- sides plus a taper is what separates them.
-    for _, sx in ipairs({ -1, 1 }) do
-      polyF(img, { {0.5 + sx*(HW.HEAD-0.010), A.BROW+b},
-                   {0.5 + sx*HW.HAIR,         A.EYE+b},
-                   {0.5 + sx*(HW.HAIR+0.008), A.CHIN+0.040+b},
-                   {0.5 + sx*(HW.HEAD-0.020), A.NECK+0.050+b} }, HAIR_1)
+    polyF(img, { {0.345,0.18+b}, {0.20,0.105+b}, {0.355,0.26+b} }, EAR_T)
+    polyF(img, { {0.655,0.18+b}, {0.80,0.105+b}, {0.645,0.26+b} }, EAR_T)
+    lineF(img, 0.335, 0.18+b, 0.23, 0.13+b, LINE_W, SKIN_D)
+    lineF(img, 0.665, 0.18+b, 0.77, 0.13+b, LINE_W, SKIN_D)
+  end
+
+  -- face
+  ellipseF(img, 0.50, 0.225+b, 0.135, 0.145, SKIN_D)
+  ellipseF(img, 0.492, 0.215+b, 0.115, 0.125, SKIN)
+
+  -- swept fringe, parted off-centre as in the portrait
+  polyF(img, { {0.355,0.09+b}, {0.65,0.09+b}, {0.66,0.20+b}, {0.545,0.145+b},
+               {0.47,0.205+b}, {0.40,0.15+b}, {0.35,0.21+b} }, HAIR)
+  rectF(img, 0.43, 0.088+b, 0.15, 0.022, HAIR_L)
+  lineF(img, 0.40, 0.115+b, 0.375, 0.19+b, LINE_W, HAIR_D)
+  lineF(img, 0.62, 0.115+b, 0.645, 0.19+b, LINE_W, HAIR_D)
+
+  if facing == 'down' then
+    rectF(img, 0.405, 0.215+b, 0.055, 0.042, EYE)
+    rectF(img, 0.545, 0.215+b, 0.055, 0.042, EYE)
+    rectF(img, 0.418, 0.222+b, 0.018, 0.016, WHITE)
+    rectF(img, 0.558, 0.222+b, 0.018, 0.016, WHITE)
+    rectF(img, 0.402, 0.202+b, 0.06, 0.012, HAIR_D)
+    rectF(img, 0.542, 0.202+b, 0.06, 0.012, HAIR_D)
+    rectF(img, 0.492, 0.252+b, 0.018, 0.016, SKIN_D)
+    rectF(img, 0.468, 0.283+b, 0.062, 0.012, hex('#b07f63'))
+  else
+    local ex = (facing == 'right') and 0.545 or 0.40
+    rectF(img, ex, 0.215+b, 0.07, 0.042, EYE)
+    rectF(img, ex + ((facing == 'right') and 0.04 or 0.0), 0.222+b, 0.016, 0.016, WHITE)
+    rectF(img, ex, 0.202+b, 0.07, 0.012, HAIR_D)
+    rectF(img, (facing == 'right') and 0.615 or 0.365, 0.255+b, 0.02, 0.016, SKIN_D)
+
+    -- A lock swept across the far side of the face. In profile only one eye is
+    -- ever visible, which reads as a missing eye rather than a hidden one; this
+    -- covers where the second would sit, stopping short of the near eye.
+    if facing == 'right' then
+      polyF(img, { {0.385,0.095+b}, {0.545,0.095+b}, {0.535,0.185+b},
+                   {0.495,0.265+b}, {0.435,0.245+b}, {0.380,0.160+b} }, HAIR)
+      lineF(img, 0.500, 0.115+b, 0.478, 0.250+b, LINE_W, HAIR_D)
+      lineF(img, 0.435, 0.110+b, 0.416, 0.220+b, LINE_W, HAIR_L)
+    else
+      polyF(img, { {0.615,0.095+b}, {0.455,0.095+b}, {0.465,0.185+b},
+                   {0.505,0.265+b}, {0.565,0.245+b}, {0.620,0.160+b} }, HAIR)
+      lineF(img, 0.500, 0.115+b, 0.522, 0.250+b, LINE_W, HAIR_D)
+      lineF(img, 0.565, 0.110+b, 0.584, 0.220+b, LINE_W, HAIR_L)
     end
-    -- the long lock the portrait sweeps over her right shoulder, past the others
-    polyF(img, { {0.5+HW.HEAD-0.006, A.EYE+b}, {0.5+HW.HAIR+0.010, A.EYE+0.024+b},
-                 {0.5+HW.HAIR+0.020, A.CHEST+0.060+b},
-                 {0.5+HW.HEAD-0.010, A.CHEST+0.030+b} }, HAIR_2)
-    lineF(img, 0.5+HW.HAIR-0.004, A.CHIN+b, 0.5+HW.HAIR+0.006, A.CHEST+0.030+b,
-          LINE_W, HAIR_3)
-  end
-
-  -- ── ears: long, raked up and back ──
-  -- The rake is about 35 degrees above horizontal, measured off the portrait.
-  -- The first attempt ran them from the brow to above the skull, which is ~70
-  -- degrees, and at 5px long that is indistinguishable from a horn: the tip
-  -- cleared the top of the head, so the silhouette grew two spikes. Keeping the
-  -- tip BELOW A.HAIRLINE is what makes them read as ears -- they have to sit
-  -- against the hair mass, not stick out over it.
-  local function ear(sx)
-    -- sx is -1 for her right ear (screen left), +1 for her left.
-    local rootX, rootY = 0.5 + sx * (HW.HEAD - 0.012), A.EYE - 0.004 + b
-    local tipX,  tipY  = 0.5 + sx * (HW.HEAD + 0.070), A.HAIRLINE + 0.030 + b
-    polyF(img, { {rootX, rootY - 0.024}, {tipX, tipY},
-                 {rootX + sx*0.006, rootY + 0.032} }, EAR_T)
-    -- inner fold, one shade down, stopping short of the tip
-    lineF(img, rootX + sx*0.004, rootY + 0.002,
-               rootX + sx*0.046, tipY + 0.020, LINE_W, SKIN_0)
-  end
-  if side then ear(d) else ear(-1); ear(1) end
-
-  -- ── face ──
-  -- Base is SKIN_2 with SKIN_1 as the shadow, not the other way round. The
-  -- first attempt lit the face at SKIN_1 (#a8784d), which sits within one value
-  -- step of HAIR_2 (#9c8146) -- against the hair it vanished. The face has to be
-  -- the lightest large area on the figure or the eye has nowhere to land.
-  local fcx = 0.5 + (side and d * 0.016 or 0)
-  ellipseF(img, fcx, cy, HW.HEAD, ry, SKIN_1)
-  ellipseF(img, fcx - 0.006, cy - 0.006, HW.HEAD - 0.010, ry - 0.012, SKIN_2)
-  -- jaw taper: narrow the chin so the head is not an egg
-  polyF(img, { {fcx-HW.HEAD, A.NOSE+b}, {fcx+HW.HEAD, A.NOSE+b},
-               {fcx+HW.HEAD*0.46, A.CHIN+b}, {fcx-HW.HEAD*0.46, A.CHIN+b} }, SKIN_2)
-  ellipseF(img, fcx - HW.HEAD*0.34, A.BROW + 0.020 + b, HW.HEAD*0.40, 0.024, SKIN_3)  -- cheek light
-
-  if side then
-    -- nose and lips break the profile edge
-    polyF(img, { {fcx + d*(HW.HEAD-0.014), A.BROW+0.026+b},
-                 {fcx + d*(HW.HEAD+0.026), A.NOSE+b},
-                 {fcx + d*(HW.HEAD-0.010), A.NOSE+0.012+b} }, SKIN_2)
-    -- Inside the face edge. Run out to HW.HEAD + 0.006 it protruded past the
-    -- silhouette, and the outline pass then wrapped it -- giving her a beak.
-    lineF(img, fcx + d*(HW.HEAD-0.014), A.MOUTH+b,
-               fcx + d*(HW.HEAD-0.048), A.MOUTH+b, LINE_W, LIP)
-    -- one eye, set toward the face's leading edge
-    rectF(img, fcx + d*0.030 - 0.021, A.EYE + b, 0.042, 0.026, EYE_D)
-    rectF(img, fcx + d*0.034 - 0.010, A.EYE + 0.004 + b, 0.020, 0.016, EYE_L)
-    rectF(img, fcx + d*0.030 - 0.023, A.EYE - 0.020 + b, 0.046, 0.012, HAIR_0)   -- brow
-  else
-    -- ── eyes ──
-    -- A 2x2 eye: a dark lash pixel row over a blue iris row, with a dark brow
-    -- one pixel above and a pixel of skin between brow and lash. That is the
-    -- entire budget on a 10px-wide face, and everything here is in whole
-    -- PXF units so the two eyes are pixel-identical mirror images.
-    --
-    -- The first attempt used free fractions (0.048 wide, 0.028 tall) which
-    -- rasterised to a 2.3 x 1.3px smear -- the iris inside it came out under a
-    -- pixel, so both eyes read as solid blue bars, like eyeliner.
-    for _, sx in ipairs({ -1, 1 }) do
-      -- x0 of a 2px eye, 61 and 65 in frame pixels, symmetric about 64
-      local ex = 0.5 + ((sx < 0) and (-3 * PXF) or (1 * PXF))
-      rectF(img, ex, A.EYE - 1*PXF + b, 2*PXF, 1*PXF, hex('#4a3626'))  -- lash
-      rectF(img, ex, A.EYE + b,         2*PXF, 1*PXF, EYE_D)
-      rectF(img, ex + ((sx < 0) and 0 or 1*PXF), A.EYE + b, 1*PXF, 1*PXF, EYE_L)
-      rectF(img, ex - ((sx < 0) and 1*PXF or 0), A.EYE - 3*PXF + b, 3*PXF, 1*PXF, HAIR_0)
-    end
-    -- nose: a shadow, not a shape
-    rectF(img, 0.5 - 1*PXF, A.NOSE + b, 1*PXF, 1*PXF, SKIN_0)
-    -- mouth
-    rectF(img, 0.5 - 2*PXF, A.MOUTH + b, 3*PXF, 1*PXF, LIP)
-  end
-
-  -- ── fringe and braid over the hairline ──
-  if side then
-    polyF(img, { {fcx - d*HW.HEAD - d*0.010, A.HAIRLINE - 0.016 + b},
-                 {fcx + d*(HW.HEAD+0.010), A.HAIRLINE + 0.004 + b},
-                 {fcx + d*(HW.HEAD-0.006), A.BROW - 0.004 + b},
-                 {fcx + d*0.010, A.HAIRLINE + 0.030 + b},
-                 {fcx - d*HW.HEAD - d*0.014, A.BROW + 0.020 + b} }, HAIR_2)
-    ellipseF(img, fcx - d*0.010, A.SKULL_TOP + 0.026 + b, HW.SKULL, 0.044, HAIR_2)
-    ellipseF(img, fcx - d*0.022, A.SKULL_TOP + 0.018 + b, HW.SKULL*0.64, 0.026, HAIR_3)
-    drawBraid(img, fcx + d*(HW.HEAD-0.010), A.HAIRLINE + 0.010 + b,
-                   fcx - d*(HW.HEAD+0.026), A.BROW + 0.026 + b)
-  else
-    -- Skull cap of hair, sitting ON the hairline rather than over the brow.
-    --
-    -- The fringe used to reach A.BROW + 0.026, one pixel above the eyes, which
-    -- left literally no forehead: hair, then eyes. A face needs the brow ridge
-    -- visible or it reads as a wig with holes cut in it. The cap now stops at
-    -- A.HAIRLINE and only the swept part of the fringe dips past it, on her
-    -- right side alone, as the portrait's off-centre parting does.
-    ellipseF(img, 0.5, A.SKULL_TOP + 0.028 + b, HW.SKULL + 0.010, 0.046, HAIR_2)
-    ellipseF(img, 0.5 - 0.018, A.SKULL_TOP + 0.018 + b, HW.SKULL*0.62, 0.026, HAIR_3)
-    rectF(img, 0.5 - 2*PXF, A.SKULL_TOP + 0.004 + b, 3*PXF, 1*PXF, HAIR_4)
-    -- fringe: dips to the brow on her right, tucked back on her left
-    polyF(img, { {0.5-HW.SKULL-0.006, A.HAIRLINE-0.020+b},
-                 {0.5+HW.SKULL+0.006, A.HAIRLINE-0.020+b},
-                 {0.5+HW.SKULL+0.002, A.HAIRLINE+0.012+b},
-                 {0.5+0.016,          A.HAIRLINE-0.004+b},
-                 {0.5-0.030,          A.HAIRLINE+0.018+b},
-                 {0.5-HW.SKULL-0.002, A.BROW+0.004+b} }, HAIR_2)
-    lineF(img, 0.5-0.046, A.HAIRLINE-0.010+b, 0.5-0.070, A.BROW+0.002+b, LINE_W, HAIR_1)
-    lineF(img, 0.5+0.048, A.HAIRLINE-0.012+b, 0.5+0.068, A.HAIRLINE+0.008+b, LINE_W, HAIR_3)
-    -- braid crown, temple to temple across the top of the fringe
-    drawBraid(img, 0.5-HW.SKULL-0.004, A.HAIRLINE-0.006+b,
-                   0.5+HW.SKULL+0.004, A.HAIRLINE-0.010+b)
   end
 end
 
 ----------------------------------------------------------------------
 -- sword
 ----------------------------------------------------------------------
--- The swing PIVOT, as a position in the BODY box rather than the frame, so it
--- follows the body box when the frame changes size. SW_HILT and SW_LEN are
--- LENGTHS in body pixels and stay raw numbers: the body is still 48px at any
--- frame size, so a distance in pixels is still the distance it was.
+-- Sword hand, as a position in the BODY box rather than the frame.
 --
--- SW_LEN grew from 30 to 35 with the figure. It is set from the anatomy rather
--- than picked: a sword she can actually swing is about as long as her arm plus
--- her torso, and A.WAIST - A.CHIN is that reach. The tip now clears her hair by
--- a couple of pixels in the idle carry, which the 46px figure had no room for.
-local SW_CX, SW_CY    = X(0.5), Y(A.CHEST)
-local SW_HILT, SW_LEN = 11.0, 35.0
+-- These were the literals 32 and 30, tuned when the frame was 64 and the body
+-- box sat at (8, 7). Both are exact fractions of the 48px body there
+-- (X(0.5) = 32, Y(23/48) = 30), so this is the same point, now expressed so it
+-- follows the body box instead of the frame corner. Enlarging the frame is what
+-- exposed the difference: the blade and fist stayed pinned to absolute
+-- coordinates while the body moved down, tearing them off the arm.
+--
+-- SW_HILT and SW_LEN are deliberately NOT converted. They are LENGTHS, and the
+-- body is still 48px at any frame size, so a distance in pixels is still the
+-- distance it was. Only positions had to move.
+local SW_CX, SW_CY    = X(0.5), Y(23.0 / 48.0)
+local SW_HILT, SW_LEN = 10.0, 30.0
 local BASE_ANGLE = { down = math.pi/2, up = -math.pi/2, left = math.pi, right = 0.0 }
 -- Carried high, as in the portrait. Pivoted at the sword hand (opposite the
 -- shield) and angled near-vertical so the blade rises beside the head instead
 -- of cutting across her face.
-local IDLE_ANGLE = { down = -1.75, up = -1.75, left = -1.35, right = -1.80 }
--- Her RIGHT hand, which is screen-left when she faces us and screen-right when
--- she faces away. In profile the sword arm is the far arm, so the hilt sits just
--- behind the centre line rather than out at the shoulder.
+local IDLE_ANGLE = { down = -1.75, up = -1.75, left = -1.35, right = -1.75 }
+-- Same conversion: these were 23/41 and 34, which are X(15/48), X(33/48) and
+-- Y(27/48) under the old 64px geometry.
 local IDLE_PIVOT = {
-  down  = { X(0.358), Y(A.WAIST + 0.052) },
-  up    = { X(0.642), Y(A.WAIST + 0.052) },
-  left  = { X(0.548), Y(A.WAIST + 0.040) },
-  right = { X(0.452), Y(A.WAIST + 0.040) },
+  down  = { X(15.0 / 48.0), Y(27.0 / 48.0) },
+  up    = { X(15.0 / 48.0), Y(27.0 / 48.0) },
+  left  = { X(33.0 / 48.0), Y(27.0 / 48.0) },
+  right = { X(15.0 / 48.0), Y(27.0 / 48.0) },
 }
 
 local function drawBlade(img, a, bob, trail, cx, cy0)
   local cy = cy0 + bob * S
   local bx, by = cx + math.cos(a)*SW_HILT, cy + math.sin(a)*SW_HILT
   local tx, ty = cx + math.cos(a)*SW_LEN,  cy + math.sin(a)*SW_LEN
-  local mx2, my = cx + math.cos(a)*(SW_LEN-6), cy + math.sin(a)*(SW_LEN-6)
+  local mx, my = cx + math.cos(a)*(SW_LEN-5), cy + math.sin(a)*(SW_LEN-5)
   local gx, gy = cx + math.cos(a)*3.0, cy + math.sin(a)*3.0
   local nx, ny = -math.sin(a), math.cos(a)
 
@@ -839,63 +403,54 @@ local function drawBlade(img, a, bob, trail, cx, cy0)
       local ta = a - 0.26*k
       linePx(img, cx+math.cos(ta)*(SW_HILT+3), cy+math.sin(ta)*(SW_HILT+3),
                   cx+math.cos(ta)*(SW_LEN-2),  cy+math.sin(ta)*(SW_LEN-2),
-                  (k==2) and 1.0 or 2.0, (k==2) and PLATE_2 or PLATE_5)
+                  (k==2) and 1.0 or 1.8, (k==2) and STEEL_D or STEEL_L)
     end
   end
 
-  linePx(img, bx, by, tx, ty, 5.6, OUTLINE)
-  linePx(img, bx+nx*6.0, by+ny*6.0, bx-nx*6.0, by-ny*6.0, 4.8, OUTLINE)
-  linePx(img, gx, gy, bx, by, 4.4, OUTLINE)
+  linePx(img, bx, by, tx, ty, 5.4, OUTLINE)
+  linePx(img, bx+nx*5.5, by+ny*5.5, bx-nx*5.5, by-ny*5.5, 4.6, OUTLINE)
+  linePx(img, gx, gy, bx, by, 4.2, OUTLINE)
 
   -- grip, pommel, and the portrait's ornate swept crossguard
-  linePx(img, gx, gy, bx, by, 2.8, LTHR_0)
-  linePx(img, gx, gy, bx, by, 1.2, LTHR_2)
-  ellipsePx(img, gx, gy, 2.4, 2.4, BRONZE)
-  ellipsePx(img, gx, gy, 1.1, 1.1, BRONZE_D)
-  linePx(img, bx+nx*5.0, by+ny*5.0, bx-nx*5.0, by-ny*5.0, 3.0, PLATE_5)
-  linePx(img, bx+nx*5.0, by+ny*5.0, bx-nx*5.0, by-ny*5.0, 1.0, PLATE_2)
-  ellipsePx(img, bx+nx*5.0, by+ny*5.0, 1.5, 1.5, BRONZE)
-  ellipsePx(img, bx-nx*5.0, by-ny*5.0, 1.5, 1.5, BRONZE)
+  linePx(img, gx, gy, bx, by, 2.6, LEATHER_D)
+  linePx(img, gx, gy, bx, by, 1.0, LEATHER)
+  ellipsePx(img, gx, gy, 2.2, 2.2, GOLD)
+  ellipsePx(img, gx, gy, 1.0, 1.0, GOLD_D)
+  linePx(img, bx+nx*4.6, by+ny*4.6, bx-nx*4.6, by-ny*4.6, 2.8, STEEL_L)
+  linePx(img, bx+nx*4.6, by+ny*4.6, bx-nx*4.6, by-ny*4.6, 1.0, STEEL_D)
+  ellipsePx(img, bx+nx*4.6, by+ny*4.6, 1.4, 1.4, GOLD)
+  ellipsePx(img, bx-nx*4.6, by-ny*4.6, 1.4, 1.4, GOLD)
 
   -- blade: body, tapered point, fuller, lit edge
-  linePx(img, bx, by, mx2, my, 3.8, PLATE_4)
-  linePx(img, mx2, my, tx, ty, 2.0, PLATE_4)
-  linePx(img, bx, by, mx2, my, 1.2, PLATE_2)
-  linePx(img, bx-nx*1.4, by-ny*1.4, mx2-nx*1.4, my-ny*1.4, 1.0, PLATE_6)
+  linePx(img, bx, by, mx, my, 3.6, STEEL_L)
+  linePx(img, mx, my, tx, ty, 1.8, STEEL_L)
+  linePx(img, bx, by, mx, my, 1.0, STEEL)
+  linePx(img, bx-nx*1.3, by-ny*1.3, mx-nx*1.3, my-ny*1.3, 1.0, STEEL_H)
 end
 
 ----------------------------------------------------------------------
--- action poses
---
 -- punch: the pre-weapon jab. player.hasSword is false until prologue Beat 5,
 -- and render.js is explicit that no blade may be drawn before the player owns
 -- one -- so the unarmed poses carry no sword at all.
 ----------------------------------------------------------------------
 local DIR_VEC = { down = {0,1}, up = {0,-1}, left = {-1,0}, right = {1,0} }
 
--- Shoulder anchor every action pose reaches from. Was SW_CX/SW_CY, the swing
--- pivot, which is the body's centre of rotation and sits lower than the actual
--- shoulder -- fine when the torso was 11px tall and everything overlapped
--- anyway, wrong now that there is a distinguishable shoulder to hang an arm on.
-local AR_CX, AR_CY = X(0.5), Y(A.SHOULDER + 0.070)
-
 local function drawFist(img, facing, phase, bob)
   local d = DIR_VEC[facing]
-  local reach = math.sin(phase * math.pi) * S * 0.58
-  local cy0 = AR_CY + bob * S
-  local cx, cy = AR_CX + d[1]*reach, cy0 + d[2]*reach
-  -- A gauntleted fist is about as wide as her head is, and her head is 10px.
-  -- At 0.085 the outlined disc came out 11px across, wider than her shoulders,
-  -- and head-on it read as a dinner plate rather than a punch.
-  local r = S * 0.056
+  local reach = math.sin(phase * math.pi) * S * 0.55
+  -- Was the literal 30, the same point SW_CY names. Shares it now so the fist
+  -- and the blade cannot end up anchored to different places.
+  local cy0 = SW_CY + bob * S
+  local cx, cy = SW_CX + d[1]*reach, cy0 + d[2]*reach
+  local r = S * 0.095
   -- forearm back to the body
-  linePx(img, AR_CX + d[1]*5, cy0 + d[2]*5, cx, cy, r*1.30, OUTLINE)
-  linePx(img, AR_CX + d[1]*5, cy0 + d[2]*5, cx, cy, r*0.80, LTHR_1)
-  linePx(img, AR_CX + d[1]*6, cy0 + d[2]*6, cx - d[1]*r*1.4, cy - d[2]*r*1.4, r*0.45, PLATE_4)
+  linePx(img, SW_CX + d[1]*5, cy0 + d[2]*5, cx, cy, r*1.25, OUTLINE)
+  linePx(img, SW_CX + d[1]*5, cy0 + d[2]*5, cx, cy, r*0.75, LEATHER)
+  linePx(img, SW_CX + d[1]*6, cy0 + d[2]*6, cx - d[1]*r*1.4, cy - d[2]*r*1.4, r*0.4, STEEL_L)
   -- fist
-  ellipsePx(img, cx, cy, r*1.40, r*1.40, OUTLINE)
-  ellipsePx(img, cx, cy, r*1.05, r*1.05, PLATE_3)
-  ellipsePx(img, cx - r*0.22, cy - r*0.22, r*0.70, r*0.70, PLATE_5)
+  ellipsePx(img, cx, cy, r*1.35, r*1.35, OUTLINE)
+  ellipsePx(img, cx, cy, r*1.00, r*1.00, SKIN_D)
+  ellipsePx(img, cx - r*0.22, cy - r*0.22, r*0.70, r*0.70, SKIN)
 end
 
 -- Mid-air pose. The body keeps its normal proportions so the renderer's real
@@ -904,30 +459,30 @@ local function drawJumpPose(img, facing, phase, bob)
   local d = DIR_VEC[facing]
   local side = { -d[2], d[1] }
   local tuck = math.sin(phase * math.pi)
-  local cy0 = AR_CY + bob * S
+  local cy0 = SW_CY + bob * S
   local lift = S * (0.04 + tuck * 0.09)
 
   -- Arms open for balance, with the leading hand slightly higher.
-  for sign = -1, 1, 2 do
-    local spread = S * (0.19 + tuck * 0.05)
-    local handX = AR_CX + side[1] * sign * spread + d[1] * S * 0.06
+  for sign = -1, 1 do
+    local spread = S * (0.17 + tuck * 0.04)
+    local handX = SW_CX + side[1] * sign * spread + d[1] * S * 0.06
     local handY = cy0 + side[2] * sign * spread + d[2] * S * 0.06 - lift
-    linePx(img, AR_CX + side[1] * sign * 5, cy0 + side[2] * sign * 5,
-                handX, handY, S * 0.095, OUTLINE)
-    linePx(img, AR_CX + side[1] * sign * 5, cy0 + side[2] * sign * 5,
-                handX, handY, S * 0.055, LTHR_1)
-    ellipsePx(img, handX, handY, S * 0.062, S * 0.062, PLATE_3)
+    linePx(img, SW_CX + side[1] * sign * 5, cy0 + side[2] * sign * 5,
+                handX, handY, S * 0.10, OUTLINE)
+    linePx(img, SW_CX + side[1] * sign * 5, cy0 + side[2] * sign * 5,
+                handX, handY, S * 0.060, LEATHER)
+    ellipsePx(img, handX, handY, S * 0.075, S * 0.075, SKIN_D)
   end
 
   -- Tucked knees and boots, alternating slightly so the loop has a clear rhythm.
-  for sign = -1, 1, 2 do
-    local kneeX = AR_CX + side[1] * sign * S * 0.10 + d[1] * S * 0.05
-    local kneeY = Y(A.KNEE) + side[2] * sign * S * 0.10 - lift
-    local bootX = kneeX + d[1] * S * 0.09
-    local bootY = kneeY + d[2] * S * 0.09
-    linePx(img, kneeX, kneeY, bootX, bootY, S * 0.115, OUTLINE)
-    linePx(img, kneeX, kneeY, bootX, bootY, S * 0.070, PLATE_2)
-    ellipsePx(img, bootX, bootY, S * 0.085, S * 0.058, LTHR_0)
+  for sign = -1, 1 do
+    local kneeX = SW_CX + side[1] * sign * S * 0.12 + d[1] * S * 0.06
+    local kneeY = Y(0.79) + side[2] * sign * S * 0.12 - lift
+    local bootX = kneeX + d[1] * S * 0.08
+    local bootY = kneeY + d[2] * S * 0.08
+    linePx(img, kneeX, kneeY, bootX, bootY, S * 0.12, OUTLINE)
+    linePx(img, kneeX, kneeY, bootX, bootY, S * 0.07, LEATHER)
+    ellipsePx(img, bootX, bootY, S * 0.09, S * 0.06, LEATHER_D)
   end
 end
 
@@ -936,13 +491,13 @@ end
 local function drawBow(img, facing, phase, bob)
   local d = DIR_VEC[facing]
   local side = { -d[2], d[1] }
-  local handX = AR_CX + d[1] * S * 0.17
-  local handY = AR_CY + d[2] * S * 0.17 + bob * S
+  local handX = SW_CX + d[1] * S * 0.15
+  local handY = SW_CY + d[2] * S * 0.15 + bob * S
   local bowCX = handX + d[1] * S * 0.05
   local bowCY = handY + d[2] * S * 0.02
-  local span = S * 0.26
-  local curve = S * 0.070
-  local draw = S * (0.05 + phase * 0.13)
+  local span = S * 0.22
+  local curve = S * 0.065
+  local draw = S * (0.05 + phase * 0.12)
   local topX = bowCX + side[1] * span + d[1] * curve
   local topY = bowCY + side[2] * span + d[2] * curve
   local botX = bowCX - side[1] * span + d[1] * curve
@@ -951,41 +506,36 @@ local function drawBow(img, facing, phase, bob)
   local stringY = bowCY - d[2] * draw
 
   -- Arms reach into a two-handed draw stance.
-  linePx(img, AR_CX + side[1] * S * 0.08, AR_CY + side[2] * S * 0.08 + bob*S,
-              bowCX, bowCY, S * 0.105, OUTLINE)
-  linePx(img, AR_CX + side[1] * S * 0.08, AR_CY + side[2] * S * 0.08 + bob*S,
-              bowCX, bowCY, S * 0.062, LTHR_1)
-  linePx(img, AR_CX - side[1] * S * 0.08, AR_CY - side[2] * S * 0.08 + bob*S,
-              stringX, stringY, S * 0.090, OUTLINE)
-  linePx(img, AR_CX - side[1] * S * 0.08, AR_CY - side[2] * S * 0.08 + bob*S,
-              stringX, stringY, S * 0.050, LTHR_1)
+  linePx(img, SW_CX + side[1] * S * 0.08, SW_CY + side[2] * S * 0.08 + bob*S,
+              bowCX, bowCY, S * 0.12, OUTLINE)
+  linePx(img, SW_CX + side[1] * S * 0.08, SW_CY + side[2] * S * 0.08 + bob*S,
+              bowCX, bowCY, S * 0.07, LEATHER)
+  linePx(img, SW_CX - side[1] * S * 0.08, SW_CY - side[2] * S * 0.08 + bob*S,
+              stringX, stringY, S * 0.10, OUTLINE)
+  linePx(img, SW_CX - side[1] * S * 0.08, SW_CY - side[2] * S * 0.08 + bob*S,
+              stringX, stringY, S * 0.055, LEATHER)
 
   -- Bow limbs, string, and arrow shaft. A dark pass keeps the silhouette crisp
   -- against bright terrain; the warm pass picks up the portrait's equipment.
-  linePx(img, topX, topY, bowCX, bowCY, S * 0.070, OUTLINE)
-  linePx(img, bowCX, bowCY, botX, botY, S * 0.070, OUTLINE)
-  linePx(img, topX, topY, bowCX, bowCY, S * 0.038, BRONZE_D)
-  linePx(img, bowCX, bowCY, botX, botY, S * 0.038, BRONZE)
-  linePx(img, topX, topY, stringX, stringY, S * 0.016, PLATE_5)
-  linePx(img, stringX, stringY, botX, botY, S * 0.016, PLATE_5)
+  linePx(img, topX, topY, bowCX, bowCY, S * 0.075, OUTLINE)
+  linePx(img, bowCX, bowCY, botX, botY, S * 0.075, OUTLINE)
+  linePx(img, topX, topY, bowCX, bowCY, S * 0.040, GOLD_D)
+  linePx(img, bowCX, bowCY, botX, botY, S * 0.040, GOLD)
+  linePx(img, topX, topY, stringX, stringY, S * 0.018, STEEL_L)
+  linePx(img, stringX, stringY, botX, botY, S * 0.018, STEEL_L)
 
-  -- Shorter, and the shaft is wood. Run to 0.46 of S in near-white PLATE_6 it
-  -- was longer than her arm and brighter than anything else in frame, so a
-  -- nocked arrow read as a beam of light being fired. Only the HEAD is bright.
-  local arrowEndX = stringX + d[1] * S * 0.34
-  local arrowEndY = stringY + d[2] * S * 0.34
+  local arrowEndX = stringX + d[1] * S * 0.42
+  local arrowEndY = stringY + d[2] * S * 0.42
   linePx(img, stringX - d[1] * S * 0.10, stringY - d[2] * S * 0.10,
-              arrowEndX, arrowEndY, S * 0.038, OUTLINE)
+              arrowEndX, arrowEndY, S * 0.040, OUTLINE)
   linePx(img, stringX - d[1] * S * 0.08, stringY - d[2] * S * 0.08,
-              arrowEndX, arrowEndY, S * 0.016, LTHR_2)
-  linePx(img, arrowEndX - d[1] * S * 0.05, arrowEndY - d[2] * S * 0.05,
-              arrowEndX, arrowEndY, S * 0.016, PLATE_6)
+              arrowEndX, arrowEndY, S * 0.018, STEEL_H)
   linePx(img, arrowEndX, arrowEndY,
               arrowEndX - d[1] * S * 0.06 + side[1] * S * 0.04,
-              arrowEndY - d[2] * S * 0.06 + side[2] * S * 0.04, S * 0.016, PLATE_6)
+              arrowEndY - d[2] * S * 0.06 + side[2] * S * 0.04, S * 0.018, STEEL_H)
   linePx(img, arrowEndX, arrowEndY,
               arrowEndX - d[1] * S * 0.06 - side[1] * S * 0.04,
-              arrowEndY - d[2] * S * 0.06 - side[2] * S * 0.04, S * 0.016, PLATE_6)
+              arrowEndY - d[2] * S * 0.06 - side[2] * S * 0.04, S * 0.018, STEEL_H)
 end
 
 -- Swimming keeps the upper body recognizable while render.js clips the lower
@@ -995,16 +545,16 @@ local function drawSwimPose(img, facing, phase, bob)
   local d = DIR_VEC[facing]
   local side = { -d[2], d[1] }
   local stroke = math.sin(phase * math.pi * 2)
-  local cy0 = AR_CY + bob * S
-  for sign = -1, 1, 2 do
-    local reach = S * (0.15 + 0.09 * math.max(0, stroke * sign))
-    local handX = AR_CX + d[1] * S * 0.05 + side[1] * sign * reach
-    local handY = cy0 + d[2] * S * 0.05 + side[2] * sign * reach - S * 0.06
-    linePx(img, AR_CX + side[1] * sign * S * 0.08, cy0 + side[2] * sign * S * 0.08,
-                handX, handY, S * 0.100, OUTLINE)
-    linePx(img, AR_CX + side[1] * sign * S * 0.08, cy0 + side[2] * sign * S * 0.08,
-                handX, handY, S * 0.055, LTHR_1)
-    ellipsePx(img, handX, handY, S * 0.062, S * 0.062, PLATE_3)
+  local cy0 = SW_CY + bob * S
+  for sign = -1, 1 do
+    local reach = S * (0.13 + 0.08 * math.max(0, stroke * sign))
+    local handX = SW_CX + d[1] * S * 0.05 + side[1] * sign * reach
+    local handY = cy0 + d[2] * S * 0.05 + side[2] * sign * reach - S * 0.08
+    linePx(img, SW_CX + side[1] * sign * S * 0.08, cy0 + side[2] * sign * S * 0.08,
+                handX, handY, S * 0.11, OUTLINE)
+    linePx(img, SW_CX + side[1] * sign * S * 0.08, cy0 + side[2] * sign * S * 0.08,
+                handX, handY, S * 0.06, LEATHER)
+    ellipsePx(img, handX, handY, S * 0.075, S * 0.075, SKIN_D)
   end
 end
 
@@ -1013,17 +563,15 @@ local function drawClimbPose(img, facing, phase, bob)
   local d = DIR_VEC[facing]
   local side = { -d[2], d[1] }
   local stroke = math.sin(phase * math.pi * 2)
-  local cy0 = AR_CY + bob * S
-  for sign = -1, 1, 2 do
-    local handX = AR_CX + side[1] * sign * S * 0.15 + d[1] * S * 0.04
-    -- No standing lift term. AR_CY is already the shoulder, so subtracting a
-    -- further 0.10 of S put both hands at chin height, over her face.
-    local handY = cy0 + side[2] * sign * S * 0.15 + d[2] * S * 0.04 - S * (stroke * sign * 0.05)
-    linePx(img, AR_CX + side[1] * sign * 4, cy0 + side[2] * sign * 4,
-                handX, handY, S * 0.100, OUTLINE)
-    linePx(img, AR_CX + side[1] * sign * 4, cy0 + side[2] * sign * 4,
-                handX, handY, S * 0.055, LTHR_1)
-    ellipsePx(img, handX, handY, S * 0.060, S * 0.060, PLATE_3)
+  local cy0 = SW_CY + bob * S
+  for sign = -1, 1 do
+    local handX = SW_CX + side[1] * sign * S * 0.14 + d[1] * S * 0.04
+    local handY = cy0 + side[2] * sign * S * 0.14 + d[2] * S * 0.04 - S * (0.06 + stroke * sign * 0.04)
+    linePx(img, SW_CX + side[1] * sign * 4, cy0 + side[2] * sign * 4,
+                handX, handY, S * 0.11, OUTLINE)
+    linePx(img, SW_CX + side[1] * sign * 4, cy0 + side[2] * sign * 4,
+                handX, handY, S * 0.06, LEATHER)
+    ellipsePx(img, handX, handY, S * 0.07, S * 0.07, SKIN_D)
   end
 end
 
@@ -1046,9 +594,7 @@ local function drawFrame(img, facing, kind, i, n)
     bob = (i == 2) and (1.0 / S) or 0
   elseif kind == 'walk' or kind == 'walk_armed' then
     local t = (i - 1) / n
-    -- The stride opens up with the longer leg: 0.045 of S was a 2px step on an
-    -- 11px leg, and on a 25px leg it barely reads.
-    swing = math.sin(t * math.pi * 2) * 0.062
+    swing = math.sin(t * math.pi * 2) * 0.045
     bob   = (math.abs(math.sin(t * math.pi * 2)) > 0.5) and (-1.0 / S) or 0
     sway  = -math.sin(t * math.pi * 2) * 0.05
   elseif kind == 'jump' or kind == 'jump_armed' or kind == 'jump_bow' then
@@ -1068,7 +614,7 @@ local function drawFrame(img, facing, kind, i, n)
       actionPhase = 0.72
     elseif kind == 'walk_bow' then
       local t = (i - 1) / n
-      swing = math.sin(t * math.pi * 2) * 0.062
+      swing = math.sin(t * math.pi * 2) * 0.045
       bob = (math.abs(math.sin(t * math.pi * 2)) > 0.5) and (-1.0 / S) or 0
       sway = -math.sin(t * math.pi * 2) * 0.05
       actionPhase = 0.72
@@ -1087,20 +633,17 @@ local function drawFrame(img, facing, kind, i, n)
     pcx, pcy = SW_CX, SW_CY
   end
 
-  -- Bow and swim poses use both arms, so hiding the shield keeps those
-  -- silhouettes readable. The armed jump and climb retain the signature shield.
-  local shield = not BOW_KINDS[kind] and not SWIM_KINDS[kind]
-
   drawCloak(img, sway, bob)
-  -- On the facing where the shield rides her FAR arm it has to go down before
-  -- the body, so the torso overlaps it rather than the other way round.
-  if shield and not shieldInFront(facing) then drawShield(img, facing, bob) end
   -- Lift the legs inside the authored frame as well as lifting the whole frame
   -- with player.z. This makes a hop read as knees tucked, not a standing pose
   -- translated upward.
   drawLegs(img, facing, swing, bob + (airborne and -0.12 or 0))
   drawTorso(img, facing, bob)
-  if shield and shieldInFront(facing) then drawShield(img, facing, bob) end
+  -- Bow and swim poses use both arms, so hiding the shield keeps those silhouettes
+  -- readable. The armed jump and climb retain the signature tree shield.
+  if not BOW_KINDS[kind] and not SWIM_KINDS[kind] then
+    drawShield(img, facing, bob)
+  end
   drawHead(img, facing, bob)
   outlineSilhouette(img, OUTLINE)
 
@@ -1140,7 +683,7 @@ local KINDS = {
   { 'walk_armed', N_WALK,  0.11  },
   { 'jump_armed', N_JUMP,  0.09  },
   { 'idle_bow',   N_IDLE,  0.28  },
-  { 'walk_bow',   N_WALK,  0.11  },
+  { 'walk_bow',   N_WALK, 0.11  },
   { 'jump_bow',   N_JUMP,  0.09  },
   { 'bow',        N_BOW,   0.056 },   -- bowTimer is 280ms
   { 'sword',      N_SWING, 0.036 },   -- swordTimer is 180ms
@@ -1217,16 +760,7 @@ af:write(string.format("  bodyOY: %d,\n", math.floor(OY + 0.5)))
 -- Foot row, as a fraction down the body box. The renderer plants THIS on the
 -- ground, not the body box bottom, which is what stops the hero floating.
 af:write(string.format("  footF: %s,\n", tostring(FOOT_F)))
--- Blade reach for the swing, in BODY pixels, so the elemental sword FX can
--- burst from the tip. Shipped rather than duplicated in hero-sprite.js: the two
--- copies of "30" drifting apart is exactly the class of bug the atlas exists to
--- prevent, and this one grew to 35 when the figure did.
-af:write(string.format("  swordLen: %d,\n", math.floor(SW_LEN + 0.5)))
--- Frames per DIRECTION (the anim columns), and frames per SHEET ROW. They are
--- equal only when a direction fits on one row; here a direction's 52 frames wrap
--- across two rows of 26, so hero-sprite.js must divide rather than assume.
-af:write(string.format("  perDir: %d,\n", PER_DIR))
-af:write(string.format("  sheetCols: %d,\n", SHEET_COLS))
+af:write(string.format("  cols: %d,\n", PER_DIR))
 -- Row per direction, in this script's DIRS order, which is the order the frames
 -- were written in and therefore the order the sheet rows come out in.
 af:write("  dirRow: {")
@@ -1235,7 +769,7 @@ for d = 1, #DIRS do
 end
 af:write(" },\n")
 -- anim -> [startColumn, frameCount, msPerFrame]. Columns are relative to the
--- start of a direction's run of frames, which is how the blit indexes them.
+-- start of a direction's row, which is how the blit indexes them.
 af:write("  anims: {\n")
 local cursor = 0
 for _, K in ipairs(KINDS) do

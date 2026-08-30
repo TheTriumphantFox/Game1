@@ -150,9 +150,10 @@ function heroFrameXY(facing, col) {
 
 // Blit the current hero frame so its 48px body box lands on the tile box at
 // (sx, sy, s, s), foot row on the ground. The body box is her FOOTPRINT, not her
-// height: she stands about 1.26 boxes tall and the frame is 128 to hold that
-// plus a raised blade. All of that surplus is deliberate overhang and is
-// allowed to spill outside the tile.
+// height: she stands about 0.94 boxes tall and the frame is twice the body to
+// hold that plus a raised blade. All of that surplus is deliberate overhang
+// (raised blade, ear tips, cloak, downward swings) and is allowed to spill
+// outside the tile.
 function drawHeroSprite(sx, sy, s, facing, moving) {
   const [requestedAnim, t] = heroPickAnim(moving);
   // A stale sheet/atlas pair should degrade to a known idle frame rather than

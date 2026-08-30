@@ -896,52 +896,6 @@ function drawVillager(v, ts) {
     ctx.globalAlpha = 0.92;
   }
 
-  // ── Sprite-sheet path (villager-sheet.png, see villager-sprite.js) ────────
-  // One blit stands in for the whole procedural body below. The shadow and the
-  // fallen transform are already down and are shared, so the two paths stay
-  // consistent.
-  //
-  // SCOPE — deliberately narrow, and the gate is the whole of it:
-  //
-  //   • Only villagers with NO `role`. That is the ambient wandering crowd,
-  //     which is both the majority and the only ones that actually walk. Every
-  //     role-bearing NPC keeps the procedural body, because the thirteen role
-  //     overlays below (the Gatekeeper's hood and orb, the Collector's satchel
-  //     and scroll, the quest markers, the shop aprons) are each hand-placed
-  //     against THIS body's geometry — py + s*0.28 for a head, and so on. The
-  //     sheet figure is 56px tall and overhangs the tile, so its head is
-  //     nowhere near that; dropping it under those overlays would scatter every
-  //     one of them. Re-anchoring them is real work and its own change.
-  //   • Not the fallen pose. `pgFallen` is a rotation about the feet applied to
-  //     an upright body — Grandmother pinned under the beam in prologue Beat 5.
-  //     A rotated sprite with a readable face reads very differently from a
-  //     rotated blob, and that scene is tuned against specific dialogue, so it
-  //     is not something to restage as a side effect of a sprite swap.
-  //
-  // Falls through to the procedural body until the sheet loads, and permanently
-  // if it 404s, exactly as the hero does.
-  if (!v.role && !fallen) {
-    // Facing comes from `dir`, the unit vector every villager already carries
-    // and updates as it wanders. The x axis wins on a diagonal so a moving
-    // villager cannot flicker between two facings frame to frame.
-    const d = v.dir || { x: 0, y: 1 };
-    const facing = Math.abs(d.x) >= Math.abs(d.y)
-      ? (d.x < 0 ? 'left' : 'right')
-      : (d.y < 0 ? 'up' : 'down');
-    // Moving is the render lerp still catching up to the logical tile. The
-    // epsilon is the one stepVillagers snaps at, so "moving" and "arrived"
-    // cannot disagree.
-    const moving = Math.abs(v.renderX - v.x) > 0.005 ||
-                   Math.abs(v.renderY - v.y) > 0.005;
-    // vfb.y, not py: py carries the procedural bob, and the sheet bakes its own
-    // bob into the idle and walk frames. Passing both would double it.
-    if (typeof drawVillagerSprite === 'function' &&
-        drawVillagerSprite(v, vfb.x, vfb.y, s, facing, moving)) {
-      ctx.restore();
-      return;
-    }
-  }
-
   // Boots (under the robe hem)
   ctx.fillStyle = '#3a1c08';
   ctx.fillRect(px + s * 0.32, py + s * 0.86, s * 0.12, s * 0.12);

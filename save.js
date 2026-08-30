@@ -584,7 +584,7 @@ function autoSave(label) {
       level: player.level,
       mapsVisited,
       date: new Date().toLocaleDateString() + ' ' +
-            new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            new Date().toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' })
     };
     setSaveIndex(idx);
     lastCheckpoint = json;
@@ -744,7 +744,7 @@ function doSave(slotIdx) {
       level: player.level,
       mapsVisited,
       date: new Date().toLocaleDateString() + ' ' +
-            new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            new Date().toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' })
     };
     setSaveIndex(idx);
     setSaveStatus(`✅ Saved to "${saveName}"`);
