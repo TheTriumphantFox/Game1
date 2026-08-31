@@ -59,6 +59,17 @@ project knowledge and the exact unfinished work found in this checkout.
 > area reachable by a route only Water armor can walk. That is fine for a chest
 > and a rule violation for a `DUNGEON_DOOR` or exit corridor. Unaudited.
 >
+> Verification standing: `node --check` clean on every changed file,
+> `tools/lint-conventions.py` clean of new warnings, and every changed path
+> driven through the console on a booted game. The `file://` leg of the
+> verification contract was confirmed by the user on 2026-08-31 — the game boots
+> and plays fine by double-clicking `index.html`. Note for future agent
+> sessions: the in-app browser preview rewrites a `file://` URL into a `data:`
+> URL, so relative `<script src>` paths never resolve and the game cannot be
+> booted that way. That is a limitation of the preview tool, not of the game.
+> Use a local static server for agent-side checks and ask a human for the
+> `file://` leg.
+>
 > Everything below this line is the 2026-08-27 snapshot and still reads as
 > written; treat its "uncommitted work" section as history, not as the state of
 > this checkout.
