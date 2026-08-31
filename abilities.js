@@ -267,10 +267,17 @@ const CURSED_DRAIN_DAMAGE = 1;
 // The region's own armor HALVES the fill rate rather than stopping it. Relief,
 // not immunity: the armor should make a long crossing survivable without making
 // the region's defining hazard vanish.
+//
+// Two armor roles per region, which is what lets Fire armor matter in a region
+// that is not its own. `immuneArmor` removes the meter outright; `slowArmor`
+// halves the fill. Volcanic overheat has both — its own armor answers it
+// completely, and Fire armor is the partial substitute for a hero who has not
+// reached tier 5 yet. Desert heatstroke has only the slow role, deliberately:
+// Fire armor is relief there, not immunity.
 const HEAT_ARMOR_FILL_SCALE = 0.5;
 const HEAT_REGIONS = {
   fire: {
-    armor: 'fire',
+    slowArmor: 'fire',
     hot: () => [T.DUNE, T.QUICKSAND].filter(v => v !== undefined),
     fillPerSec: 0.135,      // ~7.4s of unbroken dune to reach full from cold
     coolPerSec: 0.34,       // and ~3s in the shade to shed it again
@@ -278,8 +285,63 @@ const HEAT_REGIONS = {
     damage: 1,
     label: 'Heatstroke',
     icon: '🥵',
+    // Desert heat is a single threshold: it costs nothing until it is full.
+    stages: [],
+  },
+  volcanic: {
+    immuneArmor: 'volcanic',
+    slowArmor: 'fire',
+    hot: () => [T.MAGMA_CRACK].filter(v => v !== undefined),
+    fillPerSec: 0.115,      // ~8.7s over open fissures from cold
+    coolPerSec: 0.26,       // ~3.8s to shed a full bar
+    tickMs: 900,
+    damage: 2,
+    label: 'Overheat',
+    icon: '🌋',
+    // Volcanic heat STACKS rather than waiting for full, so it is felt long
+    // before it kills. Each stage costs something different.
+    //
+    // On `sluggish`: this is implemented as a longer step interval, NOT as
+    // dropped, delayed or randomised input. Degrading a player's actual controls
+    // is an accessibility problem — it breaks anyone relying on assistive input
+    // or fixed timing, and it makes the game feel broken rather than hot.
+    // Slowing the hero reads as heat exhaustion, stays completely predictable,
+    // and every input still lands exactly when it was pressed.
+    stages: [
+      { at: 0.40, haze: 0.35, moveMul: 1.0 },
+      { at: 0.70, haze: 0.70, moveMul: 1.45 },
+      { at: 1.00, haze: 1.00, moveMul: 1.8 },
+    ],
   },
 };
+
+// The strongest stage whose threshold the current heat has passed, or null.
+// Read by the movement step and the renderer, so both agree about how bad it is.
+function heatStage(spec, heat) {
+  if (!spec || !spec.stages || !spec.stages.length) return null;
+  let hit = null;
+  for (const st of spec.stages) if (heat >= st.at) hit = st;
+  return hit;
+}
+
+// How much the current region's heat is slowing the hero, as a step multiplier.
+// 1 when there is no heat region, no heat, or the armor answers it.
+function heatMoveMultiplier() {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const spec = heatRegionFor(cm);
+  if (!spec) return 1;
+  const st = heatStage(spec, player.heat || 0);
+  return st ? st.moveMul : 1;
+}
+
+// 0..1 haze strength for the renderer.
+function heatHazeLevel() {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const spec = heatRegionFor(cm);
+  if (!spec) return 0;
+  const st = heatStage(spec, player.heat || 0);
+  return st ? st.haze : 0;
+}
 
 function heatRegionFor(mapObj) {
   if (!mapObj) return null;
@@ -296,11 +358,16 @@ function stepRegionalHeat(dt) {
   const map = (typeof mapData === 'function') ? mapData() : null;
   if (!map || !map[player.y]) return;
 
+  // The region's own armor takes the meter off the board entirely — no fill, no
+  // stages, no bar. Checked before anything else so an immune hero never carries
+  // a stale reading from before they equipped it.
+  const worn = (id) => id && typeof wearingElementalArmor === 'function' && wearingElementalArmor(id);
+  if (worn(spec.immuneArmor)) { player.heat = 0; heatTickMs = 0; return; }
+
   const onHot = spec.hot().includes(map[player.y][player.x]);
   const sec = dt / 1000;
   if (onHot) {
-    const scale = (typeof wearingElementalArmor === 'function' && wearingElementalArmor(spec.armor))
-      ? HEAT_ARMOR_FILL_SCALE : 1;
+    const scale = worn(spec.slowArmor) ? HEAT_ARMOR_FILL_SCALE : 1;
     player.heat = Math.min(1, (player.heat || 0) + spec.fillPerSec * scale * sec);
   } else {
     player.heat = Math.max(0, (player.heat || 0) - spec.coolPerSec * sec);

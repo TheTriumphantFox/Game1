@@ -672,6 +672,19 @@ function addDesertHazards(m) {
   stampHazardBlots(m, T.QUICKSAND, rnd(2, 4), 3, 6, noWater);
 }
 
+// Volcanic fissure fields — the region's overheat zones.
+//
+// MAGMA_CRACK is already the volcanic floor's dapple and is already passable, so
+// this widens it into fields worth routing around rather than adding a tile.
+// Same stamper and the same rule as the desert and the wastes: never on T.PATH,
+// so the roads across the caldera stay cool and the fissure fields are the part
+// that cooks. Lava itself is solid and is left alone — it is a wall, not a
+// hazard floor.
+function addVolcanicHazards(m) {
+  const noLava = (t) => t === T.LAVA || t === T.BRIDGE;
+  stampHazardBlots(m, T.MAGMA_CRACK, rnd(3, 5), 4, 9, noLava);
+}
+
 // Blot cursed ground across the necrotic wastes.
 //
 // PASSABLE, not solid. Necrotic armor is forged at the region's own Blacksmith,
@@ -1117,6 +1130,8 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   // causeway above, though it cannot actually wall anything off — it is
   // passable, so ensureConnectivity floods straight through it.
   if (region.id === 'necrotic') addCursedGround(m);
+  // Volcanic: widen the fissure dapple into real overheat fields.
+  if (region.id === 'volcanic') addVolcanicHazards(m);
 
   // corridors use the region's corridor tile so they blend in too.
   ensureConnectivity(m, false, BORDER, PATHTILE);

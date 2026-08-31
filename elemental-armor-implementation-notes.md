@@ -53,10 +53,12 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 ### Tier 5: Volcanic
 
-- Obsidian golems are missing.
-- Idle hardening, climbable hardened bodies, melting, awakening, and active combat states are missing.
-- The overheat meter is now **half built and waiting on a config entry, not an implementation**. `HEAT_REGIONS` (abilities.js) is a shared per-region heat system; adding Volcanic is an entry there plus its escalating thresholds and the venting behaviour, reusing the same fill/cool/armor-halving driver and the `ws-heat` HUD slot. Its danger zones should be blot-generated with `stampHazardBlots` like the desert's and Necrotic's, keeping `T.PATH` clean.
-- Still missing for Volcanic specifically: the escalating thresholds and their effects, and armor venting (today the armor only halves fill).
+- **Overheat: BUILT 2026-08-31.** A `HEAT_REGIONS.volcanic` entry on the shared meter. Hot tile is `T.MAGMA_CRACK`, which was already the passable fissure dapple, so no new tile was needed. 8.7s to full bare, 17.4s in Fire armor.
+- **Two armor roles.** Volcanic armor sets `immuneArmor` and removes the meter outright — no fill, no stages, no bar. Fire armor is `slowArmor` and halves the fill, so it is the partial substitute for a hero who has not reached tier 5. Desert heatstroke deliberately has only the slow role.
+- **Escalating ladder** (`stages`): 40% heat haze, 70% haze plus a 1.45x step interval, 100% full haze, 1.8x step interval and 2 HP every 0.9s.
+  - `sluggish` is implemented as a LONGER STEP INTERVAL, never as dropped, delayed or randomised input, and the haze is a colour wash and rising bands, never a warp or blur of the playfield. Degrading real controls or distorting what the player is aiming at breaks assistive input and motion sensitivity and reads as a bug rather than as heat. Both carry that reasoning inline; do not "improve" either into actual input interference.
+- `addVolcanicHazards` widens the fissure dapple into fields via `stampHazardBlots`, skipping `T.PATH` and refusing lava and bridges. Verified over twelve maps: 168 fissure tiles average (70-386) and **all four exits reachable by a completely cool route on 12 of 12**.
+- Obsidian golems are still missing: idle hardening, climbable hardened bodies, melting, awakening, and active combat states.
 - Open lava remains blocked and should not automatically become traversable unless separately approved.
 
 ### Tier 6: Air

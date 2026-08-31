@@ -1886,6 +1886,35 @@ function triggerPlayerStormStrike() {
   stormFlash.next = now + 2600 + Math.random() * 4200;
 }
 
+// Screen-space heat haze for the volcanic region. See the call site in render().
+function drawHeatHaze() {
+  const lvl = (typeof heatHazeLevel === 'function') ? heatHazeLevel() : 0;
+  if (lvl <= 0) return;
+  ctx.save();
+  // Warm wash, capped well short of opaque.
+  ctx.globalAlpha = 0.10 + 0.16 * lvl;
+  const g = ctx.createLinearGradient(0, PH, 0, 0);
+  g.addColorStop(0, '#ff6a22');
+  g.addColorStop(0.55, '#ff9a3c');
+  g.addColorStop(1, 'rgba(255,190,120,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, PW, PH);
+  // Slow shimmer bands rising off the ground. Horizontal bands that drift
+  // upward: they read as rising heat without moving anything the player is
+  // trying to look at.
+  const t = Date.now() / 1000;
+  ctx.globalAlpha = 0.05 + 0.10 * lvl;
+  ctx.fillStyle = '#ffd9a8';
+  const bands = 5;
+  for (let i = 0; i < bands; i++) {
+    const phase = (t * 0.16 + i / bands) % 1;
+    const y = PH * (1 - phase);
+    const h = PH * 0.035 * (0.6 + 0.8 * lvl);
+    ctx.fillRect(0, y, PW, h);
+  }
+  ctx.restore();
+}
+
 function updateStormFlash(now, isStorm) {
   if (!isStorm) {
     stormFlashLevel = 0; stormFlash.pulses = null;
@@ -3801,6 +3830,17 @@ function render() {
   // Intact forest roofs are a foreground layer: they hide indoor activity from
   // outside, then disappear for the one cottage the player has entered.
   drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR);
+
+  // Volcanic heat haze. A screen-space wash over the finished scene, strength
+  // driven by the overheat stage (heatHazeLevel, abilities.js), so the region
+  // visibly cooks the hero well before the meter costs them anything.
+  //
+  // Wash and banding only — deliberately NOT a warp, ripple or blur of the
+  // playfield. Distorting what the player is aiming at is the version of this
+  // that hurts anyone with motion sensitivity and makes the game hard to read
+  // for everyone; a colour wash carries the same message and stays legible. It
+  // also never reaches full opacity, so nothing is ever hidden behind it.
+  drawHeatHaze();
 
   // The Emperor's crown, rolling to the hero's feet and then lying there. After
   // the entities because it comes to rest against the player's boot and has to

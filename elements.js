@@ -41,7 +41,7 @@ const ELEMENTAL_ARMOR_ABILITIES = {
   water:     { label: 'Deep Swim', description: 'Swim through medium-depth water.', status: 'ready' },
   ice:       { label: 'Ice Grip', description: 'Stop cleanly on ice and pacify dormant ice golems.', status: 'partial' },
   earth:     { label: 'Cliff Climb', description: 'Climb raised cliff faces and pacify dormant stone golems.', status: 'partial' },
-  volcanic:  { label: 'Heat Vent', description: 'Slow and vent escalating overheat.', status: 'planned' },
+  volcanic:  { label: 'Heat Vent', description: 'Immune to the caldera\'s overheat.', status: 'partial' },
   air:       { label: 'Updraft Glide', description: 'Glide across wider gaps than the shrine reward.', status: 'ready' },
   lightning: { label: 'Storm Grounding', description: 'Stop the region storm-strike timer.', status: 'ready' },
   luminous:  { label: 'Radiant Aura', description: 'Reveal darkness and periodically stun nearby enemies.', status: 'partial' },

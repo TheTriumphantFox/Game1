@@ -1907,7 +1907,15 @@ function stepPlayerMovement() {
   // the gate when a thumb is actually easing the stick — on top of the terrain
   // penalty above, never instead of it.
   const paceScale = (typeof joySpeedScale === 'function') ? joySpeedScale() : 1;
-  const stepMs = terrainMs / paceScale;
+  // Volcanic overheat drags at the hero once the meter passes its middle stage
+  // (heatMoveMultiplier, abilities.js). Deliberately a longer step interval and
+  // NOT dropped or delayed input: every press still lands exactly when it was
+  // made, which keeps this readable as exhaustion instead of as an input bug,
+  // and keeps it safe for anyone on assistive input. Multiplies the terrain
+  // penalty rather than replacing it — wading a magma field while cooking should
+  // be worse than either alone.
+  const heatMul = (typeof heatMoveMultiplier === 'function') ? heatMoveMultiplier() : 1;
+  const stepMs = (terrainMs * heatMul) / paceScale;
   if (moveTimer < stepMs) return;
 
   // Carry the sub-frame remainder past the gate (capped so an idle-accumulated
