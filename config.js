@@ -381,9 +381,16 @@ const T = {
   // Both carry the same height and both extrude, so the shelf reads as one
   // raised surface with a face wherever the ground beside it is lower.
   //
-  // No generator emits either of these yet. Placement is level design and waits
-  // for Phase 6, so every existing map and save is untouched by their existence.
-  LEDGE:189, LEDGE_FACE:190
+  // Both of these ARE emitted now: addLedgeCauseway and addDesertPlateau
+  // (mapgen-biomes.js) stamp shelves on every Earth map and on desert maps.
+  LEDGE:189, LEDGE_FACE:190,
+  // Necrotic cursed ground. PASSABLE on purpose and deliberately not in
+  // SOLID_TILES: it drains anyone crossing it without Necrotic armor rather than
+  // blocking them, so it costs a hero something without ever walling a route off
+  // (see stepCursedGround in abilities.js). Generation keeps it off T.PATH, so
+  // the roads through the region stay clean and the blighted fields either side
+  // are the part that hurts.
+  CURSED_GROUND:191
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -534,7 +541,7 @@ const TILE_HEIGHT_SPEC = [
 // Baked into a flat array for lookup. This is read once per visible tile per
 // frame (~2600 at TILE_PX 24), so an array index beats a Map or object hash.
 // 256 entries because tile ids are stored in a Uint8Array (see the map format
-// note at the top of this file); max T today is 190 (T.LEDGE_FACE), leaving 65
+// note at the top of this file); max T today is 191 (T.CURSED_GROUND), leaving 64
 // ids. Update this number when you spend one, because it is what the tile-id
 // budget is read from.
 const TILE_HEIGHT = new Float32Array(256);
@@ -610,6 +617,7 @@ const TILE_COLORS = {
   // the minimap: a haloed bloom, light-tipped reeds, and a glowing crystal shard.
   [T.RADIANT_BLOOM]: '#ffe9a0', [T.GLOW_REED]: '#f4e6b0', [T.LUMEN_SHARD]: '#fdf0c8',
   [T.BLIGHT]: '#3a2a3a',          [T.BLIGHTED_WALL]: '#1a0a1a',
+  [T.CURSED_GROUND]: '#241830',
   // Necrotic decay — grave dirt reads a shade darker/browner than the blight
   // floor (like SNOW_DRIFT against SNOW); a dead tree and withered shrub are grey
   // deadwood against the dark wall/ground; the carrion bloom a sickly grey-green;

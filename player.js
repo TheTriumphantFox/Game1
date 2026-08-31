@@ -461,8 +461,13 @@ function stepPlayerJump(dt) {
   // Advance a drop first, so z is always hop + whatever is left to fall.
   if (playerFallZ > 0) {
     const f = dt / 16;
-    // Air armor turns a ledge drop into a slow fall. This is a real reduction in
-    // descent speed even though the current ledge system has no fall damage yet.
+    // Air armor turns a ledge drop into a slow fall. Purely visual, and knowingly
+    // so: ledge falls deal no damage, so this changes how a drop LOOKS and
+    // nothing about what it costs. Kept because a hero in Air armor drifting
+    // down off a causeway reads correctly; not counted as the armor's power.
+    // What the armor actually grants is the longer glide (GLIDE_ARMOR_RANGE,
+    // abilities.js). Adding fall damage to make this matter was considered and
+    // rejected — it would retune every ledge in the game.
     const gravityScale = (typeof wearingElementalArmor === 'function' && wearingElementalArmor('air'))
       ? 0.35 : 1;
     playerFallVz += PLAYER_FALL_GRAVITY * gravityScale * f;

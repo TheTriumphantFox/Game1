@@ -117,6 +117,27 @@ function abilityFacing() {
 // deep-water border.
 const GLIDE_RANGE = 4;
 
+// The Air ARMOR's glide reaches further than the shrine reward's. This is the
+// armor's real power: its slow-fall is flavour, because ledge drops deal no
+// damage, and cutting 35% off the speed of a harmless fall is not an ability.
+// Deliberately left as flavour rather than repaired by adding fall damage —
+// that would retune every desert mesa and Earth causeway in the game, none of
+// which were laid out against a fall cost.
+//
+// A SEPARATE constant, not a bigger GLIDE_RANGE, because GLIDE_RANGE is also a
+// generation contract: ensureAbilitySecret places its secret islets within it
+// (see hasShore below), and raising it would move islets that already exist.
+//
+// Six, and the number is measured rather than picked. Escaping the map is
+// structurally impossible at any range — a glide only lands on a non-gap
+// non-solid tile, and every map's border ring is solid, so the loop breaks
+// there — which means the only real question is shortcut shape. Six is the
+// LANDING step, so what this newly clears is gaps four and five tiles wide
+// (verified: a 3-wide gap crosses either way, 4 and 5 need the armor, 6 stops
+// both). The big inland water bodies that shape forest, water and mana maps run
+// 37, 65 and 50 tiles across and stay uncrossable.
+const GLIDE_ARMOR_RANGE = 6;
+
 function isGlideGap(t) {
   return t === T.WATER || t === T.DEEP_WATER || t === T.MEDIUM_WATER ||
          t === T.LAVA || t === T.SHADOW_RIFT || t === T.BOG_POOL ||
@@ -126,8 +147,10 @@ function isGlideGap(t) {
 function tryUpdraftGlide() {
   const map = mapData();
   const d = abilityFacing();
+  const range = (typeof wearingElementalArmor === 'function' && wearingElementalArmor('air'))
+    ? GLIDE_ARMOR_RANGE : GLIDE_RANGE;
   let sawGap = false;
-  for (let step = 1; step <= GLIDE_RANGE; step++) {
+  for (let step = 1; step <= range; step++) {
     const x = player.x + d.x * step, y = player.y + d.y * step;
     if (x < 0 || y < 0 || x >= MCOLS || y >= MROWS) break;
     const t = map[y][x];
@@ -219,9 +242,19 @@ const RADIANT_PULSE_RADIUS = 4;     // tiles, straight-line distance
 const RADIANT_STUN_MS = 1100;
 const RADIANT_BOSS_STAGGER_MS = 300;
 
+// Necrotic: cursed ground is PASSABLE and drains instead of blocking. That is
+// the whole design — a wall would gate the region behind armor forged inside it,
+// and every region has to be completable without its own armor. A drain lets a
+// determined hero cross a short stretch at a cost and makes the armor the thing
+// that turns a crossing into a stroll. Generation keeps it off T.PATH so the
+// roads stay clean and only the fields either side bite.
+const CURSED_DRAIN_MS = 1200;
+const CURSED_DRAIN_DAMAGE = 1;
+
 let stormExposed = false;
 let lightningStrikeMs = 0;
 let luminousPulseMs = RADIANT_PULSE_FIRST_MS;
+let cursedDrainMs = 0;
 
 function randomLightningDelay() {
   return STORM_STRIKE_MIN_MS + Math.random() * STORM_STRIKE_VAR_MS;
@@ -264,6 +297,47 @@ function stepElementalArmorEffects(dt) {
   } else {
     luminousPulseMs = RADIANT_PULSE_FIRST_MS;
   }
+
+  stepCursedGround(dt);
+}
+
+// Cursed ground bites whoever stands on it. Reads the tile under the hero each
+// frame rather than hooking the movement step, because standing STILL on it has
+// to hurt too — a drain you can wait out by not moving is not a hazard.
+//
+// The clock resets the moment the hero steps clear, so crossing a two-tile
+// finger of it costs nothing and wading into the middle of a field costs plenty.
+// That is the intended shape: the hazard scales with how far in you commit.
+function stepCursedGround(dt) {
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map || !map[player.y] || map[player.y][player.x] !== T.CURSED_GROUND) {
+    cursedDrainMs = 0;
+    return;
+  }
+  // Necrotic armor is passage, not resistance: the drain stops dead rather than
+  // being reduced, so the armor reads as the key to the region's own ground.
+  if (typeof wearingElementalArmor === 'function' && wearingElementalArmor('necrotic')) {
+    cursedDrainMs = 0;
+    return;
+  }
+  cursedDrainMs += dt;
+  if (cursedDrainMs < CURSED_DRAIN_MS) return;
+  cursedDrainMs -= CURSED_DRAIN_MS;
+
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, '#8a6aa8', 6, 3);
+  spawnParticle(sp.x, sp.y, '#3a2a3a', 4, 2);
+  // Deliberately bypasses the i-frame gate that guards enemy hits. Those exist
+  // so one contact cannot land twice; this is a tick on its own clock, and
+  // routing it through invincibility would let the hero park on cursed ground
+  // behind the i-frames of an unrelated hit and take nothing.
+  player.hp -= CURSED_DRAIN_DAMAGE;
+  if (typeof damageNumbers !== 'undefined') {
+    damageNumbers.push({ entity: 'player', val: `☠${CURSED_DRAIN_DAMAGE}`,
+      color: '#a86ad8', life: 900, rise: -4 });
+  }
+  if (typeof buzz === 'function') buzz(18);
+  if (player.hp <= 0) respawn();
 }
 
 function strikePlayerWithRegionalLightning() {

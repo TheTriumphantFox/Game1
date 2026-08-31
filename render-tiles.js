@@ -2496,6 +2496,35 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.fillRect(x + s*0.30, y + s*0.42, 2, 2);
       ctx.fillRect(x + s*0.38, y + s*0.42, 2, 2);
       break; }
+    case T.CURSED_GROUND: {
+      // Cursed ground. Reads as BLIGHT gone further: the same purple crust, but
+      // drained to near-black, veined with a cold violet glow, and with the
+      // green miasma replaced by a slow pulse. It has to be legible at a glance
+      // as "this tile costs you", because it is passable and a player who
+      // cannot tell it apart from ordinary blight just bleeds without knowing
+      // why. Hashed per tile like its neighbour so a field is not a grid.
+      const h = (col * 137 + row * 89);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#241830'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#160e1e';                                       // dead patches
+      ctx.beginPath(); ctx.arc(x + s*(0.28 + j(0,0.36)), y + s*(0.30 + j(2,0.32)), s*(0.15 + j(4,0.07)), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*(0.70 - j(6,0.22)), y + s*(0.72 - j(8,0.22)), s*(0.12 + j(10,0.05)), 0, Math.PI*2); ctx.fill();
+      // Veins of curse-light, the tell that separates this from plain blight.
+      const glow = 0.30 + 0.22 * Math.sin(Date.now()/700 + col*0.6 + row*0.9);
+      ctx.strokeStyle = `rgba(168,106,216,${glow})`;
+      ctx.lineWidth = Math.max(1, s*0.055);
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.10 + j(2,0.16)), y + s*(0.78 - j(4,0.22)));
+      ctx.lineTo(x + s*(0.44 + j(6,0.16)), y + s*(0.50 - j(0,0.16)));
+      ctx.lineTo(x + s*(0.88 - j(8,0.18)), y + s*(0.62 - j(2,0.16)));
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1, s*0.035);
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.44 + j(6,0.16)), y + s*(0.50 - j(0,0.16)));
+      ctx.lineTo(x + s*(0.34 - j(4,0.14)), y + s*(0.18 + j(8,0.16)));
+      ctx.stroke();
+      break;
+    }
     case T.BLIGHT: {
       // Blighted underworld earth — a dark mottled purple-grey crust patched with
       // rot, raked by hairline cracks, and breathing a faint sickly-green miasma.

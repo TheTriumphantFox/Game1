@@ -261,14 +261,14 @@ const RADIAL_RINGS = [
       if (player.armor && player.armor > 0) {
         items.push({ type: 'armor', icon: '🛡', label: 'Armor',
           val: () => '+' + (player.armor || 0),
-          action: () => { player.activeArmorElement = null; },
+          action: () => { setActiveArmorElement(null); },
           isActive: () => !player.activeArmorElement });
       } else {
         // Always offer an "unequip" slot so the player can drop their
         // elemental armor even without any flat armor points.
         items.push({ type: 'armor', icon: '🛡', label: 'No Armor',
           val: () => '—',
-          action: () => { player.activeArmorElement = null; },
+          action: () => { setActiveArmorElement(null); },
           isActive: () => !player.activeArmorElement });
       }
       for (const id of (player.armorElements || [])) {
@@ -287,7 +287,7 @@ const RADIAL_RINGS = [
             const power = typeof elementalArmorAbility === 'function' ? elementalArmorAbility(id) : null;
             return `Lv${lv} +${ph} −${pct}%${power ? ` · ${power.label}` : ''}`;
           },
-          action: () => { player.activeArmorElement = id; },
+          action: () => { setActiveArmorElement(id); },
           isActive: () => player.activeArmorElement === id
         });
       }

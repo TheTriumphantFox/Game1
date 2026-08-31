@@ -608,6 +608,52 @@ function addLedgeCauseway(m) {
   return r.ledge > 0;
 }
 
+// Blot cursed ground across the necrotic wastes.
+//
+// PASSABLE, not solid. Necrotic armor is forged at the region's own Blacksmith,
+// behind its boss village, so a wall of cursed ground would gate the region
+// behind an armor you can only get by finishing it. It drains instead: crossing
+// costs HP, the armor makes it free, and nothing is ever sealed off.
+//
+// Kept OFF T.PATH for the same reason from the other direction. The roads
+// through the region are the mandatory route and they stay clean; the blighted
+// fields either side are where the cost lives, so a hero who sticks to the road
+// pays nothing and one cutting the corner pays for the shortcut. That is the
+// shape every armor hazard in this game is supposed to have.
+function addCursedGround(m) {
+  const blots = rnd(3, 6);
+  for (let i = 0; i < blots; i++) {
+    // Seed the centre on OPEN GROUND, not uniformly at random. The necrotic map
+    // is mostly BLIGHTED_WALL with carved patches through it, so a uniform
+    // centre lands in rock four times out of five and the blot is rejected
+    // almost entirely. Measured before this: 51 cursed tiles a map, which is a
+    // puddle rather than the field this is meant to be.
+    let cx = -1, cy = -1;
+    for (let tries = 0; tries < 60; tries++) {
+      const c = rnd(6, MCOLS - 7), r = rnd(6, MROWS - 7);
+      if (isSolid(m, c, r) || isProtectedFeature(m[r][c]) || m[r][c] === T.PATH) continue;
+      cx = c; cy = r; break;
+    }
+    if (cx < 0) continue;                       // nowhere open; this blot is skipped
+    const rx = rnd(3, 8), ry = rnd(3, 8);
+    for (let r = cy - ry; r <= cy + ry; r++) {
+      for (let c = cx - rx; c <= cx + rx; c++) {
+        if (c < 1 || r < 1 || c >= MCOLS - 1 || r >= MROWS - 1) continue;
+        const dx = (c - cx) / rx, dy = (r - cy) / ry;
+        if (dx * dx + dy * dy > 1) continue;
+        // Ragged rim: drop a fifth of the edge tiles so a blot reads as spreading
+        // rot rather than as a stamped ellipse.
+        if (dx * dx + dy * dy > 0.64 && genRandom() < 0.35) continue;
+        const t = m[r][c];
+        if (t === T.PATH) continue;                 // the road stays clean
+        if (isProtectedFeature(t)) continue;
+        if (isSolid(m, c, r)) continue;             // only ground becomes cursed
+        m[r][c] = T.CURSED_GROUND;
+      }
+    }
+  }
+}
+
 // Sprinkle a cluster of passable FLOWERING_CACTUS tiles onto the SAND/GRASS
 // immediately around a randomly chosen desert water tile (pool or oasis). These
 // have 1 HP and are cut down by a sword swing (see doSwordSwing).
@@ -1028,6 +1074,10 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   // found. BEFORE the seal, exactly like the desert's mesas, so
   // ensureConnectivity can re-link anything the shelf happened to wall off.
   if (region.id === 'earth') addLedgeCauseway(m);
+  // Necrotic: blot cursed ground over the wastes. BEFORE the seal like the
+  // causeway above, though it cannot actually wall anything off — it is
+  // passable, so ensureConnectivity floods straight through it.
+  if (region.id === 'necrotic') addCursedGround(m);
 
   // corridors use the region's corridor tile so they blend in too.
   ensureConnectivity(m, false, BORDER, PATHTILE);

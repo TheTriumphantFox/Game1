@@ -60,10 +60,10 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 ### Tier 6: Air
 
-- Armor-driven Updraft Glide and slow-fall are functional.
-- Glide uses the existing four-tile gap-crossing implementation.
-- Slow-fall is currently visual because ledge falls do not deal damage.
-- The old shrine reward can also grant Updraft Glide. This overlap needs a design decision.
+- **DECIDED and BUILT 2026-08-31.** Air armor's real power is a LONGER glide: `GLIDE_ARMOR_RANGE` 6 against the shrine reward's `GLIDE_RANGE` 4. Verified: a 3-wide gap crosses either way, 4- and 5-wide gaps need the armor, 6-wide stops both.
+- `GLIDE_RANGE` was deliberately left at 4 because it is also a generation contract — `ensureAbilitySecret` places its secret islets within it, and raising it would move islets that already exist.
+- Escaping the map by gliding is structurally impossible at any range: a glide only lands on a non-gap non-solid tile and every border ring is solid. The big inland water bodies (forest 37, water 65, mana 50 tiles across) stay uncrossable.
+- Slow-fall stays VISUAL and that is now deliberate, not a gap. Adding ledge fall damage to make it matter was rejected: it would retune every desert mesa and Earth causeway in the game, none of which were laid out against a fall cost.
 
 ### Tier 7: Lightning
 
@@ -80,7 +80,10 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 ### Tier 9: Necrotic
 
-- No cursed-ground hazard or armor traversal exception exists.
+- **Cursed ground: BUILT 2026-08-31.** `T.CURSED_GROUND` (id 191) is PASSABLE and drains 1 HP every 1.2s while stood on; Necrotic armor stops the drain dead rather than reducing it. Passable rather than solid because the armor is forged behind the region's own boss village, so a wall would gate the region behind itself.
+- The drain reads the tile under the hero every frame rather than hooking the movement step, so standing still on it hurts too, and the clock resets on stepping clear — crossing a narrow finger costs nothing, wading into a field costs plenty.
+- `addCursedGround` (mapgen-biomes.js) blots 3-6 patches per map, seeding each centre on open ground; a uniform centre landed in rock four times in five and yielded 51 tiles a map against the 141 it makes now (range 58-204 over ten seeds).
+- Generation skips `T.PATH`, so the roads stay clean. Verified over fifteen maps: **all four exits reachable on every map without ever standing on cursed ground**, and zero cursed tiles on a road.
 - Allied skeleton summoning, ownership, following, targeting, collision, damage, persistence, despawning, and save behavior are missing.
 - Seeing and interacting with spirits remains a stretch goal.
 - The existing Ember Lantern shrine reward is inert after fog of war removal and may be reusable here, but that needs a design decision.
@@ -115,7 +118,7 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
      - Accepted because both affected tile types are already optional backtrack content. Dungeons are single-level loot rooms stocked from the region's own roster and gate nothing. Shrines are sealed with a `requiredElement` the hero must strike them with (`world.js`), so returning later with new gear was always the design. A water-locked shrine is one more reason to come back, not a lost reward — fast travel exists (portal.js).
      - Consequence to keep in mind: a forest (tier 0) shrine can sit behind medium water before any armor exists in the game. That is intended. If shrine rewards later become mandatory, revisit this.
 2. **Shrine overlap: DEFERRED.** The shrine reward set is being overhauled later. Until then, leave the overlaps alone and keep the compatibility fallbacks (`frostGripHolds` accepting either source; Air/Shadow armor temporarily borrowing the shared [F] slot without overwriting `player.equippedAbility`). Do not design new mechanics around the current shrine rewards.
-3. **Equipping inside hazards:** decide what happens if armor is removed while swimming, climbing, standing on cursed ground, or inside a barrier route.
+3. **Equipping inside hazards: DECIDED and BUILT 2026-08-31.** Armor changes are REFUSED while the hero stands on a tile only the worn armor makes passable (`armorChangeBlockedHere` / `setActiveArmorElement`, elements.js; the radial's three entries all route through it). Measured: taking Water armor off mid-pond left 0 of 8 legal moves with no damage source out there to die out of — an unrecoverable save. Refused rather than ejected-to-shore, because a refusal explains itself and never teleports the hero somewhere they did not ask to go. Earth was measured and is not affected (stepping down off a face is never blocked, 6 of 8 exits) but is covered by the same rule. Cursed ground needs no guard: it is passable to everyone.
 4. **Enemy art:** all new golems, toxic blooms, and summoned skeleton variants require Aseprite sources and generator scripts under the existing art pipeline.
 5. **Save compatibility:** persistent meters, summons, barriers, boss learning state, or altered map features need absent-field defaults and old-save migration behavior.
 6. **Generation and connectivity:** new blocking hazards must be included in connectivity rules. Generation must not create a route that requires armor before the player can own it.
