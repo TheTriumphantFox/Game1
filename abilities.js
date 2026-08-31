@@ -195,12 +195,36 @@ function landAbilityStep(x, y, message) {
 // ─── Regional armor runtime effects ──────────────────────────────────────────
 // Traversal checks remain in the movement functions they affect. This driver owns
 // only effects that need a clock: Lightning strikes and Luminous stun pulses.
+//
+// Both of these are UNTUNED and want playtesting rather than argument. They are
+// gathered here as named constants for that reason: changing the feel of either
+// should be a one-line edit at the top of the file, not a hunt through the two
+// functions below for a bare number.
+
+// Lightning: how long the storm waits between strikes on an exposed hero, and
+// what one costs. The window is wide on purpose — a predictable metronome is
+// something you learn to walk around, and this should feel like weather.
+const STORM_STRIKE_MIN_MS = 6000;
+const STORM_STRIKE_VAR_MS = 8000;   // actual delay is MIN + rand * VAR → 6-14s
+const STORM_STRIKE_DAMAGE = 6;
+const STORM_STRIKE_IFRAME_MS = 900; // matches every other damage source
+
+// Luminous: the radiant pulse that stuns what is standing beside the hero.
+// Bosses reel rather than stun, because a boss frozen every four seconds is not
+// a fight. FIRST_MS is the delay before the very first pulse after equipping,
+// short enough that the armor visibly does something when you put it on.
+const RADIANT_PULSE_MS = 4000;
+const RADIANT_PULSE_FIRST_MS = 800;
+const RADIANT_PULSE_RADIUS = 4;     // tiles, straight-line distance
+const RADIANT_STUN_MS = 1100;
+const RADIANT_BOSS_STAGGER_MS = 300;
+
 let stormExposed = false;
 let lightningStrikeMs = 0;
-let luminousPulseMs = 800;
+let luminousPulseMs = RADIANT_PULSE_FIRST_MS;
 
 function randomLightningDelay() {
-  return 6000 + Math.random() * 8000;
+  return STORM_STRIKE_MIN_MS + Math.random() * STORM_STRIKE_VAR_MS;
 }
 
 function stepElementalArmorEffects(dt) {
@@ -234,11 +258,11 @@ function stepElementalArmorEffects(dt) {
   if (typeof wearingElementalArmor === 'function' && wearingElementalArmor('luminous')) {
     luminousPulseMs -= dt;
     if (luminousPulseMs <= 0) {
-      luminousPulseMs = 4000;
+      luminousPulseMs = RADIANT_PULSE_MS;
       pulseLuminousArmor();
     }
   } else {
-    luminousPulseMs = 800;
+    luminousPulseMs = RADIANT_PULSE_FIRST_MS;
   }
 }
 
@@ -248,19 +272,20 @@ function strikePlayerWithRegionalLightning() {
   spawnParticle(sp.x, sp.y, '#fff7a8', 18, 5);
   spawnParticle(sp.x, sp.y, '#8ebcff', 14, 4);
   if (player.invincible > 0) return;
-  damagePlayer(6, 'lightning');
-  player.invincible = 900;
+  damagePlayer(STORM_STRIKE_DAMAGE, 'lightning');
+  player.invincible = STORM_STRIKE_IFRAME_MS;
   showMsg('⚡ The storm strikes you!', 1500);
   if (player.hp <= 0) respawn();
 }
 
 function pulseLuminousArmor() {
-  const radius = 4;
+  const radius = RADIANT_PULSE_RADIUS;
   let stunned = 0;
   for (const e of enemies) {
     if (e.dead || e.dormant) continue;
     if (Math.hypot(e.x - player.x, e.y - player.y) > radius) continue;
-    e.staggerT = Math.max(e.staggerT || 0, e.boss ? 300 : 1100);
+    e.staggerT = Math.max(e.staggerT || 0,
+      e.boss ? RADIANT_BOSS_STAGGER_MS : RADIANT_STUN_MS);
     const esp = screenPX(e.x, e.y);
     spawnParticle(esp.x, esp.y, '#fff4a8', 5, 2);
     stunned++;

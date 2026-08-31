@@ -2060,8 +2060,15 @@ function stepWhirlpoolPull(dt) {
   const sp = screenPX(wx, wy);
   spawnParticle(sp.x, sp.y, '#eaf4ff', 14, 4);
   spawnParticle(sp.x, sp.y, '#2c5d8e', 10, 3);
-  showMsg('🌀 The whirlpool drags you under!', 2000);
-  if (player.invincible <= 0) {
+  // Water armor does NOT fight the pull. The dive is a destination — the flooded
+  // grotto below is optional content and the vortex is the only way in — so
+  // resisting it would close off the one route at exactly the point the hero is
+  // best equipped to take it. What the armor cancels is the toll: a swimmer at
+  // home in the water arrives at the grotto unhurt.
+  const swimmer = typeof wearingElementalArmor === 'function' && wearingElementalArmor('water');
+  showMsg(swimmer ? '🌀 The whirlpool takes you down — the armor holds.'
+                  : '🌀 The whirlpool drags you under!', 2000);
+  if (!swimmer && player.invincible <= 0) {
     damagePlayer(2, null);
     player.invincible = 900;
     if (player.hp <= 0) { whirlpoolChurnMs = 0; respawn(); }

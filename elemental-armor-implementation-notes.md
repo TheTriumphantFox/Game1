@@ -34,7 +34,7 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 - Medium-water swimming is already functional.
 - Deep water remains blocked.
-- Review whether whirlpool pull should be reduced by Water armor or remain a threat to swimmers.
+- **Whirlpool: DECIDED 2026-08-31.** Water armor cancels the 2 damage and nothing else. It does NOT resist the pull, because the dive is a destination — the flooded grotto below is optional content and the vortex is its only entrance — so resisting would close the route off at exactly the point the hero is best equipped for it. Armored swimmers get a different message so the mitigation is legible.
 
 ### Tier 3: Ice
 
@@ -49,6 +49,7 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 - Open: the hero can now stand ON a `LEDGE_FACE` tile, which is in `EXTRUDED_TILES` and draws as a wall. Whether the hero renders inside it is unverified and needs a human look.
 - Existing `T.MOUNTAIN` borders are not climbable because allowing them would let the player cross map boundaries. `isSolid` catches them before the step-up gate, so the `Infinity` step limit only ever affects `T.LEDGE`.
 - Dormant stone golems, wake logic, placement, art, and loot are missing.
+- **Frog oracle: BUILT 2026-08-31.** The Warty Oracle stands on the first SEALED Earth dead-end map the hero enters, remembered on `player.frogOracleMapId` so a later dead-end does not mint a second. It walks three lines and then holds on the third, which carries the actual instruction, and sets the `frog_warned_shadow` story flag for the Shadow boss to read. Verified over twelve seeds: placed on all twelve, adjacent to mud every time. It is drawn procedurally in `drawVillager` rather than from a sprite sheet, matching every other role-bearing NPC in the game; give it a sheet the day it needs to hop.
 
 ### Tier 5: Volcanic
 
@@ -67,7 +68,7 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 ### Tier 7: Lightning
 
 - Random targeted strikes and the armor timer pause are functional.
-- Strike interval and 6-damage balance need playtesting.
+- Strike interval and 6-damage balance need playtesting. The numbers are named constants at the top of `abilities.js` (`STORM_STRIKE_*`) so tuning is a one-line edit.
 - Lightning overworld maps and Lightning villages are storm-active. Indoor sky caves and dungeons are currently sheltered.
 
 ### Tier 8: Luminous
@@ -75,7 +76,7 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 - Periodic nearby-enemy stun is functional.
 - Fog of war was removed from the game, so there is currently nothing for the reveal half of the aura to uncover.
 - A replacement darkness, hidden-object, or local-visibility system is needed before reveal can matter.
-- Pulse radius, cooldown, normal stun, and boss stagger need playtesting.
+- Pulse radius, cooldown, normal stun, and boss stagger need playtesting. All four are named constants at the top of `abilities.js` (`RADIANT_*`).
 
 ### Tier 9: Necrotic
 
@@ -103,13 +104,16 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 - Armor-driven Shadow Step is functional using the existing thin-wall teleport.
 - The old shrine reward can also grant Shadow Step. This overlap needs a design decision.
 - The predictive Shadow temple boss is missing.
-- The Earth-region frog foreshadowing NPC and side quest are missing.
+- The Earth-region frog foreshadowing NPC is BUILT (see Tier 4). It sets `frog_warned_shadow`; the boss encounter should read that flag and adjust how much it explains.
 - The proposed boss reads and front-runs gameplay key presses, with changing control settings as the counter. This needs an accessibility and touch-control design before implementation.
 
 ## Cross-system decisions — SETTLED 2026-08-31
 
 1. **Armor acquisition timing: DECIDED.** Every region must be completable *without* its armor. Regional armor is forged at that region's Blacksmith, which sits behind the boss village, so no armor can gate its own region's first pass. Armor hazards gate optional routes, backtracking secrets, and later areas only. This is a hard constraint on every mechanic below — a hazard that blocks mandatory progression is a bug, not a difficulty choice.
-   - **Open verification:** `ensureConnectivity` (connectivity.js) treats `T.MEDIUM_WATER` as floodable while `SOLID_TILES` blocks it at runtime, so generation can call an area reachable by a route only Water armor can walk. Harmless for a chest; a rule violation for a `DUNGEON_DOOR` or an exit corridor. Not yet audited.
+   - **Audited 2026-08-31, then DECIDED: accept as armor-gated. No code change.** `ensureConnectivity` (connectivity.js) treats `T.MEDIUM_WATER` as floodable while `SOLID_TILES` blocks it at runtime, so generation can call an area reachable by a route only Water armor can walk.
+     - Measured over 150 generated maps: **map exits were never split** — every region stays traversable on foot, which is what the rule above actually protects. What gets water-locked is shrine and dungeon-door tiles: forest 9/30 maps (30%), mana 8/30 (27%), water 2/30 (7%), luminous and fire 0/30.
+     - Accepted because both affected tile types are already optional backtrack content. Dungeons are single-level loot rooms stocked from the region's own roster and gate nothing. Shrines are sealed with a `requiredElement` the hero must strike them with (`world.js`), so returning later with new gear was always the design. A water-locked shrine is one more reason to come back, not a lost reward — fast travel exists (portal.js).
+     - Consequence to keep in mind: a forest (tier 0) shrine can sit behind medium water before any armor exists in the game. That is intended. If shrine rewards later become mandatory, revisit this.
 2. **Shrine overlap: DEFERRED.** The shrine reward set is being overhauled later. Until then, leave the overlaps alone and keep the compatibility fallbacks (`frostGripHolds` accepting either source; Air/Shadow armor temporarily borrowing the shared [F] slot without overwriting `player.equippedAbility`). Do not design new mechanics around the current shrine rewards.
 3. **Equipping inside hazards:** decide what happens if armor is removed while swimming, climbing, standing on cursed ground, or inside a barrier route.
 4. **Enemy art:** all new golems, toxic blooms, and summoned skeleton variants require Aseprite sources and generator scripts under the existing art pipeline.
