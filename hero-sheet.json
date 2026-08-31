@@ -1,6 +1,6 @@
 { "frames": [
    {
-    "filename": "hero-sheet 0.aseprite",
+    "filename": "hero-grounded 0.aseprite",
     "frame": { "x": 0, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -9,7 +9,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 1.aseprite",
+    "filename": "hero-grounded 1.aseprite",
     "frame": { "x": 128, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -18,7 +18,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 2.aseprite",
+    "filename": "hero-grounded 2.aseprite",
     "frame": { "x": 256, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -27,7 +27,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 3.aseprite",
+    "filename": "hero-grounded 3.aseprite",
     "frame": { "x": 384, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -36,7 +36,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 4.aseprite",
+    "filename": "hero-grounded 4.aseprite",
     "frame": { "x": 512, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -45,7 +45,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 5.aseprite",
+    "filename": "hero-grounded 5.aseprite",
     "frame": { "x": 640, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -54,7 +54,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 6.aseprite",
+    "filename": "hero-grounded 6.aseprite",
     "frame": { "x": 768, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -63,7 +63,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 7.aseprite",
+    "filename": "hero-grounded 7.aseprite",
     "frame": { "x": 896, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -72,7 +72,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 8.aseprite",
+    "filename": "hero-grounded 8.aseprite",
     "frame": { "x": 1024, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -81,7 +81,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 9.aseprite",
+    "filename": "hero-grounded 9.aseprite",
     "frame": { "x": 1152, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -90,7 +90,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 10.aseprite",
+    "filename": "hero-grounded 10.aseprite",
     "frame": { "x": 1280, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -99,7 +99,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 11.aseprite",
+    "filename": "hero-grounded 11.aseprite",
     "frame": { "x": 1408, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -108,7 +108,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 12.aseprite",
+    "filename": "hero-grounded 12.aseprite",
     "frame": { "x": 1536, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -117,7 +117,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 13.aseprite",
+    "filename": "hero-grounded 13.aseprite",
     "frame": { "x": 1664, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -126,7 +126,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 14.aseprite",
+    "filename": "hero-grounded 14.aseprite",
     "frame": { "x": 1792, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -135,7 +135,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 15.aseprite",
+    "filename": "hero-grounded 15.aseprite",
     "frame": { "x": 1920, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -144,7 +144,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 16.aseprite",
+    "filename": "hero-grounded 16.aseprite",
     "frame": { "x": 2048, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -153,7 +153,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 17.aseprite",
+    "filename": "hero-grounded 17.aseprite",
     "frame": { "x": 2176, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -162,7 +162,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 18.aseprite",
+    "filename": "hero-grounded 18.aseprite",
     "frame": { "x": 2304, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -171,7 +171,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 19.aseprite",
+    "filename": "hero-grounded 19.aseprite",
     "frame": { "x": 2432, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -180,7 +180,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 20.aseprite",
+    "filename": "hero-grounded 20.aseprite",
     "frame": { "x": 2560, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -189,7 +189,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 21.aseprite",
+    "filename": "hero-grounded 21.aseprite",
     "frame": { "x": 2688, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -198,7 +198,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 22.aseprite",
+    "filename": "hero-grounded 22.aseprite",
     "frame": { "x": 2816, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -207,7 +207,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 23.aseprite",
+    "filename": "hero-grounded 23.aseprite",
     "frame": { "x": 2944, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -216,7 +216,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 24.aseprite",
+    "filename": "hero-grounded 24.aseprite",
     "frame": { "x": 3072, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -225,7 +225,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 25.aseprite",
+    "filename": "hero-grounded 25.aseprite",
     "frame": { "x": 3200, "y": 0, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -234,7 +234,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 26.aseprite",
+    "filename": "hero-grounded 26.aseprite",
     "frame": { "x": 0, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -243,7 +243,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 27.aseprite",
+    "filename": "hero-grounded 27.aseprite",
     "frame": { "x": 128, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -252,7 +252,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 28.aseprite",
+    "filename": "hero-grounded 28.aseprite",
     "frame": { "x": 256, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -261,7 +261,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 29.aseprite",
+    "filename": "hero-grounded 29.aseprite",
     "frame": { "x": 384, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -270,7 +270,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 30.aseprite",
+    "filename": "hero-grounded 30.aseprite",
     "frame": { "x": 512, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -279,7 +279,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 31.aseprite",
+    "filename": "hero-grounded 31.aseprite",
     "frame": { "x": 640, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -288,7 +288,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 32.aseprite",
+    "filename": "hero-grounded 32.aseprite",
     "frame": { "x": 768, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -297,7 +297,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 33.aseprite",
+    "filename": "hero-grounded 33.aseprite",
     "frame": { "x": 896, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -306,7 +306,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 34.aseprite",
+    "filename": "hero-grounded 34.aseprite",
     "frame": { "x": 1024, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -315,7 +315,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 35.aseprite",
+    "filename": "hero-grounded 35.aseprite",
     "frame": { "x": 1152, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -324,7 +324,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 36.aseprite",
+    "filename": "hero-grounded 36.aseprite",
     "frame": { "x": 1280, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -333,7 +333,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 37.aseprite",
+    "filename": "hero-grounded 37.aseprite",
     "frame": { "x": 1408, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -342,7 +342,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 38.aseprite",
+    "filename": "hero-grounded 38.aseprite",
     "frame": { "x": 1536, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -351,7 +351,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 39.aseprite",
+    "filename": "hero-grounded 39.aseprite",
     "frame": { "x": 1664, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -360,7 +360,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 40.aseprite",
+    "filename": "hero-grounded 40.aseprite",
     "frame": { "x": 1792, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -369,7 +369,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 41.aseprite",
+    "filename": "hero-grounded 41.aseprite",
     "frame": { "x": 1920, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -378,7 +378,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 42.aseprite",
+    "filename": "hero-grounded 42.aseprite",
     "frame": { "x": 2048, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -387,7 +387,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 43.aseprite",
+    "filename": "hero-grounded 43.aseprite",
     "frame": { "x": 2176, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -396,7 +396,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 44.aseprite",
+    "filename": "hero-grounded 44.aseprite",
     "frame": { "x": 2304, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -405,7 +405,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 45.aseprite",
+    "filename": "hero-grounded 45.aseprite",
     "frame": { "x": 2432, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -414,7 +414,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 46.aseprite",
+    "filename": "hero-grounded 46.aseprite",
     "frame": { "x": 2560, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -423,7 +423,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 47.aseprite",
+    "filename": "hero-grounded 47.aseprite",
     "frame": { "x": 2688, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -432,7 +432,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 48.aseprite",
+    "filename": "hero-grounded 48.aseprite",
     "frame": { "x": 2816, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -441,7 +441,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 49.aseprite",
+    "filename": "hero-grounded 49.aseprite",
     "frame": { "x": 2944, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -450,7 +450,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 50.aseprite",
+    "filename": "hero-grounded 50.aseprite",
     "frame": { "x": 3072, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -459,7 +459,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 51.aseprite",
+    "filename": "hero-grounded 51.aseprite",
     "frame": { "x": 3200, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -468,7 +468,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 52.aseprite",
+    "filename": "hero-grounded 52.aseprite",
     "frame": { "x": 0, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -477,7 +477,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 53.aseprite",
+    "filename": "hero-grounded 53.aseprite",
     "frame": { "x": 128, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -486,7 +486,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 54.aseprite",
+    "filename": "hero-grounded 54.aseprite",
     "frame": { "x": 256, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -495,7 +495,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 55.aseprite",
+    "filename": "hero-grounded 55.aseprite",
     "frame": { "x": 384, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -504,7 +504,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 56.aseprite",
+    "filename": "hero-grounded 56.aseprite",
     "frame": { "x": 512, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -513,7 +513,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 57.aseprite",
+    "filename": "hero-grounded 57.aseprite",
     "frame": { "x": 640, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -522,7 +522,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 58.aseprite",
+    "filename": "hero-grounded 58.aseprite",
     "frame": { "x": 768, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -531,7 +531,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 59.aseprite",
+    "filename": "hero-grounded 59.aseprite",
     "frame": { "x": 896, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -540,7 +540,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 60.aseprite",
+    "filename": "hero-grounded 60.aseprite",
     "frame": { "x": 1024, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -549,7 +549,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 61.aseprite",
+    "filename": "hero-grounded 61.aseprite",
     "frame": { "x": 1152, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -558,7 +558,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 62.aseprite",
+    "filename": "hero-grounded 62.aseprite",
     "frame": { "x": 1280, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -567,7 +567,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 63.aseprite",
+    "filename": "hero-grounded 63.aseprite",
     "frame": { "x": 1408, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -576,7 +576,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 64.aseprite",
+    "filename": "hero-grounded 64.aseprite",
     "frame": { "x": 1536, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -585,7 +585,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 65.aseprite",
+    "filename": "hero-grounded 65.aseprite",
     "frame": { "x": 1664, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -594,7 +594,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 66.aseprite",
+    "filename": "hero-grounded 66.aseprite",
     "frame": { "x": 1792, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -603,7 +603,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 67.aseprite",
+    "filename": "hero-grounded 67.aseprite",
     "frame": { "x": 1920, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -612,7 +612,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 68.aseprite",
+    "filename": "hero-grounded 68.aseprite",
     "frame": { "x": 2048, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -621,7 +621,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 69.aseprite",
+    "filename": "hero-grounded 69.aseprite",
     "frame": { "x": 2176, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -630,7 +630,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 70.aseprite",
+    "filename": "hero-grounded 70.aseprite",
     "frame": { "x": 2304, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -639,7 +639,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 71.aseprite",
+    "filename": "hero-grounded 71.aseprite",
     "frame": { "x": 2432, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -648,7 +648,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 72.aseprite",
+    "filename": "hero-grounded 72.aseprite",
     "frame": { "x": 2560, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -657,7 +657,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 73.aseprite",
+    "filename": "hero-grounded 73.aseprite",
     "frame": { "x": 2688, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -666,7 +666,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 74.aseprite",
+    "filename": "hero-grounded 74.aseprite",
     "frame": { "x": 2816, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -675,7 +675,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 75.aseprite",
+    "filename": "hero-grounded 75.aseprite",
     "frame": { "x": 2944, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -684,7 +684,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 76.aseprite",
+    "filename": "hero-grounded 76.aseprite",
     "frame": { "x": 3072, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -693,7 +693,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 77.aseprite",
+    "filename": "hero-grounded 77.aseprite",
     "frame": { "x": 3200, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -702,7 +702,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 78.aseprite",
+    "filename": "hero-grounded 78.aseprite",
     "frame": { "x": 0, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -711,7 +711,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 79.aseprite",
+    "filename": "hero-grounded 79.aseprite",
     "frame": { "x": 128, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -720,7 +720,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 80.aseprite",
+    "filename": "hero-grounded 80.aseprite",
     "frame": { "x": 256, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -729,7 +729,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 81.aseprite",
+    "filename": "hero-grounded 81.aseprite",
     "frame": { "x": 384, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -738,7 +738,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 82.aseprite",
+    "filename": "hero-grounded 82.aseprite",
     "frame": { "x": 512, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -747,7 +747,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 83.aseprite",
+    "filename": "hero-grounded 83.aseprite",
     "frame": { "x": 640, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -756,7 +756,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 84.aseprite",
+    "filename": "hero-grounded 84.aseprite",
     "frame": { "x": 768, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -765,7 +765,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 85.aseprite",
+    "filename": "hero-grounded 85.aseprite",
     "frame": { "x": 896, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -774,7 +774,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 86.aseprite",
+    "filename": "hero-grounded 86.aseprite",
     "frame": { "x": 1024, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -783,7 +783,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 87.aseprite",
+    "filename": "hero-grounded 87.aseprite",
     "frame": { "x": 1152, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -792,7 +792,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 88.aseprite",
+    "filename": "hero-grounded 88.aseprite",
     "frame": { "x": 1280, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -801,7 +801,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 89.aseprite",
+    "filename": "hero-grounded 89.aseprite",
     "frame": { "x": 1408, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -810,7 +810,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 90.aseprite",
+    "filename": "hero-grounded 90.aseprite",
     "frame": { "x": 1536, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -819,7 +819,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 91.aseprite",
+    "filename": "hero-grounded 91.aseprite",
     "frame": { "x": 1664, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -828,7 +828,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 92.aseprite",
+    "filename": "hero-grounded 92.aseprite",
     "frame": { "x": 1792, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -837,7 +837,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 93.aseprite",
+    "filename": "hero-grounded 93.aseprite",
     "frame": { "x": 1920, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -846,7 +846,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 94.aseprite",
+    "filename": "hero-grounded 94.aseprite",
     "frame": { "x": 2048, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -855,7 +855,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 95.aseprite",
+    "filename": "hero-grounded 95.aseprite",
     "frame": { "x": 2176, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -864,7 +864,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 96.aseprite",
+    "filename": "hero-grounded 96.aseprite",
     "frame": { "x": 2304, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -873,7 +873,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 97.aseprite",
+    "filename": "hero-grounded 97.aseprite",
     "frame": { "x": 2432, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -882,7 +882,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 98.aseprite",
+    "filename": "hero-grounded 98.aseprite",
     "frame": { "x": 2560, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -891,7 +891,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 99.aseprite",
+    "filename": "hero-grounded 99.aseprite",
     "frame": { "x": 2688, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -900,7 +900,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 100.aseprite",
+    "filename": "hero-grounded 100.aseprite",
     "frame": { "x": 2816, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -909,7 +909,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 101.aseprite",
+    "filename": "hero-grounded 101.aseprite",
     "frame": { "x": 2944, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -918,7 +918,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 102.aseprite",
+    "filename": "hero-grounded 102.aseprite",
     "frame": { "x": 3072, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -927,7 +927,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 103.aseprite",
+    "filename": "hero-grounded 103.aseprite",
     "frame": { "x": 3200, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -936,7 +936,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 104.aseprite",
+    "filename": "hero-grounded 104.aseprite",
     "frame": { "x": 0, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -945,7 +945,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 105.aseprite",
+    "filename": "hero-grounded 105.aseprite",
     "frame": { "x": 128, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -954,7 +954,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 106.aseprite",
+    "filename": "hero-grounded 106.aseprite",
     "frame": { "x": 256, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -963,7 +963,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 107.aseprite",
+    "filename": "hero-grounded 107.aseprite",
     "frame": { "x": 384, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -972,7 +972,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 108.aseprite",
+    "filename": "hero-grounded 108.aseprite",
     "frame": { "x": 512, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -981,7 +981,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 109.aseprite",
+    "filename": "hero-grounded 109.aseprite",
     "frame": { "x": 640, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -990,7 +990,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 110.aseprite",
+    "filename": "hero-grounded 110.aseprite",
     "frame": { "x": 768, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -999,7 +999,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 111.aseprite",
+    "filename": "hero-grounded 111.aseprite",
     "frame": { "x": 896, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1008,7 +1008,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 112.aseprite",
+    "filename": "hero-grounded 112.aseprite",
     "frame": { "x": 1024, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1017,7 +1017,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 113.aseprite",
+    "filename": "hero-grounded 113.aseprite",
     "frame": { "x": 1152, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1026,7 +1026,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 114.aseprite",
+    "filename": "hero-grounded 114.aseprite",
     "frame": { "x": 1280, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1035,7 +1035,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 115.aseprite",
+    "filename": "hero-grounded 115.aseprite",
     "frame": { "x": 1408, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1044,7 +1044,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 116.aseprite",
+    "filename": "hero-grounded 116.aseprite",
     "frame": { "x": 1536, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1053,7 +1053,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 117.aseprite",
+    "filename": "hero-grounded 117.aseprite",
     "frame": { "x": 1664, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1062,7 +1062,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 118.aseprite",
+    "filename": "hero-grounded 118.aseprite",
     "frame": { "x": 1792, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1071,7 +1071,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 119.aseprite",
+    "filename": "hero-grounded 119.aseprite",
     "frame": { "x": 1920, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1080,7 +1080,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 120.aseprite",
+    "filename": "hero-grounded 120.aseprite",
     "frame": { "x": 2048, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1089,7 +1089,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 121.aseprite",
+    "filename": "hero-grounded 121.aseprite",
     "frame": { "x": 2176, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1098,7 +1098,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 122.aseprite",
+    "filename": "hero-grounded 122.aseprite",
     "frame": { "x": 2304, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1107,7 +1107,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 123.aseprite",
+    "filename": "hero-grounded 123.aseprite",
     "frame": { "x": 2432, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1116,7 +1116,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 124.aseprite",
+    "filename": "hero-grounded 124.aseprite",
     "frame": { "x": 2560, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1125,7 +1125,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 125.aseprite",
+    "filename": "hero-grounded 125.aseprite",
     "frame": { "x": 2688, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1134,7 +1134,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 126.aseprite",
+    "filename": "hero-grounded 126.aseprite",
     "frame": { "x": 2816, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1143,7 +1143,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 127.aseprite",
+    "filename": "hero-grounded 127.aseprite",
     "frame": { "x": 2944, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1152,7 +1152,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 128.aseprite",
+    "filename": "hero-grounded 128.aseprite",
     "frame": { "x": 3072, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1161,7 +1161,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 129.aseprite",
+    "filename": "hero-grounded 129.aseprite",
     "frame": { "x": 3200, "y": 512, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1170,7 +1170,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 130.aseprite",
+    "filename": "hero-grounded 130.aseprite",
     "frame": { "x": 0, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1179,7 +1179,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 131.aseprite",
+    "filename": "hero-grounded 131.aseprite",
     "frame": { "x": 128, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1188,7 +1188,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 132.aseprite",
+    "filename": "hero-grounded 132.aseprite",
     "frame": { "x": 256, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1197,7 +1197,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 133.aseprite",
+    "filename": "hero-grounded 133.aseprite",
     "frame": { "x": 384, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1206,7 +1206,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 134.aseprite",
+    "filename": "hero-grounded 134.aseprite",
     "frame": { "x": 512, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1215,7 +1215,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 135.aseprite",
+    "filename": "hero-grounded 135.aseprite",
     "frame": { "x": 640, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1224,7 +1224,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 136.aseprite",
+    "filename": "hero-grounded 136.aseprite",
     "frame": { "x": 768, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1233,7 +1233,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 137.aseprite",
+    "filename": "hero-grounded 137.aseprite",
     "frame": { "x": 896, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1242,7 +1242,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 138.aseprite",
+    "filename": "hero-grounded 138.aseprite",
     "frame": { "x": 1024, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1251,7 +1251,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 139.aseprite",
+    "filename": "hero-grounded 139.aseprite",
     "frame": { "x": 1152, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1260,7 +1260,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 140.aseprite",
+    "filename": "hero-grounded 140.aseprite",
     "frame": { "x": 1280, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1269,7 +1269,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 141.aseprite",
+    "filename": "hero-grounded 141.aseprite",
     "frame": { "x": 1408, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1278,7 +1278,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 142.aseprite",
+    "filename": "hero-grounded 142.aseprite",
     "frame": { "x": 1536, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1287,7 +1287,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 143.aseprite",
+    "filename": "hero-grounded 143.aseprite",
     "frame": { "x": 1664, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1296,7 +1296,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 144.aseprite",
+    "filename": "hero-grounded 144.aseprite",
     "frame": { "x": 1792, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1305,7 +1305,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 145.aseprite",
+    "filename": "hero-grounded 145.aseprite",
     "frame": { "x": 1920, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1314,7 +1314,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 146.aseprite",
+    "filename": "hero-grounded 146.aseprite",
     "frame": { "x": 2048, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1323,7 +1323,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 147.aseprite",
+    "filename": "hero-grounded 147.aseprite",
     "frame": { "x": 2176, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1332,7 +1332,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 148.aseprite",
+    "filename": "hero-grounded 148.aseprite",
     "frame": { "x": 2304, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1341,7 +1341,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 149.aseprite",
+    "filename": "hero-grounded 149.aseprite",
     "frame": { "x": 2432, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1350,7 +1350,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 150.aseprite",
+    "filename": "hero-grounded 150.aseprite",
     "frame": { "x": 2560, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1359,7 +1359,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 151.aseprite",
+    "filename": "hero-grounded 151.aseprite",
     "frame": { "x": 2688, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1368,7 +1368,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 152.aseprite",
+    "filename": "hero-grounded 152.aseprite",
     "frame": { "x": 2816, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1377,7 +1377,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 153.aseprite",
+    "filename": "hero-grounded 153.aseprite",
     "frame": { "x": 2944, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1386,7 +1386,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 154.aseprite",
+    "filename": "hero-grounded 154.aseprite",
     "frame": { "x": 3072, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1395,7 +1395,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 155.aseprite",
+    "filename": "hero-grounded 155.aseprite",
     "frame": { "x": 3200, "y": 640, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1404,7 +1404,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 156.aseprite",
+    "filename": "hero-grounded 156.aseprite",
     "frame": { "x": 0, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1413,7 +1413,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 157.aseprite",
+    "filename": "hero-grounded 157.aseprite",
     "frame": { "x": 128, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1422,7 +1422,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 158.aseprite",
+    "filename": "hero-grounded 158.aseprite",
     "frame": { "x": 256, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1431,7 +1431,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 159.aseprite",
+    "filename": "hero-grounded 159.aseprite",
     "frame": { "x": 384, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1440,7 +1440,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 160.aseprite",
+    "filename": "hero-grounded 160.aseprite",
     "frame": { "x": 512, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1449,7 +1449,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 161.aseprite",
+    "filename": "hero-grounded 161.aseprite",
     "frame": { "x": 640, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1458,7 +1458,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 162.aseprite",
+    "filename": "hero-grounded 162.aseprite",
     "frame": { "x": 768, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1467,7 +1467,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 163.aseprite",
+    "filename": "hero-grounded 163.aseprite",
     "frame": { "x": 896, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1476,7 +1476,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 164.aseprite",
+    "filename": "hero-grounded 164.aseprite",
     "frame": { "x": 1024, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1485,7 +1485,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 165.aseprite",
+    "filename": "hero-grounded 165.aseprite",
     "frame": { "x": 1152, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1494,7 +1494,7 @@
     "duration": 37
    },
    {
-    "filename": "hero-sheet 166.aseprite",
+    "filename": "hero-grounded 166.aseprite",
     "frame": { "x": 1280, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1503,7 +1503,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 167.aseprite",
+    "filename": "hero-grounded 167.aseprite",
     "frame": { "x": 1408, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1512,7 +1512,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 168.aseprite",
+    "filename": "hero-grounded 168.aseprite",
     "frame": { "x": 1536, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1521,7 +1521,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 169.aseprite",
+    "filename": "hero-grounded 169.aseprite",
     "frame": { "x": 1664, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1530,7 +1530,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 170.aseprite",
+    "filename": "hero-grounded 170.aseprite",
     "frame": { "x": 1792, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1539,7 +1539,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 171.aseprite",
+    "filename": "hero-grounded 171.aseprite",
     "frame": { "x": 1920, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1548,7 +1548,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 172.aseprite",
+    "filename": "hero-grounded 172.aseprite",
     "frame": { "x": 2048, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1557,7 +1557,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 173.aseprite",
+    "filename": "hero-grounded 173.aseprite",
     "frame": { "x": 2176, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1566,7 +1566,7 @@
     "duration": 140
    },
    {
-    "filename": "hero-sheet 174.aseprite",
+    "filename": "hero-grounded 174.aseprite",
     "frame": { "x": 2304, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1575,7 +1575,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 175.aseprite",
+    "filename": "hero-grounded 175.aseprite",
     "frame": { "x": 2432, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1584,7 +1584,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 176.aseprite",
+    "filename": "hero-grounded 176.aseprite",
     "frame": { "x": 2560, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1593,7 +1593,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 177.aseprite",
+    "filename": "hero-grounded 177.aseprite",
     "frame": { "x": 2688, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1602,7 +1602,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 178.aseprite",
+    "filename": "hero-grounded 178.aseprite",
     "frame": { "x": 2816, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1611,7 +1611,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 179.aseprite",
+    "filename": "hero-grounded 179.aseprite",
     "frame": { "x": 2944, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1620,7 +1620,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 180.aseprite",
+    "filename": "hero-grounded 180.aseprite",
     "frame": { "x": 3072, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1629,7 +1629,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 181.aseprite",
+    "filename": "hero-grounded 181.aseprite",
     "frame": { "x": 3200, "y": 768, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1638,7 +1638,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 182.aseprite",
+    "filename": "hero-grounded 182.aseprite",
     "frame": { "x": 0, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1647,7 +1647,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 183.aseprite",
+    "filename": "hero-grounded 183.aseprite",
     "frame": { "x": 128, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1656,7 +1656,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 184.aseprite",
+    "filename": "hero-grounded 184.aseprite",
     "frame": { "x": 256, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1665,7 +1665,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 185.aseprite",
+    "filename": "hero-grounded 185.aseprite",
     "frame": { "x": 384, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1674,7 +1674,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 186.aseprite",
+    "filename": "hero-grounded 186.aseprite",
     "frame": { "x": 512, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1683,7 +1683,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 187.aseprite",
+    "filename": "hero-grounded 187.aseprite",
     "frame": { "x": 640, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1692,7 +1692,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 188.aseprite",
+    "filename": "hero-grounded 188.aseprite",
     "frame": { "x": 768, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1701,7 +1701,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 189.aseprite",
+    "filename": "hero-grounded 189.aseprite",
     "frame": { "x": 896, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1710,7 +1710,7 @@
     "duration": 280
    },
    {
-    "filename": "hero-sheet 190.aseprite",
+    "filename": "hero-grounded 190.aseprite",
     "frame": { "x": 1024, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1719,7 +1719,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 191.aseprite",
+    "filename": "hero-grounded 191.aseprite",
     "frame": { "x": 1152, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1728,7 +1728,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 192.aseprite",
+    "filename": "hero-grounded 192.aseprite",
     "frame": { "x": 1280, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1737,7 +1737,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 193.aseprite",
+    "filename": "hero-grounded 193.aseprite",
     "frame": { "x": 1408, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1746,7 +1746,7 @@
     "duration": 110
    },
    {
-    "filename": "hero-sheet 194.aseprite",
+    "filename": "hero-grounded 194.aseprite",
     "frame": { "x": 1536, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1755,7 +1755,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 195.aseprite",
+    "filename": "hero-grounded 195.aseprite",
     "frame": { "x": 1664, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1764,7 +1764,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 196.aseprite",
+    "filename": "hero-grounded 196.aseprite",
     "frame": { "x": 1792, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1773,7 +1773,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 197.aseprite",
+    "filename": "hero-grounded 197.aseprite",
     "frame": { "x": 1920, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1782,7 +1782,7 @@
     "duration": 90
    },
    {
-    "filename": "hero-sheet 198.aseprite",
+    "filename": "hero-grounded 198.aseprite",
     "frame": { "x": 2048, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1791,7 +1791,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 199.aseprite",
+    "filename": "hero-grounded 199.aseprite",
     "frame": { "x": 2176, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1800,7 +1800,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 200.aseprite",
+    "filename": "hero-grounded 200.aseprite",
     "frame": { "x": 2304, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1809,7 +1809,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 201.aseprite",
+    "filename": "hero-grounded 201.aseprite",
     "frame": { "x": 2432, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1818,7 +1818,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 202.aseprite",
+    "filename": "hero-grounded 202.aseprite",
     "frame": { "x": 2560, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1827,7 +1827,7 @@
     "duration": 56
    },
    {
-    "filename": "hero-sheet 203.aseprite",
+    "filename": "hero-grounded 203.aseprite",
     "frame": { "x": 2688, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1836,7 +1836,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 204.aseprite",
+    "filename": "hero-grounded 204.aseprite",
     "frame": { "x": 2816, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1845,7 +1845,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 205.aseprite",
+    "filename": "hero-grounded 205.aseprite",
     "frame": { "x": 2944, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1854,7 +1854,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 206.aseprite",
+    "filename": "hero-grounded 206.aseprite",
     "frame": { "x": 3072, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1863,7 +1863,7 @@
     "duration": 36
    },
    {
-    "filename": "hero-sheet 207.aseprite",
+    "filename": "hero-grounded 207.aseprite",
     "frame": { "x": 3200, "y": 896, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -1875,7 +1875,7 @@
  "meta": {
   "app": "http://www.aseprite.org/",
   "version": "1.3.18.2-dev",
-  "image": "hero-sheet.png",
+  "image": "hero-sheet-grounded.png",
   "format": "RGBA8888",
   "size": { "w": 3328, "h": 1024 },
   "scale": "1",
