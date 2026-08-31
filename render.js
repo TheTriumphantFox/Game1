@@ -179,6 +179,21 @@ function drawTile(col, row, t, sx, sy, s) {
 }
 
 
+// Where the swim clip cuts the hero, as a fraction of the TILE. What it has to
+// look right against is the FIGURE, though, and the hero sheet's figure grew
+// from 0.94 to 1.26 tiles tall (see hero-sprite.js). At the old 0.55 the cut
+// still landed where it always had on the tile, but that is now only two thirds
+// of the way down her — she stood in the water from the thigh down and read as
+// wading, not swimming. 0.42 puts her under at just past the waist again, and
+// leaves the procedural fallback hero cut at the chest, which is also a swimmer.
+//
+// File scope, not inside drawPlayer: finishPlayerDraw draws the waterline ripple
+// outside the clip and needs the same number, and a const local to drawPlayer is
+// not in scope there. It wasn't, and every frame spent swimming threw a
+// ReferenceError out of the render loop, which froze the game on entering
+// medium water.
+const WATERLINE = 0.42;
+
 // ─── Player sprite ────────────────────────────────────────────────────────────
 // Layered: shadow → boots → tunic → arms → shield (when idle) → head → hair →
 // hat → eyes → swinging sword. Sprite faces swordDir (down/up/left/right).
@@ -228,14 +243,6 @@ function drawPlayer(ts) {
   // Everything below this tile-fraction waterline is clipped away, and a ripple
   // ring is drawn at the surface so the sprite reads as submerged, not cropped.
   const swimming = !!(_pmap && _pmap[player.y] && _pmap[player.y][player.x] === T.MEDIUM_WATER);
-  // A fraction of the TILE, but what it has to look right against is the
-  // FIGURE, and the hero sheet's figure grew from 0.94 to 1.26 tiles tall (see
-  // hero-sprite.js). At the old 0.55 the cut still landed where it always had
-  // on the tile, but that is now only two thirds of the way down her — she
-  // stood in the water from the thigh down and read as wading, not swimming.
-  // 0.42 puts her under at just past the waist again, and leaves the procedural
-  // fallback hero cut at the chest, which is also a swimmer.
-  const WATERLINE = 0.42;
   // The hop is real state now (player.z, stepped by stepPlayerJump in player.js).
   // This reads it and converts world units to pixels; it no longer owns the arc,
   // and it no longer CLEARS anything, which is what stops the renderer mutating
