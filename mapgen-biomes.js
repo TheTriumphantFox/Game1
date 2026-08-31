@@ -608,6 +608,70 @@ function addLedgeCauseway(m) {
   return r.ledge > 0;
 }
 
+// Stamp a ragged blob of `tile` over open ground, centred somewhere open.
+//
+// Pulled out of addCursedGround once the desert needed the same shape. All three
+// hazard fields in the game — cursed ground, expanded dunes and quicksand — are
+// "irregular patches of a hazard tile, never on the road", and writing that
+// three times is how the three of them drift apart.
+//
+// Seeding the centre on OPEN GROUND rather than uniformly matters more than it
+// looks: these maps are mostly wall with carved patches through them, and a
+// uniform centre lands in rock most of the time and yields a puddle instead of a
+// field. `skip` is the caller's extra veto, for tiles a given hazard must not
+// eat (quicksand does not pave over an oasis).
+function stampHazardBlots(m, tile, blots, rMin, rMax, skip) {
+  for (let i = 0; i < blots; i++) {
+    let cx = -1, cy = -1;
+    for (let tries = 0; tries < 60; tries++) {
+      const c = rnd(6, MCOLS - 7), r = rnd(6, MROWS - 7);
+      if (isSolid(m, c, r) || isProtectedFeature(m[r][c]) || m[r][c] === T.PATH) continue;
+      if (skip && skip(m[r][c])) continue;
+      cx = c; cy = r; break;
+    }
+    if (cx < 0) continue;
+    const rx = rnd(rMin, rMax), ry = rnd(rMin, rMax);
+    for (let r = cy - ry; r <= cy + ry; r++) {
+      for (let c = cx - rx; c <= cx + rx; c++) {
+        if (c < 1 || r < 1 || c >= MCOLS - 1 || r >= MROWS - 1) continue;
+        const dx = (c - cx) / rx, dy = (r - cy) / ry;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 1) continue;
+        if (d2 > 0.64 && genRandom() < 0.35) continue;    // ragged rim
+        const t = m[r][c];
+        if (t === T.PATH) continue;                       // the road stays clean
+        if (isProtectedFeature(t) || isSolid(m, c, r)) continue;
+        if (skip && skip(t)) continue;
+        m[r][c] = tile;
+      }
+    }
+  }
+}
+
+// Desert heat and quicksand.
+//
+// The dune fields Phase 4 already lays down are what the heat meter reads
+// (HEAT_REGIONS.fire, abilities.js), so this widens them into something worth
+// routing around rather than the scattered bumps they were, and then cuts
+// quicksand into the sand as the region's lethal hazard.
+//
+// Quicksand kills, so where it goes is the whole of its fairness. It never sits
+// on T.PATH, so the roads across the desert are always safe and quicksand is
+// only ever met by choosing to leave them; and it refuses to pave over water or
+// bridges, so an oasis crossing cannot become a death trap.
+function addDesertHazards(m) {
+  const noWater = (t) =>
+    t === T.OASIS_WATER || t === T.WATER || t === T.MEDIUM_WATER ||
+    t === T.SHALLOW_WATER || t === T.BRIDGE;
+  stampHazardBlots(m, T.DUNE, rnd(3, 5), 5, 11, noWater);
+  // Radius capped at 6, and that cap is load-bearing. Quicksand drowns, and the
+  // hero only has five wading steps before it closes over them (see the
+  // invariant on QUICKSAND_SINK_MS in abilities.js). Measured at this radius the
+  // deepest tile sits 4 steps from open ground. Widen it and the middle of a
+  // blot becomes unsurvivable rather than tense.
+  stampHazardBlots(m, T.QUICKSAND, rnd(2, 4), 3, 6, noWater);
+}
+
 // Blot cursed ground across the necrotic wastes.
 //
 // PASSABLE, not solid. Necrotic armor is forged at the region's own Blacksmith,
@@ -621,37 +685,7 @@ function addLedgeCauseway(m) {
 // pays nothing and one cutting the corner pays for the shortcut. That is the
 // shape every armor hazard in this game is supposed to have.
 function addCursedGround(m) {
-  const blots = rnd(3, 6);
-  for (let i = 0; i < blots; i++) {
-    // Seed the centre on OPEN GROUND, not uniformly at random. The necrotic map
-    // is mostly BLIGHTED_WALL with carved patches through it, so a uniform
-    // centre lands in rock four times out of five and the blot is rejected
-    // almost entirely. Measured before this: 51 cursed tiles a map, which is a
-    // puddle rather than the field this is meant to be.
-    let cx = -1, cy = -1;
-    for (let tries = 0; tries < 60; tries++) {
-      const c = rnd(6, MCOLS - 7), r = rnd(6, MROWS - 7);
-      if (isSolid(m, c, r) || isProtectedFeature(m[r][c]) || m[r][c] === T.PATH) continue;
-      cx = c; cy = r; break;
-    }
-    if (cx < 0) continue;                       // nowhere open; this blot is skipped
-    const rx = rnd(3, 8), ry = rnd(3, 8);
-    for (let r = cy - ry; r <= cy + ry; r++) {
-      for (let c = cx - rx; c <= cx + rx; c++) {
-        if (c < 1 || r < 1 || c >= MCOLS - 1 || r >= MROWS - 1) continue;
-        const dx = (c - cx) / rx, dy = (r - cy) / ry;
-        if (dx * dx + dy * dy > 1) continue;
-        // Ragged rim: drop a fifth of the edge tiles so a blot reads as spreading
-        // rot rather than as a stamped ellipse.
-        if (dx * dx + dy * dy > 0.64 && genRandom() < 0.35) continue;
-        const t = m[r][c];
-        if (t === T.PATH) continue;                 // the road stays clean
-        if (isProtectedFeature(t)) continue;
-        if (isSolid(m, c, r)) continue;             // only ground becomes cursed
-        m[r][c] = T.CURSED_GROUND;
-      }
-    }
-  }
+  stampHazardBlots(m, T.CURSED_GROUND, rnd(3, 6), 3, 8, null);
 }
 
 // Sprinkle a cluster of passable FLOWERING_CACTUS tiles onto the SAND/GRASS
@@ -825,6 +859,11 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
   // A desert map that rolled no mesa still gets its shortcut (item B). Only
   // when there is no mesa: two raised routes across one map is one too many.
   if (plateauCount === 0) addLedgeCauseway(m);
+
+  // Heat fields and quicksand. After the plateaus so a mesa is never paved over,
+  // and before the demote/connectivity passes below so anything they need to
+  // re-link is already on the map.
+  addDesertHazards(m);
 
   // Desert is outside the water region: demote its pools and OASIS_WATER to
   // MEDIUM_WATER so no deep/standing water survives here.

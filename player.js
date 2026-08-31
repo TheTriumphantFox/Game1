@@ -1895,7 +1895,8 @@ function stepPlayerMovement() {
   // (interval × 2.5). The step gate stretches to match while standing on one.
   const standTile = map[player.y][player.x];
   const fireWalk = typeof wearingElementalArmor === 'function' && wearingElementalArmor('fire');
-  const terrainMs = standTile === T.DUNE         ? MOVE_MS * (fireWalk ? 1 : 2)
+  const terrainMs = standTile === T.QUICKSAND    ? MOVE_MS * (fireWalk ? 1 : QUICKSAND_MOVE_MUL)
+                  : standTile === T.DUNE         ? MOVE_MS * (fireWalk ? 1 : 2)
                   : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
                   : standTile === T.MUD          ? MOVE_MS * 2
                   : standTile === T.BOG          ? MOVE_MS * 2

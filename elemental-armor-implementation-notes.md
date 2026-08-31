@@ -24,11 +24,11 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 ### Tier 1: Fire / Desert
 
-- Existing dunes are slowed terrain, not dedicated quicksand.
-- No quicksand tile, sinking state, escape behavior, or generated quicksand fields exist yet.
-- No regional heatstroke meter or HP drain exists yet.
-- Fire armor currently only removes dune slowdown.
-- Plain fire immunity remains intentionally dropped.
+- **BUILT 2026-08-31.** Fire armor now: walks quicksand safely, bakes at half rate, and still cancels dune slowdown. Plain fire immunity remains intentionally dropped.
+- **Quicksand** is `T.QUICKSAND` (id 192), passable and lethal. Standing on it sinks the hero over 2.6s and then drowns them; Fire armor walks it as sand. Wading is 3x slower.
+  - The escape margin is an INVARIANT and it is one step wide. `floor(QUICKSAND_SINK_MS / (MOVE_MS * QUICKSAND_MOVE_MUL))` = 5 wading steps; measured over ten desert maps the deepest quicksand tile sits 4 steps from open ground. Widening the blot radius, slowing `MOVE_MS`, or raising the multiplier all eat that margin and make blot centres unsurvivable. Re-measure if any of them move.
+- **Heatstroke** is the first entry in `HEAT_REGIONS` (abilities.js), a shared meter built for two regions rather than one. Heat fills only on hot tiles (`T.DUNE`, `T.QUICKSAND`), cools everywhere else, and costs HP only once full — 7.5s to full unarmored, 14.9s in Fire armor (armor halves the fill rate rather than stopping it), 1 HP/s at full, 3s to cool from full. Clears on leaving the region. HUD slot `ws-heat`, hidden while cold.
+- **Generation**: `addDesertHazards` widens the dune fields and cuts 2-4 quicksand blots per map through `stampHazardBlots`, the shared blot stamper `addCursedGround` was refactored onto. Both skip `T.PATH`, and quicksand additionally refuses water and bridges so an oasis crossing can never become a death trap. Verified over twelve maps: **all four exits reachable without touching quicksand OR dune**, so the road route across the desert is both drown-free and heat-free.
 
 ### Tier 2: Water
 
@@ -55,7 +55,8 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 - Obsidian golems are missing.
 - Idle hardening, climbable hardened bodies, melting, awakening, and active combat states are missing.
-- The stacking overheat stat, escalating thresholds, effects, HUD meter, armor slowdown, and armor venting are missing.
+- The overheat meter is now **half built and waiting on a config entry, not an implementation**. `HEAT_REGIONS` (abilities.js) is a shared per-region heat system; adding Volcanic is an entry there plus its escalating thresholds and the venting behaviour, reusing the same fill/cool/armor-halving driver and the `ws-heat` HUD slot. Its danger zones should be blot-generated with `stampHazardBlots` like the desert's and Necrotic's, keeping `T.PATH` clean.
+- Still missing for Volcanic specifically: the escalating thresholds and their effects, and armor venting (today the armor only halves fill).
 - Open lava remains blocked and should not automatically become traversable unless separately approved.
 
 ### Tier 6: Air

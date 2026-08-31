@@ -390,7 +390,13 @@ const T = {
   // (see stepCursedGround in abilities.js). Generation keeps it off T.PATH, so
   // the roads through the region stay clean and the blighted fields either side
   // are the part that hurts.
-  CURSED_GROUND:191
+  CURSED_GROUND:191,
+  // Desert quicksand. PASSABLE and deliberately not in SOLID_TILES, for the same
+  // reason cursed ground is not: Fire armor is forged behind the desert's own
+  // boss village, so a wall of it would gate the region behind itself. It kills
+  // by sinking instead (stepQuicksand in abilities.js) and generation keeps it
+  // off T.PATH, so the roads through the desert are always safe.
+  QUICKSAND:192
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -541,7 +547,7 @@ const TILE_HEIGHT_SPEC = [
 // Baked into a flat array for lookup. This is read once per visible tile per
 // frame (~2600 at TILE_PX 24), so an array index beats a Map or object hash.
 // 256 entries because tile ids are stored in a Uint8Array (see the map format
-// note at the top of this file); max T today is 191 (T.CURSED_GROUND), leaving 64
+// note at the top of this file); max T today is 192 (T.QUICKSAND), leaving 63
 // ids. Update this number when you spend one, because it is what the tile-id
 // budget is read from.
 const TILE_HEIGHT = new Float32Array(256);
@@ -587,6 +593,7 @@ const TILE_COLORS = {
   [T.MARBLE]: '#e8e4d8', [T.COBBLESTONE]: '#7a7a78',
   [T.BED]: '#8a4480', [T.TABLE]: '#6a3a18', [T.CHAIR]: '#5a2a10', [T.FIREPLACE]: '#3a3a3a',
   [T.CACTUS]: '#3a7a3a', [T.DUNE]: '#c89858', [T.OASIS_WATER]: '#2a88cc', [T.BONES]: '#e8e0c0',
+  [T.QUICKSAND]: '#a8834a',
   [T.LARGE_CHEST_R]: '#cc8800',
   // Boss chest base color matches the dark royal-purple body so the 10%
   // padding around each quadrant blends instead of flashing magenta.

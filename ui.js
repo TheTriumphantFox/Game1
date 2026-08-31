@@ -58,6 +58,7 @@ function hudEls() {
     xp: $('xp'), xpnext: $('xpnext'), roomName: $('roomName'),
     sword: $('ws-sword'), bow: $('ws-bow'), bomb: $('ws-bomb'),
     armor: $('ws-armor'), immunity: $('ws-immunity'), interact: $('ws-interact'),
+    heat: $('ws-heat'),
     // Touch action pad (bottom-right buttons) — present only on touch devices.
     taWrap: $('touch-actions'), taSword: $('ta-sword'), taBow: $('ta-bow'),
     taPotion: $('ta-potion'), taAbility: $('ta-ability'),
@@ -166,6 +167,33 @@ function updateHUD() {
       }
     }
   }
+  // Regional heat meter — desert heatstroke now, Volcanic overheat later
+  // (stepRegionalHeat, abilities.js). Hidden while cold, so the bar is quiet in
+  // every region that does not bake. Quantised to twenty steps rather than
+  // rewritten per frame: the signature below only changes when a bar segment
+  // does, which keeps a meter that fills over seven seconds from rewriting the
+  // DOM sixty times a second.
+  if (el.heat) {
+    const spec = (typeof heatRegionFor === 'function' && typeof currentMap === 'function')
+      ? heatRegionFor(currentMap()) : null;
+    const h = spec ? (player.heat || 0) : 0;
+    const steps = Math.round(h * 20);
+    const sig = spec ? spec.label + ':' + steps : '';
+    if (last.heat !== sig) {
+      last.heat = sig;
+      if (steps > 0) {
+        const full = h >= 1;
+        const bars = '█'.repeat(Math.max(1, Math.round(h * 8)));
+        el.heat.innerHTML = `${spec.icon} ${spec.label} <span style="color:${
+          full ? '#ff5a2a' : '#ffb066'}">${bars}</span>`;
+        el.heat.className = 'weapon-slot' + (full ? ' weapon-active' : '');
+        el.heat.style.display = '';
+      } else {
+        el.heat.style.display = 'none';
+      }
+    }
+  }
+
   // Active Elixir immunity slot — shows the element and seconds remaining while a
   // Herbalist Elixir buff is up; hidden otherwise. (Rewrites once per second.)
   if (el.immunity) {

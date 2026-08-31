@@ -37,7 +37,7 @@ const REGION_ELEMENT_IDS = Object.keys(SWORD_ELEMENTS).filter(id => !SWORD_ELEME
 // the individual mechanics stay with the systems they affect (movement in
 // player.js, active traversal in abilities.js, and regional hazards in main.js).
 const ELEMENTAL_ARMOR_ABILITIES = {
-  fire:      { label: 'Desert Walker', description: 'Cross quicksand and resist heatstroke.', status: 'partial' },
+  fire:      { label: 'Desert Walker', description: 'Cross quicksand safely and bake half as fast.', status: 'ready' },
   water:     { label: 'Deep Swim', description: 'Swim through medium-depth water.', status: 'ready' },
   ice:       { label: 'Ice Grip', description: 'Stop cleanly on ice and pacify dormant ice golems.', status: 'partial' },
   earth:     { label: 'Cliff Climb', description: 'Climb raised cliff faces and pacify dormant stone golems.', status: 'partial' },

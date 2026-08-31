@@ -251,10 +251,134 @@ const RADIANT_BOSS_STAGGER_MS = 300;
 const CURSED_DRAIN_MS = 1200;
 const CURSED_DRAIN_DAMAGE = 1;
 
+// ─── Regional heat ───────────────────────────────────────────────────────────
+// ONE meter, two regions. Desert heatstroke and Volcanic overheat are the same
+// mechanic with different numbers, so this is built as a table rather than
+// twice: adding Volcanic later is an entry here plus its escalating thresholds,
+// not a second implementation that drifts from this one.
+//
+// The shape in both cases: heat builds only while the hero stands on that
+// region's HOT tiles, cools everywhere else, and costs HP only once the meter is
+// full. That last part is the point — a bare ambient drain is a tax you cannot
+// play around, whereas a meter with a visible ramp is a route-planning problem.
+// Generation keeps the hot fields off T.PATH, so the roads are always cool and
+// the cost is only ever paid by leaving them.
+//
+// The region's own armor HALVES the fill rate rather than stopping it. Relief,
+// not immunity: the armor should make a long crossing survivable without making
+// the region's defining hazard vanish.
+const HEAT_ARMOR_FILL_SCALE = 0.5;
+const HEAT_REGIONS = {
+  fire: {
+    armor: 'fire',
+    hot: () => [T.DUNE, T.QUICKSAND].filter(v => v !== undefined),
+    fillPerSec: 0.135,      // ~7.4s of unbroken dune to reach full from cold
+    coolPerSec: 0.34,       // and ~3s in the shade to shed it again
+    tickMs: 1000,
+    damage: 1,
+    label: 'Heatstroke',
+    icon: '🥵',
+  },
+};
+
+function heatRegionFor(mapObj) {
+  if (!mapObj) return null;
+  const spec = HEAT_REGIONS[mapObj.biome];
+  // Villages and interiors are shelter. Only the open region map bakes.
+  if (!spec || mapObj.type !== mapObj.biome) return null;
+  return spec;
+}
+
+function stepRegionalHeat(dt) {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const spec = heatRegionFor(cm);
+  if (!spec) { player.heat = 0; heatTickMs = 0; return; }
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map || !map[player.y]) return;
+
+  const onHot = spec.hot().includes(map[player.y][player.x]);
+  const sec = dt / 1000;
+  if (onHot) {
+    const scale = (typeof wearingElementalArmor === 'function' && wearingElementalArmor(spec.armor))
+      ? HEAT_ARMOR_FILL_SCALE : 1;
+    player.heat = Math.min(1, (player.heat || 0) + spec.fillPerSec * scale * sec);
+  } else {
+    player.heat = Math.max(0, (player.heat || 0) - spec.coolPerSec * sec);
+  }
+
+  if ((player.heat || 0) < 1) { heatTickMs = 0; return; }
+  // Full. Bleed on the meter's own clock until the hero gets off the hot ground.
+  heatTickMs += dt;
+  if (heatTickMs < spec.tickMs) return;
+  heatTickMs -= spec.tickMs;
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, '#ff9a3c', 6, 3);
+  player.hp -= spec.damage;
+  if (typeof damageNumbers !== 'undefined') {
+    damageNumbers.push({ entity: 'player', val: `${spec.icon}${spec.damage}`,
+      color: '#ffb066', life: 900, rise: -4 });
+  }
+  if (typeof buzz === 'function') buzz(18);
+  if (player.hp <= 0) respawn();
+}
+
+// ─── Quicksand ───────────────────────────────────────────────────────────────
+// Passable, and it drowns you. Standing on it sinks the hero on a clock; reach
+// the bottom and the run ends there and respawns. Fire armor walks it as if it
+// were sand.
+//
+// Harsh on purpose, and made fair by generation rather than by mercy: quicksand
+// never sits on T.PATH, so it is only ever met by leaving the road, and the sink
+// clock is long enough that one wrong step is a scare rather than a death. It
+// also drains the moment the hero is clear, so the danger is committing deep
+// into a field, not brushing an edge.
+const QUICKSAND_SINK_MS = 2600;     // stood still on it, from clear to drowned
+const QUICKSAND_RISE_MS = 1300;     // and how fast it lets go once you are out
+const QUICKSAND_MOVE_MUL = 3;       // wading is three times slower than walking
+
+// INVARIANT, and it is tighter than it looks. These three numbers together buy
+// the hero floor(SINK_MS / (MOVE_MS * MOVE_MUL)) steps before drowning: at
+// today's values, 2600 / (153 * 3) = 5 steps. Measured over ten desert maps, the
+// deepest a quicksand tile ever sits from open ground is 4, so every tile is
+// escapable — by exactly one step.
+//
+// That margin is the design: react at once and you live, dither and you do not.
+// It is also one careless change from becoming a guaranteed death. Widening the
+// blot radius in addDesertHazards (mapgen-biomes.js), slowing MOVE_MS, or
+// raising MOVE_MUL all eat it. If any of those move, re-measure the deepest tile
+// against the step budget before shipping.
+
+function inQuicksand() {
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map || !map[player.y]) return false;
+  if (map[player.y][player.x] !== T.QUICKSAND) return false;
+  return !(typeof wearingElementalArmor === 'function' && wearingElementalArmor('fire'));
+}
+
+function stepQuicksand(dt) {
+  if (!inQuicksand()) {
+    if (player.sink > 0) player.sink = Math.max(0, player.sink - dt / QUICKSAND_RISE_MS);
+    return;
+  }
+  const before = player.sink || 0;
+  player.sink = Math.min(1, before + dt / QUICKSAND_SINK_MS);
+  // One warning, once, on the way down — a hero who does not know they are
+  // sinking has no reason to run.
+  if (before < 0.25 && player.sink >= 0.25) showMsg('🏜️ You are sinking!', 1600);
+  const sp = screenPX(player.x, player.y);
+  if (Math.random() < 0.25) spawnParticle(sp.x, sp.y, '#a8834a', 4, 2);
+  if (player.sink < 1) return;
+  player.sink = 0;
+  player.hp = 0;
+  showMsg('🏜️ The sand closes over you.', 2200);
+  respawn();
+}
+
 let stormExposed = false;
 let lightningStrikeMs = 0;
 let luminousPulseMs = RADIANT_PULSE_FIRST_MS;
 let cursedDrainMs = 0;
+let heatTickMs = 0;
 
 function randomLightningDelay() {
   return STORM_STRIKE_MIN_MS + Math.random() * STORM_STRIKE_VAR_MS;
@@ -299,6 +423,8 @@ function stepElementalArmorEffects(dt) {
   }
 
   stepCursedGround(dt);
+  stepRegionalHeat(dt);
+  stepQuicksand(dt);
 }
 
 // Cursed ground bites whoever stands on it. Reads the tile under the hero each

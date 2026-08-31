@@ -2496,6 +2496,37 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.fillRect(x + s*0.30, y + s*0.42, 2, 2);
       ctx.fillRect(x + s*0.38, y + s*0.42, 2, 2);
       break; }
+    case T.QUICKSAND: {
+      // Quicksand. It kills, so the one job of this art is that nobody mistakes
+      // it for sand or for a dune. Wet, darker and slightly sunken, with a slow
+      // concentric churn and a few surface bubbles — every cue says liquid where
+      // the desert around it says solid.
+      const h = (col * 149 + row * 97);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#a8834a'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#8c6a38';                                      // sunken middle
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.5, y + s*0.54, s*0.42, s*0.36, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Concentric churn, turning slowly. The phase is per tile so a field does
+      // not pulse as one sheet.
+      const t2 = Date.now()/1400 + (h & 7) * 0.8;
+      ctx.strokeStyle = 'rgba(60,40,18,0.45)';
+      ctx.lineWidth = Math.max(1, s*0.05);
+      for (let k = 0; k < 2; k++) {
+        const rad = s * (0.12 + 0.13 * ((t2 + k*0.5) % 1));
+        ctx.globalAlpha = 1 - ((t2 + k*0.5) % 1);
+        ctx.beginPath();
+        ctx.ellipse(x + s*0.5, y + s*0.54, rad, rad*0.82, 0, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      // A couple of bubbles sitting on the surface.
+      ctx.fillStyle = 'rgba(220,196,150,0.55)';
+      ctx.beginPath(); ctx.arc(x + s*(0.30 + j(0,0.14)), y + s*(0.36 + j(4,0.12)), s*0.05, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*(0.68 - j(6,0.12)), y + s*(0.66 - j(2,0.14)), s*0.038, 0, Math.PI*2); ctx.fill();
+      break;
+    }
     case T.CURSED_GROUND: {
       // Cursed ground. Reads as BLIGHT gone further: the same purple crust, but
       // drained to near-black, veined with a cold violet glow, and with the
