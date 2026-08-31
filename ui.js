@@ -152,11 +152,13 @@ function updateHUD() {
     const elem = ae ? SWORD_ELEMENTS[ae] : null;
     const phys = elem && elementalArmorPhys(ae);
     const pct  = elem && elementalArmorBlockPct(ae);
-    const sig = elem ? ae + '+' + phys + '-' + pct : '';
+    const power = elem && typeof elementalArmorAbility === 'function' ? elementalArmorAbility(ae) : null;
+    const sig = elem ? ae + '+' + phys + '-' + pct + '|' + (power ? power.label : '') : '';
     if (last.armor !== sig) {
       last.armor = sig;
       if (elem) {
-        el.armor.innerHTML = `🛡${elemIconHTML(elem, 14)} ${elem.label} +${phys}·−${pct}%`;
+        el.armor.innerHTML = `🛡${elemIconHTML(elem, 14)} ${elem.label} +${phys}·−${pct}%${power ? ` · ${power.label}` : ''}`;
+        el.armor.title = power ? power.description : `${elem.label} Armor`;
         el.armor.className = 'weapon-slot weapon-active';
         el.armor.style.display = '';
       } else {
@@ -208,8 +210,8 @@ function updateHUD() {
     }
     const potions = player.potions || 0;
     const w = player.weapon;
-    // The equipped shrine ability, if there is one (abilities.js). Part of the
-    // signature so the fourth button appears the moment the Air shrine pays out.
+    // The active shrine/armor ability, if there is one (abilities.js). Part of
+    // the signature so the fourth button appears as soon as one becomes usable.
     const abil = (typeof equippedAbility === 'function') ? equippedAbility() : null;
     const sig = potions + '|' + w + '|' + (player.hasBow ? 1 : 0) + '|' + (player.hasSword ? 1 : 0) +
                 '|' + (abil || '');
@@ -232,15 +234,18 @@ function updateHUD() {
         el.taPotion.dataset.count = potions;
         el.taPotion.classList.toggle('empty', potions <= 0);
       }
-      // The ability button only exists once one of the two active abilities is
-      // owned, and wears whichever is equipped. Nothing equipped but one owned
+      // The ability button exists once an active shrine reward is owned or worn
+      // Air/Shadow armor supplies one, and wears whichever is currently active.
+      // Nothing equipped but one owned
       // still shows it — tapping then says how to equip, which is more useful
       // than a button that quietly isn't there.
       if (el.taAbility) {
         const owned = (typeof ACTIVE_ABILITIES !== 'undefined')
           ? ACTIVE_ABILITIES.filter(a => typeof hasAbility === 'function' && hasAbility(a)) : [];
-        el.taAbility.style.display = owned.length ? '' : 'none';
-        if (owned.length) {
+        const armorAbility = typeof armorActiveAbility === 'function' ? armorActiveAbility() : null;
+        const showAbility = owned.length > 0 || !!armorAbility;
+        el.taAbility.style.display = showAbility ? '' : 'none';
+        if (showAbility) {
           const icons = (typeof ABILITY_ICONS !== 'undefined') ? ABILITY_ICONS : {};
           const names = (typeof ABILITY_LABELS !== 'undefined') ? ABILITY_LABELS : {};
           el.taAbility.textContent = abil ? (icons[abil] || '✦') : '✦';

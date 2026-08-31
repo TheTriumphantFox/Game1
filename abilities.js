@@ -1,4 +1,4 @@
-// ─── Shrine abilities, in the world ───────────────────────────────────────────
+// ─── Shrine and elemental-armor abilities, in the world ───────────────────────
 // Stage 9's other half. shrines.js builds the puzzles and hands out the five
 // rewards; this file is what owning one actually does once the hero walks back
 // out of the shrine. Kept apart from shrines.js because the two have different
@@ -14,7 +14,8 @@
 //   Updraft Glide ACTIVE  — rides a thermal across a gap. Equipped, then [F].
 //   Shadow Step   ACTIVE  — one step through one wall. Equipped, then [F].
 //
-// The two actives share one equipped slot and one button, because the alternative
+// The two actives, whether supplied by a shrine or by worn Air/Shadow armor,
+// share one equipped slot and one button, because the alternative
 // is two more keys on a keyboard that already uses Z X C V P 1 2 3 and four
 // arrows, and a fourth touch button for something used twice an hour.
 
@@ -27,10 +28,22 @@ const ACTIVE_ABILITIES = ['updraftGlide', 'shadowStep'];
 
 function abilityIsActive(id) { return ACTIVE_ABILITIES.includes(id); }
 
+// Air and Shadow armor supply their traversal action while worn. They take over
+// the shared [F] slot temporarily without rewriting player.equippedAbility, so
+// taking the armor off restores the shrine ability the player had selected.
+function armorActiveAbility() {
+  if (typeof wearingElementalArmor !== 'function') return null;
+  if (wearingElementalArmor('air')) return 'updraftGlide';
+  if (wearingElementalArmor('shadow')) return 'shadowStep';
+  return null;
+}
+
 // The equipped active, validated on read: an ability the hero doesn't own (or a
 // stale id from an older save) reads as nothing equipped rather than as a button
-// that silently fails.
+// that silently fails. An active armor traversal takes temporary priority.
 function equippedAbility() {
+  const armorAbility = armorActiveAbility();
+  if (armorAbility) return armorAbility;
   const id = player.equippedAbility;
   if (!id || !abilityIsActive(id)) return null;
   return hasAbility(id) ? id : null;
@@ -179,14 +192,92 @@ function landAbilityStep(x, y, message) {
   minimapDirty = true;
 }
 
+// ─── Regional armor runtime effects ──────────────────────────────────────────
+// Traversal checks remain in the movement functions they affect. This driver owns
+// only effects that need a clock: Lightning strikes and Luminous stun pulses.
+let stormExposed = false;
+let lightningStrikeMs = 0;
+let luminousPulseMs = 800;
+
+function randomLightningDelay() {
+  return 6000 + Math.random() * 8000;
+}
+
+function stepElementalArmorEffects(dt) {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  if (!cm) return;
+
+  // The storm timer belongs to the STORM, not to the map. Keying it on map id
+  // reset the countdown every time the hero crossed a map edge, so stepping one
+  // tile out of Lightning territory and back dodged every strike in the region
+  // for free. It restarts only on entering exposure from somewhere sheltered —
+  // walking out of a sky cave should not be met with an instant bolt.
+  const exposedLightning = typeof isStormExposedMap === 'function' && isStormExposedMap(cm);
+  if (exposedLightning && !stormExposed) lightningStrikeMs = randomLightningDelay();
+  stormExposed = exposedLightning;
+
+  // Wearing Lightning armor pauses the timer exactly where it is, so no strike
+  // can queue behind a menu or land immediately when the armor is removed.
+  if (exposedLightning) {
+    if (!(typeof wearingElementalArmor === 'function' && wearingElementalArmor('lightning'))) {
+      lightningStrikeMs -= dt;
+      if (lightningStrikeMs <= 0) {
+        lightningStrikeMs = randomLightningDelay();
+        strikePlayerWithRegionalLightning();
+      }
+    }
+  }
+
+  // Radiant armor releases a short-range pulse rather than permanently freezing
+  // everything beside the hero. Bosses reel only briefly; ordinary enemies take
+  // the full stun.
+  if (typeof wearingElementalArmor === 'function' && wearingElementalArmor('luminous')) {
+    luminousPulseMs -= dt;
+    if (luminousPulseMs <= 0) {
+      luminousPulseMs = 4000;
+      pulseLuminousArmor();
+    }
+  } else {
+    luminousPulseMs = 800;
+  }
+}
+
+function strikePlayerWithRegionalLightning() {
+  if (typeof triggerPlayerStormStrike === 'function') triggerPlayerStormStrike();
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, '#fff7a8', 18, 5);
+  spawnParticle(sp.x, sp.y, '#8ebcff', 14, 4);
+  if (player.invincible > 0) return;
+  damagePlayer(6, 'lightning');
+  player.invincible = 900;
+  showMsg('⚡ The storm strikes you!', 1500);
+  if (player.hp <= 0) respawn();
+}
+
+function pulseLuminousArmor() {
+  const radius = 4;
+  let stunned = 0;
+  for (const e of enemies) {
+    if (e.dead || e.dormant) continue;
+    if (Math.hypot(e.x - player.x, e.y - player.y) > radius) continue;
+    e.staggerT = Math.max(e.staggerT || 0, e.boss ? 300 : 1100);
+    const esp = screenPX(e.x, e.y);
+    spawnParticle(esp.x, esp.y, '#fff4a8', 5, 2);
+    stunned++;
+  }
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, '#fff7c2', 20, 5);
+  if (stunned && typeof buzz === 'function') buzz(10);
+}
+
 // ─── Frost Grip ───────────────────────────────────────────────────────────────
-// The ice slide (stepPlayerMovement, player.js) keeps a released walk input live
-// for ICE_SLIDE_MS while the hero stands on T.ICE. Frost Grip simply ends that:
-// the boots bite, the hero stops where they meant to stop. Read from player.js
-// rather than acted on here, because the slide is one branch in the middle of
-// the movement step and reaching into it from outside would be worse.
+// Ice armor now supplies the regional grip. The older shrine reward remains a
+// compatibility fallback so existing saves do not lose a permanent power they
+// already earned while the shrine reward set is redesigned.
 function frostGripHolds() {
-  return typeof hasAbility === 'function' && hasAbility('frostGrip');
+  const armorGrip = typeof wearingElementalArmor === 'function' && wearingElementalArmor('ice');
+  const shrineGrip = typeof hasAbility === 'function' && hasAbility('frostGrip');
+  return armorGrip || shrineGrip;
 }
 
 // ─── Ember Lantern ────────────────────────────────────────────────────────────

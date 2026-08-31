@@ -1860,6 +1860,32 @@ function buildStormBolts() {
   return bolts;
 }
 
+// Gameplay lightning uses the same storm-flash layer but forces one fork to end
+// at the hero instead of at a random point in the sky.
+function triggerPlayerStormStrike() {
+  const now = Date.now();
+  const targetX = Math.max(0.04, Math.min(0.96,
+    ((player.renderX + 0.5 - camC) * TILE_PX) / Math.max(1, PW)));
+  const targetY = Math.max(0.15, Math.min(0.96,
+    ((player.renderY + 0.5 - camR) * TILE_PX) / Math.max(1, PH)));
+  const points = [{ x: targetX + (Math.random() - 0.5) * 0.16, y: 0 }];
+  const segs = 8;
+  for (let i = 1; i <= segs; i++) {
+    const t = i / segs;
+    points.push({
+      x: targetX + (1 - t) * (Math.random() - 0.5) * 0.18,
+      y: targetY * t,
+    });
+  }
+  stormFlash.pulses = [
+    { t: now, amp: 1, k: 95 },
+    { t: now + 90, amp: 0.75, k: 75 },
+  ];
+  stormFlash.end = now + 320;
+  stormFlash.bolts = [{ main: points, branch: [] }];
+  stormFlash.next = now + 2600 + Math.random() * 4200;
+}
+
 function updateStormFlash(now, isStorm) {
   if (!isStorm) {
     stormFlashLevel = 0; stormFlash.pulses = null;
@@ -3667,8 +3693,7 @@ function render() {
 
   // Advance the lightning-region storm flash (no-op on every other map). Done
   // before the tile pass so the STORM_CLOUD border can crackle in sync this frame.
-  const isStormMap = !!mapObj && mapObj.biome === 'lightning' &&
-                     (mapObj.type === 'lightning' || mapObj.type === 'village');
+  const isStormMap = typeof isStormExposedMap === 'function' && isStormExposedMap(mapObj);
   updateStormFlash(Date.now(), isStormMap);
 
   // Cinematic state (shake decay, this frame's jolt offset) — see the block near

@@ -194,9 +194,10 @@ function isRampStep(map, c1, r1, c2, r2) {
 // tap-to-travel pathfinder (main.js) all ask here, because a pathfinder that
 // disagrees with the movement it is planning for walks the hero into a wall it
 // cannot climb and then gives up.
-function stepUpBlocked(map, c1, r1, c2, r2) {
+function stepUpBlocked(map, c1, r1, c2, r2, maxStep) {
   if (isRampStep(map, c1, r1, c2, r2)) return false;
-  return surfaceZ(map, c2, r2) - surfaceZ(map, c1, r1) > STEP_UP_MAX;
+  const limit = maxStep === undefined ? STEP_UP_MAX : maxStep;
+  return surfaceZ(map, c2, r2) - surfaceZ(map, c1, r1) > limit;
 }
 
 // Stamp a rectangular ledge shelf whose ENTIRE perimeter is faced, which is the

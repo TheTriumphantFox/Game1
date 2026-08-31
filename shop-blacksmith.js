@@ -381,12 +381,14 @@ function blacksmithArmorRow(id, oa) {
   const phys     = lv * 2;
   const blockPct = elementalArmorBlockPct(id);
   const wornTag  = player.activeArmorElement === id ? ' <span style="color:#88ccff">✓ worn</span>' : '';
-  const swims    = id === 'water' ? ' · swims medium water' : '';
+  const power    = typeof elementalArmorAbility === 'function' ? elementalArmorAbility(id) : null;
+  const powerStatus = power && power.status !== 'ready' ? ` [${power.status}]` : '';
+  const powerText = power ? ` · ${power.label}${powerStatus}: ${power.description}` : '';
 
   let btn, meta;
   if (lv >= 6) {
     btn  = `<button class="ssbtn" disabled>★ MAX</button>`;
-    meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · fully forged${swims}`;
+    meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · fully forged${powerText}`;
   } else if (oa && oa.tier === lv) {
     // This village's ore is exactly the armor's next sequential tier.
     const haveOre  = player[oa.ore.id] || 0;
@@ -396,13 +398,13 @@ function blacksmithArmorRow(id, oa) {
     const blockUp  = nextPct > blockPct ? `, block ${blockPct}→${nextPct}%` : '';
     const label    = free ? '🎟️ FREE' : `${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}`;
     btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalArmor('${id}')">${label}</button>`;
-    meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · upgrade → +${phys + 2} def${blockUp} · have ${oa.ore.icon} ${haveOre}${swims}`;
+    meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · upgrade → +${phys + 2} def${blockUp} · have ${oa.ore.icon} ${haveOre}${powerText}`;
   } else {
     // Next upgrade belongs to a different ore tier — point the hero at it.
     const need = (typeof ORE_TYPES !== 'undefined') ? ORE_TYPES[lv] : null;
     const needLbl = need ? `${need.icon} ${need.label}` : 'higher ore';
     btn  = `<button class="ssbtn" disabled>needs ${needLbl}</button>`;
-    meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · next upgrade needs ${needLbl}${swims}`;
+    meta = `+${phys} def · blocks ${blockPct}% ${elem.label} · next upgrade needs ${needLbl}${powerText}`;
   }
 
   return `

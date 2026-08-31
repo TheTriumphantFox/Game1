@@ -461,7 +461,11 @@ function stepPlayerJump(dt) {
   // Advance a drop first, so z is always hop + whatever is left to fall.
   if (playerFallZ > 0) {
     const f = dt / 16;
-    playerFallVz += PLAYER_FALL_GRAVITY * f;
+    // Air armor turns a ledge drop into a slow fall. This is a real reduction in
+    // descent speed even though the current ledge system has no fall damage yet.
+    const gravityScale = (typeof wearingElementalArmor === 'function' && wearingElementalArmor('air'))
+      ? 0.35 : 1;
+    playerFallVz += PLAYER_FALL_GRAVITY * gravityScale * f;
     playerFallZ -= playerFallVz * f;
     if (playerFallZ <= 0) { playerFallZ = 0; playerFallVz = 0; }
   }
@@ -1885,7 +1889,8 @@ function stepPlayerMovement() {
   // speed; swimming through MEDIUM_WATER is slower still — 40% of normal pace
   // (interval × 2.5). The step gate stretches to match while standing on one.
   const standTile = map[player.y][player.x];
-  const terrainMs = standTile === T.DUNE         ? MOVE_MS * 2
+  const fireWalk = typeof wearingElementalArmor === 'function' && wearingElementalArmor('fire');
+  const terrainMs = standTile === T.DUNE         ? MOVE_MS * (fireWalk ? 1 : 2)
                   : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
                   : standTile === T.MUD          ? MOVE_MS * 2
                   : standTile === T.BOG          ? MOVE_MS * 2
@@ -1916,13 +1921,13 @@ function stepPlayerMovement() {
   // The Water armor lets the hero swim through MEDIUM_WATER (the shelf between
   // wadeable SHALLOW_WATER and impassable DEEP_WATER). Without it, that tile is
   // solid like normal. DEEP_WATER stays off-limits regardless.
-  const canSwimMedium = player.activeArmorElement === 'water';
+  const earthClimb = typeof wearingElementalArmor === 'function' && wearingElementalArmor('earth');
   const blocked = (c, r) => {
     if (enemyAt(c, r)) return true;
     if (typeof villagerAt === 'function' && villagerAt(c, r)) return true;
     if (typeof shrinePrepareMove === 'function' &&
         !shrinePrepareMove(currentMap(), player.x, player.y, c, r)) return true;
-    if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return false;
+    if (typeof elementalArmorTraversesTile === 'function' && elementalArmorTraversesTile(map, c, r)) return false;
     if (isSolid(map, c, r)) return true;
     // Step-up gate (5d). A LEDGE is passable, so isSolid says nothing about it
     // and without this the hero would walk up a one-tile shelf as if it were
@@ -1934,7 +1939,7 @@ function stepPlayerMovement() {
     // reads surfaceZ rather than TILE_HEIGHT on purpose: a fern is 0.3 to the
     // renderer and 0 to the hero's knees, and walking into one must not start
     // failing. It also exempts T.CLIMB, which is the sanctioned way up a shelf.
-    return stepUpBlocked(map, player.x, player.y, c, r);
+    return stepUpBlocked(map, player.x, player.y, c, r, earthClimb ? Infinity : undefined);
   };
 
   // Try diagonal first; if blocked, slide along whichever axis is clear.

@@ -82,6 +82,17 @@ function reconcileOpenSides(gx, gy, baseOpen) {
 function currentMap() { return worldMaps[currentMapId]; }
 function mapData()    { return currentMap().map; }
 
+// Is this map out under the Lightning region's storm? Two systems ask, and they
+// must never disagree: render.js drives the storm flash from it, and abilities.js
+// runs the gameplay strike timer from it. When those two conditions drifted apart
+// the hero took storm damage on a map that was drawing a clear sky. Lightning
+// overworld maps and Lightning villages are exposed; its sky caves and dungeons
+// are indoors and sheltered.
+function isStormExposedMap(mapObj) {
+  return !!mapObj && mapObj.biome === 'lightning' &&
+         (mapObj.type === 'lightning' || mapObj.type === 'village');
+}
+
 // The tile a destroyed object (cut foliage, bombed rock) should leave behind:
 // the current map's natural ground, never a hardcoded grass. Caves and grottos
 // expose bare stone, so they revert to CAVE_FLOOR; every region overworld map

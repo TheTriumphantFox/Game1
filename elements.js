@@ -32,6 +32,43 @@ const SWORD_ELEMENTS = {
 // wherever only the 12 wieldable region elements are meant (shrine rolls, etc.).
 const REGION_ELEMENT_IDS = Object.keys(SWORD_ELEMENTS).filter(id => !SWORD_ELEMENTS[id].capstone);
 
+// Each regional armor carries one exploration power in addition to its physical
+// defense and matching-element block. This registry is the UI/design authority;
+// the individual mechanics stay with the systems they affect (movement in
+// player.js, active traversal in abilities.js, and regional hazards in main.js).
+const ELEMENTAL_ARMOR_ABILITIES = {
+  fire:      { label: 'Desert Walker', description: 'Cross quicksand and resist heatstroke.', status: 'partial' },
+  water:     { label: 'Deep Swim', description: 'Swim through medium-depth water.', status: 'ready' },
+  ice:       { label: 'Ice Grip', description: 'Stop cleanly on ice and pacify dormant ice golems.', status: 'partial' },
+  earth:     { label: 'Cliff Climb', description: 'Climb raised cliff faces and pacify dormant stone golems.', status: 'partial' },
+  volcanic:  { label: 'Heat Vent', description: 'Slow and vent escalating overheat.', status: 'planned' },
+  air:       { label: 'Updraft Glide', description: 'Glide across gaps and fall slowly.', status: 'ready' },
+  lightning: { label: 'Storm Grounding', description: 'Stop the region storm-strike timer.', status: 'ready' },
+  luminous:  { label: 'Radiant Aura', description: 'Reveal darkness and periodically stun nearby enemies.', status: 'partial' },
+  necrotic:  { label: 'Grave Command', description: 'Cross cursed ground and summon allied skeletons.', status: 'planned' },
+  poison:    { label: 'Miasma Ward', description: 'Resist mushroom clouds and spreading miasma.', status: 'planned' },
+  mana:      { label: 'Dispel', description: 'Break wards and arcane barriers.', status: 'planned' },
+  shadow:    { label: 'Shadow Step', description: 'Teleport through thin walls.', status: 'ready' },
+};
+
+function wearingElementalArmor(elemId) {
+  return !!(player && player.activeArmorElement === elemId);
+}
+
+function elementalArmorAbility(elemId) {
+  return ELEMENTAL_ARMOR_ABILITIES[elemId] || null;
+}
+
+// Armor-specific exceptions to ordinary tile solidity. Kept here so direct
+// movement and tap-to-travel cannot disagree about a route.
+function elementalArmorTraversesTile(map, c, r) {
+  if (!map || !map[r]) return false;
+  const t = map[r][c];
+  if (wearingElementalArmor('water') && t === T.MEDIUM_WATER) return true;
+  if (wearingElementalArmor('earth') && t === T.LEDGE_FACE) return true;
+  return false;
+}
+
 // #15 Dragonbane hit: a flat bonus far above any elemental sword's ceiling
 // (a maxed elemental sword tops out at 1d4 + 12). Rolls 1d12 + 12 → 13..24, and its
 // swing also forces a guaranteed, deepened opposite-element proc (see rollOppositeVuln

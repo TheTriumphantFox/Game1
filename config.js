@@ -438,12 +438,18 @@ const SOLID_TILES = new Set([
   T.SHRINE_WALL, T.SHRINE_GATE, T.SHRINE_CRACKED,
   T.SHRINE_REWARD, T.SHRINE_RESET, T.SHRINE_BRAZIER, T.SHRINE_VALVE,
   T.SHRINE_MIRROR, T.SHRINE_EMITTER, T.SHRINE_RECEIVER, T.SHRINE_PRISM,
-  // The vertical face under a ledge's southern rim. This is the ONLY addition
-  // this set has taken for the oblique conversion, and it is purely additive:
-  // no existing entry moved, and no generator emits LEDGE_FACE, so the id
-  // appears in zero tile arrays. The flood-fill inverts this set, and an id
-  // that is present nowhere contributes nothing to the inversion, so every
-  // existing map and every existing save floods exactly as it did before.
+  // The vertical face under a ledge's rim. This is the ONLY addition this set has
+  // taken for the oblique conversion, and when it was added it was inert: no
+  // generator emitted LEDGE_FACE, so the id appeared in zero tile arrays and the
+  // inverted flood-fill behaved exactly as before for every existing save.
+  //
+  // That is NO LONGER TRUE and the old note here misled a later pass into
+  // concluding the ledge mechanic had no terrain. addLedgeCauseway and
+  // addDesertPlateau (mapgen-biomes.js) both emit LEDGE/LEDGE_FACE now. Measured
+  // over ten seeds: every Earth overworld map carries ~430 LEDGE, ~296
+  // LEDGE_FACE and 5-15 CLIMB; desert maps carry more again. Ledges are live
+  // terrain — check the generators, not this comment.
+  //
   // T.LEDGE is deliberately NOT here: the top of a shelf is walkable, and the
   // face below it is what blocks.
   T.LEDGE_FACE,

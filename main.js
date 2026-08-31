@@ -141,6 +141,7 @@ function update(dt) {
   moveTimer += dt;
   if (typeof updateShrinePuzzle === 'function') updateShrinePuzzle(dt);
   if (typeof stepAbilityCooldown === 'function') stepAbilityCooldown(dt);
+  if (typeof stepElementalArmorEffects === 'function') stepElementalArmorEffects(dt);
   // The Emperor's HP thresholds (tower.js). Watched per frame rather than hooked
   // into the eight places that subtract enemy HP. After the freeze chain on
   // purpose: while the 50% line's box is still up, the 15% line waits its turn.
@@ -393,7 +394,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Tab') { e.preventDefault(); if (!e.repeat) showMinimap = !showMinimap; }
   // 'P' drinks one Health Potion (fires on the press itself, not while held)
   if (e.key === 'p' || e.key === 'P') { e.preventDefault(); if (!e.repeat) usePotion(); }
-  // 'F' uses the equipped shrine ability — Updraft Glide or Shadow Step
+  // 'F' uses the active shrine/armor ability: Updraft Glide or Shadow Step.
   // (abilities.js). On the press, never on the repeat: both of them move the
   // hero, and holding the key should not walk them across a lake.
   if (e.key === 'f' || e.key === 'F') {
@@ -674,7 +675,7 @@ function findTappedInteractable(wx, wy) {
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
     if (typeof villagerAt === 'function' && villagerAt(c, r)) return false;
-    if (player.activeArmorElement === 'water' && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
+    if (typeof elementalArmorTraversesTile === 'function' && elementalArmorTraversesTile(map, c, r)) return true;
     if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);
   };
@@ -741,12 +742,11 @@ function findPathToGoals(goalSet) {
   const map = mapData();
   const N = MROWS * MCOLS;
   const idx = (c, r) => r * MCOLS + c;
-  const canSwimMedium = player.activeArmorElement === 'water';
   // Reachability of the tile itself, independent of where you are coming from.
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
     if (typeof villagerAt === 'function' && villagerAt(c, r)) return false;
-    if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
+    if (typeof elementalArmorTraversesTile === 'function' && elementalArmorTraversesTile(map, c, r)) return true;
     if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);
   };
@@ -755,8 +755,10 @@ function findPathToGoals(goalSet) {
   // from below. Without this the BFS routes cheerfully over a shelf, the injected
   // keys jam the hero against it, and advanceAutoNav's stuck timer cancels the
   // trip 1.6 seconds later instead of the route going around in the first place.
+  const earthClimb = typeof wearingElementalArmor === 'function' && wearingElementalArmor('earth');
   const stepOk = (c1, r1, c2, r2) =>
-    !(typeof stepUpBlocked === 'function' && stepUpBlocked(map, c1, r1, c2, r2));
+    !(typeof stepUpBlocked === 'function' &&
+      stepUpBlocked(map, c1, r1, c2, r2, earthClimb ? Infinity : undefined));
   const prev = new Int32Array(N).fill(-1);
   const seen = new Uint8Array(N);
   const start = idx(player.x, player.y);
@@ -920,7 +922,7 @@ bindTap('ta-potion', () => {
   usePotion();
   if ((player.potions || 0) < before) { bombCooldown = 600; buzz(12); }
 });
-// The fourth button is the touch half of [F]: the equipped shrine ability. Bound
+// The fourth button is the touch half of [F]: the active shrine/armor ability. Bound
 // unconditionally like the rest of the pad; updateHUD is what shows and hides it,
 // because until the Air shrine falls there is nothing for it to do.
 bindTap('ta-ability', () => {

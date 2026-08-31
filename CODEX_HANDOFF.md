@@ -18,6 +18,51 @@ project knowledge and the exact unfinished work found in this checkout.
 > unfinished-work and stale-comment sections are still accurate and still the
 > right place to start.
 
+> **Update, 2026-08-31, added by a Claude session.**
+> The current uncommitted work in this checkout is no longer the Umbral Sanctum
+> pass described below — that shipped as `35bcd12`. It is now the **elemental
+> armor ability system**: twelve regional armors, each granting one traversal,
+> survival, or combat power while worn. Read
+> `elemental-armor-implementation-notes.md` for the per-region status; it is the
+> live document for that work and it carries the two settled design decisions.
+>
+> Started by a Codex session, then audited and corrected by a Claude session.
+> What is verified working: Water swim, Ice grip, Earth cliff climb, Air glide
+> and slow-fall, Lightning regional strike timer, Luminous stun pulse, and
+> Shadow step, plus the shared armor-power registry `ELEMENTAL_ARMOR_ABILITIES`
+> in `elements.js` and its HUD / Character-page / Blacksmith / radial surfaces.
+> What is NOT built: Fire quicksand and heatstroke, all golems (ice, stone,
+> obsidian), Volcanic overheat, Necrotic cursed ground and skeleton allies,
+> Poison blooms and miasma, Mana barriers and dispel, the Luminous reveal half
+> (fog of war was removed from the game, so it has nothing to uncover), and the
+> predictive Shadow temple boss.
+>
+> Two design decisions are now SETTLED and constrain everything above:
+>
+> 1. **Every region must be completable without its armor.** Armor is forged at
+>    the region's Blacksmith, behind the boss village, so it can never gate its
+>    own region's first pass. Armor hazards gate optional routes, secrets, and
+>    backtracking only. A hazard blocking mandatory progression is a bug.
+> 2. **Shrine rewards will be overhauled later.** Leave the current Ice / Air /
+>    Mana / Necrotic / Shadow overlaps alone, keep the compatibility fallbacks,
+>    and do not design new mechanics around today's shrine reward set.
+>
+> Corrections made to the Codex pass, so they are not re-derived: the claim that
+> no generator emits `T.LEDGE`/`T.LEDGE_FACE` was false and came from a stale
+> comment in `config.js` (now fixed) — ledges generate on every Earth map and on
+> desert maps. The `element:` field added to the earth/lightning/mana entries in
+> `regions.js` is correct data hygiene but is read by nothing; elixirs and the
+> Blacksmith key off `SWORD_ELEMENTS[regionId]`.
+>
+> Known open, not yet actioned: `ensureConnectivity` treats `T.MEDIUM_WATER` as
+> floodable while `SOLID_TILES` blocks it at runtime, so generation can call an
+> area reachable by a route only Water armor can walk. That is fine for a chest
+> and a rule violation for a `DUNGEON_DOOR` or exit corridor. Unaudited.
+>
+> Everything below this line is the 2026-08-27 snapshot and still reads as
+> written; treat its "uncommitted work" section as history, not as the state of
+> this checkout.
+
 ## Transfer-critical state
 
 At the start of this handoff:
