@@ -1,8 +1,23 @@
 # Arcane Doppelganger — placement proposal
 
-**Status: proposal only. No code written.** Scoped to the ability and its hooks;
-the Mana region's shrine puzzle and hazard tile layout are deliberately out of
-scope, as requested.
+**Status: proposal only, DEFERRED TO LAST (2026-08-31). No code written.**
+Scoped to the ability and its hooks; the Mana region's shrine puzzle and hazard
+tile layout are deliberately out of scope, as requested.
+
+> **Why it was deferred, and what that does and does not mean.**
+>
+> The mechanic was not rejected. It was moved to the end of the build order
+> because of what §0 turned up: it is the only remaining ability that needs a
+> whole new subsystem (the movement-history buffer) before any of it can be
+> tested, it is the third claimant on a `[F]` slot that already has two, and its
+> headline capability — holding a glyph — has nothing to integrate with, because
+> pressure plates are shrine-scoped and block-driven.
+>
+> Everything below still stands. When Mana comes back around, start at §6 rather
+> than re-deriving the placement, and re-check §0 first: the `[F]` contention and
+> the plate mechanics may both have changed by then, and the fog-of-war note
+> depends on whether the Luminous visibility system (backlog item 28) has since
+> been built.
 
 Mana / Arcane is tier 11. The armor summons a short-lived clone that replays the
 player's recent path a beat behind, and can hold glyphs, block hazards or
