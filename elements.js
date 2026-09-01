@@ -47,7 +47,7 @@ const ELEMENTAL_ARMOR_ABILITIES = {
   luminous:  { label: 'Radiant Aura', description: 'Reveal darkness and periodically stun nearby enemies.', status: 'partial' },
   necrotic:  { label: 'Grave Command', description: 'Walk cursed ground unharmed and summon allied skeletons.', status: 'partial' },
   poison:    { label: 'Miasma Ward', description: 'Resist mushroom clouds and spreading miasma.', status: 'planned' },
-  mana:      { label: 'Dispel', description: 'Break wards and arcane barriers.', status: 'planned' },
+  mana:      { label: 'Arcane Mending', description: 'Slowly knits your wounds as you travel.', status: 'ready' },
   shadow:    { label: 'Shadow Step', description: 'Teleport through thin walls.', status: 'ready' },
 };
 

@@ -1,23 +1,20 @@
 # Arcane Doppelganger — placement proposal
 
-**Status: proposal only, DEFERRED TO LAST (2026-08-31). No code written.**
-Scoped to the ability and its hooks; the Mana region's shrine puzzle and hazard
-tile layout are deliberately out of scope, as requested.
+**Status: SUPERSEDED (2026-08-31). Never implemented. Kept for its research.**
 
-> **Why it was deferred, and what that does and does not mean.**
+> Mana's ability was redesigned: the armor now **slowly heals the hero**. The
+> clone mechanic below was never built and is not planned.
 >
-> The mechanic was not rejected. It was moved to the end of the build order
-> because of what §0 turned up: it is the only remaining ability that needs a
-> whole new subsystem (the movement-history buffer) before any of it can be
-> tested, it is the third claimant on a `[F]` slot that already has two, and its
-> headline capability — holding a glyph — has nothing to integrate with, because
-> pressure plates are shrine-scoped and block-driven.
+> This file is kept rather than deleted because §0 is findings about the
+> codebase, not about the clone, and all four still hold: there is no movement
+> history anywhere; `[F]` is claimed by Air and Shadow armor with no room for a
+> fourth touch button; pressure plates are shrine-scoped and held by pushable
+> blocks rather than by actors; and fog of war has been removed from the game.
+> Anything that later wants a replaying ghost, an actor-held switch, or a third
+> active ability should start here.
 >
-> Everything below still stands. When Mana comes back around, start at §6 rather
-> than re-deriving the placement, and re-check §0 first: the `[F]` contention and
-> the plate mechanics may both have changed by then, and the fog-of-war note
-> depends on whether the Luminous visibility system (backlog item 28) has since
-> been built.
+> Everything from §1 onward describes the abandoned design. Read it as a record
+> of what was considered, not as a plan.
 
 Mana / Arcane is tier 11. The armor summons a short-lived clone that replays the
 player's recent path a beat behind, and can hold glyphs, block hazards or

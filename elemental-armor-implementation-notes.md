@@ -113,10 +113,13 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 ### Tier 11: Mana / Arcane
 
-- **DESIGN CHANGED 2026-08-31.** The ward/barrier + dispel concept is dropped. Mana armor's ability is now the **Arcane Doppelganger**: a short-lived clone that replays the hero's recent path a fixed beat behind, and can hold glyphs, block hazards or projectiles, and be stood on.
-- A placement proposal exists at `mana-doppelganger-proposal.md` — codebase hooks, the trail-buffer and clone data structures, placeholder cues, and the decisions still open. **No code written, and Mana is now DEFERRED TO LAST in the build order** (decided 2026-08-31).
-- Deferred on cost and sequencing, NOT because the mechanic was judged bad. It is the only remaining ability that needs a whole new subsystem before any of it can be tested, and two of its three hooks do not exist yet. The proposal stands as written; pick it up from its §6 build order.
-- Three findings from that research worth carrying: there is **no movement history** anywhere in the codebase today and the trail buffer is the foundational piece; the **`[F]` slot is already claimed** by Air and Shadow armor and Mana would be the third, against a documented constraint of no fourth touch button; and **pressure plates are shrine-scoped and held by pushable blocks, not actors**, so "clone holds a glyph" is a new concept rather than an integration.
+- **BUILT 2026-08-31: Arcane Mending.** Mana armor slowly heals the hero — 1 HP every 4s (`MANA_REGEN_MS` / `MANA_REGEN_HP`, abilities.js). This is the third design for this slot; the first two (ward/dispel, then a replaying clone) were both dropped, and this one is the only one that is a few lines rather than a subsystem.
+- **Global, not region-locked.** It is the one armor power not tied to a hazard or a tile, which matches how the other POWERS behave even though the hazards they answer are regional — Deep Swim swims any medium water, Shadow Step crosses any thin wall.
+- **Ticks through combat rather than pausing after a hit**, deliberately. Safe at this rate: 0.25 HP/s against enemy hits of 6-19 can never out-heal anything shooting at you. It removes the walk back to an Inn between fights without changing what happens during one, and Health Potions stay the fast answer. There is no in-combat concept anywhere in this codebase, so the pausing variant would have meant inventing one.
+- Does NOT tick while a menu, shop or dialogue is open: it runs from the clock driver, which sits after `update()`'s modal early-return. Idling in the pause screen to heal is not a strategy.
+- Real HP only — the green temp-HP pool is granted by items and is deliberately not topped up. Caps at `maxHp`, never revives a dead hero, and holds its clock at zero while at full health so the first tick after taking a hit is a full interval away rather than landing instantly off banked time.
+- Verified: 10→13 HP over 12s; nothing without the armor or with the wrong armor; capped at max; dead stays dead; no instant tick after a hit; temp HP untouched; heals outside the Mana region.
+- `mana-doppelganger-proposal.md` is SUPERSEDED but kept — its §0 findings are about the codebase rather than the clone and all still hold (no movement history; `[F]` claimed by Air and Shadow; plates are shrine-scoped and block-held; fog of war removed).
 - Existing Arcane Sight reveals rune marks and is unrelated; leave it to the shrine overhaul.
 
 ### Tier 12: Shadow

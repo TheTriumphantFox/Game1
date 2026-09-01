@@ -251,6 +251,25 @@ const RADIANT_BOSS_STAGGER_MS = 300;
 const CURSED_DRAIN_MS = 1200;
 const CURSED_DRAIN_DAMAGE = 1;
 
+// ─── Mana regeneration ───────────────────────────────────────────────────────
+// The Arcane armor knits the hero back together as they walk. Unlike every other
+// regional armor power this is not tied to a hazard or a tile — it is simply on,
+// everywhere, which matches how the other POWERS behave even though the hazards
+// they answer are regional (Deep Swim swims any medium water, Shadow Step
+// crosses any thin wall).
+//
+// It ticks through combat rather than pausing after a hit. That was a deliberate
+// choice and it is safe at this rate: 1 HP every 4s is 0.25 HP/s against enemy
+// hits of 6 to 19, so it can never out-heal anything shooting at you. It removes
+// the tedium of walking back to an Inn between fights without touching what
+// happens during one, and Health Potions stay the fast answer.
+//
+// It does NOT tick while a menu, shop or dialogue is open, because this runs
+// from the clock driver below and that sits after update()'s modal early-return
+// (main.js). Idling in the pause screen to heal is not a strategy.
+const MANA_REGEN_MS = 4000;
+const MANA_REGEN_HP = 1;
+
 // ─── Regional heat ───────────────────────────────────────────────────────────
 // ONE meter, two regions. Desert heatstroke and Volcanic overheat are the same
 // mechanic with different numbers, so this is built as a table rather than
@@ -455,6 +474,7 @@ let lightningStrikeMs = 0;
 let luminousPulseMs = RADIANT_PULSE_FIRST_MS;
 let cursedDrainMs = 0;
 let heatTickMs = 0;
+let manaRegenMs = 0;
 
 function randomLightningDelay() {
   return STORM_STRIKE_MIN_MS + Math.random() * STORM_STRIKE_VAR_MS;
@@ -501,6 +521,28 @@ function stepElementalArmorEffects(dt) {
   stepCursedGround(dt);
   stepRegionalHeat(dt);
   stepQuicksand(dt);
+  stepManaRegen(dt);
+}
+
+function stepManaRegen(dt) {
+  if (!(typeof wearingElementalArmor === 'function' && wearingElementalArmor('mana'))) {
+    manaRegenMs = 0;
+    return;
+  }
+  // Nothing to do at full health, and the clock is held at zero rather than
+  // allowed to run — so the first tick after taking a hit is a full interval
+  // away instead of landing instantly off banked time.
+  if (player.hp >= player.maxHp || player.hp <= 0) { manaRegenMs = 0; return; }
+  manaRegenMs += dt;
+  if (manaRegenMs < MANA_REGEN_MS) return;
+  manaRegenMs -= MANA_REGEN_MS;
+  player.hp = Math.min(player.maxHp, player.hp + MANA_REGEN_HP);
+  // Real HP only. The green temp-HP pool is granted by items and is deliberately
+  // not something the armor tops back up.
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, '#cc44ff', 5, 2);
+  spawnParticle(sp.x, sp.y, '#e8b0ff', 3, 2);
+  if (typeof updateHUD === 'function') updateHUD();
 }
 
 // Cursed ground bites whoever stands on it. Reads the tile under the hero each
