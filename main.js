@@ -472,9 +472,18 @@ const TAP_SLOP = 12;    // px — drift past this and it's a drag, not a tap
 // pad is what has to do the insetting.
 function joyHome() {
   const inset = n => (typeof n === 'number' ? n : 0);
-  const left   = JOY_GAP + inset(safeInsetLeft);
   const bottom = JOY_GAP + inset(safeInsetBottom);
-  return { x: left + JOY_R, y: canvas.height - bottom - JOY_R };
+  const y = canvas.height - bottom - JOY_R;
+  // Handedness (touchSidePref, config.js). Every consumer — the grab test, the
+  // renderer and the double-tap view cycle — goes through this one function, so
+  // mirroring here moves all of them and none of them can disagree about where
+  // the pad is.
+  if (typeof touchPadOnLeft === 'function' && !touchPadOnLeft()) {
+    const right = JOY_GAP + inset(safeInsetRight);
+    return { x: canvas.width - right - JOY_R, y };
+  }
+  const left = JOY_GAP + inset(safeInsetLeft);
+  return { x: left + JOY_R, y };
 }
 // The pad is a touch-mode control, and it hides with the action buttons so a
 // thumb can't steer under the radial menu or a modal.
@@ -945,14 +954,24 @@ function refreshControlHints() {
     // one on the title screen would promise a weapon the prologue spends its
     // whole length withholding.
     const melee = player.hasSword ? 'sword' : 'punch';
+    // The touch hint names the sides, so it has to follow the handedness
+    // setting. Telling a player who has moved their pad to the right that the
+    // left pad moves them is worse than saying nothing.
+    const padLeft = (typeof touchPadOnLeft === 'function') ? touchPadOnLeft() : true;
+    const padSide = padLeft ? 'Left' : 'Right';
+    const btnSide = padLeft ? 'Right' : 'Left';
     titleHint.textContent = touch
-      ? 'Left pad: move · Tap hero: menu · Right buttons: attack'
+      ? `${padSide} pad: move · Tap hero: menu · ${btnSide} buttons: attack`
       : `Arrow keys: move · Z: ${melee} · V: menu`;
   }
 
   const label = (typeof uiModeLabel === 'function') ? uiModeLabel() : '';
   const titleBtn = document.getElementById('title-ui-mode');
   if (titleBtn) titleBtn.textContent = '🎮 Controls: ' + label;
+  const sideBtn = document.getElementById('title-touch-side');
+  if (sideBtn && typeof touchSideLabel === 'function') {
+    sideBtn.textContent = '🤚 Control side: ' + touchSideLabel();
+  }
   // The in-game copy of this button lived in the save row, which is gone — the
   // radial MENU ring's Controls entry reads uiModeLabel() itself, so there's
   // nothing else to repaint here.

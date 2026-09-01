@@ -384,6 +384,16 @@ const RADIAL_RINGS = [
             closeRadialMenu();
             if (typeof cycleUiMode === 'function') cycleUiMode();
           } },
+        // Handedness. Listed whatever the scheme is rather than only in touch
+        // mode: a player on Auto who has not yet picked up a phone still needs
+        // to find it, and hiding a setting until the moment it applies is how
+        // players conclude it does not exist.
+        { type: 'handedness', icon: '🤚', label: 'Control side', launcher: true,
+          val: () => (typeof touchSideLabel === 'function') ? touchSideLabel() : '—',
+          action: () => {
+            closeRadialMenu();
+            if (typeof toggleTouchSide === 'function') toggleTouchSide();
+          } },
       ];
     }},
 ];

@@ -1008,7 +1008,11 @@ function regionIdForMap(map) {
 // *drawn* on the canvas (the movement pad) has to read the insets instead, so
 // resizeCanvas resolves them once per layout rather than per frame. 0 everywhere
 // without a notch, and on any browser without env() support.
-let safeInsetLeft = 0, safeInsetBottom = 0;
+// safeInsetRight joined these when the movement pad became mirrorable
+// (touchSidePref): --safe-right had always been declared in the CSS and used by
+// the action buttons, but nothing drawn on the canvas had ever needed the right
+// edge before, so it was never resolved into JS.
+let safeInsetLeft = 0, safeInsetRight = 0, safeInsetBottom = 0;
 function cssPxVar(name) {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
   const n = parseFloat(raw);
@@ -1028,6 +1032,7 @@ function resizeCanvas() {
   // bottom edge — the same edge the movement pad measures its gap from.
   document.documentElement.style.setProperty('--bottom-bars-h', (wepH + ctrlH) + 'px');
   safeInsetLeft   = cssPxVar('--safe-left');
+  safeInsetRight  = cssPxVar('--safe-right');
   safeInsetBottom = cssPxVar('--safe-bottom');
   canvas.width  = window.innerWidth;
   canvas.height = Math.max(window.innerHeight - usedH, 200);
@@ -1160,6 +1165,9 @@ function uiModeIsTouch() {
 // Push the resolved mode onto <html> and let the dependent UI re-fit. The bars
 // that show/hide change the canvas's available height, hence the resize.
 function applyUiMode() {
+  // Handedness is stamped here too, so a fresh boot never renders one frame with
+  // the buttons on the wrong side.
+  applyTouchSide();
   const touch = uiModeIsTouch();
   const next  = touch ? 'touch' : 'desktop';
   if (document.documentElement.dataset.ui === next) return;   // no-op re-apply
@@ -1180,6 +1188,52 @@ function setUiMode(mode) {
 function cycleUiMode() {
   setUiMode(uiModePref === 'auto' ? 'touch' : uiModePref === 'touch' ? 'desktop' : 'auto');
   if (typeof buzz === 'function') buzz(8);
+}
+
+// ─── Handedness: which side of the screen the touch controls live on ─────────
+// Default is pad bottom-LEFT and the action buttons bottom-RIGHT, which is what
+// this game has always done. 'right' mirrors both.
+//
+// This exists for two unrelated reasons and serves each fully.
+//
+// It is an accessibility setting first: a left-handed player steering with their
+// right thumb has had the pad under their weak hand since the touch controls
+// shipped, and there was no way to move it.
+//
+// It is also the touch half of the Shadow temple's counter. That fight front-
+// runs the player's inputs and is beaten by changing your control settings —
+// which on a device with no keys to rebind needs to mean something real. Moving
+// the controls to the other side of the screen is that something.
+const TOUCH_SIDE_KEY = 'stormdrift_touch_side';
+let touchSidePref = 'left';
+try {
+  const stored = localStorage.getItem(TOUCH_SIDE_KEY);
+  if (stored === 'left' || stored === 'right') touchSidePref = stored;
+} catch (_) { /* private mode; keep the default */ }
+
+function touchPadOnLeft() { return touchSidePref !== 'right'; }
+
+// Stamped on <html> so the CSS can mirror the action buttons; the canvas-drawn
+// pad reads touchPadOnLeft() directly (joyHome, main.js).
+function applyTouchSide() {
+  document.documentElement.dataset.touchSide = touchSidePref;
+}
+
+function setTouchSide(side) {
+  touchSidePref = (side === 'right') ? 'right' : 'left';
+  try { localStorage.setItem(TOUCH_SIDE_KEY, touchSidePref); } catch (_) { /* ignore */ }
+  applyTouchSide();
+  if (typeof refreshControlHints === 'function') refreshControlHints();
+  if (typeof updateHUD === 'function') updateHUD();
+}
+
+function toggleTouchSide() {
+  setTouchSide(touchPadOnLeft() ? 'right' : 'left');
+  if (typeof buzz === 'function') buzz(8);
+}
+
+function touchSideLabel() {
+  return touchPadOnLeft() ? 'Pad left' : 'Pad right';
 }
 
 function uiModeLabel() {

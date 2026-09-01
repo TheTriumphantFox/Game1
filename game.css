@@ -279,6 +279,15 @@ html[data-ui="touch"] #touch-actions {
    toggled from updateHUD so a stray tap can't fire a weapon under the menu. */
 html[data-ui="touch"] #touch-actions.hidden { display: none; }
 
+/* Handedness (touchSidePref, config.js). Mirrors the action buttons to the left
+   so the steering pad can take the right — for left-handed players, and as the
+   touch half of the Shadow temple's "change your controls" counter. The pad
+   itself is canvas-drawn and mirrors in joyHome (main.js), not here. */
+html[data-touch-side="right"][data-ui="touch"] #touch-actions {
+  right: auto;
+  left: calc(var(--touch-gap) + var(--safe-left));
+}
+
 .touch-act {
   pointer-events: auto;
   width: 62px;

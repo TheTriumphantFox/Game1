@@ -149,7 +149,11 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 - The old shrine reward can also grant Shadow Step. This overlap needs a design decision.
 - The predictive Shadow temple boss is missing.
 - The Earth-region frog foreshadowing NPC is BUILT (see Tier 4). It sets `frog_warned_shadow`; the boss encounter should read that flag and adjust how much it explains.
-- The proposed boss reads and front-runs gameplay key presses, with changing control settings as the counter. This needs an accessibility and touch-control design before implementation.
+- **Touch counter: BUILT 2026-08-31.** A handedness setting (`touchSidePref`, config.js) mirrors the touch controls — steering pad and action buttons swap sides. That is the touch answer to "change your control settings", on a device with no keys to rebind. Exposed on the title screen and in the radial MENU ring, persisted in `localStorage`, and it moves the canvas-drawn pad (`joyHome`), the CSS-positioned buttons, and the control hint text together.
+  - It is also an accessibility fix in its own right and was worth building regardless of the boss: a left-handed player has had the pad under their weak hand since touch controls shipped, with no way to move it.
+  - Added `safeInsetRight` while doing it. `--safe-right` had always existed in CSS and been used by the action buttons, but nothing drawn on the canvas had ever needed the right edge, so it was never resolved into JS.
+- **STILL BLOCKED: the desktop counter does not exist.** The fight is beaten by changing your control settings, and on desktop there is no key rebinding in this game at all — controls are hardcoded arrows plus Z X C V P 1 2 3. Touch now has an answer and desktop does not, so the boss cannot be built until that is decided. Options are roughly: add real key rebinding; let the handedness/UI-mode toggle count for both; or give desktop a different counter entirely.
+- The predictive Shadow temple boss itself is still missing.
 
 ## Cross-system decisions — SETTLED 2026-08-31
 
