@@ -737,7 +737,33 @@ function rollEnemyTypeDrops(e) {
   if (e.ranged && Math.random() < 0.50) {
     drop({ type: 'arrows', val: 5, element: mapArrowElementId() });
   }
+
+  // ── Golems: rubies and the region's raw ore ────────────────────────────────
+  // The one reliable ore source in the game. Ore is otherwise a 2% roll off any
+  // kill, and ore is what the Blacksmith needs to upgrade elemental armor — so
+  // making the golems pay it closes a loop that was open: fell golems to upgrade
+  // your armor, and the upgraded armor is what walks you past the next ones
+  // asleep. It also fits what they are. A thing made of rock, ice or obsidian
+  // should come apart into rock, ice or obsidian.
+  //
+  // Guaranteed rather than rolled, because a golem is a fight the player CHOSE
+  // to start — by walking past unarmored or by hitting it — and a chosen fight
+  // that pays nothing teaches them not to choose it again.
+  if (typeof isGolem === 'function' && isGolem(e)) {
+    const ore = (typeof oreForMap === 'function') ? oreForMap(cm) : null;
+    if (ore) drop({ type: 'ore', ore: ore.id, val: GOLEM_ORE_DROP });
+    const regionOrder = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx + 1 : 1;
+    addItem('rubies', GOLEM_RUBY_BASE * regionOrder);
+    if (typeof showMsg === 'function') {
+      showMsg(`\u{1F5FF} The golem comes apart — ${ore ? ore.icon + ' ' + GOLEM_ORE_DROP + ' ' + ore.label : 'rubble'} and 💰${GOLEM_RUBY_BASE * regionOrder}.`, 2200);
+    }
+  }
 }
+
+// Golems pay ore in bulk and rubies scaled by how deep the region is, the same
+// shape a boss payout uses. Named here so the two numbers are tunable together.
+const GOLEM_ORE_DROP = 3;
+const GOLEM_RUBY_BASE = 40;
 
 // ─── Kill sound ───────────────────────────────────────────────────────────────
 // Every kill plays the classic Wilhelm scream. The problem this solves is real
