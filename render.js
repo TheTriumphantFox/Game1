@@ -1910,6 +1910,32 @@ function drawMiasma(ts, startC, startR, endC, endR) {
   ctx.restore();
 }
 
+// Luminous armor's projectile-blocking aura. See the call site in render().
+function drawLuminousAura(ts) {
+  if (typeof wearingElementalArmor !== 'function' || !wearingElementalArmor('luminous')) return;
+  const ready = (typeof luminousAuraReady === 'function') ? luminousAuraReady() : true;
+  const r = ((typeof LUMINOUS_BLOCK_RADIUS !== 'undefined') ? LUMINOUS_BLOCK_RADIUS : 2.2) * ts;
+  const cx = (player.renderX + 0.5 - camC) * ts;
+  const cy = (player.renderY + 0.5 - camR) * ts;
+  const t = Date.now() / 420;
+  ctx.save();
+  // Charged: a bright, breathing rim. Recharging: faint and still, so the two
+  // states are told apart at a glance and not by counting.
+  ctx.globalAlpha = ready ? (0.30 + 0.12 * Math.sin(t)) : 0.10;
+  ctx.strokeStyle = ready ? '#ffe89a' : '#8a8570';
+  ctx.lineWidth = Math.max(2, ts * 0.07);
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  if (ready) {
+    ctx.globalAlpha = 0.08 + 0.05 * Math.sin(t * 1.3);
+    const g = ctx.createRadialGradient(cx, cy, r * 0.35, cx, cy, r);
+    g.addColorStop(0, 'rgba(255,232,154,0)');
+    g.addColorStop(1, '#ffe89a');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
 // Screen-space heat haze for the volcanic region. See the call site in render().
 function drawHeatHaze() {
   const lvl = (typeof heatHazeLevel === 'function') ? heatHazeLevel() : 0;
@@ -3885,6 +3911,12 @@ function render() {
   // that hurts anyone with motion sensitivity and makes the game hard to read
   // for everyone; a colour wash carries the same message and stays legible. It
   // also never reaches full opacity, so nothing is ever hidden behind it.
+  // Luminous armor's shield ring. Drawn over the scene so it reads as light
+  // around the hero rather than as paint on the ground, and dimmed while the
+  // aura recharges — a shield whose state the player cannot see is a shield
+  // they cannot plan around.
+  drawLuminousAura(ts);
+
   drawHeatHaze();
 
   // The Emperor's crown, rolling to the hero's feet and then lying there. After

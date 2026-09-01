@@ -917,6 +917,15 @@ function stepProjectiles(dt, map) {
         }
       }
     } else if (p.type === 'enemy') {
+      // Luminous armor's aura burns the shot out of the air at the rim of the
+      // light, before it reaches the hero (luminousAuraBlocks, abilities.js).
+      // Checked ahead of the hit test so a blocked shot never touches the
+      // damage path at all — no i-frames spent, no damage number, nothing to
+      // explain away.
+      if (typeof luminousAuraBlocks === 'function' && luminousAuraBlocks(p.tx, p.ty)) {
+        p.life = -999;
+        return;
+      }
       const dx = player.x - p.tx, dy = player.y - p.ty;
       if (Math.abs(dx) < 0.8 && Math.abs(dy) < 0.8 && player.invincible <= 0) {
         damagePlayer(p.dmg, p.element);

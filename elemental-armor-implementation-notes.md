@@ -88,10 +88,13 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 ### Tier 8: Luminous
 
 - Periodic nearby-enemy stun is functional.
-- **AWAITING A REDESIGN (decided 2026-08-31). Do not build a visibility system for this.**
-- The reveal half of the aura has never worked, because fog of war was removed from the game and there is nothing left to uncover. Luminous is the only armor whose stated power is half fiction.
-- Building darkness back purely to give this something to reveal was explicitly rejected. The precedent is Mana: its first two designs (ward/dispel, then a replaying clone) were both subsystems, and the third — a slow heal — was twenty lines and better. Luminous deserves that same conversation before anyone writes code.
-- What works today and should be kept whatever replaces the reveal: the periodic nearby-enemy stun pulse.
+- **REDESIGNED AND BUILT 2026-09-01.** The dead reveal half is replaced: the Radiant Aura now **burns enemy projectiles out of the air**. No visibility system was built, as decided — this is a job an aura of light can plausibly have, costs no new subsystem, and is worth something in the ranged-heavy rosters of the last five regions.
+- A shot dies at the RIM of the aura rather than on the hero, so it reads as a shield instead of as invisible damage immunity, and it is checked ahead of the hit test so a blocked shot never touches the damage path — no i-frames spent, no damage number to explain away.
+- **It recharges** (`LUMINOUS_BLOCK_RECHARGE_MS`, 1.1s): one shot at a time. Luminous is tier 8 of 13 and most rosters above it are full of ranged enemies, so catching a whole volley free would flatten the endgame. Set the constant to 0 for unconditional blocking.
+- The ring is drawn around the hero and **dims while recharging** — a shield whose state the player cannot see is one they cannot plan around.
+- **Bug worth remembering:** the radius was first measured against `player.x`, the integer tile index, while projectiles carry tile-CENTRE coordinates (`e.x + 0.5`). That put the aura half a tile off — a shot two tiles east measured 2.5 and slipped through while the same shot from the west measured 1.5 and was caught. Verified symmetric now in all four directions.
+- Verified with i-frames as the signal (spent = the hit landed; destroyed with none spent = the aura ate it): blocked with the armor, hits without it, hits with the wrong armor, symmetric east/west/north, second shot of a volley gets through while recharging, third is blocked after 1.1s.
+- The periodic stun pulse is unchanged and still works alongside it.
 - Pulse radius, cooldown, normal stun, and boss stagger need playtesting. All four are named constants at the top of `abilities.js` (`RADIANT_*`).
 
 ### Tier 9: Necrotic

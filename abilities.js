@@ -242,6 +242,58 @@ const RADIANT_PULSE_RADIUS = 4;     // tiles, straight-line distance
 const RADIANT_STUN_MS = 1100;
 const RADIANT_BOSS_STAGGER_MS = 300;
 
+// The other half of the Radiant Aura: it burns enemy projectiles out of the air
+// before they reach the hero.
+//
+// This REPLACES the armor's original reveal power, which was fiction for as long
+// as it existed — fog of war was removed from the game, so there was nothing for
+// a light to uncover, and Luminous was the only armor whose stated ability did
+// not do anything. Blocking shots is a job an aura of light can plausibly have,
+// costs no new subsystem, and is worth something in a region full of ranged
+// enemies.
+//
+// A shot dies at the RIM of the aura, not on the hero, because that is what
+// makes it read as a shield rather than as invisible damage immunity: the player
+// sees the arrow stop short in the light.
+//
+// It recharges. One shot at a time is the difference between an aura and a
+// blanket immunity — Luminous is tier 8 of 13 and most of the rosters above it
+// are full of ranged enemies, so catching an entire volley for free would flatten
+// the last five regions. A short recharge still stops the single shots that make
+// ranged enemies dangerous while leaving a real volley genuinely threatening.
+// For an unconditional version, set LUMINOUS_BLOCK_RECHARGE_MS to 0.
+const LUMINOUS_BLOCK_RADIUS = 2.2;
+const LUMINOUS_BLOCK_RECHARGE_MS = 1100;
+let luminousBlockCdMs = 0;
+
+// Called from the projectile step for each live enemy shot. Returns true when
+// the aura has eaten it.
+function luminousAuraBlocks(px, py) {
+  if (!(typeof wearingElementalArmor === 'function' && wearingElementalArmor('luminous'))) return false;
+  if (luminousBlockCdMs > 0) return false;
+  // Measured against the hero's tile CENTRE, not their tile index. Projectiles
+  // carry centre coordinates (stepEnemyRanged spawns them at e.x + 0.5), so
+  // comparing them to the integer player.x put the aura half a tile off: a shot
+  // two tiles east measured as 2.5 and slipped through, while the same shot from
+  // the west measured 1.5 and was caught. A shield that works on one side is
+  // worse than no shield, because the player learns to trust it.
+  if (Math.hypot(px - (player.x + 0.5), py - (player.y + 0.5)) > LUMINOUS_BLOCK_RADIUS) return false;
+  luminousBlockCdMs = LUMINOUS_BLOCK_RECHARGE_MS;
+  const sp = screenPX(px, py);
+  spawnParticle(sp.x, sp.y, '#ffe89a', 12, 4);
+  spawnParticle(sp.x, sp.y, '#fff7d0', 8, 3);
+  if (typeof buzz === 'function') buzz(8);
+  return true;
+}
+
+// Is the aura charged? Read by the renderer so the ring dims while recovering —
+// a shield the player cannot see the state of is a shield they cannot plan
+// around.
+function luminousAuraReady() {
+  return !!(typeof wearingElementalArmor === 'function' && wearingElementalArmor('luminous')) &&
+         luminousBlockCdMs <= 0;
+}
+
 // Necrotic: cursed ground is PASSABLE and drains instead of blocking. That is
 // the whole design — a wall would gate the region behind armor forged inside it,
 // and every region has to be completable without its own armor. A drain lets a
@@ -698,6 +750,7 @@ function stepElementalArmorEffects(dt) {
   stepQuicksand(dt);
   stepManaRegen(dt);
   stepMiasma(dt);
+  if (luminousBlockCdMs > 0) luminousBlockCdMs -= dt;
 }
 
 function stepManaRegen(dt) {

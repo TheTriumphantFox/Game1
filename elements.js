@@ -44,7 +44,7 @@ const ELEMENTAL_ARMOR_ABILITIES = {
   volcanic:  { label: 'Heat Vent', description: 'Immune to the caldera\'s overheat.', status: 'ready' },
   air:       { label: 'Updraft Glide', description: 'Glide across wider gaps than the shrine reward.', status: 'ready' },
   lightning: { label: 'Storm Grounding', description: 'Stop the region storm-strike timer.', status: 'ready' },
-  luminous:  { label: 'Radiant Aura', description: 'Reveal darkness and periodically stun nearby enemies.', status: 'partial' },
+  luminous:  { label: 'Radiant Aura', description: 'Burns enemy shots from the air and stuns what closes in.', status: 'ready' },
   necrotic:  { label: 'Grave Command', description: 'Walk cursed ground unharmed and summon allied skeletons.', status: 'ready' },
   poison:    { label: 'Miasma Ward', description: 'Immune to spore clouds and drifting miasma.', status: 'ready' },
   mana:      { label: 'Arcane Mending', description: 'Slowly knits your wounds as you travel.', status: 'ready' },
