@@ -600,7 +600,11 @@ const TILE_COLORS = {
   [T.BED]: '#8a4480', [T.TABLE]: '#6a3a18', [T.CHAIR]: '#5a2a10', [T.FIREPLACE]: '#3a3a3a',
   [T.CACTUS]: '#3a7a3a', [T.DUNE]: '#c89858', [T.OASIS_WATER]: '#2a88cc', [T.BONES]: '#e8e0c0',
   [T.QUICKSAND]: '#a8834a',
-  [T.GAS_VENT]: '#5c7a2a',
+  // The vent's own glowing throat colour, for the same reason. Against poison
+  // SLUDGE (#566b2c) the old #5c7a2a was 23 channel-units away — invisible on
+  // the minimap, which is exactly where a player wants to see where the gas is
+  // coming from. This is 205.
+  [T.GAS_VENT]: '#9ad64a',
   [T.LARGE_CHEST_R]: '#cc8800',
   // Boss chest base color matches the dark royal-purple body so the 10%
   // padding around each quadrant blends instead of flashing magenta.
@@ -631,7 +635,14 @@ const TILE_COLORS = {
   // the minimap: a haloed bloom, light-tipped reeds, and a glowing crystal shard.
   [T.RADIANT_BLOOM]: '#ffe9a0', [T.GLOW_REED]: '#f4e6b0', [T.LUMEN_SHARD]: '#fdf0c8',
   [T.BLIGHT]: '#3a2a3a',          [T.BLIGHTED_WALL]: '#1a0a1a',
-  [T.CURSED_GROUND]: '#241830',
+  // Curse-violet rather than the tile's near-black base. TILE_COLORS is what the
+  // MINIMAP paints with, and the in-world case overpaints this on its first line
+  // anyway, so it is free to be chosen for legibility at one pixel per tile.
+  // Measured against the blight it sits on (#3a2a3a): the old #241830 was only
+  // 50 channel-units away and read as more blight; this is 91 and reads as a
+  // field you can route around, which is the whole reason to show a hazard on a
+  // map you navigate by.
+  [T.CURSED_GROUND]: '#4a1f7a',
   // Necrotic decay — grave dirt reads a shade darker/browner than the blight
   // floor (like SNOW_DRIFT against SNOW); a dead tree and withered shrub are grey
   // deadwood against the dark wall/ground; the carrion bloom a sickly grey-green;
