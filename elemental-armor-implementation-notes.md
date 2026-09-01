@@ -40,7 +40,7 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 - Ice grip is functional while Ice armor is worn.
 - The old Frost Grip shrine reward also stops sliding for save compatibility. This overlap needs a design decision.
-- Dormant ice golems, wake logic, placement, art, and loot are missing.
+- **Dormant ice golems: BUILT 2026-08-31** (`ice_golem`), on the shared golem machine. The rules are identical in all three regions and are written out once under Tier 4 below.
 
 ### Tier 4: Earth
 
@@ -48,7 +48,14 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 - **Correction (verified 2026-08-31).** An earlier draft of these notes claimed no generator emits `T.LEDGE` or `T.LEDGE_FACE`. That is wrong; it repeated a stale comment in `config.js` that has since been fixed. `addLedgeCauseway` runs unconditionally for the Earth region (`mapgen-biomes.js`), and the desert gets mesas or a causeway. Measured over ten seeds each: every Earth map carries ~430 `LEDGE`, ~296 `LEDGE_FACE` and 5-15 `CLIMB`; desert maps carry more. Cliff Climb already has real terrain and needs playtesting, not new terrain authoring.
 - Open: the hero can now stand ON a `LEDGE_FACE` tile, which is in `EXTRUDED_TILES` and draws as a wall. Whether the hero renders inside it is unverified and needs a human look.
 - Existing `T.MOUNTAIN` borders are not climbable because allowing them would let the player cross map boundaries. `isSolid` catches them before the step-up gate, so the `Infinity` step limit only ever affects `T.LEDGE`.
-- Dormant stone golems, wake logic, placement, art, and loot are missing.
+- **Dormant stone golems: BUILT 2026-08-31** (`stone_golem`). One shared state machine in `enemies.js` covers Ice, Earth and Volcanic — `GOLEM_REGIONS`, `stepGolems`, `wakeGolem`, `makeGolemDefs`.
+  - **Wake rules:** within `GOLEM_WAKE_RADIUS` (3.5) without the region's armor wakes it; being damaged ALWAYS wakes it, armor or not; once awake it stays awake for the visit, so re-equipping mid-fight cannot settle it. Damage is spotted by watching `hp < maxHp` rather than by hooking each damage source, so a source added later cannot forget to wake them.
+  - **Solid but climbable, in all three regions.** `GOLEM_STAND_Z` is 0.5, exactly `STEP_UP_MAX`, so a sleeping golem is the tallest thing an actor can step onto without a ramp — climbable by anyone, with no new movement rule. It composes: a ledge stands at 1.0 and is unreachable from the ground, but a golem asleep beside one is 0.5 up and then 0.5 more onto the shelf. **Keeping a golem asleep opens routes**, so the armor changes the map and not only the danger. Verified: ground→ledge blocked, golem→ledge allowed.
+  - `actorSurfaceZ` (map-helpers.js) is the ONE place golem height enters movement; `stepUpBlocked` reads it, so keyboard movement and both pathfinders inherit the rule and cannot disagree. `surfaceZ` stays pure of entities on purpose.
+  - Waking a golem the hero stands on drops them via `startPlayerFall` — the support just stood up.
+  - **Placement is landmark-style, not roster:** 3-5 per open region map, never on `T.PATH`, ≥12 tiles apart, never in a boss village. Verified over 8 seeds per region — ice 3.9, earth 4.3, volcanic 3.9 per map; 0 on roads, 0 pairs too close, 0 in villages, 0 in non-golem regions.
+  - Art is procedural (`render-enemies.js`): one body, three palettes. Asleep = bowed head, no bob, dead seams, no eyes; awake = stands, seams light, eyes on. The pose difference is the tell, so a player can see at a glance which golems in a field are still sleeping.
+  - Still open: drops are the tier default; no golem-specific loot yet.
 - **Frog oracle: BUILT 2026-08-31.** The Warty Oracle stands on the first SEALED Earth dead-end map the hero enters, remembered on `player.frogOracleMapId` so a later dead-end does not mint a second. It walks three lines and then holds on the third, which carries the actual instruction, and sets the `frog_warned_shadow` story flag for the Shadow boss to read. Verified over twelve seeds: placed on all twelve, adjacent to mud every time. It is drawn procedurally in `drawVillager` rather than from a sprite sheet, matching every other role-bearing NPC in the game; give it a sheet the day it needs to hop.
 
 ### Tier 5: Volcanic
@@ -58,7 +65,8 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 - **Escalating ladder** (`stages`): 40% heat haze, 70% haze plus a 1.45x step interval, 100% full haze, 1.8x step interval and 2 HP every 0.9s.
   - `sluggish` is implemented as a LONGER STEP INTERVAL, never as dropped, delayed or randomised input, and the haze is a colour wash and rising bands, never a warp or blur of the playfield. Degrading real controls or distorting what the player is aiming at breaks assistive input and motion sensitivity and reads as a bug rather than as heat. Both carry that reasoning inline; do not "improve" either into actual input interference.
 - `addVolcanicHazards` widens the fissure dapple into fields via `stampHazardBlots`, skipping `T.PATH` and refusing lava and bridges. Verified over twelve maps: 168 fissure tiles average (70-386) and **all four exits reachable by a completely cool route on 12 of 12**.
-- Obsidian golems are still missing: idle hardening, climbable hardened bodies, melting, awakening, and active combat states.
+- **Obsidian golems: BUILT 2026-08-31** (`obsidian_golem`) on the same shared machine. Idle hardening and climbable hardened bodies ARE the shared dormant/climbable behaviour, so those are done.
+- Still open for obsidian alone: the MELT state. It currently has the same two states as its siblings (dormant statue / awake attacker), no molten form, and no tie to the overheat meter.
 - Open lava remains blocked and should not automatically become traversable unless separately approved.
 
 ### Tier 6: Air

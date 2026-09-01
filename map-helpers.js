@@ -194,10 +194,26 @@ function isRampStep(map, c1, r1, c2, r2) {
 // tap-to-travel pathfinder (main.js) all ask here, because a pathfinder that
 // disagrees with the movement it is planning for walks the hero into a wall it
 // cannot climb and then gives up.
+// The height an ACTOR actually stands at here: the tile's own surface, or a
+// sleeping golem's back if one is parked on it (golemStandZ, enemies.js).
+//
+// Split out from surfaceZ rather than folded into it because surfaceZ is a pure
+// function of the tile array and several callers depend on that — the renderer's
+// memoized scans and the generation-time helpers have no business knowing where
+// the enemies are. This is the entity-aware version, and movement is its caller.
+function actorSurfaceZ(map, c, r) {
+  const base = surfaceZ(map, c, r);
+  const golem = (typeof golemStandZ === 'function') ? golemStandZ(c, r) : 0;
+  return Math.max(base, golem);
+}
+
 function stepUpBlocked(map, c1, r1, c2, r2, maxStep) {
   if (isRampStep(map, c1, r1, c2, r2)) return false;
   const limit = maxStep === undefined ? STEP_UP_MAX : maxStep;
-  return surfaceZ(map, c2, r2) - surfaceZ(map, c1, r1) > limit;
+  // actorSurfaceZ, so a sleeping golem is a step the hero can take. All three
+  // gates — keyboard movement and both pathfinders — reach the golem rule
+  // through here, which is the only way they cannot disagree about it.
+  return actorSurfaceZ(map, c2, r2) - actorSurfaceZ(map, c1, r1) > limit;
 }
 
 // Stamp a rectangular ledge shelf whose ENTIRE perimeter is faced, which is the

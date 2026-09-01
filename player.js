@@ -441,7 +441,7 @@ function stepPlayerJump(dt) {
   // Deriving it here means it is right by construction, and a stale groundZ
   // from a save is corrected on the first stepped frame.
   const _m = (typeof mapData === 'function') ? mapData() : null;
-  player.groundZ = _m ? surfaceZ(_m, player.x, player.y) : 0;
+  player.groundZ = _m ? actorSurfaceZ(_m, player.x, player.y) : 0;
 
   // A fall belongs to the step that started it. If the hero got somewhere he
   // could not have WALKED to since the last frame, that step is over and any
@@ -1937,7 +1937,10 @@ function stepPlayerMovement() {
   // solid like normal. DEEP_WATER stays off-limits regardless.
   const earthClimb = typeof wearingElementalArmor === 'function' && wearingElementalArmor('earth');
   const blocked = (c, r) => {
-    if (enemyAt(c, r)) return true;
+    // A SLEEPING golem is furniture, not a wall: the hero steps onto its back
+    // (GOLEM_STAND_Z is exactly STEP_UP_MAX, so the step-up gate below allows
+    // it). An awake one blocks like any other enemy.
+    if (enemyAt(c, r) && !(typeof dormantGolemAt === 'function' && dormantGolemAt(c, r))) return true;
     if (typeof villagerAt === 'function' && villagerAt(c, r)) return true;
     if (typeof shrinePrepareMove === 'function' &&
         !shrinePrepareMove(currentMap(), player.x, player.y, c, r)) return true;

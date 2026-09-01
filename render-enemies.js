@@ -3033,6 +3033,64 @@ function drawEnemy(e, ts) {
       ctx.lineCap = 'butt';
       break;
     }
+    case 'ice_golem':
+    case 'stone_golem':
+    case 'obsidian_golem': {
+      // One body, three palettes — the same reasoning as the shared state
+      // machine in enemies.js. A golem is a blocky humanoid slab, and the only
+      // thing that really differs between the regions is what it is carved from.
+      const GP = {
+        ice_golem:      { dark:'#5f93ad', mid:'#8fc4dc', lite:'#c8ecf8', eye:'#d8f4ff' },
+        stone_golem:    { dark:'#5e5a52', mid:'#8a857a', lite:'#a8a296', eye:'#ffd27a' },
+        obsidian_golem: { dark:'#241d22', mid:'#3a2f36', lite:'#584a54', eye:'#ff6a22' },
+      }[e.type];
+      // Asleep it is a statue: no idle bob, seams unlit, head bowed. Awake it
+      // stands up, its seams light, and the eyes come on. The pose difference is
+      // the tell — a player has to be able to see at a glance which golems in a
+      // field are still sleeping.
+      const woke = !e.dormant;
+      const bob = woke ? Math.sin(Date.now()/260 + phase) * s*0.02 : 0;
+      const top = py + bob;
+      const glow = woke ? (0.55 + 0.45*Math.sin(Date.now()/220 + phase)) : 0;
+
+      // Legs
+      ctx.fillStyle = GP.dark;
+      ctx.fillRect(px + s*0.28, top + s*0.66, s*0.16, s*0.30);
+      ctx.fillRect(px + s*0.56, top + s*0.66, s*0.16, s*0.30);
+      // Torso
+      ctx.fillStyle = GP.mid;
+      ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.36);
+      ctx.fillStyle = GP.lite;                                  // lit shoulder
+      ctx.fillRect(px + s*0.24, top + s*0.34, s*0.26, s*0.36);
+      // Arms — hanging when asleep, raised a little when awake
+      ctx.fillStyle = GP.dark;
+      const armY = woke ? top + s*0.36 : top + s*0.42;
+      ctx.fillRect(px + s*0.12, armY, s*0.14, s*0.34);
+      ctx.fillRect(px + s*0.74, armY, s*0.14, s*0.34);
+      // Head, bowed while dormant
+      ctx.fillStyle = GP.mid;
+      ctx.fillRect(px + s*0.34, top + (woke ? s*0.12 : s*0.18), s*0.32, s*0.24);
+      // Seams: dead grooves asleep, lit veins awake.
+      ctx.strokeStyle = woke ? `rgba(255,220,150,${0.35 + 0.4*glow})` : 'rgba(0,0,0,0.30)';
+      ctx.lineWidth = Math.max(1, s*0.035);
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.30, top + s*0.44); ctx.lineTo(px + s*0.52, top + s*0.52);
+      ctx.lineTo(px + s*0.42, top + s*0.66);
+      ctx.stroke();
+      // Eyes only once it is awake. A statue does not stare back.
+      if (woke) {
+        ctx.fillStyle = GP.eye;
+        const ey = top + s*0.20;
+        ctx.fillRect(px + s*0.39, ey, s*0.07, s*0.05);
+        ctx.fillRect(px + s*0.54, ey, s*0.07, s*0.05);
+      } else {
+        // Asleep: a dusting of the region's own weathering on the shoulders, so
+        // it reads as something that has stood here a long time.
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.04);
+      }
+      break;
+    }
     default: {
       // Generic fallback: a stylized blob with eyes
       ctx.fillStyle = e.color;

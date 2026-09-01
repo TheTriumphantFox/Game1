@@ -81,6 +81,14 @@ const DND_ENEMIES = {
   mammoth:        { name: 'Mammoth',             hp: 90,  spd: 700,  dmg: 8,  xp: 2900,  color: '#7a5a3a', size: 1.5,  cr: 6 },
   white_dragon:   { name: 'Young White Dragon',  hp: 96,  spd: 600,  dmg: 8,  xp: 2900,  color: '#bfe6f5', size: 1.35, ranged: true, cr: 6, element: 'ice' },
   frost_giant:    { name: 'Frost Giant',         hp: 105, spd: 700,  dmg: 9,  xp: 2900,  color: '#9cc8e0', size: 1.55, cr: 8, element: 'ice' },
+  // ── Dormant golems (one per golem region; see GOLEM_REGIONS below). ──
+  // Statues until something wakes them. Slow, heavy hitters with more HP than
+  // their tier's roster, because a woken golem is a fight the player chose to
+  // start — by walking past unarmored or by hitting it — rather than a wandering
+  // spawn that found them.
+  ice_golem:      { name: 'Ice Golem',           hp: 110, spd: 780,  dmg: 9,  xp: 2400,  color: '#a8d8ea', size: 1.35, cr: 6, element: 'ice' },
+  stone_golem:    { name: 'Stone Golem',         hp: 130, spd: 800,  dmg: 10, xp: 2900,  color: '#8a857a', size: 1.4,  cr: 7, element: 'earth' },
+  obsidian_golem: { name: 'Obsidian Golem',      hp: 145, spd: 760,  dmg: 12, xp: 3400,  color: '#3a2f36', size: 1.4,  cr: 8, element: 'volcanic' },
 
   // ── Tier 4 · Earth — gargoyles, burrowers & stone giants. ──
   gargoyle:       { name: 'Gargoyle',            hp: 64,  spd: 550,  dmg: 6,  xp: 1100,  color: '#777066', size: 0.95, cr: 2, element: 'earth' },
@@ -250,6 +258,133 @@ const ENEMY_POOLS = [
   ['shade', 'shadow_mastiff', 'bodak', 'nightmare', 'shadow_demon', 'nightwalker'],   // 12 · Shadow
 ];
 
+// ─── Dormant golems ──────────────────────────────────────────────────────────
+// One state machine, three regions. Ice, Earth and Volcanic each get a golem
+// that stands as a statue until something wakes it, and the region's own armor
+// is what lets the hero walk past. Written once here rather than three times,
+// because three copies of "wake if the player is close" is how three of them end
+// up with different radii.
+//
+// The rules, as decided:
+//
+//   • Coming within GOLEM_WAKE_RADIUS without the region's armor wakes it.
+//   • Hitting one ALWAYS wakes it, armor or not. Armor protects the careful,
+//     not the player who chose to start a fight.
+//   • Once awake it stays awake for the visit. Re-equipping the armor mid-fight
+//     does not settle it, which stops the wake/sleep cycle being farmable and
+//     keeps the state machine to two states.
+//
+// A dormant golem is SOLID but CLIMBABLE, which is the interesting half. See
+// golemStandZ.
+const GOLEM_REGIONS = {
+  ice:      { type: 'ice_golem',      armor: 'ice' },
+  earth:    { type: 'stone_golem',    armor: 'earth' },
+  volcanic: { type: 'obsidian_golem', armor: 'volcanic' },
+};
+const GOLEM_TYPES = new Set(Object.values(GOLEM_REGIONS).map(g => g.type));
+const GOLEM_WAKE_RADIUS = 3.5;
+
+// How high a sleeping golem stands, and it is 0.5 for a precise reason:
+// STEP_UP_MAX is 0.5, so exactly this height is the tallest thing an actor can
+// step onto WITHOUT a ramp. That makes a dormant golem climbable by anyone, in
+// every region, with no new movement rule — it falls straight out of the
+// existing step-up maths.
+//
+// It also composes. A ledge stands at 1.0 and cannot be stepped up from the
+// ground, but a golem asleep beside one is a 0.5 step to the golem and another
+// 0.5 step to the shelf. Keeping a golem asleep therefore opens routes, which is
+// what makes wearing the region's armor change the map and not just the danger.
+const GOLEM_STAND_Z = 0.5;
+
+function isGolem(e) { return !!e && GOLEM_TYPES.has(e.type); }
+
+// The stand-height contributed by a sleeping golem on this tile, or 0. An AWAKE
+// golem contributes nothing — it is walking around, not furniture.
+function golemStandZ(c, r) {
+  if (typeof enemies === 'undefined') return 0;
+  for (const e of enemies) {
+    if (e.dead || !e.dormant || !isGolem(e)) continue;
+    if (e.x === c && e.y === r) return GOLEM_STAND_Z;
+  }
+  return 0;
+}
+
+// Is there a sleeping golem here? Movement asks, so it can let the hero step ONTO
+// one instead of being stopped by it the way an ordinary enemy stops them.
+function dormantGolemAt(c, r) {
+  if (typeof enemies === 'undefined') return false;
+  return enemies.some(e => !e.dead && e.dormant && isGolem(e) && e.x === c && e.y === r);
+}
+
+function stepGolems() {
+  if (typeof enemies === 'undefined' || typeof player === 'undefined') return;
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const spec = cm ? GOLEM_REGIONS[cm.biome] : null;
+  const armored = !!(spec && typeof wearingElementalArmor === 'function' &&
+                     wearingElementalArmor(spec.armor));
+  for (const e of enemies) {
+    if (e.dead || !e.dormant || !isGolem(e)) continue;
+    // Damage wakes it, whatever the source and whatever the hero is wearing.
+    // Read off HP rather than hooked into each of the several places that
+    // subtract it — the same reasoning the Emperor's thresholds are watched by,
+    // and it cannot be forgotten by a new damage source added later.
+    const hurt = e.hp < e.maxHp;
+    const near = !armored &&
+      Math.hypot(e.x - player.x, e.y - player.y) <= GOLEM_WAKE_RADIUS;
+    if (!hurt && !near) continue;
+    wakeGolem(e);
+  }
+}
+
+function wakeGolem(e) {
+  e.dormant = false;
+  // It was furniture a frame ago and the hero may be standing on top of it. Drop
+  // them: the support just stood up. Without this the hero hangs half a tile in
+  // the air until their next step recomputes groundZ.
+  if (typeof player !== 'undefined' && player.x === e.x && player.y === e.y &&
+      typeof startPlayerFall === 'function') {
+    startPlayerFall(GOLEM_STAND_Z);
+  }
+  const sp = (typeof screenPX === 'function') ? screenPX(e.x, e.y) : null;
+  if (sp && typeof spawnParticle === 'function') {
+    spawnParticle(sp.x, sp.y, '#e8e0d0', 14, 4);
+    spawnParticle(sp.x, sp.y, e.color || '#888888', 10, 3);
+  }
+  if (typeof buzz === 'function') buzz([0, 40, 30, 60]);
+  if (typeof showMsg === 'function') {
+    const base = (typeof DND_ENEMIES !== 'undefined' && DND_ENEMIES[e.type]) || null;
+    showMsg(`\u{1F5FF} The ${base ? base.name : 'golem'} grinds awake!`, 1800);
+  }
+  if (typeof minimapDirty !== 'undefined') minimapDirty = true;
+}
+
+// Stand a few sleeping golems on a map, as landmarks rather than as roster
+// spawns. Deliberately placed like the hazard blots are: never on T.PATH, so a
+// road never runs into one, and spread apart so they read as scattered ancient
+// statues rather than as a nest.
+//
+// They cannot wall a route off even so — a dormant golem is climbable, and a
+// woken one walks away — so this is about how they READ, not about connectivity.
+const GOLEM_COUNT_MIN = 3, GOLEM_COUNT_MAX = 5, GOLEM_MIN_APART = 12;
+
+function makeGolemDefs(regionId, map) {
+  const spec = GOLEM_REGIONS[regionId];
+  if (!spec || !map) return [];
+  const defs = [];
+  const want = rnd(GOLEM_COUNT_MIN, GOLEM_COUNT_MAX);
+  for (let i = 0; i < want; i++) {
+    for (let t = 0; t < 80; t++) {
+      const x = rnd(14, MCOLS - 15), y = rnd(14, MROWS - 15);
+      if (isSolid(map, x, y)) continue;
+      if (map[y][x] === T.PATH) continue;
+      if (defs.some(d => Math.hypot(d.x - x, d.y - y) < GOLEM_MIN_APART)) continue;
+      defs.push({ type: spec.type, x, y, dormant: true });
+      break;
+    }
+  }
+  return defs;
+}
+
 // Build the list of enemy spawn points for a new map.
 // `mapType === 'village'` guarantees the boss spawn.
 // `map` is the tile array; enemies will only spawn on non-solid tiles. After
@@ -335,6 +470,9 @@ function makeEnemyDefs(depth, mapType, map) {
     const bossType = (region && region.boss) || 'lich_boss';
     defs.push({ type: bossType, x: bx, y: by });
   }
+  // Sleeping golems stand on the OPEN region maps only. A boss village is an
+  // arena and does not want statues in it.
+  if (!isVillage && region) defs.push(...makeGolemDefs(region.id, map));
   return defs;
 }
 
