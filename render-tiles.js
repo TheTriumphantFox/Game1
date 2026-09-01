@@ -2496,6 +2496,40 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.fillRect(x + s*0.30, y + s*0.42, 2, 2);
       ctx.fillRect(x + s*0.38, y + s*0.42, 2, 2);
       break; }
+    case T.GAS_VENT: {
+      // A fissure venting gas. Drawn as a dark split in the mire with a hot
+      // green throat, so it is legible as a SOURCE — the cloud around it moves
+      // and thins, and a player needs to be able to see where it is coming from
+      // in order to route around the right thing.
+      const h = (col * 151 + row * 101);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#3f5220'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#20300f';
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.5, y + s*0.55, s*0.34, s*0.24, 0, 0, Math.PI*2);
+      ctx.fill();
+      const pulse = 0.55 + 0.45 * Math.sin(Date.now()/520 + (h & 7));
+      ctx.fillStyle = `rgba(154,214,74,${0.45 + 0.35 * pulse})`;
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.5, y + s*0.55, s*0.18, s*0.12, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Crust lip around the mouth
+      ctx.strokeStyle = '#18240a';
+      ctx.lineWidth = Math.max(1, s*0.05);
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.5, y + s*0.55, s*0.34, s*0.24, 0, 0, Math.PI*2);
+      ctx.stroke();
+      // Wisps lifting off it
+      ctx.fillStyle = `rgba(180,224,120,${0.20 + 0.20*pulse})`;
+      for (let i = 0; i < 2; i++) {
+        const t2 = ((Date.now()/900 + i*0.5 + j(0,1)) % 1);
+        ctx.beginPath();
+        ctx.arc(x + s*(0.38 + j(2,0.25)), y + s*(0.5 - t2*0.42),
+                s*(0.07 + 0.05*t2), 0, Math.PI*2);
+        ctx.fill();
+      }
+      break;
+    }
     case T.QUICKSAND: {
       // Quicksand. It kills, so the one job of this art is that nobody mistakes
       // it for sand or for a dune. Wet, darker and slightly sunken, with a slow

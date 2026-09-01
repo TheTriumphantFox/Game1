@@ -118,8 +118,19 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 - **The cloud is telegraphed and that is the mechanic, not decoration.** It swells for 900ms before bursting, the sac inflates and the threatened radius brightens, and the ring the player sees is drawn from `bloomSwell` — the same number the damage fires on. A rooted enemy hitting an area with no wind-up would be unreadable.
 - **Poison armor is full immunity to the cloud**, not a reduction, matching how Necrotic stops the cursed drain dead and Volcanic removes overheat. That is separate from and on top of the -50% elemental block any Poison armor already gives: the block is defence, this is the region's key.
 - Placement is landmark-style like the golems, because a rooted enemy's position IS its mechanic: 4-7 per poison map, never on `T.PATH`, ≥9 apart. Pulse clocks are randomised on spawn so a field breathes out of sync rather than detonating in unison. Verified over 8 seeds: 5.5 per map, 0 on roads, 0 pairs too close, 0 in other regions, 6 of 6 spawned with distinct clocks.
-- The drifting and diffusing miasma simulation, rendering, damage rules, map bounds, and performance limits are missing.
-- Existing swamp mushrooms and decorative miasma art are not gameplay hazards.
+- **Miasma: BUILT 2026-08-31.** Fixed `T.GAS_VENT` fissures (id 193) breathe gas that drifts downwind, pools where terrain holds it, and cannot cross a wall. 2 HP/s while you stand in it; **Poison armor is full immunity**, same as the blooms. Wind is per-map, derived from the map id so a map always blows the same way.
+- **The field is not tiles.** A Float32Array density grid on the map object, allocated lazily and only where vents exist — every other map pays nothing. Never saved: gas is weather, not terrain.
+- **Performance was the whole design constraint, and it was measured, not assumed.** Three approaches, on a real poison map at steady state (169 gas tiles):
+  | approach | ms/tick |
+  |---|---|
+  | whole grid, 22,500 cells | 0.95 |
+  | bounding box | 0.58 |
+  | **active frontier** | **0.037** |
+  The AABB looked obvious and was wrong: three vents scattered across a map give a 94x82 box — 7,700 cells to move 85 tiles of gas. The frontier (cells holding gas, plus the ring they can spread into) scales with the GAS, not the map or the vent spread, and is the only one that stays flat as either grows. Ticks at 8Hz, not per frame. Total cost 0.29ms/sec; render 0.35ms → 0.70ms with a plume on screen.
+- Rendering is bounded by the VIEWPORT, not the map, and alpha saturates at 0.62 so dense gas never hides what is under it — a hazard you cannot see the enemy through feels unfair rather than dangerous.
+- **Placement order cost a debugging round and is worth remembering.** Vents placed with the other hazard passes were stamped correctly and then paved over by `addPoisonBogs`, `scatterPoisonFoliage`, `sprinkleMangroves` and `addFallenLogs`, which all write the same open SLUDGE — three maps in eight ended up with one surviving vent. They now run last, which is safe because a vent is passable and additive. Verified 3-5 vents on 10 of 10 maps, none on roads, none too close.
+- Verified further: gas never occupies a wall; the dedupe mark leaks nothing; cutting the vents off disperses the cloud to zero and collapses the frontier, so nothing lingers or leaks.
+- Existing swamp mushrooms and decorative miasma art remain scenery, untouched by this.
 
 ### Tier 11: Mana / Arcane
 

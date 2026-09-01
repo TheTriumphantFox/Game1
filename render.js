@@ -1886,6 +1886,30 @@ function triggerPlayerStormStrike() {
   stormFlash.next = now + 2600 + Math.random() * 4200;
 }
 
+// The miasma overlay. See the call site in render().
+function drawMiasma(ts, startC, startR, endC, endR) {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  if (!cm || typeof miasmaField !== 'function') return;
+  const g = miasmaField(cm);
+  if (!g) return;
+  const a = g.a;
+  ctx.save();
+  for (let r = Math.max(0, startR); r <= Math.min(MROWS - 1, endR); r++) {
+    const row = r * MCOLS;
+    for (let c = Math.max(0, startC); c <= Math.min(MCOLS - 1, endC); c++) {
+      const d = a[row + c];
+      if (d < 0.02) continue;                 // nothing here worth a fill
+      // Alpha saturates well below 1 so dense gas still shows what is under it.
+      // A hazard you cannot see the enemy through is a hazard that feels unfair
+      // rather than dangerous.
+      ctx.globalAlpha = Math.min(0.62, d * 0.85);
+      ctx.fillStyle = d > 0.5 ? '#7fae32' : '#9ac64a';
+      ctx.fillRect(Math.floor((c - camC) * ts), Math.floor((r - camR) * ts), ts + 1, ts + 1);
+    }
+  }
+  ctx.restore();
+}
+
 // Screen-space heat haze for the volcanic region. See the call site in render().
 function drawHeatHaze() {
   const lvl = (typeof heatHazeLevel === 'function') ? heatHazeLevel() : 0;
@@ -3841,6 +3865,16 @@ function render() {
   // Intact forest roofs are a foreground layer: they hide indoor activity from
   // outside, then disappear for the one cottage the player has entered.
   drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR);
+
+  // The poison wastes' miasma (stepMiasma, abilities.js). Drawn over the
+  // finished scene so it lies on top of terrain and actors alike — gas is
+  // between the camera and the world, not painted onto the ground.
+  //
+  // Cost is bounded by the VIEWPORT, not the map: only the tiles actually on
+  // screen are touched, so a 150x150 field costs the same to draw as a small
+  // one. Cells below the visibility floor are skipped entirely, which is most of
+  // them most of the time — a plume covers a fraction of the map.
+  drawMiasma(ts, startC, startR, endC, endR);
 
   // Volcanic heat haze. A screen-space wash over the finished scene, strength
   // driven by the overheat stage (heatHazeLevel, abilities.js), so the region

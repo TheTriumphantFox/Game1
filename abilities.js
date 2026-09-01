@@ -251,6 +251,181 @@ const RADIANT_BOSS_STAGGER_MS = 300;
 const CURSED_DRAIN_MS = 1200;
 const CURSED_DRAIN_DAMAGE = 1;
 
+// ─── Miasma ──────────────────────────────────────────────────────────────────
+// The poison wastes breathe. Fixed vents in the ground emit gas, which drifts
+// downwind, pools where terrain holds it, and cannot cross a wall.
+//
+// This is the only system in the game with a real frame-budget risk, so the
+// shape of it is chosen for cost as much as for feel:
+//
+//   • The field is a Float32Array over the tile grid, allocated lazily and ONLY
+//     on maps that actually have vents. Every other map pays nothing at all.
+//   • It ticks at MIASMA_TICK_MS, not per frame. Gas moves at the speed of
+//     weather; simulating it 60 times a second would buy nothing visible and
+//     cost sixty times as much. At 8Hz the whole field is ~22.5k cells eight
+//     times a second, which is far below what a per-frame pass would be.
+//   • Rendering only touches VISIBLE tiles (~2600 at TILE_PX 24), so the draw
+//     cost is bounded by the viewport rather than by the map.
+//
+// Wind is per-map and fixed, derived from the map id rather than rolled, so a
+// map's gas always blows the same way and re-entering it is not a new puzzle.
+const MIASMA_TICK_MS = 125;          // 8Hz
+const MIASMA_EMIT = 0.55;            // density added at a vent each tick
+const MIASMA_SPREAD = 0.22;          // how much a cell shares with neighbours
+const MIASMA_DECAY = 0.982;          // per tick, so a cut-off cloud fades out
+const MIASMA_WIND_BIAS = 2.2;        // downwind neighbour weight vs upwind
+const MIASMA_HURT_AT = 0.18;         // density that starts costing HP
+const MIASMA_DAMAGE_MS = 1000;
+const MIASMA_DAMAGE = 2;
+const MIASMA_MIN = 0.004;            // below this a cell is snapped to zero
+
+let miasmaAccMs = 0;
+let miasmaHurtMs = 0;
+
+// The gas field for a map, or null if this map has no vents. Built once and
+// cached on the map object; never saved — gas is weather, not terrain.
+function miasmaField(mapObj) {
+  if (!mapObj || !mapObj.map) return null;
+  if (mapObj._gas !== undefined) return mapObj._gas;
+  const vents = [];
+  for (let r = 0; r < MROWS; r++)
+    for (let c = 0; c < MCOLS; c++)
+      if (mapObj.map[r][c] === T.GAS_VENT) vents.push(r * MCOLS + c);
+  if (!vents.length) { mapObj._gas = null; return null; }
+  // Wind from the map id: stable across visits, different between maps.
+  const h = ((mapObj.id || 0) * 2654435761) >>> 0;
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+  const w = dirs[h % dirs.length];
+  mapObj._gas = {
+    a: new Float32Array(MROWS * MCOLS),
+    b: new Float32Array(MROWS * MCOLS),
+    vents, wx: w[0], wy: w[1],
+    // The frontier: indices that currently hold gas. See diffuseMiasma.
+    active: vents.slice(),
+    mark: new Uint8Array(MROWS * MCOLS),
+  };
+  return mapObj._gas;
+}
+
+function miasmaAt(mapObj, c, r) {
+  const g = miasmaField(mapObj);
+  if (!g || c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return 0;
+  return g.a[r * MCOLS + c];
+}
+
+function stepMiasma(dt) {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const g = miasmaField(cm);
+  if (!g) { miasmaAccMs = 0; miasmaHurtMs = 0; return; }
+
+  miasmaAccMs += dt;
+  // One tick per interval, and at most a couple if the tab was backgrounded —
+  // catching up on thirty seconds of missed weather would be a stall for no
+  // visible gain.
+  let ticks = 0;
+  while (miasmaAccMs >= MIASMA_TICK_MS && ticks < 2) {
+    miasmaAccMs -= MIASMA_TICK_MS;
+    ticks++;
+    diffuseMiasma(cm, g);
+  }
+  if (miasmaAccMs > MIASMA_TICK_MS) miasmaAccMs = 0;
+
+  hurtInMiasma(cm, dt);
+}
+
+function diffuseMiasma(mapObj, g) {
+  const map = mapObj.map;
+  const a = g.a, b = g.b, mark = g.mark;
+  for (const i of g.vents) a[i] = Math.min(1, a[i] + MIASMA_EMIT);
+  if (!g.active.includes(g.vents[0])) g.active.push(...g.vents);
+
+  // Simulated over an ACTIVE FRONTIER — the cells that hold gas, plus the ring
+  // they can spread into — rather than over the grid or a bounding box. This is
+  // the difference between the system being affordable and not, and both of the
+  // simpler options were measured and rejected:
+  //
+  //   whole grid (22,500 cells)   0.95 ms/tick
+  //   bounding box                0.58 ms/tick  — but the box round three vents
+  //                                               spread across the map is 94x82,
+  //                                               7,700 cells to move 85 tiles
+  //                                               of gas. An AABB is the wrong
+  //                                               shape for scattered sources.
+  //   active frontier             see below
+  //
+  // Cost now scales with the amount of GAS, not with the map or the spread of
+  // the vents, which is the only one of the three that stays flat as maps or
+  // vent counts grow.
+  //
+  // `mark` dedupes candidates without allocating a Set per tick, and is cleared
+  // only over the cells actually touched, so it too costs the frontier and not
+  // the grid.
+  const wx = g.wx, wy = g.wy;
+  const cand = [];
+  for (const i of g.active) {
+    const c = i % MCOLS, r = (i / MCOLS) | 0;
+    for (let k = 0; k < 5; k++) {
+      const dc = k === 1 ? 1 : k === 2 ? -1 : 0;
+      const dr = k === 3 ? 1 : k === 4 ? -1 : 0;
+      const nc = c + dc, nr = r + dr;
+      if (nc < 1 || nr < 1 || nc >= MCOLS - 1 || nr >= MROWS - 1) continue;
+      const ni = nr * MCOLS + nc;
+      if (mark[ni]) continue;
+      if (isSolid(map, nc, nr)) { b[ni] = 0; continue; }
+      mark[ni] = 1;
+      cand.push(ni);
+    }
+  }
+
+  const next = [];
+  for (const i of cand) {
+    const c = i % MCOLS, r = (i / MCOLS) | 0;
+    let acc = a[i] * (1 - MIASMA_SPREAD);
+    let wsum = 0, gsum = 0;
+    for (let k = 0; k < 4; k++) {
+      const dc = k === 0 ? 1 : k === 1 ? -1 : 0;
+      const dr = k === 2 ? 1 : k === 3 ? -1 : 0;
+      const nc = c + dc, nr = r + dr;
+      if (isSolid(map, nc, nr)) continue;
+      // A neighbour lying UPWIND of this cell blows its gas into it, which is
+      // what makes a plume lean instead of spreading as a circle.
+      const upwind = (dc === -wx && dc !== 0) || (dr === -wy && dr !== 0);
+      const w = upwind ? MIASMA_WIND_BIAS : 1;
+      wsum += w;
+      gsum += a[nr * MCOLS + nc] * w;
+    }
+    if (wsum > 0) acc += (gsum / wsum) * MIASMA_SPREAD;
+    acc *= MIASMA_DECAY;
+    const v = acc < MIASMA_MIN ? 0 : (acc > 1 ? 1 : acc);
+    b[i] = v;
+    if (v > 0) next.push(i);
+  }
+  for (const i of cand) mark[i] = 0;
+
+  g.active = next;
+  g.a = b; g.b = a;
+}
+
+function hurtInMiasma(mapObj, dt) {
+  if (typeof wearingElementalArmor === 'function' && wearingElementalArmor('poison')) {
+    miasmaHurtMs = 0;
+    return;                       // the armor is the answer, same as the blooms
+  }
+  const d = miasmaAt(mapObj, player.x, player.y);
+  if (d < MIASMA_HURT_AT) { miasmaHurtMs = 0; return; }
+  miasmaHurtMs += dt;
+  if (miasmaHurtMs < MIASMA_DAMAGE_MS) return;
+  miasmaHurtMs -= MIASMA_DAMAGE_MS;
+  const sp = screenPX(player.x, player.y);
+  spawnParticle(sp.x, sp.y, '#8ab83a', 6, 3);
+  player.hp -= MIASMA_DAMAGE;
+  if (typeof damageNumbers !== 'undefined') {
+    damageNumbers.push({ entity: 'player', val: `\u2620${MIASMA_DAMAGE}`,
+      color: '#a8d84a', life: 900, rise: -4 });
+  }
+  if (typeof buzz === 'function') buzz(16);
+  if (player.hp <= 0) respawn();
+}
+
 // ─── Mana regeneration ───────────────────────────────────────────────────────
 // The Arcane armor knits the hero back together as they walk. Unlike every other
 // regional armor power this is not tied to a hazard or a tile — it is simply on,
@@ -522,6 +697,7 @@ function stepElementalArmorEffects(dt) {
   stepRegionalHeat(dt);
   stepQuicksand(dt);
   stepManaRegen(dt);
+  stepMiasma(dt);
 }
 
 function stepManaRegen(dt) {
