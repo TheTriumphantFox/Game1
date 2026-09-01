@@ -105,6 +105,11 @@
     <button class="shop-close" onclick="closeWorldMap()">✕ Close</button>
   </div>
 </div>
+<!-- Controls window — key rebinding and the touch handedness setting, together
+     because they are the same question asked of two devices. -->
+<div id="controls-modal-overlay" class="shop-overlay">
+  <div id="controls-modal" class="shop-modal"></div>
+</div>
 <!-- Game menu — Save / Load / New Game / God Mode behind one radial launcher.
      Sits BEFORE the save modal in the DOM so that modal (same z-index) paints on
      top if the two ever overlap. -->

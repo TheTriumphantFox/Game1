@@ -378,21 +378,16 @@ const RADIAL_RINGS = [
           } },
         // The escape hatch if auto-detection picks the wrong scheme. Also on the
         // title screen; this is the only in-game route once the row is hidden.
+        // Opens the Controls window (sysmenu.js): key rebinding and the touch
+        // handedness setting together. Replaced a pair of cycle-in-place
+        // buttons — a scheme override that cycled three ways and a handedness
+        // toggle — because rebinding needs a panel and splitting "where are my
+        // controls" across a panel and two ring entries would be worse.
         { type: 'controls', icon: '🎮', label: 'Controls', launcher: true,
           val: () => (typeof uiModeLabel === 'function') ? uiModeLabel() : '—',
           action: () => {
             closeRadialMenu();
-            if (typeof cycleUiMode === 'function') cycleUiMode();
-          } },
-        // Handedness. Listed whatever the scheme is rather than only in touch
-        // mode: a player on Auto who has not yet picked up a phone still needs
-        // to find it, and hiding a setting until the moment it applies is how
-        // players conclude it does not exist.
-        { type: 'handedness', icon: '🤚', label: 'Control side', launcher: true,
-          val: () => (typeof touchSideLabel === 'function') ? touchSideLabel() : '—',
-          action: () => {
-            closeRadialMenu();
-            if (typeof toggleTouchSide === 'function') toggleTouchSide();
+            if (typeof openControlsWindow === 'function') openControlsWindow();
           } },
       ];
     }},

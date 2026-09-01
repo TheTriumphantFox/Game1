@@ -103,3 +103,132 @@ if (_sysMenuOverlay) {
     if (e.target === _sysMenuOverlay) closeSysMenu();
   });
 }
+
+
+// ─── Controls window ─────────────────────────────────────────────────────────
+// Key rebinding and the touch handedness setting in one panel, because they are
+// the same question asked of two devices: where are my controls, and can I move
+// them. Both are also the Shadow temple's counter, which is a second reason not
+// to split them across two places a player has to find separately.
+//
+// Lives here with the game menu rather than in its own file: this is the
+// settings panel the sysmenu never had, and it uses the same overlay pattern.
+let controlsOpen = false;
+let controlsCapturing = null;      // action id awaiting a key, or null
+
+function openControlsWindow() {
+  controlsOpen = true;
+  controlsCapturing = null;
+  document.getElementById('controls-modal-overlay').classList.add('open');
+  renderControlsWindow();
+}
+
+function closeControlsWindow() {
+  controlsOpen = false;
+  controlsCapturing = null;
+  document.getElementById('controls-modal-overlay').classList.remove('open');
+  // Keys pressed while the window was up were swallowed by the capture path and
+  // never reached setKey, so anything held on the way in would otherwise latch.
+  if (typeof keys !== 'undefined') for (const k in keys) keys[k] = false;
+}
+
+// Called from the keydown handler BEFORE anything else. Returns true when it has
+// consumed the press.
+function controlsCaptureKey(e) {
+  if (!controlsOpen) return false;
+  if (!controlsCapturing) {
+    // Not capturing: the window is still modal, so Escape closes it and every
+    // other key is swallowed rather than reaching the world underneath.
+    if (e.key === 'Escape') closeControlsWindow();
+    return true;
+  }
+  if (e.key === 'Escape') {            // cancel this one assignment, keep the window
+    controlsCapturing = null;
+    renderControlsWindow();
+    return true;
+  }
+  // Modifier-only presses are not a binding. Waiting for the real key is kinder
+  // than assigning "Shift" and leaving the player to work out why nothing works.
+  if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return true;
+  if (typeof setKeyBinding === 'function') setKeyBinding(controlsCapturing, e.key);
+  controlsCapturing = null;
+  renderControlsWindow();
+  if (typeof refreshControlHints === 'function') refreshControlHints();
+  return true;
+}
+
+function beginControlsCapture(id) {
+  controlsCapturing = id;
+  renderControlsWindow();
+}
+
+function controlsResetAll() {
+  if (typeof resetKeyBindings === 'function') resetKeyBindings();
+  if (typeof setTouchSide === 'function') setTouchSide('left');
+  controlsCapturing = null;
+  renderControlsWindow();
+  if (typeof refreshControlHints === 'function') refreshControlHints();
+}
+
+function controlsCycleScheme() {
+  if (typeof cycleUiMode === 'function') cycleUiMode();
+  renderControlsWindow();
+}
+
+function controlsToggleSide() {
+  if (typeof toggleTouchSide === 'function') toggleTouchSide();
+  renderControlsWindow();
+}
+
+function renderControlsWindow() {
+  const el = document.getElementById('controls-modal');
+  if (!el) return;
+  const rows = (typeof KEY_ACTIONS !== 'undefined' ? KEY_ACTIONS : []).map(a => {
+    const capturing = controlsCapturing === a.id;
+    const bound = (typeof keyBinding === 'function') ? keyBinding(a.id) : '';
+    // An action left unbound by a reassignment says so loudly. A blank cell
+    // reads as a rendering fault; "unbound" reads as a thing you did.
+    const label = capturing ? 'press a key…'
+                : bound ? ((typeof keyLabel === 'function') ? keyLabel(bound) : bound)
+                : 'unbound';
+    const colour = capturing ? '#ffe89a' : bound ? '#dfe7ff' : '#ff8a8a';
+    return `<div class="shop-row">
+      <div class="shop-item"><div class="shop-item-name">${a.label}</div></div>
+      <button class="ssbtn" style="min-width:118px;color:${colour}"
+        onclick="beginControlsCapture('${a.id}')">${label}</button>
+    </div>`;
+  }).join('');
+
+  const sideLabel = (typeof touchSideLabel === 'function') ? touchSideLabel() : '—';
+  const schemeLabel = (typeof uiModeLabel === 'function') ? uiModeLabel() : '—';
+  const changed = (typeof controlsChangedFromDefault === 'function')
+    ? controlsChangedFromDefault() : false;
+
+  el.innerHTML = `
+    <h2>🎮 Controls</h2>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🎮 Control scheme</div>
+        <div class="shop-item-meta">Auto follows the last input you used. Override it if auto guesses wrong.</div>
+      </div>
+      <button class="ssbtn" style="min-width:118px" onclick="controlsCycleScheme()">${schemeLabel}</button>
+    </div>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🤚 Touch control side</div>
+        <div class="shop-item-meta">Which side the steering pad and action buttons sit on.</div>
+      </div>
+      <button class="ssbtn" style="min-width:118px" onclick="controlsToggleSide()">${sideLabel}</button>
+    </div>
+    <div style="margin:10px 0 4px;color:#8a93b8;font-size:13px">
+      Keyboard — click a key, then press the one you want.
+      Space always swings as well, and cannot be reassigned.
+    </div>
+    ${rows}
+    <div style="margin-top:10px;color:${changed ? '#a9d8a9' : '#8a93b8'};font-size:13px">
+      ${changed ? '✔ Your controls differ from the defaults.'
+                : 'Everything is at its default.'}
+    </div>
+    <button class="ssbtn" onclick="controlsResetAll()">↺ Reset to defaults</button>
+    <button class="shop-close" onclick="closeControlsWindow()">✕ Close</button>`;
+}

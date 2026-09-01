@@ -1190,6 +1190,156 @@ function cycleUiMode() {
   if (typeof buzz === 'function') buzz(8);
 }
 
+// ─── Key bindings ────────────────────────────────────────────────────────────
+// Every gameplay key is rebindable. This exists for the ordinary reason — the
+// hardcoded ZXCVP layout suits a right hand on a QWERTY board and nothing else,
+// and players on AZERTY or a laptop without a numpad row have had no recourse —
+// and for one specific reason: the Shadow temple's boss front-runs the player's
+// inputs, and the counter is to change your controls out from under it. That
+// counter needs something real to change (keyBindingsChanged, below).
+//
+// Space is deliberately NOT in this table. It is the interact key and doubles as
+// a melee trigger, it is bound in half a dozen modal handlers as "confirm", and
+// letting it be reassigned would let a player bind away their own ability to
+// close a dialogue. It stays a fixed secondary for melee.
+//
+// Movement is in the table even though the Shadow fight is the only thing that
+// makes rebinding it interesting, because a rebinding screen that refuses to
+// rebind the four keys you press most reads as broken.
+const KEY_ACTIONS = [
+  { id: 'up',      label: 'Move up',       def: 'ArrowUp' },
+  { id: 'down',    label: 'Move down',     def: 'ArrowDown' },
+  { id: 'left',    label: 'Move left',     def: 'ArrowLeft' },
+  { id: 'right',   label: 'Move right',    def: 'ArrowRight' },
+  { id: 'melee',   label: 'Sword / punch', def: 'z' },
+  { id: 'bow',     label: 'Bow',           def: 'x' },
+  { id: 'bomb',    label: 'Bomb',          def: 'c' },
+  { id: 'ability', label: 'Ability',       def: 'f' },
+  { id: 'potion',  label: 'Drink potion',  def: 'p' },
+  { id: 'menu',    label: 'Menu',          def: 'v' },
+  { id: 'minimap', label: 'Minimap',       def: 'Tab' },
+  { id: 'weapon1', label: 'Equip sword',   def: '1' },
+  { id: 'weapon2', label: 'Equip bow',     def: '2' },
+  { id: 'weapon3', label: 'Equip bomb',    def: '3' },
+];
+const KEYBIND_KEY = 'stormdrift_keybinds';
+const keyBinds = {};
+for (const a of KEY_ACTIONS) keyBinds[a.id] = a.def;
+try {
+  const raw = localStorage.getItem(KEYBIND_KEY);
+  if (raw) {
+    const saved = JSON.parse(raw);
+    // Only ids this build knows about, and only strings. A save from a build
+    // with an action that no longer exists must not resurrect it, and a
+    // corrupted value must not brick the controls.
+    for (const a of KEY_ACTIONS) {
+      if (typeof saved[a.id] === 'string' && saved[a.id]) keyBinds[a.id] = saved[a.id];
+    }
+  }
+} catch (_) { /* private mode or malformed; the defaults above stand */ }
+
+function keyBinding(id) { return keyBinds[id]; }
+
+// Case-insensitive for single characters, exact for named keys ('ArrowUp',
+// 'Tab'). Mirrors what setKey already does when it records both cases.
+function sameKey(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length === 1 && b.length === 1) return a.toLowerCase() === b.toLowerCase();
+  return a === b;
+}
+function matchesBinding(evKey, id) { return sameKey(evKey, keyBinds[id]); }
+
+// Is the bound key down right now? Reads the same `keys` map the hardcoded
+// checks used, so nothing downstream of the input layer changes.
+function bindingHeld(id) {
+  const k = keyBinds[id];
+  if (!k) return false;
+  if (k.length === 1) return !!(keys[k.toLowerCase()] || keys[k.toUpperCase()]);
+  return !!keys[k];
+}
+
+function setKeyBinding(id, key) {
+  if (!keyBinds.hasOwnProperty(id) || typeof key !== 'string' || !key) return false;
+  // One key, one action. Whatever held it before is left UNBOUND rather than
+  // silently sharing, because two actions on one key is a bug the player cannot
+  // see and cannot diagnose.
+  for (const a of KEY_ACTIONS) {
+    if (a.id !== id && sameKey(keyBinds[a.id], key)) keyBinds[a.id] = '';
+  }
+  keyBinds[id] = key;
+  saveKeyBinds();
+  return true;
+}
+
+function resetKeyBindings() {
+  for (const a of KEY_ACTIONS) keyBinds[a.id] = a.def;
+  saveKeyBinds();
+}
+
+function saveKeyBinds() {
+  try { localStorage.setItem(KEYBIND_KEY, JSON.stringify(keyBinds)); } catch (_) { /* ignore */ }
+}
+
+// Has the player moved anything off its default? This is the Shadow temple's
+// desktop tell — the fight reads its own inputs correctly until the hero
+// rearranges the board under it. Handedness counts too, so a touch player and a
+// desktop player each have a real answer.
+function controlsChangedFromDefault() {
+  if (typeof touchPadOnLeft === 'function' && !touchPadOnLeft()) return true;
+  return KEY_ACTIONS.some(a => !sameKey(keyBinds[a.id], a.def));
+}
+
+// Translate a pressed key into the key the GAME's code is written against.
+//
+// Rebinding is done as one translation at the input boundary rather than as a
+// lookup at each of the several dozen places a key is read, and that choice is
+// deliberate. Movement especially is an internal protocol here: the touch
+// joystick and tap-to-travel both DRIVE the hero by injecting arrow keys into
+// the same `keys` map the keyboard writes, and player.js reads arrows out of it.
+// Teaching every reader about bindings would mean teaching the injectors too,
+// and the first one anybody forgot would be a control that works on keyboard and
+// not on touch.
+//
+// So: a bound key becomes its action's DEFAULT key here, and everything
+// downstream — the movement step, the weapon hotkeys, the modal handlers, the
+// injectors — keeps working in the vocabulary it was written in and never learns
+// that rebinding exists.
+//
+// Keys bound to nothing pass through untouched, which is what keeps Escape,
+// Enter, Space and the world-map's +/- working, and what keeps the arrow keys
+// driving the radial menu even for a player who has moved movement off them.
+function canonicalKey(evKey) {
+  for (const a of KEY_ACTIONS) {
+    if (keyBinds[a.id] && sameKey(evKey, keyBinds[a.id])) return a.def;
+  }
+  // A key that is some action's DEFAULT but is no longer bound to it has to go
+  // DEAD, not pass through. Without this the old key keeps working: move melee
+  // from Z to K and Z still swings, because Z is the vocabulary the downstream
+  // code reads and nothing had unbound it. A rebinding screen whose old keys
+  // still fire is not a rebinding screen.
+  //
+  // '' is a key nothing reads and nothing compares equal to, so the press is
+  // recorded harmlessly and every branch below misses it.
+  //
+  // This is also why rebinding movement off the arrows stops the arrows driving
+  // the radial menu: the keys that replaced them drive it instead, through this
+  // same translation, so the menu follows the player's layout rather than
+  // keeping a second hidden one.
+  for (const a of KEY_ACTIONS) {
+    if (sameKey(evKey, a.def)) return '';
+  }
+  return evKey;
+}
+
+// Human-readable, for the Controls window.
+function keyLabel(k) {
+  if (!k) return '—';
+  const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+                  ' ': 'Space', Tab: 'Tab', Escape: 'Esc', Enter: 'Enter' };
+  if (named[k]) return named[k];
+  return k.length === 1 ? k.toUpperCase() : k;
+}
+
 // ─── Handedness: which side of the screen the touch controls live on ─────────
 // Default is pad bottom-LEFT and the action buttons bottom-RIGHT, which is what
 // this game has always done. 'right' mirrors both.
