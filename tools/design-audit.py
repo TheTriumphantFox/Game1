@@ -4,9 +4,9 @@
     python tools/design-audit.py                 # report drift, exit 1 if any
     python tools/design-audit.py --fix           # also correct the wrong cells
     python tools/design-audit.py --sheet Enemies # narrow to one sheet
-    python tools/design-audit.py --workbook path/to/Game1.xlsx
+    python tools/design-audit.py --workbook path/to/Game1.current.xlsx
 
-The numbers in Game1.xlsx are a snapshot of tables that live in the JS. They go
+The numbers in Game1.current.xlsx are a snapshot of tables that live in the JS. They go
 stale silently: a region gets inserted and every later Rgn # is wrong, a potion
 is renamed, an enemy loses its `ranged` flag. This walks the derivable sheets
 cell by cell against tools/design-export.js (which runs the real game code) and
@@ -47,7 +47,11 @@ except ImportError:
     sys.exit('design-audit: openpyxl is not installed - pip install openpyxl')
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_WORKBOOK = ROOT.parent / 'Game1.xlsx'
+# The workbook is dated, and the live one is always Game1.current.xlsx. Renamed
+# 2026-09-01: the folder now keeps Game1.<YYYY-MM-DD>.xlsx snapshots beside it,
+# so a bare 'Game1.xlsx' no longer exists and pointing at one would fail on a
+# clean checkout with no obvious cause.
+DEFAULT_WORKBOOK = ROOT.parent / 'Game1.current.xlsx'
 NONE = '—'          # em dash: the workbook's "not applicable" marker
 
 

@@ -1,11 +1,12 @@
 ---
 name: design-workbook
-description: Keep Game1.xlsx — the 12-sheet design reference for enemies, foliage, chests, ores, regions, quests, the Guild, NPCs, progression, sword/armor forging, and potions — in sync with the game source it was transcribed from. Use this skill whenever the user asks to update, check, refresh, audit, or fix the spreadsheet/workbook/design doc, whenever they ask what a sheet should say, and whenever a code change touches a balance table (DND_ENEMIES, ENEMY_DROPS, TROPHIES, ORE_TYPES, REGIONS, HERBALIST_RECIPES, the foliage cut chain, chest rewards, quest rewards) — the workbook is a snapshot and goes stale silently. Trigger even when the user only says "update all the fields" or names the file, without saying what changed.
+description: Keep Game1.current.xlsx — the 12-sheet design reference for enemies, foliage, chests, ores, regions, quests, the Guild, NPCs, progression, sword/armor forging, and potions — in sync with the game source it was transcribed from. Use this skill whenever the user asks to update, check, refresh, audit, or fix the spreadsheet/workbook/design doc, whenever they ask what a sheet should say, and whenever a code change touches a balance table (DND_ENEMIES, ENEMY_DROPS, TROPHIES, ORE_TYPES, REGIONS, HERBALIST_RECIPES, the foliage cut chain, chest rewards, quest rewards) — the workbook is a snapshot and goes stale silently. Trigger even when the user only says "update all the fields" or names the file, without saying what changed.
 ---
 
 # Design Workbook
 
-`Game1.xlsx` sits one level **above** the repo, at `../Game1.xlsx`. It is a hand-authored reference
+`Game1.current.xlsx` sits one level **above** the repo, at `../Game1.current.xlsx`. It is a
+hand-authored reference
 for the game's balance tables — not an input to the game. Nothing loads it at runtime, so when a
 table in the JS changes, the workbook keeps showing the old number and nothing complains.
 
