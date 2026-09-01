@@ -58,6 +58,7 @@ function hudEls() {
     xp: $('xp'), xpnext: $('xpnext'), roomName: $('roomName'),
     sword: $('ws-sword'), bow: $('ws-bow'), bomb: $('ws-bomb'),
     armor: $('ws-armor'), immunity: $('ws-immunity'), interact: $('ws-interact'),
+    heat: $('ws-heat'),
     // Touch action pad (bottom-right buttons) — present only on touch devices.
     taWrap: $('touch-actions'), taSword: $('ta-sword'), taBow: $('ta-bow'),
     taPotion: $('ta-potion'), taAbility: $('ta-ability'),
@@ -152,11 +153,13 @@ function updateHUD() {
     const elem = ae ? SWORD_ELEMENTS[ae] : null;
     const phys = elem && elementalArmorPhys(ae);
     const pct  = elem && elementalArmorBlockPct(ae);
-    const sig = elem ? ae + '+' + phys + '-' + pct : '';
+    const power = elem && typeof elementalArmorAbility === 'function' ? elementalArmorAbility(ae) : null;
+    const sig = elem ? ae + '+' + phys + '-' + pct + '|' + (power ? power.label : '') : '';
     if (last.armor !== sig) {
       last.armor = sig;
       if (elem) {
-        el.armor.innerHTML = `🛡${elemIconHTML(elem, 14)} ${elem.label} +${phys}·−${pct}%`;
+        el.armor.innerHTML = `🛡${elemIconHTML(elem, 14)} ${elem.label} +${phys}·−${pct}%${power ? ` · ${power.label}` : ''}`;
+        el.armor.title = power ? power.description : `${elem.label} Armor`;
         el.armor.className = 'weapon-slot weapon-active';
         el.armor.style.display = '';
       } else {
@@ -164,6 +167,33 @@ function updateHUD() {
       }
     }
   }
+  // Regional heat meter — desert heatstroke now, Volcanic overheat later
+  // (stepRegionalHeat, abilities.js). Hidden while cold, so the bar is quiet in
+  // every region that does not bake. Quantised to twenty steps rather than
+  // rewritten per frame: the signature below only changes when a bar segment
+  // does, which keeps a meter that fills over seven seconds from rewriting the
+  // DOM sixty times a second.
+  if (el.heat) {
+    const spec = (typeof heatRegionFor === 'function' && typeof currentMap === 'function')
+      ? heatRegionFor(currentMap()) : null;
+    const h = spec ? (player.heat || 0) : 0;
+    const steps = Math.round(h * 20);
+    const sig = spec ? spec.label + ':' + steps : '';
+    if (last.heat !== sig) {
+      last.heat = sig;
+      if (steps > 0) {
+        const full = h >= 1;
+        const bars = '█'.repeat(Math.max(1, Math.round(h * 8)));
+        el.heat.innerHTML = `${spec.icon} ${spec.label} <span style="color:${
+          full ? '#ff5a2a' : '#ffb066'}">${bars}</span>`;
+        el.heat.className = 'weapon-slot' + (full ? ' weapon-active' : '');
+        el.heat.style.display = '';
+      } else {
+        el.heat.style.display = 'none';
+      }
+    }
+  }
+
   // Active Elixir immunity slot — shows the element and seconds remaining while a
   // Herbalist Elixir buff is up; hidden otherwise. (Rewrites once per second.)
   if (el.immunity) {
@@ -208,8 +238,8 @@ function updateHUD() {
     }
     const potions = player.potions || 0;
     const w = player.weapon;
-    // The equipped shrine ability, if there is one (abilities.js). Part of the
-    // signature so the fourth button appears the moment the Air shrine pays out.
+    // The active shrine/armor ability, if there is one (abilities.js). Part of
+    // the signature so the fourth button appears as soon as one becomes usable.
     const abil = (typeof equippedAbility === 'function') ? equippedAbility() : null;
     const sig = potions + '|' + w + '|' + (player.hasBow ? 1 : 0) + '|' + (player.hasSword ? 1 : 0) +
                 '|' + (abil || '');
@@ -232,15 +262,18 @@ function updateHUD() {
         el.taPotion.dataset.count = potions;
         el.taPotion.classList.toggle('empty', potions <= 0);
       }
-      // The ability button only exists once one of the two active abilities is
-      // owned, and wears whichever is equipped. Nothing equipped but one owned
+      // The ability button exists once an active shrine reward is owned or worn
+      // Air/Shadow armor supplies one, and wears whichever is currently active.
+      // Nothing equipped but one owned
       // still shows it — tapping then says how to equip, which is more useful
       // than a button that quietly isn't there.
       if (el.taAbility) {
         const owned = (typeof ACTIVE_ABILITIES !== 'undefined')
           ? ACTIVE_ABILITIES.filter(a => typeof hasAbility === 'function' && hasAbility(a)) : [];
-        el.taAbility.style.display = owned.length ? '' : 'none';
-        if (owned.length) {
+        const armorAbility = typeof armorActiveAbility === 'function' ? armorActiveAbility() : null;
+        const showAbility = owned.length > 0 || !!armorAbility;
+        el.taAbility.style.display = showAbility ? '' : 'none';
+        if (showAbility) {
           const icons = (typeof ABILITY_ICONS !== 'undefined') ? ABILITY_ICONS : {};
           const names = (typeof ABILITY_LABELS !== 'undefined') ? ABILITY_LABELS : {};
           el.taAbility.textContent = abil ? (icons[abil] || '✦') : '✦';

@@ -1860,6 +1860,111 @@ function buildStormBolts() {
   return bolts;
 }
 
+// Gameplay lightning uses the same storm-flash layer but forces one fork to end
+// at the hero instead of at a random point in the sky.
+function triggerPlayerStormStrike() {
+  const now = Date.now();
+  const targetX = Math.max(0.04, Math.min(0.96,
+    ((player.renderX + 0.5 - camC) * TILE_PX) / Math.max(1, PW)));
+  const targetY = Math.max(0.15, Math.min(0.96,
+    ((player.renderY + 0.5 - camR) * TILE_PX) / Math.max(1, PH)));
+  const points = [{ x: targetX + (Math.random() - 0.5) * 0.16, y: 0 }];
+  const segs = 8;
+  for (let i = 1; i <= segs; i++) {
+    const t = i / segs;
+    points.push({
+      x: targetX + (1 - t) * (Math.random() - 0.5) * 0.18,
+      y: targetY * t,
+    });
+  }
+  stormFlash.pulses = [
+    { t: now, amp: 1, k: 95 },
+    { t: now + 90, amp: 0.75, k: 75 },
+  ];
+  stormFlash.end = now + 320;
+  stormFlash.bolts = [{ main: points, branch: [] }];
+  stormFlash.next = now + 2600 + Math.random() * 4200;
+}
+
+// The miasma overlay. See the call site in render().
+function drawMiasma(ts, startC, startR, endC, endR) {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  if (!cm || typeof miasmaField !== 'function') return;
+  const g = miasmaField(cm);
+  if (!g) return;
+  const a = g.a;
+  ctx.save();
+  for (let r = Math.max(0, startR); r <= Math.min(MROWS - 1, endR); r++) {
+    const row = r * MCOLS;
+    for (let c = Math.max(0, startC); c <= Math.min(MCOLS - 1, endC); c++) {
+      const d = a[row + c];
+      if (d < 0.02) continue;                 // nothing here worth a fill
+      // Alpha saturates well below 1 so dense gas still shows what is under it.
+      // A hazard you cannot see the enemy through is a hazard that feels unfair
+      // rather than dangerous.
+      ctx.globalAlpha = Math.min(0.62, d * 0.85);
+      ctx.fillStyle = d > 0.5 ? '#7fae32' : '#9ac64a';
+      ctx.fillRect(Math.floor((c - camC) * ts), Math.floor((r - camR) * ts), ts + 1, ts + 1);
+    }
+  }
+  ctx.restore();
+}
+
+// Luminous armor's projectile-blocking aura. See the call site in render().
+function drawLuminousAura(ts) {
+  if (typeof wearingElementalArmor !== 'function' || !wearingElementalArmor('luminous')) return;
+  const ready = (typeof luminousAuraReady === 'function') ? luminousAuraReady() : true;
+  const r = ((typeof LUMINOUS_BLOCK_RADIUS !== 'undefined') ? LUMINOUS_BLOCK_RADIUS : 2.2) * ts;
+  const cx = (player.renderX + 0.5 - camC) * ts;
+  const cy = (player.renderY + 0.5 - camR) * ts;
+  const t = Date.now() / 420;
+  ctx.save();
+  // Charged: a bright, breathing rim. Recharging: faint and still, so the two
+  // states are told apart at a glance and not by counting.
+  ctx.globalAlpha = ready ? (0.30 + 0.12 * Math.sin(t)) : 0.10;
+  ctx.strokeStyle = ready ? '#ffe89a' : '#8a8570';
+  ctx.lineWidth = Math.max(2, ts * 0.07);
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  if (ready) {
+    ctx.globalAlpha = 0.08 + 0.05 * Math.sin(t * 1.3);
+    const g = ctx.createRadialGradient(cx, cy, r * 0.35, cx, cy, r);
+    g.addColorStop(0, 'rgba(255,232,154,0)');
+    g.addColorStop(1, '#ffe89a');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Screen-space heat haze for the volcanic region. See the call site in render().
+function drawHeatHaze() {
+  const lvl = (typeof heatHazeLevel === 'function') ? heatHazeLevel() : 0;
+  if (lvl <= 0) return;
+  ctx.save();
+  // Warm wash, capped well short of opaque.
+  ctx.globalAlpha = 0.10 + 0.16 * lvl;
+  const g = ctx.createLinearGradient(0, PH, 0, 0);
+  g.addColorStop(0, '#ff6a22');
+  g.addColorStop(0.55, '#ff9a3c');
+  g.addColorStop(1, 'rgba(255,190,120,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, PW, PH);
+  // Slow shimmer bands rising off the ground. Horizontal bands that drift
+  // upward: they read as rising heat without moving anything the player is
+  // trying to look at.
+  const t = Date.now() / 1000;
+  ctx.globalAlpha = 0.05 + 0.10 * lvl;
+  ctx.fillStyle = '#ffd9a8';
+  const bands = 5;
+  for (let i = 0; i < bands; i++) {
+    const phase = (t * 0.16 + i / bands) % 1;
+    const y = PH * (1 - phase);
+    const h = PH * 0.035 * (0.6 + 0.8 * lvl);
+    ctx.fillRect(0, y, PW, h);
+  }
+  ctx.restore();
+}
+
 function updateStormFlash(now, isStorm) {
   if (!isStorm) {
     stormFlashLevel = 0; stormFlash.pulses = null;
@@ -2077,19 +2182,23 @@ const DEPTH_DROP     = 1;
 const DEPTH_PROJ     = 2;
 const DEPTH_ENEMY    = 3;
 const DEPTH_VILLAGER = 4;
-const DEPTH_PLAYER   = 5;
+// Skeleton allies sort with the crowd, just under the hero: they are actors on
+// the ground like everything else here, and a minion standing south of the hero
+// must paint over them the same way a villager would.
+const DEPTH_ALLY     = 5;
+const DEPTH_PLAYER   = 6;
 // A forest-village roof sorts AFTER every actor on its own row, because its job
 // is to hide the people inside the house. Its key is the house's south row, so
 // an actor inside (rows r1..r2) is covered while one standing south of the door
 // (r2 + 1) is not. That replaces redrawPlayerInFront, which drew the whole hero
 // a second time to get the same effect for the one pilot cottage.
-const DEPTH_ROOF     = 6;
+const DEPTH_ROOF     = 7;
 // The Obsidian Spire (village-shadow.js). Keyed to its foot row like any actor,
 // which is what lets the hero walk up to the castle gate and pass in FRONT of a
 // thirty-tile tower instead of being painted over by it. Sorts before a roof on
 // the same row for the same reason a roof sorts last: the roof is the only thing
 // meant to hide what is under it.
-const DEPTH_SPIRE    = 7;
+const DEPTH_SPIRE    = 8;
 
 // Sub-kinds for a tall tile, so the merge can dispatch without a string compare.
 const TALL_EXTRUDE  = 0;
@@ -2289,6 +2398,12 @@ function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
   // (y, kind) pairs keep insertion order and spawn order survives.
   actors.sort((a, b) => (a.y - b.y) || (a.k - b.k));
 
+  // Skeleton allies (enemies.js). Transient and never saved, so they are pushed
+  // here each frame rather than living in any of the map's own lists.
+  if (typeof allies !== 'undefined') {
+    for (const a of allies) if (!a.dead) actors.push({ y: a.y, k: DEPTH_ALLY, o: a });
+  }
+
   const tall = mapTallTiles(mapObj);
   let ti = 0;
 
@@ -2304,6 +2419,7 @@ function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
       case DEPTH_PROJ:     drawProjectile(act.o); break;
       case DEPTH_ENEMY:    drawEnemy(act.o, ts); break;
       case DEPTH_VILLAGER: drawVillager(act.o, ts); break;
+      case DEPTH_ALLY:     drawSkeletonAlly(act.o, ts); break;
       case DEPTH_PLAYER:   drawPlayer(ts); break;
       case DEPTH_ROOF:     drawForestHouseRoof(act.o, mapObj, ts); break;
       case DEPTH_SPIRE:    drawObsidianSpire(mapObj, ts); break;
@@ -3667,8 +3783,7 @@ function render() {
 
   // Advance the lightning-region storm flash (no-op on every other map). Done
   // before the tile pass so the STORM_CLOUD border can crackle in sync this frame.
-  const isStormMap = !!mapObj && mapObj.biome === 'lightning' &&
-                     (mapObj.type === 'lightning' || mapObj.type === 'village');
+  const isStormMap = typeof isStormExposedMap === 'function' && isStormExposedMap(mapObj);
   updateStormFlash(Date.now(), isStormMap);
 
   // Cinematic state (shake decay, this frame's jolt offset) — see the block near
@@ -3776,6 +3891,33 @@ function render() {
   // Intact forest roofs are a foreground layer: they hide indoor activity from
   // outside, then disappear for the one cottage the player has entered.
   drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR);
+
+  // The poison wastes' miasma (stepMiasma, abilities.js). Drawn over the
+  // finished scene so it lies on top of terrain and actors alike — gas is
+  // between the camera and the world, not painted onto the ground.
+  //
+  // Cost is bounded by the VIEWPORT, not the map: only the tiles actually on
+  // screen are touched, so a 150x150 field costs the same to draw as a small
+  // one. Cells below the visibility floor are skipped entirely, which is most of
+  // them most of the time — a plume covers a fraction of the map.
+  drawMiasma(ts, startC, startR, endC, endR);
+
+  // Volcanic heat haze. A screen-space wash over the finished scene, strength
+  // driven by the overheat stage (heatHazeLevel, abilities.js), so the region
+  // visibly cooks the hero well before the meter costs them anything.
+  //
+  // Wash and banding only — deliberately NOT a warp, ripple or blur of the
+  // playfield. Distorting what the player is aiming at is the version of this
+  // that hurts anyone with motion sensitivity and makes the game hard to read
+  // for everyone; a colour wash carries the same message and stays legible. It
+  // also never reaches full opacity, so nothing is ever hidden behind it.
+  // Luminous armor's shield ring. Drawn over the scene so it reads as light
+  // around the hero rather than as paint on the ground, and dimmed while the
+  // aura recharges — a shield whose state the player cannot see is a shield
+  // they cannot plan around.
+  drawLuminousAura(ts);
+
+  drawHeatHaze();
 
   // The Emperor's crown, rolling to the hero's feet and then lying there. After
   // the entities because it comes to rest against the player's boot and has to

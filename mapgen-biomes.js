@@ -608,6 +608,130 @@ function addLedgeCauseway(m) {
   return r.ledge > 0;
 }
 
+// Stamp a ragged blob of `tile` over open ground, centred somewhere open.
+//
+// Pulled out of addCursedGround once the desert needed the same shape. All three
+// hazard fields in the game — cursed ground, expanded dunes and quicksand — are
+// "irregular patches of a hazard tile, never on the road", and writing that
+// three times is how the three of them drift apart.
+//
+// Seeding the centre on OPEN GROUND rather than uniformly matters more than it
+// looks: these maps are mostly wall with carved patches through them, and a
+// uniform centre lands in rock most of the time and yields a puddle instead of a
+// field. `skip` is the caller's extra veto, for tiles a given hazard must not
+// eat (quicksand does not pave over an oasis).
+function stampHazardBlots(m, tile, blots, rMin, rMax, skip) {
+  for (let i = 0; i < blots; i++) {
+    let cx = -1, cy = -1;
+    for (let tries = 0; tries < 60; tries++) {
+      const c = rnd(6, MCOLS - 7), r = rnd(6, MROWS - 7);
+      if (isSolid(m, c, r) || isProtectedFeature(m[r][c]) || m[r][c] === T.PATH) continue;
+      if (skip && skip(m[r][c])) continue;
+      cx = c; cy = r; break;
+    }
+    if (cx < 0) continue;
+    const rx = rnd(rMin, rMax), ry = rnd(rMin, rMax);
+    for (let r = cy - ry; r <= cy + ry; r++) {
+      for (let c = cx - rx; c <= cx + rx; c++) {
+        if (c < 1 || r < 1 || c >= MCOLS - 1 || r >= MROWS - 1) continue;
+        const dx = (c - cx) / rx, dy = (r - cy) / ry;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 1) continue;
+        if (d2 > 0.64 && genRandom() < 0.35) continue;    // ragged rim
+        const t = m[r][c];
+        if (t === T.PATH) continue;                       // the road stays clean
+        if (isProtectedFeature(t) || isSolid(m, c, r)) continue;
+        if (skip && skip(t)) continue;
+        m[r][c] = tile;
+      }
+    }
+  }
+}
+
+// Desert heat and quicksand.
+//
+// The dune fields Phase 4 already lays down are what the heat meter reads
+// (HEAT_REGIONS.fire, abilities.js), so this widens them into something worth
+// routing around rather than the scattered bumps they were, and then cuts
+// quicksand into the sand as the region's lethal hazard.
+//
+// Quicksand kills, so where it goes is the whole of its fairness. It never sits
+// on T.PATH, so the roads across the desert are always safe and quicksand is
+// only ever met by choosing to leave them; and it refuses to pave over water or
+// bridges, so an oasis crossing cannot become a death trap.
+function addDesertHazards(m) {
+  const noWater = (t) =>
+    t === T.OASIS_WATER || t === T.WATER || t === T.MEDIUM_WATER ||
+    t === T.SHALLOW_WATER || t === T.BRIDGE;
+  stampHazardBlots(m, T.DUNE, rnd(3, 5), 5, 11, noWater);
+  // Radius capped at 6, and that cap is load-bearing. Quicksand drowns, and the
+  // hero only has five wading steps before it closes over them (see the
+  // invariant on QUICKSAND_SINK_MS in abilities.js). Measured at this radius the
+  // deepest tile sits 4 steps from open ground. Widen it and the middle of a
+  // blot becomes unsurvivable rather than tense.
+  stampHazardBlots(m, T.QUICKSAND, rnd(2, 4), 3, 6, noWater);
+}
+
+// Volcanic fissure fields — the region's overheat zones.
+//
+// MAGMA_CRACK is already the volcanic floor's dapple and is already passable, so
+// this widens it into fields worth routing around rather than adding a tile.
+// Same stamper and the same rule as the desert and the wastes: never on T.PATH,
+// so the roads across the caldera stay cool and the fissure fields are the part
+// that cooks. Lava itself is solid and is left alone — it is a wall, not a
+// hazard floor.
+function addVolcanicHazards(m) {
+  const noLava = (t) => t === T.LAVA || t === T.BRIDGE;
+  stampHazardBlots(m, T.MAGMA_CRACK, rnd(3, 5), 4, 9, noLava);
+}
+
+// Gas vents for the poison wastes.
+//
+// POINT features, not blots — the gas does the spreading, so what generation
+// places is a handful of sources and nothing else. Kept off T.PATH like every
+// other hazard here, which means the roads stay breathable and the wastes
+// either side do not; and spread well apart so their plumes cover separate
+// ground rather than fusing into one wall of green.
+// Spacing measured, not guessed. At 22 apart the search failed often enough that
+// three maps in eight got a single vent, which is not a gassy region — poison
+// maps are dense with thicket and there is less open ground to land on than the
+// number suggests. 15 keeps the plumes separate while actually placing what is
+// asked for.
+const GAS_VENT_MIN = 3, GAS_VENT_MAX = 5, GAS_VENT_APART = 15;
+
+function addGasVents(m) {
+  const placed = [];
+  const want = rnd(GAS_VENT_MIN, GAS_VENT_MAX);
+  for (let i = 0; i < want; i++) {
+    for (let t = 0; t < 160; t++) {
+      const x = rnd(14, MCOLS - 15), y = rnd(14, MROWS - 15);
+      if (isSolid(m, x, y)) continue;
+      if (m[y][x] === T.PATH) continue;
+      if (isProtectedFeature(m[y][x])) continue;
+      if (placed.some(p => Math.hypot(p[0] - x, p[1] - y) < GAS_VENT_APART)) continue;
+      m[y][x] = T.GAS_VENT;
+      placed.push([x, y]);
+      break;
+    }
+  }
+}
+
+// Blot cursed ground across the necrotic wastes.
+//
+// PASSABLE, not solid. Necrotic armor is forged at the region's own Blacksmith,
+// behind its boss village, so a wall of cursed ground would gate the region
+// behind an armor you can only get by finishing it. It drains instead: crossing
+// costs HP, the armor makes it free, and nothing is ever sealed off.
+//
+// Kept OFF T.PATH for the same reason from the other direction. The roads
+// through the region are the mandatory route and they stay clean; the blighted
+// fields either side are where the cost lives, so a hero who sticks to the road
+// pays nothing and one cutting the corner pays for the shortcut. That is the
+// shape every armor hazard in this game is supposed to have.
+function addCursedGround(m) {
+  stampHazardBlots(m, T.CURSED_GROUND, rnd(3, 6), 3, 8, null);
+}
+
 // Sprinkle a cluster of passable FLOWERING_CACTUS tiles onto the SAND/GRASS
 // immediately around a randomly chosen desert water tile (pool or oasis). These
 // have 1 HP and are cut down by a sword swing (see doSwordSwing).
@@ -779,6 +903,11 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
   // A desert map that rolled no mesa still gets its shortcut (item B). Only
   // when there is no mesa: two raised routes across one map is one too many.
   if (plateauCount === 0) addLedgeCauseway(m);
+
+  // Heat fields and quicksand. After the plateaus so a mesa is never paved over,
+  // and before the demote/connectivity passes below so anything they need to
+  // re-link is already on the map.
+  addDesertHazards(m);
 
   // Desert is outside the water region: demote its pools and OASIS_WATER to
   // MEDIUM_WATER so no deep/standing water survives here.
@@ -1028,6 +1157,12 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   // found. BEFORE the seal, exactly like the desert's mesas, so
   // ensureConnectivity can re-link anything the shelf happened to wall off.
   if (region.id === 'earth') addLedgeCauseway(m);
+  // Necrotic: blot cursed ground over the wastes. BEFORE the seal like the
+  // causeway above, though it cannot actually wall anything off — it is
+  // passable, so ensureConnectivity floods straight through it.
+  if (region.id === 'necrotic') addCursedGround(m);
+  // Volcanic: widen the fissure dapple into real overheat fields.
+  if (region.id === 'volcanic') addVolcanicHazards(m);
 
   // corridors use the region's corridor tile so they blend in too.
   ensureConnectivity(m, false, BORDER, PATHTILE);
@@ -1135,6 +1270,21 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   scatterPoisonFoliage(m, region.id);
   sprinkleMangroves(m, region.id);
   addFallenLogs(m, region.id, depth);
+
+  // Poison: the gas vents, and they go HERE rather than up with the other hazard
+  // passes for a reason that cost a debugging round. Placed before the seal like
+  // the causeway and the cursed ground, they were stamped correctly and then
+  // quietly paved over by addPoisonBogs, scatterPoisonFoliage, sprinkleMangroves
+  // and addFallenLogs, all of which write to the same open SLUDGE. Measured
+  // then: three maps in eight ended up with a single surviving vent.
+  //
+  // Running last is safe because a vent is passable and additive — it can never
+  // orphan terrain the way a solid feature could, which is exactly the argument
+  // the ice streams above make for running after the seal.
+  //
+  // Only the SOURCES are placed here. The gas is simulated at runtime
+  // (stepMiasma, abilities.js) and is not part of the map at all.
+  if (region.id === 'poison') addGasVents(m);
 
   // Mana region: dress the bare mana wastes into a forest flourishing past nature,
   // gorged on life energy so everything grows abnormally large. Pool thick MANA_MOSS

@@ -109,6 +109,7 @@ function update(dt) {
       (typeof statsPageOpen     !== 'undefined' && statsPageOpen)     ||
       (typeof worldMapOpen      !== 'undefined' && worldMapOpen)      ||
       (typeof sysMenuOpen       !== 'undefined' && sysMenuOpen)       ||
+      (typeof controlsOpen      !== 'undefined' && controlsOpen)      ||
       (typeof modalMode         !== 'undefined' && modalMode)         ||
       (typeof shopOpen          !== 'undefined' && shopOpen)          ||
       (typeof portalOpen        !== 'undefined' && portalOpen)        ||
@@ -141,6 +142,11 @@ function update(dt) {
   moveTimer += dt;
   if (typeof updateShrinePuzzle === 'function') updateShrinePuzzle(dt);
   if (typeof stepAbilityCooldown === 'function') stepAbilityCooldown(dt);
+  if (typeof stepElementalArmorEffects === 'function') stepElementalArmorEffects(dt);
+  if (typeof stepGolems === 'function') stepGolems();
+  if (typeof stepToxicBlooms === 'function') stepToxicBlooms(dt);
+  if (typeof stepSkeletons === 'function') stepSkeletons(dt);
+  if (typeof stepEclipseSovereign === 'function') stepEclipseSovereign(dt);
   // The Emperor's HP thresholds (tower.js). Watched per frame rather than hooked
   // into the eight places that subtract enemy HP. After the freeze chain on
   // purpose: while the 50% line's box is still up, the 15% line waits its turn.
@@ -266,49 +272,60 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeNamePrompt();
     return;   // name prompt swallows gameplay input
   }
+  // The Controls window is capturing a key for rebinding: it takes this press
+  // and nothing else sees it. Before every other branch, because a player
+  // rebinding "menu" must not also open the menu with the key they are assigning.
+  if (typeof controlsCaptureKey === 'function' && controlsCaptureKey(e)) {
+    e.preventDefault();
+    return;
+  }
+  // Everything below reads `ck`, not e.key: the pressed key translated into the
+  // key this code was written against (canonicalKey, config.js). One translation
+  // at the boundary, so no reader downstream knows rebinding exists.
+  const ck = canonicalKey(e.key);
   if (typeof dialogueOpen !== 'undefined' && dialogueOpen) {
     // Space / Enter advance a scripted conversation. Nothing else gets through —
     // in particular Escape does NOT skip, because these lines are the story.
-    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); advanceDialogue(); }
+    if (ck === ' ' || ck === 'Enter') { e.preventDefault(); advanceDialogue(); }
     return;   // dialogue box swallows gameplay input
   }
   if (typeof cutsceneInputLocked !== 'undefined' && cutsceneInputLocked) {
     return;   // a scripted beat is driving — the player isn't
   }
   if (typeof shopOpen !== 'undefined' && shopOpen) {
-    if (e.key === 'Escape') closeShopModals();
+    if (ck === 'Escape') closeShopModals();
     return;   // shop modal swallows gameplay input
   }
   if (typeof victoryOpen !== 'undefined' && victoryOpen) {
     // Enter / Esc / Space dismiss the victory screen back into the world.
-    if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') continueFromVictory();
+    if (ck === 'Escape' || ck === 'Enter' || ck === ' ') continueFromVictory();
     return;   // victory overlay swallows gameplay input
   }
   if (typeof portalOpen !== 'undefined' && portalOpen) {
-    if (e.key === 'Escape') closePortalModal();
+    if (ck === 'Escape') closePortalModal();
     return;   // portal modal swallows gameplay input
   }
   if (typeof ledgerOpen !== 'undefined' && ledgerOpen) {
     // Esc — or V again, the key that opened the path — closes the ledger.
-    if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeDropLedger();
+    if (ck === 'Escape' || ck === 'v' || ck === 'V') closeDropLedger();
     return;   // ledger modal swallows gameplay input
   }
   if (typeof statsPageOpen !== 'undefined' && statsPageOpen) {
     // Esc — or V again — closes the character sheet.
-    if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeStatsPage();
+    if (ck === 'Escape' || ck === 'v' || ck === 'V') closeStatsPage();
     return;   // stats modal swallows gameplay input
   }
   if (typeof worldMapOpen !== 'undefined' && worldMapOpen) {
     // Esc — or V again — closes the world map. +/- and 0 zoom / fit.
-    if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeWorldMap();
-    else if (e.key === '+' || e.key === '=') worldMapZoom(1.25);
-    else if (e.key === '-' || e.key === '_') worldMapZoom(0.8);
-    else if (e.key === '0') worldMapResetView();
+    if (ck === 'Escape' || ck === 'v' || ck === 'V') closeWorldMap();
+    else if (ck === '+' || ck === '=') worldMapZoom(1.25);
+    else if (ck === '-' || ck === '_') worldMapZoom(0.8);
+    else if (ck === '0') worldMapResetView();
     return;   // world map swallows gameplay input
   }
   if (typeof sysMenuOpen !== 'undefined' && sysMenuOpen) {
     // Esc — or V again — closes the game menu.
-    if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') closeSysMenu();
+    if (ck === 'Escape' || ck === 'v' || ck === 'V') closeSysMenu();
     return;   // game menu swallows gameplay input
   }
   // The save / load modal (save.js; modalMode is 'save' | 'load', null when shut).
@@ -320,19 +337,19 @@ document.addEventListener('keydown', e => {
   // above: V is a letter someone may well want in a save name, and the modal has its
   // own ✕ Close. Escape closes, everything else is swallowed.
   if (typeof modalMode !== 'undefined' && modalMode) {
-    if (e.key === 'Escape') closeModal();
+    if (ck === 'Escape') closeModal();
     return;   // save/load modal swallows gameplay input
   }
   // Escape dismisses the newest toast. Sticky toasts (dur = 0) sit there until
   // an input clears them, and a keyboard player shouldn't have to reach for the
   // mouse to do it. Falls through when nothing is up — Escape is otherwise
   // unbound during gameplay, only inside the overlay branches above.
-  if (e.key === 'Escape' && typeof dismissTopToast === 'function' && dismissTopToast()) {
+  if (ck === 'Escape' && typeof dismissTopToast === 'function' && dismissTopToast()) {
     e.preventDefault();
     return;
   }
   // 'V' toggles the radial inventory menu (works whether open or closed)
-  if (e.key === 'v' || e.key === 'V') {
+  if (ck === 'v' || ck === 'V') {
     e.preventDefault();
     if (!e.repeat) toggleRadialMenu();
     return;
@@ -340,13 +357,13 @@ document.addEventListener('keydown', e => {
   // While the radial menu is open, arrow keys navigate the menu and all other
   // gameplay input is swallowed.
   if (typeof radialMenuOpen !== 'undefined' && radialMenuOpen) {
-    if (e.key === 'Escape') { closeRadialMenu(); return; }
+    if (ck === 'Escape') { closeRadialMenu(); return; }
     if (e.repeat) return;
-    if (e.key === 'ArrowUp')    { e.preventDefault(); radialNavRing(-1); return; }
-    if (e.key === 'ArrowDown')  { e.preventDefault(); radialNavRing( 1); return; }
-    if (e.key === 'ArrowLeft')  { e.preventDefault(); radialNavItem(-1); return; }
-    if (e.key === 'ArrowRight') { e.preventDefault(); radialNavItem( 1); return; }
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); radialActivateSelected(); return; }
+    if (ck === 'ArrowUp')    { e.preventDefault(); radialNavRing(-1); return; }
+    if (ck === 'ArrowDown')  { e.preventDefault(); radialNavRing( 1); return; }
+    if (ck === 'ArrowLeft')  { e.preventDefault(); radialNavItem(-1); return; }
+    if (ck === 'ArrowRight') { e.preventDefault(); radialNavItem( 1); return; }
+    if (ck === 'Enter' || ck === ' ') { e.preventDefault(); radialActivateSelected(); return; }
     return;
   }
   // Space-bar is the interact key. Pressed once (not held):
@@ -354,7 +371,7 @@ document.addEventListener('keydown', e => {
   //   2. Otherwise (and in villages with no villager adjacent), open an
   //      adjacent chest — chests are solid, so this is how you loot them.
   // Either interaction swallows the keypress so SPACE doesn't also swing.
-  if (e.key === ' ' && !e.repeat) {
+  if (ck === ' ' && !e.repeat) {
     // Talk to an adjacent villager / shopkeeper / Gatekeeper. Safe to try on
     // any map: it's a no-op unless a villager is adjacent (the cabin only has
     // the portal Gatekeeper; villages have the full crowd).
@@ -386,25 +403,33 @@ document.addEventListener('keydown', e => {
   }
   // Any manual movement/interact key cancels an in-progress tap-to-travel walk.
   if (autoNav && typeof cancelAutoNav === 'function' &&
-      ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
+      ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(ck)) {
     cancelAutoNav();
   }
-  setKey(e.key, true);
-  if (e.key === 'Tab') { e.preventDefault(); if (!e.repeat) showMinimap = !showMinimap; }
+  // The Eclipse Sovereign reads FINGERS, not intentions: it is handed the raw
+  // key, before canonicalKey translates it. That is the whole mechanic — its
+  // snapshot maps physical keys to actions, so rebinding is what breaks the
+  // read. Placed here rather than at the top of the handler so it only ever sees
+  // gameplay input; every modal above has already returned.
+  if (typeof sovereignObserveKey === 'function' && !e.repeat) sovereignObserveKey(e.key);
+  setKey(ck, true);
+  if (ck === 'Tab') { e.preventDefault(); if (!e.repeat) showMinimap = !showMinimap; }
   // 'P' drinks one Health Potion (fires on the press itself, not while held)
-  if (e.key === 'p' || e.key === 'P') { e.preventDefault(); if (!e.repeat) usePotion(); }
-  // 'F' uses the equipped shrine ability — Updraft Glide or Shadow Step
+  if (ck === 'p' || ck === 'P') { e.preventDefault(); if (!e.repeat) usePotion(); }
+  // 'F' uses the active shrine/armor ability: Updraft Glide or Shadow Step.
   // (abilities.js). On the press, never on the repeat: both of them move the
   // hero, and holding the key should not walk them across a lake.
-  if (e.key === 'f' || e.key === 'F') {
+  if (ck === 'f' || ck === 'F') {
     e.preventDefault();
     if (!e.repeat && typeof useEquippedAbility === 'function') useEquippedAbility();
   }
-  if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+  if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ck)) {
     e.preventDefault();
   }
 });
-document.addEventListener('keyup', e => { setKey(e.key, false); });
+// Keyup translates through the same boundary as keydown, or a rebound key would
+// latch on: pressed as its canonical key and released as its raw one.
+document.addEventListener('keyup', e => { setKey(canonicalKey(e.key), false); });
 
 // When the page loses focus or visibility, any held keys never get their
 // keyup event — drop them all so movement/bow don't keep firing on return.
@@ -468,9 +493,18 @@ const TAP_SLOP = 12;    // px — drift past this and it's a drag, not a tap
 // pad is what has to do the insetting.
 function joyHome() {
   const inset = n => (typeof n === 'number' ? n : 0);
-  const left   = JOY_GAP + inset(safeInsetLeft);
   const bottom = JOY_GAP + inset(safeInsetBottom);
-  return { x: left + JOY_R, y: canvas.height - bottom - JOY_R };
+  const y = canvas.height - bottom - JOY_R;
+  // Handedness (touchSidePref, config.js). Every consumer — the grab test, the
+  // renderer and the double-tap view cycle — goes through this one function, so
+  // mirroring here moves all of them and none of them can disagree about where
+  // the pad is.
+  if (typeof touchPadOnLeft === 'function' && !touchPadOnLeft()) {
+    const right = JOY_GAP + inset(safeInsetRight);
+    return { x: canvas.width - right - JOY_R, y };
+  }
+  const left = JOY_GAP + inset(safeInsetLeft);
+  return { x: left + JOY_R, y };
 }
 // The pad is a touch-mode control, and it hides with the action buttons so a
 // thumb can't steer under the radial menu or a modal.
@@ -539,6 +573,7 @@ function gameplayTouchBlocked() {
          (typeof statsPageOpen !== 'undefined' && statsPageOpen) ||
          (typeof worldMapOpen !== 'undefined' && worldMapOpen) ||
          (typeof sysMenuOpen !== 'undefined' && sysMenuOpen) ||
+         (typeof controlsOpen !== 'undefined' && controlsOpen) ||
          (typeof dialogueOpen !== 'undefined' && dialogueOpen) ||
          (typeof cutsceneInputLocked !== 'undefined' && cutsceneInputLocked) ||
          (typeof viewMode !== 'undefined' && viewMode === 2);
@@ -674,7 +709,7 @@ function findTappedInteractable(wx, wy) {
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
     if (typeof villagerAt === 'function' && villagerAt(c, r)) return false;
-    if (player.activeArmorElement === 'water' && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
+    if (typeof elementalArmorTraversesTile === 'function' && elementalArmorTraversesTile(map, c, r)) return true;
     if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);
   };
@@ -741,12 +776,11 @@ function findPathToGoals(goalSet) {
   const map = mapData();
   const N = MROWS * MCOLS;
   const idx = (c, r) => r * MCOLS + c;
-  const canSwimMedium = player.activeArmorElement === 'water';
   // Reachability of the tile itself, independent of where you are coming from.
   const passable = (c, r) => {
     if (c < 0 || r < 0 || c >= MCOLS || r >= MROWS) return false;
     if (typeof villagerAt === 'function' && villagerAt(c, r)) return false;
-    if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return true;
+    if (typeof elementalArmorTraversesTile === 'function' && elementalArmorTraversesTile(map, c, r)) return true;
     if (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(),c,r)) return false;
     return !isSolid(map, c, r);
   };
@@ -755,8 +789,10 @@ function findPathToGoals(goalSet) {
   // from below. Without this the BFS routes cheerfully over a shelf, the injected
   // keys jam the hero against it, and advanceAutoNav's stuck timer cancels the
   // trip 1.6 seconds later instead of the route going around in the first place.
+  const earthClimb = typeof wearingElementalArmor === 'function' && wearingElementalArmor('earth');
   const stepOk = (c1, r1, c2, r2) =>
-    !(typeof stepUpBlocked === 'function' && stepUpBlocked(map, c1, r1, c2, r2));
+    !(typeof stepUpBlocked === 'function' &&
+      stepUpBlocked(map, c1, r1, c2, r2, earthClimb ? Infinity : undefined));
   const prev = new Int32Array(N).fill(-1);
   const seen = new Uint8Array(N);
   const start = idx(player.x, player.y);
@@ -920,7 +956,7 @@ bindTap('ta-potion', () => {
   usePotion();
   if ((player.potions || 0) < before) { bombCooldown = 600; buzz(12); }
 });
-// The fourth button is the touch half of [F]: the equipped shrine ability. Bound
+// The fourth button is the touch half of [F]: the active shrine/armor ability. Bound
 // unconditionally like the rest of the pad; updateHUD is what shows and hides it,
 // because until the Air shrine falls there is nothing for it to do.
 bindTap('ta-ability', () => {
@@ -940,14 +976,24 @@ function refreshControlHints() {
     // one on the title screen would promise a weapon the prologue spends its
     // whole length withholding.
     const melee = player.hasSword ? 'sword' : 'punch';
+    // The touch hint names the sides, so it has to follow the handedness
+    // setting. Telling a player who has moved their pad to the right that the
+    // left pad moves them is worse than saying nothing.
+    const padLeft = (typeof touchPadOnLeft === 'function') ? touchPadOnLeft() : true;
+    const padSide = padLeft ? 'Left' : 'Right';
+    const btnSide = padLeft ? 'Right' : 'Left';
     titleHint.textContent = touch
-      ? 'Left pad: move · Tap hero: menu · Right buttons: attack'
+      ? `${padSide} pad: move · Tap hero: menu · ${btnSide} buttons: attack`
       : `Arrow keys: move · Z: ${melee} · V: menu`;
   }
 
   const label = (typeof uiModeLabel === 'function') ? uiModeLabel() : '';
   const titleBtn = document.getElementById('title-ui-mode');
   if (titleBtn) titleBtn.textContent = '🎮 Controls: ' + label;
+  const sideBtn = document.getElementById('title-touch-side');
+  if (sideBtn && typeof touchSideLabel === 'function') {
+    sideBtn.textContent = '🤚 Control side: ' + touchSideLabel();
+  }
   // The in-game copy of this button lived in the save row, which is gone — the
   // radial MENU ring's Controls entry reads uiModeLabel() itself, so there's
   // nothing else to repaint here.

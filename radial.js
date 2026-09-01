@@ -261,14 +261,14 @@ const RADIAL_RINGS = [
       if (player.armor && player.armor > 0) {
         items.push({ type: 'armor', icon: '🛡', label: 'Armor',
           val: () => '+' + (player.armor || 0),
-          action: () => { player.activeArmorElement = null; },
+          action: () => { setActiveArmorElement(null); },
           isActive: () => !player.activeArmorElement });
       } else {
         // Always offer an "unequip" slot so the player can drop their
         // elemental armor even without any flat armor points.
         items.push({ type: 'armor', icon: '🛡', label: 'No Armor',
           val: () => '—',
-          action: () => { player.activeArmorElement = null; },
+          action: () => { setActiveArmorElement(null); },
           isActive: () => !player.activeArmorElement });
       }
       for (const id of (player.armorElements || [])) {
@@ -284,9 +284,10 @@ const RADIAL_RINGS = [
             const lv  = armorUpgradeLevel(id);
             const ph  = elementalArmorPhys(id);
             const pct = elementalArmorBlockPct(id);
-            return `Lv${lv} +${ph} −${pct}%`;
+            const power = typeof elementalArmorAbility === 'function' ? elementalArmorAbility(id) : null;
+            return `Lv${lv} +${ph} −${pct}%${power ? ` · ${power.label}` : ''}`;
           },
-          action: () => { player.activeArmorElement = id; },
+          action: () => { setActiveArmorElement(id); },
           isActive: () => player.activeArmorElement === id
         });
       }
@@ -303,19 +304,48 @@ const RADIAL_RINGS = [
   // here is what decides which of them that button is (abilities.js).
   { name: 'abilities', getItems: () => {
       const owned = player.abilities || {};
-      return SHRINE_REWARDS.filter(r => r.kind === 'ability' && owned[r.key]).map(r => {
+      // Worn Air/Shadow armor takes [F] over for as long as it is worn
+      // (armorActiveAbility, abilities.js). The shrine selection underneath is
+      // not lost — it is what [F] returns to once the armor comes off — so this
+      // ring has to distinguish "chosen" from "currently firing" rather than
+      // reading player.equippedAbility and calling it Equipped.
+      const armorAbility = () =>
+        (typeof armorActiveAbility === 'function') ? armorActiveAbility() : null;
+      const items = SHRINE_REWARDS.filter(r => r.kind === 'ability' && owned[r.key]).map(r => {
         const active = (typeof abilityIsActive === 'function') && abilityIsActive(r.key);
         return {
           type: 'ability_' + r.key,
           icon: r.icon,
           label: r.label,
-          val: () => active
-            ? (player.equippedAbility === r.key ? 'Equipped [F]' : 'Equip')
-            : 'Passive',
+          val: () => {
+            if (!active) return 'Passive';
+            const chosen = player.equippedAbility === r.key;
+            if (armorAbility()) return chosen ? 'Chosen · armor holds [F]' : 'Choose';
+            return chosen ? 'Equipped [F]' : 'Equip';
+          },
           action: active ? (() => setEquippedAbility(r.key)) : null,
           isActive: () => active && player.equippedAbility === r.key,
         };
       });
+      // Armor can supply an active the hero never earned from a shrine. Without
+      // this the ring is empty while [F] visibly does something, which reads as
+      // a broken button rather than as armor doing its job. Not selectable:
+      // taking the armor off is what dismisses it (action null also keeps
+      // radialAutoPick from firing on it while navigating past).
+      const supplied = armorAbility();
+      if (supplied && !owned[supplied]) {
+        const icons = (typeof ABILITY_ICONS  !== 'undefined') ? ABILITY_ICONS  : {};
+        const names = (typeof ABILITY_LABELS !== 'undefined') ? ABILITY_LABELS : {};
+        items.unshift({
+          type: 'ability_' + supplied,
+          icon: icons[supplied] || '✦',
+          label: names[supplied] || 'Armor Ability',
+          val: () => 'From armor [F]',
+          action: null,
+          isActive: () => true,
+        });
+      }
+      return items;
     }},
   { name: 'menu', getItems: () => {
       const kinds = PASSIVE_DROPS.reduce(
@@ -348,11 +378,16 @@ const RADIAL_RINGS = [
           } },
         // The escape hatch if auto-detection picks the wrong scheme. Also on the
         // title screen; this is the only in-game route once the row is hidden.
+        // Opens the Controls window (sysmenu.js): key rebinding and the touch
+        // handedness setting together. Replaced a pair of cycle-in-place
+        // buttons — a scheme override that cycled three ways and a handedness
+        // toggle — because rebinding needs a panel and splitting "where are my
+        // controls" across a panel and two ring entries would be worse.
         { type: 'controls', icon: '🎮', label: 'Controls', launcher: true,
           val: () => (typeof uiModeLabel === 'function') ? uiModeLabel() : '—',
           action: () => {
             closeRadialMenu();
-            if (typeof cycleUiMode === 'function') cycleUiMode();
+            if (typeof openControlsWindow === 'function') openControlsWindow();
           } },
       ];
     }},

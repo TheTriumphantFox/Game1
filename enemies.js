@@ -81,6 +81,14 @@ const DND_ENEMIES = {
   mammoth:        { name: 'Mammoth',             hp: 90,  spd: 700,  dmg: 8,  xp: 2900,  color: '#7a5a3a', size: 1.5,  cr: 6 },
   white_dragon:   { name: 'Young White Dragon',  hp: 96,  spd: 600,  dmg: 8,  xp: 2900,  color: '#bfe6f5', size: 1.35, ranged: true, cr: 6, element: 'ice' },
   frost_giant:    { name: 'Frost Giant',         hp: 105, spd: 700,  dmg: 9,  xp: 2900,  color: '#9cc8e0', size: 1.55, cr: 8, element: 'ice' },
+  // ── Dormant golems (one per golem region; see GOLEM_REGIONS below). ──
+  // Statues until something wakes them. Slow, heavy hitters with more HP than
+  // their tier's roster, because a woken golem is a fight the player chose to
+  // start — by walking past unarmored or by hitting it — rather than a wandering
+  // spawn that found them.
+  ice_golem:      { name: 'Ice Golem',           hp: 110, spd: 780,  dmg: 9,  xp: 2400,  color: '#a8d8ea', size: 1.35, cr: 6, element: 'ice' },
+  stone_golem:    { name: 'Stone Golem',         hp: 130, spd: 800,  dmg: 10, xp: 2900,  color: '#8a857a', size: 1.4,  cr: 7, element: 'earth' },
+  obsidian_golem: { name: 'Obsidian Golem',      hp: 145, spd: 760,  dmg: 12, xp: 3400,  color: '#3a2f36', size: 1.4,  cr: 8, element: 'volcanic' },
 
   // ── Tier 4 · Earth — gargoyles, burrowers & stone giants. ──
   gargoyle:       { name: 'Gargoyle',            hp: 64,  spd: 550,  dmg: 6,  xp: 1100,  color: '#777066', size: 0.95, cr: 2, element: 'earth' },
@@ -128,6 +136,9 @@ const DND_ENEMIES = {
   treant:         { name: 'Treant',              hp: 205, spd: 1000, dmg: 15, xp: 11500, color: '#4a5a2a', size: 1.4,  cr: 9, element: 'poison' },
   green_dragon:   { name: 'Young Green Dragon',  hp: 240, spd: 600,  dmg: 17, xp: 16000, color: '#3a6a3a', size: 1.45, ranged: true, cr: 8, element: 'poison' },
   purple_worm:    { name: 'Purple Worm',         hp: 290, spd: 750,  dmg: 19, xp: 20000, color: '#7a4a7a', size: 1.8,  cr: 15, element: 'poison' },
+  // Rooted, not a wanderer. Low HP for its tier because it cannot chase, cannot
+  // dodge and cannot be surprised — its danger is entirely the ground it denies.
+  toxic_bloom:    { name: 'Toxic Bloom',         hp: 96,  spd: 9999, dmg: 12, xp: 6000,  color: '#8ab83a', size: 1.15, cr: 4, element: 'poison', rooted: true },
 
   // ── Tier 10 · Mana / Arcane — aberrations & spellcasters. The final region. ──
   nothic:         { name: 'Nothic',              hp: 210, spd: 550,  dmg: 16, xp: 11000, color: '#8a6aaa', size: 0.85, ranged: true, cr: 2, element: 'mana' },
@@ -250,6 +261,663 @@ const ENEMY_POOLS = [
   ['shade', 'shadow_mastiff', 'bodak', 'nightmare', 'shadow_demon', 'nightwalker'],   // 12 · Shadow
 ];
 
+// ─── Dormant golems ──────────────────────────────────────────────────────────
+// One state machine, three regions. Ice, Earth and Volcanic each get a golem
+// that stands as a statue until something wakes it, and the region's own armor
+// is what lets the hero walk past. Written once here rather than three times,
+// because three copies of "wake if the player is close" is how three of them end
+// up with different radii.
+//
+// The rules, as decided:
+//
+//   • Coming within GOLEM_WAKE_RADIUS without the region's armor wakes it.
+//   • Hitting one ALWAYS wakes it, armor or not. Armor protects the careful,
+//     not the player who chose to start a fight.
+//   • Once awake it stays awake for the visit. Re-equipping the armor mid-fight
+//     does not settle it, which stops the wake/sleep cycle being farmable and
+//     keeps the state machine to two states.
+//
+// A dormant golem is SOLID but CLIMBABLE, which is the interesting half. See
+// golemStandZ.
+const GOLEM_REGIONS = {
+  ice:      { type: 'ice_golem',      armor: 'ice' },
+  earth:    { type: 'stone_golem',    armor: 'earth' },
+  volcanic: { type: 'obsidian_golem', armor: 'volcanic' },
+};
+const GOLEM_TYPES = new Set(Object.values(GOLEM_REGIONS).map(g => g.type));
+const GOLEM_WAKE_RADIUS = 3.5;
+
+// How high a sleeping golem stands, and it is 0.5 for a precise reason:
+// STEP_UP_MAX is 0.5, so exactly this height is the tallest thing an actor can
+// step onto WITHOUT a ramp. That makes a dormant golem climbable by anyone, in
+// every region, with no new movement rule — it falls straight out of the
+// existing step-up maths.
+//
+// It also composes. A ledge stands at 1.0 and cannot be stepped up from the
+// ground, but a golem asleep beside one is a 0.5 step to the golem and another
+// 0.5 step to the shelf. Keeping a golem asleep therefore opens routes, which is
+// what makes wearing the region's armor change the map and not just the danger.
+const GOLEM_STAND_Z = 0.5;
+
+function isGolem(e) { return !!e && GOLEM_TYPES.has(e.type); }
+
+// ─── The obsidian golem's melt ───────────────────────────────────────────────
+// Obsidian is the one golem whose two states are more than a pose. Hardened, it
+// is the same climbable statue as its Ice and Earth siblings. Woken, it runs
+// MOLTEN — and a molten thing in a region that already measures how hot the hero
+// is should be measured by it. So an awake obsidian golem is a heat source: it
+// feeds the overheat meter (HEAT_REGIONS.volcanic, abilities.js) from wherever
+// it is standing, whatever the hero is standing on.
+//
+// That is what makes it different from a big enemy with a big number. Fighting
+// one on cool ground still costs, retreating is a real option, and Volcanic
+// armor answers the fight and the region with one decision instead of two.
+//
+// Contribution falls off linearly with distance and is summed over every molten
+// golem in range, then clamped: standing between two is worse than standing
+// beside one, but a crowd cannot multiply the meter arbitrarily.
+const MOLTEN_HEAT_RADIUS = 4.5;
+const MOLTEN_HEAT_PER_SEC = 0.10;   // adjacent to one, at full strength
+const MOLTEN_HEAT_MAX = 0.22;       // ceiling however many are crowding in
+
+function isMoltenGolem(e) {
+  return !!e && e.type === 'obsidian_golem' && !e.dormant && !e.dead;
+}
+
+// Heat per second radiated onto (x, y) by every molten golem in range.
+function moltenHeatAt(x, y) {
+  if (typeof enemies === 'undefined') return 0;
+  let sum = 0;
+  for (const e of enemies) {
+    if (!isMoltenGolem(e)) continue;
+    const d = Math.hypot(e.x - x, e.y - y);
+    if (d > MOLTEN_HEAT_RADIUS) continue;
+    sum += MOLTEN_HEAT_PER_SEC * (1 - d / MOLTEN_HEAT_RADIUS);
+  }
+  return Math.min(MOLTEN_HEAT_MAX, sum);
+}
+
+// The stand-height contributed by a sleeping golem on this tile, or 0. An AWAKE
+// golem contributes nothing — it is walking around, not furniture.
+function golemStandZ(c, r) {
+  if (typeof enemies === 'undefined') return 0;
+  for (const e of enemies) {
+    if (e.dead || !e.dormant || !isGolem(e)) continue;
+    if (e.x === c && e.y === r) return GOLEM_STAND_Z;
+  }
+  return 0;
+}
+
+// Is there a sleeping golem here? Movement asks, so it can let the hero step ONTO
+// one instead of being stopped by it the way an ordinary enemy stops them.
+function dormantGolemAt(c, r) {
+  if (typeof enemies === 'undefined') return false;
+  return enemies.some(e => !e.dead && e.dormant && isGolem(e) && e.x === c && e.y === r);
+}
+
+function stepGolems() {
+  if (typeof enemies === 'undefined' || typeof player === 'undefined') return;
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  const spec = cm ? GOLEM_REGIONS[cm.biome] : null;
+  const armored = !!(spec && typeof wearingElementalArmor === 'function' &&
+                     wearingElementalArmor(spec.armor));
+  for (const e of enemies) {
+    if (e.dead || !e.dormant || !isGolem(e)) continue;
+    // Damage wakes it, whatever the source and whatever the hero is wearing.
+    // Read off HP rather than hooked into each of the several places that
+    // subtract it — the same reasoning the Emperor's thresholds are watched by,
+    // and it cannot be forgotten by a new damage source added later.
+    const hurt = e.hp < e.maxHp;
+    const near = !armored &&
+      Math.hypot(e.x - player.x, e.y - player.y) <= GOLEM_WAKE_RADIUS;
+    if (!hurt && !near) continue;
+    wakeGolem(e);
+  }
+}
+
+function wakeGolem(e) {
+  e.dormant = false;
+  // It was furniture a frame ago and the hero may be standing on top of it. Drop
+  // them: the support just stood up. Without this the hero hangs half a tile in
+  // the air until their next step recomputes groundZ.
+  if (typeof player !== 'undefined' && player.x === e.x && player.y === e.y &&
+      typeof startPlayerFall === 'function') {
+    startPlayerFall(GOLEM_STAND_Z);
+  }
+  const sp = (typeof screenPX === 'function') ? screenPX(e.x, e.y) : null;
+  if (sp && typeof spawnParticle === 'function') {
+    spawnParticle(sp.x, sp.y, '#e8e0d0', 14, 4);
+    spawnParticle(sp.x, sp.y, e.color || '#888888', 10, 3);
+  }
+  if (typeof buzz === 'function') buzz([0, 40, 30, 60]);
+  if (typeof showMsg === 'function') {
+    const base = (typeof DND_ENEMIES !== 'undefined' && DND_ENEMIES[e.type]) || null;
+    const name = base ? base.name : 'golem';
+    showMsg(e.type === 'obsidian_golem'
+      ? `\u{1F30B} The ${name} cracks open and runs molten!`
+      : `\u{1F5FF} The ${name} grinds awake!`, 1800);
+  }
+  if (typeof minimapDirty !== 'undefined') minimapDirty = true;
+}
+
+// ─── The Eclipse Sovereign ───────────────────────────────────────────────────
+// The Shadow temple's boss reads the player's mind — which, in a game, means it
+// reads their CONTROLS. The frog on the Earth dead-ends has been telling the
+// player this since tier 4: "It knows the sword before you swing it… A mind
+// can't be hidden. But hands can be taught new habits — change how you hold the
+// reins, and the thing wearing your face guesses wrong."
+//
+// How it works, and the important part is what the baseline is:
+//
+//   • When the fight starts, the Sovereign SNAPSHOTS the player's current
+//     bindings and handedness. Not the game's defaults — whatever the player
+//     walked in using. So arriving with an already-custom layout buys nothing,
+//     and the fight has to be solved during the fight.
+//   • Every gameplay key the player presses is checked against that snapshot.
+//     While the snapshot still describes their controls, the read LANDS: the
+//     Sovereign blinks clear of the attack before it arrives, and the swing
+//     hits the space it just left.
+//   • Rebind anything mid-fight and the snapshot is stale. The read FAILS: it
+//     commits to a counter for an action the player is no longer taking, blinks
+//     the wrong way, and is left staggered and open. That stagger is the damage
+//     window, and it is the only reliable one.
+//
+// Blinking rather than an invulnerability flag is deliberate. It needs no hook
+// into any of the several places enemy HP is decremented, and "your sword passes
+// through where it was standing" tells the story better than a damage number
+// that says 0.
+//
+// It RE-LEARNS. Left alone on a stable layout it re-snapshots after
+// SOVEREIGN_RELEARN_MS and starts reading correctly again, so one trip to the
+// Controls window is a reprieve rather than a win and the fight is a rhythm of
+// changing the board under it. Set the constant to Infinity for a one-change
+// fight; this was a judgement call and it is a one-line change.
+const SOVEREIGN_TYPE = 'eclipse_sovereign';
+const SOVEREIGN_ENGAGE_RADIUS = 11;
+const SOVEREIGN_RELEARN_MS = 14000;
+const SOVEREIGN_READ_COOLDOWN_MS = 900;   // between reads, so it is not a strobe
+const SOVEREIGN_WHIFF_STAGGER_MS = 1900;  // the opening a failed read leaves
+const SOVEREIGN_BLINK_RANGE = 3;
+const SOVEREIGN_NUDGE_MS = 22000;   // before it spells the counter out
+
+// The actions worth reading. Menu, minimap and the weapon hotkeys are not
+// combat inputs and predicting them would only add noise.
+const SOVEREIGN_READ_ACTIONS = ['up', 'down', 'left', 'right', 'melee', 'bow', 'bomb', 'ability'];
+
+let sovereign = null;   // { snapshot, padLeft, learnedAt, readCdMs, blind }
+
+function findSovereign() {
+  if (typeof enemies === 'undefined') return null;
+  return enemies.find(e => e.type === SOVEREIGN_TYPE && !e.dead && !e.dormant) || null;
+}
+
+function snapshotControls() {
+  const snap = {};
+  if (typeof KEY_ACTIONS !== 'undefined') {
+    for (const a of KEY_ACTIONS) snap[a.id] = (typeof keyBinding === 'function') ? keyBinding(a.id) : a.def;
+  }
+  return snap;
+}
+
+function sovereignLearn(now) {
+  sovereign.snapshot = snapshotControls();
+  sovereign.padLeft = (typeof touchPadOnLeft === 'function') ? touchPadOnLeft() : true;
+  sovereign.learnedAt = now;
+  sovereign.blind = false;
+}
+
+function stepEclipseSovereign(dt) {
+  const e = findSovereign();
+  if (!e) { sovereign = null; return; }
+  const near = Math.hypot(e.x - player.x, e.y - player.y) <= SOVEREIGN_ENGAGE_RADIUS;
+  if (!sovereign) {
+    if (!near) return;                       // the fight has not started yet
+    sovereign = { snapshot: null, padLeft: true, learnedAt: 0, readCdMs: 0, blind: false,
+                  openedAt: Date.now(), nudges: 0 };
+    sovereignLearn(Date.now());
+    // The fight explains itself, to everyone, every time.
+    //
+    // It used to say less to a hero who had met the Earth frog. That was wrong:
+    // the frog is a clue on a sealed dead-end most players never open, and
+    // building the explanation around it made a missable NPC into the place the
+    // answer lived. Nothing checks for the frog now, and this fight assumes
+    // nobody has heard of it.
+    if (typeof showMsg === 'function') {
+      showMsg('\u{1F311} The Eclipse Sovereign learns your hands — it knows every key you hold.', 2800);
+    }
+    return;
+  }
+  if (sovereign.readCdMs > 0) sovereign.readCdMs -= dt;
+
+  // A second, blunter nudge, once, if they are still fighting it on the layout
+  // it read at the start. One toast at the top of a boss fight is easy to miss,
+  // and this is the only route to the answer that every player is guaranteed to
+  // get. Suppressed for anyone who has already changed something or already
+  // blinded it — nobody who has worked it out gets nagged about it.
+  if (sovereign.nudges === 0 && !sovereign.blind &&
+      Date.now() - sovereign.openedAt > SOVEREIGN_NUDGE_MS &&
+      !sovereignSnapshotStale()) {
+    sovereign.nudges = 1;
+    if (typeof showMsg === 'function') {
+      showMsg('\u{1F311} It reads the hands you came in with. Change your controls.', 3400);
+    }
+  }
+
+  // Re-learn. Only while it is NOT blind — being blinded is what buys the player
+  // time, and the clock on the new layout starts when it recovers.
+  if (sovereign.blind && Date.now() - sovereign.learnedAt >= SOVEREIGN_RELEARN_MS) {
+    sovereignLearn(Date.now());
+    if (typeof showMsg === 'function') {
+      showMsg('\u{1F311} It has learned your new hands.', 2400);
+    }
+  }
+}
+
+// Does the snapshot still describe how this player is playing? Handedness counts
+// for the same reason it does everywhere else: on a touch device there are no
+// keys to rebind, and moving the controls to the other side of the screen is
+// that player's version of the same act.
+function sovereignSnapshotStale() {
+  if (!sovereign || !sovereign.snapshot) return false;
+  const padLeft = (typeof touchPadOnLeft === 'function') ? touchPadOnLeft() : true;
+  if (padLeft !== sovereign.padLeft) return true;
+  for (const id of SOVEREIGN_READ_ACTIONS) {
+    const now = (typeof keyBinding === 'function') ? keyBinding(id) : null;
+    if (!sameKey(now, sovereign.snapshot[id])) return true;
+  }
+  return false;
+}
+
+// Called from the keydown handler with the RAW key, before translation — the
+// Sovereign reads fingers, not intentions.
+function sovereignObserveKey(rawKey) {
+  const e = findSovereign();
+  if (!e || !sovereign || !sovereign.snapshot) return;
+  if (Math.hypot(e.x - player.x, e.y - player.y) > SOVEREIGN_ENGAGE_RADIUS) return;
+  if (sovereign.readCdMs > 0) return;
+  // "Was this a combat input" comes from the player's CURRENT bindings; only the
+  // prediction comes from the snapshot. Asking the snapshot both questions was
+  // the first version and it was silently broken: after a rebind the player
+  // presses a key the snapshot has never heard of, so the Sovereign observed
+  // nothing, never guessed wrong, and could never be punished — the one thing
+  // the whole fight is built to make happen.
+  let action = null;
+  for (const id of SOVEREIGN_READ_ACTIONS) {
+    const bound = (typeof keyBinding === 'function') ? keyBinding(id) : null;
+    if (bound && sameKey(rawKey, bound)) { action = id; break; }
+  }
+  if (!action) return;
+  sovereign.readCdMs = SOVEREIGN_READ_COOLDOWN_MS;
+  if (sovereignSnapshotStale()) sovereignReadFails(e);
+  else sovereignReadLands(e);
+}
+
+function sovereignReadLands(e) {
+  sovereign.blind = false;
+  // Step clear of where the blow is about to land. Away from the hero, so the
+  // swing closes on empty ground.
+  blinkSovereign(e, +1);
+  if (typeof showMsg === 'function') showMsg('\u{1F311} It moves before you do.', 1100);
+}
+
+function sovereignReadFails(e) {
+  if (!sovereign.blind) {
+    sovereign.blind = true;
+    sovereign.learnedAt = Date.now();     // the re-learn clock starts here
+    if (typeof showMsg === 'function') {
+      showMsg('\u2728 It guesses wrong — the shadow is open!', 2200);
+    }
+  }
+  // Commits the wrong way: TOWARD the hero, into the attack, and is left reeling.
+  blinkSovereign(e, -1);
+  e.staggerT = Math.max(e.staggerT || 0, SOVEREIGN_WHIFF_STAGGER_MS);
+}
+
+// Step a few tiles along the hero axis. `sign` +1 is away, -1 is toward.
+function blinkSovereign(e, sign) {
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map) return;
+  const dx = e.x - player.x, dy = e.y - player.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  for (let d = SOVEREIGN_BLINK_RANGE; d >= 1; d--) {
+    const nx = Math.round(e.x + ux * d * sign);
+    const ny = Math.round(e.y + uy * d * sign);
+    if (nx < 1 || ny < 1 || nx >= MCOLS - 1 || ny >= MROWS - 1) continue;
+    if (isSolid(map, nx, ny)) continue;
+    if (nx === player.x && ny === player.y) continue;
+    const sp = screenPX(e.x, e.y);
+    spawnParticle(sp.x, sp.y, '#5a3f8a', 12, 4);
+    e.x = nx; e.y = ny;
+    const np = screenPX(nx, ny);
+    spawnParticle(np.x, np.y, '#8b5cf6', 12, 4);
+    return;
+  }
+}
+
+// Read by the renderer: the boss is open right now.
+function sovereignIsBlind() { return !!(sovereign && sovereign.blind); }
+
+// ─── Skeleton allies ─────────────────────────────────────────────────────────
+// Necrotic armor raises the dead to fight beside the hero. The first allied
+// units in this game, so a few decisions are load-bearing and are written down
+// here rather than discovered later.
+//
+// They rise ONLY when there is a fight to join, anywhere the armor is worn.
+// "In a fight" is defined as a live enemy within SKELETON_MUSTER_RADIUS of the
+// hero — proximity, not a damage timer. That matters because this codebase has
+// no in-combat concept at all, and inventing one for this would be a subsystem;
+// proximity is computable from what already exists and is the same shape the
+// golem wake check uses.
+//
+// Enemies do NOT retarget onto them. Enemy targeting reads the player's position
+// in fourteen places and rewriting all of it would risk skeletons pulling so
+// much aggro that the player becomes a spectator. Instead they body-block: an
+// enemy cannot walk through one, and an enemy that tries to step into a skeleton
+// attacks it instead. That gives them a real job — a wall that hits back — for a
+// fraction of the cost, and it keeps the hero the thing the horde is coming for.
+//
+// They do not block the HERO. Being boxed in by your own minions in a corridor
+// would be infuriating, and there is no upside to it.
+//
+// Their kills go through killEnemy (player.js), so XP and drops land exactly as
+// if the hero had swung. An armor that quietly cost you progression is an armor
+// nobody wears.
+const SKELETON_MAX = 3;
+const SKELETON_MUSTER_RADIUS = 8;    // a live enemy this close counts as a fight
+const SKELETON_SUMMON_MS = 1500;     // they rise one at a time
+const SKELETON_LINGER_MS = 4000;     // quiet for this long and they crumble
+const SKELETON_DEATH_COOLDOWN_MS = 6000;  // a fallen one is not replaced at once
+const SKELETON_HP = 24;
+const SKELETON_DAMAGE = 6;
+const SKELETON_ATTACK_MS = 900;
+const SKELETON_STEP_MS = 260;
+const SKELETON_SEEK_RADIUS = 9;
+
+let allies = [];
+let skeletonSummonMs = 0;
+let skeletonDeathCooldownMs = 0;
+let skeletonQuietMs = 0;
+let skeletonNextId = 0;
+
+function skeletonAt(c, r) {
+  return allies.some(a => !a.dead && a.x === c && a.y === r);
+}
+function skeletonObjAt(c, r) {
+  return allies.find(a => !a.dead && a.x === c && a.y === r) || null;
+}
+
+function nearestLiveEnemy(x, y, radius) {
+  if (typeof enemies === 'undefined') return null;
+  let best = null, bestD = radius;
+  for (const e of enemies) {
+    if (e.dead || e.dormant) continue;
+    const d = Math.hypot(e.x - x, e.y - y);
+    if (d <= bestD) { bestD = d; best = e; }
+  }
+  return best;
+}
+
+function stepSkeletons(dt) {
+  if (typeof player === 'undefined') return;
+  const worn = typeof wearingElementalArmor === 'function' && wearingElementalArmor('necrotic');
+  if (!worn) { if (allies.length) crumbleAll(); return; }
+
+  if (skeletonDeathCooldownMs > 0) skeletonDeathCooldownMs -= dt;
+
+  // Is there a fight? Proximity to a live, awake enemy.
+  const fighting = !!nearestLiveEnemy(player.x, player.y, SKELETON_MUSTER_RADIUS);
+  if (fighting) {
+    skeletonQuietMs = 0;
+    skeletonSummonMs += dt;
+    if (allies.length < SKELETON_MAX && skeletonSummonMs >= SKELETON_SUMMON_MS &&
+        skeletonDeathCooldownMs <= 0) {
+      skeletonSummonMs = 0;
+      raiseSkeleton();
+    }
+  } else {
+    skeletonSummonMs = 0;
+    skeletonQuietMs += dt;
+    if (allies.length && skeletonQuietMs >= SKELETON_LINGER_MS) crumbleAll();
+  }
+
+  for (const a of allies) stepOneSkeleton(a, dt);
+  allies = allies.filter(a => !a.dead);
+}
+
+// Claw one up out of the ground beside the hero. Any open tile will do — they
+// rise from whatever is underfoot rather than needing a grave, because the armor
+// works in all thirteen regions and twelve of them have no graves.
+function raiseSkeleton() {
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map) return;
+  for (let rad = 1; rad <= 4; rad++) {
+    for (let dr = -rad; dr <= rad; dr++) {
+      for (let dc = -rad; dc <= rad; dc++) {
+        if (Math.abs(dr) !== rad && Math.abs(dc) !== rad) continue;
+        const x = player.x + dc, y = player.y + dr;
+        if (x < 1 || y < 1 || x >= MCOLS - 1 || y >= MROWS - 1) continue;
+        if (isSolid(map, x, y)) continue;
+        if (skeletonAt(x, y)) continue;
+        if (typeof enemies !== 'undefined' &&
+            enemies.some(e => !e.dead && e.x === x && e.y === y)) continue;
+        allies.push({
+          id: skeletonNextId++, x, y, renderX: x, renderY: y,
+          dir: { x: 0, y: 1 },
+          hp: SKELETON_HP, maxHp: SKELETON_HP,
+          stepT: 0, attackT: 0, bornAt: Date.now(), dead: false,
+        });
+        const sp = screenPX(x, y);
+        spawnParticle(sp.x, sp.y, '#cfc8b4', 12, 4);
+        spawnParticle(sp.x, sp.y, '#7a5f8a', 8, 3);
+        return;
+      }
+    }
+  }
+}
+
+function stepOneSkeleton(a, dt) {
+  if (a.dead) return;
+  // Render lerp, same easing every other actor uses.
+  a.renderX += (a.x - a.renderX) * Math.min(1, dt / 90);
+  a.renderY += (a.y - a.renderY) * Math.min(1, dt / 90);
+
+  if (a.attackT > 0) a.attackT -= dt;
+  a.stepT += dt;
+
+  const target = nearestLiveEnemy(a.x, a.y, SKELETON_SEEK_RADIUS);
+  if (!target) return;
+
+  const dx = target.x - a.x, dy = target.y - a.y;
+  a.dir = Math.abs(dx) >= Math.abs(dy)
+    ? { x: Math.sign(dx) || 0, y: 0 } : { x: 0, y: Math.sign(dy) || 0 };
+
+  // Adjacent: swing.
+  if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+    if (a.attackT > 0) return;
+    a.attackT = SKELETON_ATTACK_MS;
+    target.hp -= SKELETON_DAMAGE;
+    const tp = screenPX(target.x, target.y);
+    spawnParticle(tp.x, tp.y, '#cfc8b4', 5, 2);
+    if (typeof damageNumbers !== 'undefined') {
+      damageNumbers.push({ entity: target, val: SKELETON_DAMAGE, color: '#cfc8b4',
+        life: 900, rise: 0 });
+    }
+    // Through killEnemy so XP, drops, the kill sound and every other death
+    // consequence are identical to the hero landing the blow.
+    if (target.hp <= 0 && typeof killEnemy === 'function') killEnemy(target);
+    return;
+  }
+
+  // Otherwise close the distance, on its own cadence.
+  if (a.stepT < SKELETON_STEP_MS) return;
+  a.stepT = 0;
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map) return;
+  const tryStep = (mx, my) => {
+    const nx = a.x + mx, ny = a.y + my;
+    if (nx < 1 || ny < 1 || nx >= MCOLS - 1 || ny >= MROWS - 1) return false;
+    if (isSolid(map, nx, ny)) return false;
+    if (stepUpBlocked(map, a.x, a.y, nx, ny)) return false;
+    if (skeletonAt(nx, ny)) return false;
+    if (typeof enemies !== 'undefined' &&
+        enemies.some(e => !e.dead && e.x === nx && e.y === ny)) return false;
+    a.x = nx; a.y = ny;
+    return true;
+  };
+  if (!tryStep(a.dir.x, a.dir.y)) {
+    // Slide along the other axis rather than grinding against a wall.
+    tryStep(Math.sign(dx) && !a.dir.x ? Math.sign(dx) : 0,
+            Math.sign(dy) && !a.dir.y ? Math.sign(dy) : 0);
+  }
+}
+
+// Damage from an enemy. Returns true if the hit was taken by a skeleton, so the
+// caller knows not to also apply it elsewhere.
+function damageSkeletonAt(c, r, dmg) {
+  const a = skeletonObjAt(c, r);
+  if (!a) return false;
+  a.hp -= dmg;
+  const sp = screenPX(a.x, a.y);
+  spawnParticle(sp.x, sp.y, '#cfc8b4', 6, 3);
+  if (a.hp <= 0) fellSkeleton(a);
+  return true;
+}
+
+function fellSkeleton(a) {
+  a.dead = true;
+  const sp = screenPX(a.x, a.y);
+  spawnParticle(sp.x, sp.y, '#cfc8b4', 14, 4);
+  spawnParticle(sp.x, sp.y, '#5a4a6a', 8, 3);
+  // The cooldown the design asks for: a fallen skeleton is not replaced at once,
+  // so losing one costs something and a wall of them cannot be maintained for
+  // free through a long fight.
+  skeletonDeathCooldownMs = SKELETON_DEATH_COOLDOWN_MS;
+  skeletonSummonMs = 0;
+}
+
+function crumbleAll() {
+  for (const a of allies) {
+    if (a.dead) continue;
+    const sp = screenPX(a.x, a.y);
+    spawnParticle(sp.x, sp.y, '#cfc8b4', 8, 3);
+  }
+  allies = [];
+  skeletonSummonMs = 0;
+  skeletonQuietMs = 0;
+}
+
+// ─── Toxic blooms ────────────────────────────────────────────────────────────
+// A rooted plant that breathes a mushroom cloud of spores over the ground around
+// it on a slow clock. It never moves and never chases, so it is not a fight so
+// much as a piece of terrain that hits back: the danger is the ground it denies,
+// and walking wide of one costs nothing but distance.
+//
+// Poison armor is complete immunity to the cloud rather than a reduction. That
+// matches how the other regional armors answer their own region — Necrotic
+// stops the cursed drain dead, Volcanic removes overheat — and it is separate
+// from the -50% elemental block that any Poison armor already gives. The block
+// is defence; this is the region's key.
+//
+// The cloud is TELEGRAPHED. It swells for BLOOM_SWELL_MS before it bursts, and
+// the swell is drawn, so being caught is a decision to stand still rather than
+// something that happens to a player with no warning. A rooted enemy that hits
+// an area with no tell would be unreadable.
+const BLOOM_PULSE_MS = 3200;      // between bursts
+const BLOOM_SWELL_MS = 900;       // visible wind-up before each one
+const BLOOM_RADIUS = 2.6;
+const BLOOM_DAMAGE = 6;
+
+function isBloom(e) { return !!e && e.type === 'toxic_bloom' && !e.dead; }
+
+// 0 when idle, ramping to 1 at the instant of the burst. Read by the renderer
+// so the swell the player sees is the same number the damage fires on.
+function bloomSwell(e) {
+  if (!isBloom(e)) return 0;
+  const t = e.bloomT || 0;
+  if (t < BLOOM_PULSE_MS - BLOOM_SWELL_MS) return 0;
+  return (t - (BLOOM_PULSE_MS - BLOOM_SWELL_MS)) / BLOOM_SWELL_MS;
+}
+
+function stepToxicBlooms(dt) {
+  if (typeof enemies === 'undefined' || typeof player === 'undefined') return;
+  const immune = typeof wearingElementalArmor === 'function' &&
+                 wearingElementalArmor('poison');
+  for (const e of enemies) {
+    if (!isBloom(e)) continue;
+    e.bloomT = (e.bloomT || 0) + dt;
+    if (e.bloomT < BLOOM_PULSE_MS) continue;
+    e.bloomT = 0;
+    burstBloom(e, immune);
+  }
+}
+
+function burstBloom(e, immune) {
+  const sp = (typeof screenPX === 'function') ? screenPX(e.x, e.y) : null;
+  if (sp && typeof spawnParticle === 'function') {
+    spawnParticle(sp.x, sp.y, '#8ab83a', 16, 5);
+    spawnParticle(sp.x, sp.y, '#c8e08a', 10, 3);
+  }
+  if (immune) return;                       // the armor is the answer to this
+  if (Math.hypot(e.x - player.x, e.y - player.y) > BLOOM_RADIUS) return;
+  if (player.invincible > 0) return;
+  if (typeof damagePlayer === 'function') damagePlayer(BLOOM_DAMAGE, 'poison');
+  player.invincible = 900;
+  if (typeof buzz === 'function') buzz([0, 30, 20, 40]);
+  if (typeof showMsg === 'function') showMsg('\u2620 Spores burst around you!', 1400);
+  if (player.hp <= 0 && typeof respawn === 'function') respawn();
+}
+
+// Blooms are placed like the golems and for the same reason: they are rooted, so
+// where they stand IS the mechanic. Never on T.PATH, so a road never runs
+// through a cloud, and spread out so they deny several separate pockets rather
+// than one large one.
+const BLOOM_COUNT_MIN = 4, BLOOM_COUNT_MAX = 7, BLOOM_MIN_APART = 9;
+
+function makeBloomDefs(regionId, map) {
+  if (regionId !== 'poison' || !map) return [];
+  const defs = [];
+  const want = rnd(BLOOM_COUNT_MIN, BLOOM_COUNT_MAX);
+  for (let i = 0; i < want; i++) {
+    for (let t = 0; t < 80; t++) {
+      const x = rnd(12, MCOLS - 13), y = rnd(12, MROWS - 13);
+      if (isSolid(map, x, y)) continue;
+      if (map[y][x] === T.PATH) continue;
+      if (defs.some(d => Math.hypot(d.x - x, d.y - y) < BLOOM_MIN_APART)) continue;
+      defs.push({ type: 'toxic_bloom', x, y });
+      break;
+    }
+  }
+  return defs;
+}
+
+// Stand a few sleeping golems on a map, as landmarks rather than as roster
+// spawns. Deliberately placed like the hazard blots are: never on T.PATH, so a
+// road never runs into one, and spread apart so they read as scattered ancient
+// statues rather than as a nest.
+//
+// They cannot wall a route off even so — a dormant golem is climbable, and a
+// woken one walks away — so this is about how they READ, not about connectivity.
+const GOLEM_COUNT_MIN = 3, GOLEM_COUNT_MAX = 5, GOLEM_MIN_APART = 12;
+
+function makeGolemDefs(regionId, map) {
+  const spec = GOLEM_REGIONS[regionId];
+  if (!spec || !map) return [];
+  const defs = [];
+  const want = rnd(GOLEM_COUNT_MIN, GOLEM_COUNT_MAX);
+  for (let i = 0; i < want; i++) {
+    for (let t = 0; t < 80; t++) {
+      const x = rnd(14, MCOLS - 15), y = rnd(14, MROWS - 15);
+      if (isSolid(map, x, y)) continue;
+      if (map[y][x] === T.PATH) continue;
+      if (defs.some(d => Math.hypot(d.x - x, d.y - y) < GOLEM_MIN_APART)) continue;
+      defs.push({ type: spec.type, x, y, dormant: true });
+      break;
+    }
+  }
+  return defs;
+}
+
 // Build the list of enemy spawn points for a new map.
 // `mapType === 'village'` guarantees the boss spawn.
 // `map` is the tile array; enemies will only spawn on non-solid tiles. After
@@ -334,6 +1002,12 @@ function makeEnemyDefs(depth, mapType, map) {
     }
     const bossType = (region && region.boss) || 'lich_boss';
     defs.push({ type: bossType, x: bx, y: by });
+  }
+  // Sleeping golems stand on the OPEN region maps only. A boss village is an
+  // arena and does not want statues in it.
+  if (!isVillage && region) {
+    defs.push(...makeGolemDefs(region.id, map));
+    defs.push(...makeBloomDefs(region.id, map));
   }
   return defs;
 }
@@ -513,6 +1187,11 @@ function spawnEnemiesForMap(mid) {
         color: base.color, size: (base.size || 1) * sizeMul,
         name: def.tier15 ? `Greater ${base.name}` : base.name,
         ranged: base.ranged || false,
+        // Rooted enemies never take a step (see the AI loop in projectiles.js).
+        // bloomT is the toxic bloom's own pulse clock, staggered on spawn so a
+        // field of them breathes out of sync instead of detonating in unison.
+        rooted: base.rooted || false,
+        bloomT: Math.random() * BLOOM_PULSE_MS,
         swims: base.swims || false,
         boss: base.boss || false,
         // Final-boss dragon plumbing — must be copied here or a never-visited

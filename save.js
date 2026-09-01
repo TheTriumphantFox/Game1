@@ -175,6 +175,16 @@ const DEFAULT_PLAYER = {
   // Punch swing clock — the fists' twin of swordTimer (see player.js).
   punchTimer: 0,
   invincible: 0,
+  // Which dead-end map the Earth frog was planted on, or null before the hero
+  // has found one. Null-safe on load: a save written before the frog existed
+  // reads as "not placed yet" and gets one on the next Earth dead-end.
+  frogOracleMapId: null,
+  // Regional heat (desert heatstroke, later Volcanic overheat) and quicksand
+  // depth, both 0..1. Transient — they are recomputed from the tile underfoot
+  // every frame and cleared on leaving the region — but defaulted here so a save
+  // written before they existed loads as "cool and on solid ground" rather than
+  // as undefined arithmetic.
+  heat: 0, sink: 0,
   weapon: 'sword',
   bowLevel: 1, swordLevel: 1, armor: 0,
   // Grandmother's Bow — granted in the prologue's final beat, not owned at birth.

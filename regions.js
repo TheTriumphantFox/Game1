@@ -59,7 +59,7 @@ const REGIONS = [
       'Aurora Shelf','Frost-veined Hollow','Sleet Basin','Wintervale','Cryomire',
       'Brittle Crag','Diamond Dust Plain','Spire of Ice','Snowblind Crossing','Glasslake'
     ], villageName:'Frostfast Hold',            enemyTier:3, boss:'frost_titan'    },
-  { id:'earth',     element:null,        border:T.MOUNTAIN,        ground:T.SCREE,          decoration:T.MUD,      accent:T.ROCK,        names:[
+  { id:'earth',     element:'earth',     border:T.MOUNTAIN,        ground:T.SCREE,          decoration:T.MUD,      accent:T.ROCK,        names:[
       'Granite Pass','Boulder Hollow','Quarry Trail','Stoneroot Glen','Slatefall Reach',
       'Earthcrack Maze','Cinder Ridge','Marble Vein','Mudbog Crossing','Tremor Basin',
       'Old Roads','Tumulus Field','Caveborn Path','Sediment Flats','Mossy Crag',
@@ -77,7 +77,7 @@ const REGIONS = [
       'Galewall','Wisp Field','Halcyon Reach','Stormthrone Approach','Falcon Roost',
       'Cloudbreak','Sky-stair','High Tundra','Whispering Currents','Aetherwake'
     ], villageName:'Stormcrown Aerie',          enemyTier:6, boss:'wind_djinn'     },
-  { id:'lightning', element:null,        skyRegion:true, cloudEdge:T.STORM_EDGE, border:T.STORM_CLOUD,     ground:T.STORM_GROUND,   decoration:T.STORM_BANK, accent:T.WATER,      names:[
+  { id:'lightning', element:'lightning', skyRegion:true, cloudEdge:T.STORM_EDGE, border:T.STORM_CLOUD,     ground:T.STORM_GROUND,   decoration:T.STORM_BANK, accent:T.WATER,      names:[
       'Sparkfen','Voltaic Plain','Thunderfork Pass','Stormglass Reach','Static Maze',
       'Galvanic Hollow','Arcwire Crossing','Lichtning Field','Tesla Spires','Surge Basin',
       'Brimwire','Ferrum Edge','Crackleway','Boltcaster Ridge','Shockmarsh',
@@ -101,7 +101,7 @@ const REGIONS = [
       'Rotwood Edge','Stagnant Causeway','Bilegrove','Cankerstump','Pestilent Field',
       'Snake-fang Hollow','Greenfog Reach','Necrosis Plain','Bubble Marsh','Witherwart'
     ], villageName:'Mire-warden Citadel',       enemyTier:10, boss:'hydra_queen'    },
-  { id:'mana',      element:null,        edgeWater:true, border:T.MANA_CRYSTAL,    ground:T.MANA_FLOOR,     decoration:T.FLOWER, accent:T.DEEP_WATER, names:[
+  { id:'mana',      element:'mana',      edgeWater:true, border:T.MANA_CRYSTAL,    ground:T.MANA_FLOOR,     decoration:T.FLOWER, accent:T.DEEP_WATER, names:[
       'Arcanum Reach','Spellwell Plain','Sigil Garden','Channeled Pass','Aether Field',
       'Glyphvein Maze','Lifeweave Hollow','Runestone Crossing','Conduit Spire','Resonant Bowl',
       'Astral Causeway','Mage-glass Plateau','Echo Lattice','Filigree Field','Mantra Plain',

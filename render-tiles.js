@@ -2496,6 +2496,100 @@ function drawTileProcedural(col, row, t, sx, sy, s) {
       ctx.fillRect(x + s*0.30, y + s*0.42, 2, 2);
       ctx.fillRect(x + s*0.38, y + s*0.42, 2, 2);
       break; }
+    case T.GAS_VENT: {
+      // A fissure venting gas. Drawn as a dark split in the mire with a hot
+      // green throat, so it is legible as a SOURCE — the cloud around it moves
+      // and thins, and a player needs to be able to see where it is coming from
+      // in order to route around the right thing.
+      const h = (col * 151 + row * 101);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#3f5220'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#20300f';
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.5, y + s*0.55, s*0.34, s*0.24, 0, 0, Math.PI*2);
+      ctx.fill();
+      const pulse = 0.55 + 0.45 * Math.sin(Date.now()/520 + (h & 7));
+      ctx.fillStyle = `rgba(154,214,74,${0.45 + 0.35 * pulse})`;
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.5, y + s*0.55, s*0.18, s*0.12, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Crust lip around the mouth
+      ctx.strokeStyle = '#18240a';
+      ctx.lineWidth = Math.max(1, s*0.05);
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.5, y + s*0.55, s*0.34, s*0.24, 0, 0, Math.PI*2);
+      ctx.stroke();
+      // Wisps lifting off it
+      ctx.fillStyle = `rgba(180,224,120,${0.20 + 0.20*pulse})`;
+      for (let i = 0; i < 2; i++) {
+        const t2 = ((Date.now()/900 + i*0.5 + j(0,1)) % 1);
+        ctx.beginPath();
+        ctx.arc(x + s*(0.38 + j(2,0.25)), y + s*(0.5 - t2*0.42),
+                s*(0.07 + 0.05*t2), 0, Math.PI*2);
+        ctx.fill();
+      }
+      break;
+    }
+    case T.QUICKSAND: {
+      // Quicksand. It kills, so the one job of this art is that nobody mistakes
+      // it for sand or for a dune. Wet, darker and slightly sunken, with a slow
+      // concentric churn and a few surface bubbles — every cue says liquid where
+      // the desert around it says solid.
+      const h = (col * 149 + row * 97);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#a8834a'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#8c6a38';                                      // sunken middle
+      ctx.beginPath();
+      ctx.ellipse(x + s*0.5, y + s*0.54, s*0.42, s*0.36, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Concentric churn, turning slowly. The phase is per tile so a field does
+      // not pulse as one sheet.
+      const t2 = Date.now()/1400 + (h & 7) * 0.8;
+      ctx.strokeStyle = 'rgba(60,40,18,0.45)';
+      ctx.lineWidth = Math.max(1, s*0.05);
+      for (let k = 0; k < 2; k++) {
+        const rad = s * (0.12 + 0.13 * ((t2 + k*0.5) % 1));
+        ctx.globalAlpha = 1 - ((t2 + k*0.5) % 1);
+        ctx.beginPath();
+        ctx.ellipse(x + s*0.5, y + s*0.54, rad, rad*0.82, 0, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      // A couple of bubbles sitting on the surface.
+      ctx.fillStyle = 'rgba(220,196,150,0.55)';
+      ctx.beginPath(); ctx.arc(x + s*(0.30 + j(0,0.14)), y + s*(0.36 + j(4,0.12)), s*0.05, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*(0.68 - j(6,0.12)), y + s*(0.66 - j(2,0.14)), s*0.038, 0, Math.PI*2); ctx.fill();
+      break;
+    }
+    case T.CURSED_GROUND: {
+      // Cursed ground. Reads as BLIGHT gone further: the same purple crust, but
+      // drained to near-black, veined with a cold violet glow, and with the
+      // green miasma replaced by a slow pulse. It has to be legible at a glance
+      // as "this tile costs you", because it is passable and a player who
+      // cannot tell it apart from ordinary blight just bleeds without knowing
+      // why. Hashed per tile like its neighbour so a field is not a grid.
+      const h = (col * 137 + row * 89);
+      const j = (a, n) => (((h >> a) & 3) / 3) * n;
+      ctx.fillStyle = '#241830'; ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#160e1e';                                       // dead patches
+      ctx.beginPath(); ctx.arc(x + s*(0.28 + j(0,0.36)), y + s*(0.30 + j(2,0.32)), s*(0.15 + j(4,0.07)), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s*(0.70 - j(6,0.22)), y + s*(0.72 - j(8,0.22)), s*(0.12 + j(10,0.05)), 0, Math.PI*2); ctx.fill();
+      // Veins of curse-light, the tell that separates this from plain blight.
+      const glow = 0.30 + 0.22 * Math.sin(Date.now()/700 + col*0.6 + row*0.9);
+      ctx.strokeStyle = `rgba(168,106,216,${glow})`;
+      ctx.lineWidth = Math.max(1, s*0.055);
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.10 + j(2,0.16)), y + s*(0.78 - j(4,0.22)));
+      ctx.lineTo(x + s*(0.44 + j(6,0.16)), y + s*(0.50 - j(0,0.16)));
+      ctx.lineTo(x + s*(0.88 - j(8,0.18)), y + s*(0.62 - j(2,0.16)));
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1, s*0.035);
+      ctx.beginPath();
+      ctx.moveTo(x + s*(0.44 + j(6,0.16)), y + s*(0.50 - j(0,0.16)));
+      ctx.lineTo(x + s*(0.34 - j(4,0.14)), y + s*(0.18 + j(8,0.16)));
+      ctx.stroke();
+      break;
+    }
     case T.BLIGHT: {
       // Blighted underworld earth — a dark mottled purple-grey crust patched with
       // rot, raked by hairline cracks, and breathing a faint sickly-green miasma.

@@ -32,6 +32,80 @@ const SWORD_ELEMENTS = {
 // wherever only the 12 wieldable region elements are meant (shrine rolls, etc.).
 const REGION_ELEMENT_IDS = Object.keys(SWORD_ELEMENTS).filter(id => !SWORD_ELEMENTS[id].capstone);
 
+// Each regional armor carries one exploration power in addition to its physical
+// defense and matching-element block. This registry is the UI/design authority;
+// the individual mechanics stay with the systems they affect (movement in
+// player.js, active traversal in abilities.js, and regional hazards in main.js).
+const ELEMENTAL_ARMOR_ABILITIES = {
+  fire:      { label: 'Desert Walker', description: 'Cross quicksand safely and bake half as fast.', status: 'ready' },
+  water:     { label: 'Deep Swim', description: 'Swim through medium-depth water.', status: 'ready' },
+  ice:       { label: 'Ice Grip', description: 'Stop cleanly on ice and pacify dormant ice golems.', status: 'ready' },
+  earth:     { label: 'Cliff Climb', description: 'Climb raised cliff faces and pacify dormant stone golems.', status: 'ready' },
+  volcanic:  { label: 'Heat Vent', description: 'Immune to the caldera\'s overheat.', status: 'ready' },
+  air:       { label: 'Updraft Glide', description: 'Glide across wider gaps than the shrine reward.', status: 'ready' },
+  lightning: { label: 'Storm Grounding', description: 'Stop the region storm-strike timer.', status: 'ready' },
+  luminous:  { label: 'Radiant Aura', description: 'Burns enemy shots from the air and stuns what closes in.', status: 'ready' },
+  necrotic:  { label: 'Grave Command', description: 'Walk cursed ground unharmed and summon allied skeletons.', status: 'ready' },
+  poison:    { label: 'Miasma Ward', description: 'Immune to spore clouds and drifting miasma.', status: 'ready' },
+  mana:      { label: 'Arcane Mending', description: 'Slowly knits your wounds as you travel.', status: 'ready' },
+  shadow:    { label: 'Shadow Step', description: 'Teleport through thin walls.', status: 'ready' },
+};
+
+function wearingElementalArmor(elemId) {
+  return !!(player && player.activeArmorElement === elemId);
+}
+
+function elementalArmorAbility(elemId) {
+  return ELEMENTAL_ARMOR_ABILITIES[elemId] || null;
+}
+
+// Armor-specific exceptions to ordinary tile solidity. Kept here so direct
+// movement and tap-to-travel cannot disagree about a route.
+function elementalArmorTraversesTile(map, c, r) {
+  if (!map || !map[r]) return false;
+  const t = map[r][c];
+  if (wearingElementalArmor('water') && t === T.MEDIUM_WATER) return true;
+  if (wearingElementalArmor('earth') && t === T.LEDGE_FACE) return true;
+  return false;
+}
+
+// Changing armor while the hero is standing somewhere ONLY that armor lets them
+// stand is how a run ends: measured, taking Water armor off in the middle of a
+// medium-water pond leaves 0 of 8 legal moves, and there is no damage source out
+// there to die out of, so the save is stuck for good.
+//
+// Refused rather than repaired. An eject-to-shore would also clear it, but it
+// teleports the hero somewhere they did not ask to go, and the refusal explains
+// itself where a silent teleport does not.
+//
+// Written against the traversal rule rather than against water, so any armor
+// that grants passage later is covered without anyone having to remember this.
+// Earth does not trigger it in practice — stepping DOWN off a ledge face is
+// never blocked, so a hero on a face always has an exit — but the check is the
+// same one either way.
+function armorChangeBlockedHere() {
+  if (typeof player === 'undefined' || !player) return false;
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map || !map[player.y]) return false;
+  return elementalArmorTraversesTile(map, player.x, player.y);
+}
+
+// The one place armor is equipped or dropped. The radial's three entries (equip,
+// and the two "no armor" variants) all come through here so the guard cannot be
+// bypassed by whichever one a player happens to reach for. Returns whether the
+// change actually happened.
+function setActiveArmorElement(id) {
+  if (armorChangeBlockedHere()) {
+    const worn = SWORD_ELEMENTS[player.activeArmorElement];
+    if (typeof showMsg === 'function') {
+      showMsg(`🛡 Not here — without the ${worn ? worn.label : 'worn'} Armor you would have nowhere to stand.`, 2200);
+    }
+    return false;
+  }
+  player.activeArmorElement = id;
+  return true;
+}
+
 // #15 Dragonbane hit: a flat bonus far above any elemental sword's ceiling
 // (a maxed elemental sword tops out at 1d4 + 12). Rolls 1d12 + 12 → 13..24, and its
 // swing also forces a guaranteed, deepened opposite-element proc (see rollOppositeVuln

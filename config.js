@@ -381,9 +381,28 @@ const T = {
   // Both carry the same height and both extrude, so the shelf reads as one
   // raised surface with a face wherever the ground beside it is lower.
   //
-  // No generator emits either of these yet. Placement is level design and waits
-  // for Phase 6, so every existing map and save is untouched by their existence.
-  LEDGE:189, LEDGE_FACE:190
+  // Both of these ARE emitted now: addLedgeCauseway and addDesertPlateau
+  // (mapgen-biomes.js) stamp shelves on every Earth map and on desert maps.
+  LEDGE:189, LEDGE_FACE:190,
+  // Necrotic cursed ground. PASSABLE on purpose and deliberately not in
+  // SOLID_TILES: it drains anyone crossing it without Necrotic armor rather than
+  // blocking them, so it costs a hero something without ever walling a route off
+  // (see stepCursedGround in abilities.js). Generation keeps it off T.PATH, so
+  // the roads through the region stay clean and the blighted fields either side
+  // are the part that hurts.
+  CURSED_GROUND:191,
+  // Desert quicksand. PASSABLE and deliberately not in SOLID_TILES, for the same
+  // reason cursed ground is not: Fire armor is forged behind the desert's own
+  // boss village, so a wall of it would gate the region behind itself. It kills
+  // by sinking instead (stepQuicksand in abilities.js) and generation keeps it
+  // off T.PATH, so the roads through the desert are always safe.
+  QUICKSAND:192,
+  // A fissure in the poison wastes that breathes gas. PASSABLE — standing on a
+  // vent should be the worst place on the map, not an impossible one — and kept
+  // off T.PATH by generation like every other hazard here. The gas itself is not
+  // a tile: it is a per-map density field (stepMiasma, abilities.js), because a
+  // drifting cloud that pools around terrain cannot be expressed as tile ids.
+  GAS_VENT:193
 };
 
 // ─── Solid tiles ──────────────────────────────────────────────────────────────
@@ -438,12 +457,18 @@ const SOLID_TILES = new Set([
   T.SHRINE_WALL, T.SHRINE_GATE, T.SHRINE_CRACKED,
   T.SHRINE_REWARD, T.SHRINE_RESET, T.SHRINE_BRAZIER, T.SHRINE_VALVE,
   T.SHRINE_MIRROR, T.SHRINE_EMITTER, T.SHRINE_RECEIVER, T.SHRINE_PRISM,
-  // The vertical face under a ledge's southern rim. This is the ONLY addition
-  // this set has taken for the oblique conversion, and it is purely additive:
-  // no existing entry moved, and no generator emits LEDGE_FACE, so the id
-  // appears in zero tile arrays. The flood-fill inverts this set, and an id
-  // that is present nowhere contributes nothing to the inversion, so every
-  // existing map and every existing save floods exactly as it did before.
+  // The vertical face under a ledge's rim. This is the ONLY addition this set has
+  // taken for the oblique conversion, and when it was added it was inert: no
+  // generator emitted LEDGE_FACE, so the id appeared in zero tile arrays and the
+  // inverted flood-fill behaved exactly as before for every existing save.
+  //
+  // That is NO LONGER TRUE and the old note here misled a later pass into
+  // concluding the ledge mechanic had no terrain. addLedgeCauseway and
+  // addDesertPlateau (mapgen-biomes.js) both emit LEDGE/LEDGE_FACE now. Measured
+  // over ten seeds: every Earth overworld map carries ~430 LEDGE, ~296
+  // LEDGE_FACE and 5-15 CLIMB; desert maps carry more again. Ledges are live
+  // terrain — check the generators, not this comment.
+  //
   // T.LEDGE is deliberately NOT here: the top of a shelf is walkable, and the
   // face below it is what blocks.
   T.LEDGE_FACE,
@@ -528,7 +553,7 @@ const TILE_HEIGHT_SPEC = [
 // Baked into a flat array for lookup. This is read once per visible tile per
 // frame (~2600 at TILE_PX 24), so an array index beats a Map or object hash.
 // 256 entries because tile ids are stored in a Uint8Array (see the map format
-// note at the top of this file); max T today is 190 (T.LEDGE_FACE), leaving 65
+// note at the top of this file); max T today is 193 (T.GAS_VENT), leaving 62
 // ids. Update this number when you spend one, because it is what the tile-id
 // budget is read from.
 const TILE_HEIGHT = new Float32Array(256);
@@ -574,6 +599,12 @@ const TILE_COLORS = {
   [T.MARBLE]: '#e8e4d8', [T.COBBLESTONE]: '#7a7a78',
   [T.BED]: '#8a4480', [T.TABLE]: '#6a3a18', [T.CHAIR]: '#5a2a10', [T.FIREPLACE]: '#3a3a3a',
   [T.CACTUS]: '#3a7a3a', [T.DUNE]: '#c89858', [T.OASIS_WATER]: '#2a88cc', [T.BONES]: '#e8e0c0',
+  [T.QUICKSAND]: '#a8834a',
+  // The vent's own glowing throat colour, for the same reason. Against poison
+  // SLUDGE (#566b2c) the old #5c7a2a was 23 channel-units away — invisible on
+  // the minimap, which is exactly where a player wants to see where the gas is
+  // coming from. This is 205.
+  [T.GAS_VENT]: '#9ad64a',
   [T.LARGE_CHEST_R]: '#cc8800',
   // Boss chest base color matches the dark royal-purple body so the 10%
   // padding around each quadrant blends instead of flashing magenta.
@@ -604,6 +635,14 @@ const TILE_COLORS = {
   // the minimap: a haloed bloom, light-tipped reeds, and a glowing crystal shard.
   [T.RADIANT_BLOOM]: '#ffe9a0', [T.GLOW_REED]: '#f4e6b0', [T.LUMEN_SHARD]: '#fdf0c8',
   [T.BLIGHT]: '#3a2a3a',          [T.BLIGHTED_WALL]: '#1a0a1a',
+  // Curse-violet rather than the tile's near-black base. TILE_COLORS is what the
+  // MINIMAP paints with, and the in-world case overpaints this on its first line
+  // anyway, so it is free to be chosen for legibility at one pixel per tile.
+  // Measured against the blight it sits on (#3a2a3a): the old #241830 was only
+  // 50 channel-units away and read as more blight; this is 91 and reads as a
+  // field you can route around, which is the whole reason to show a hazard on a
+  // map you navigate by.
+  [T.CURSED_GROUND]: '#4a1f7a',
   // Necrotic decay — grave dirt reads a shade darker/browner than the blight
   // floor (like SNOW_DRIFT against SNOW); a dead tree and withered shrub are grey
   // deadwood against the dark wall/ground; the carrion bloom a sickly grey-green;
@@ -980,7 +1019,11 @@ function regionIdForMap(map) {
 // *drawn* on the canvas (the movement pad) has to read the insets instead, so
 // resizeCanvas resolves them once per layout rather than per frame. 0 everywhere
 // without a notch, and on any browser without env() support.
-let safeInsetLeft = 0, safeInsetBottom = 0;
+// safeInsetRight joined these when the movement pad became mirrorable
+// (touchSidePref): --safe-right had always been declared in the CSS and used by
+// the action buttons, but nothing drawn on the canvas had ever needed the right
+// edge before, so it was never resolved into JS.
+let safeInsetLeft = 0, safeInsetRight = 0, safeInsetBottom = 0;
 function cssPxVar(name) {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
   const n = parseFloat(raw);
@@ -1000,6 +1043,7 @@ function resizeCanvas() {
   // bottom edge — the same edge the movement pad measures its gap from.
   document.documentElement.style.setProperty('--bottom-bars-h', (wepH + ctrlH) + 'px');
   safeInsetLeft   = cssPxVar('--safe-left');
+  safeInsetRight  = cssPxVar('--safe-right');
   safeInsetBottom = cssPxVar('--safe-bottom');
   canvas.width  = window.innerWidth;
   canvas.height = Math.max(window.innerHeight - usedH, 200);
@@ -1132,6 +1176,9 @@ function uiModeIsTouch() {
 // Push the resolved mode onto <html> and let the dependent UI re-fit. The bars
 // that show/hide change the canvas's available height, hence the resize.
 function applyUiMode() {
+  // Handedness is stamped here too, so a fresh boot never renders one frame with
+  // the buttons on the wrong side.
+  applyTouchSide();
   const touch = uiModeIsTouch();
   const next  = touch ? 'touch' : 'desktop';
   if (document.documentElement.dataset.ui === next) return;   // no-op re-apply
@@ -1152,6 +1199,202 @@ function setUiMode(mode) {
 function cycleUiMode() {
   setUiMode(uiModePref === 'auto' ? 'touch' : uiModePref === 'touch' ? 'desktop' : 'auto');
   if (typeof buzz === 'function') buzz(8);
+}
+
+// ─── Key bindings ────────────────────────────────────────────────────────────
+// Every gameplay key is rebindable. This exists for the ordinary reason — the
+// hardcoded ZXCVP layout suits a right hand on a QWERTY board and nothing else,
+// and players on AZERTY or a laptop without a numpad row have had no recourse —
+// and for one specific reason: the Shadow temple's boss front-runs the player's
+// inputs, and the counter is to change your controls out from under it. That
+// counter needs something real to change (keyBindingsChanged, below).
+//
+// Space is deliberately NOT in this table. It is the interact key and doubles as
+// a melee trigger, it is bound in half a dozen modal handlers as "confirm", and
+// letting it be reassigned would let a player bind away their own ability to
+// close a dialogue. It stays a fixed secondary for melee.
+//
+// Movement is in the table even though the Shadow fight is the only thing that
+// makes rebinding it interesting, because a rebinding screen that refuses to
+// rebind the four keys you press most reads as broken.
+const KEY_ACTIONS = [
+  { id: 'up',      label: 'Move up',       def: 'ArrowUp' },
+  { id: 'down',    label: 'Move down',     def: 'ArrowDown' },
+  { id: 'left',    label: 'Move left',     def: 'ArrowLeft' },
+  { id: 'right',   label: 'Move right',    def: 'ArrowRight' },
+  { id: 'melee',   label: 'Sword / punch', def: 'z' },
+  { id: 'bow',     label: 'Bow',           def: 'x' },
+  { id: 'bomb',    label: 'Bomb',          def: 'c' },
+  { id: 'ability', label: 'Ability',       def: 'f' },
+  { id: 'potion',  label: 'Drink potion',  def: 'p' },
+  { id: 'menu',    label: 'Menu',          def: 'v' },
+  { id: 'minimap', label: 'Minimap',       def: 'Tab' },
+  { id: 'weapon1', label: 'Equip sword',   def: '1' },
+  { id: 'weapon2', label: 'Equip bow',     def: '2' },
+  { id: 'weapon3', label: 'Equip bomb',    def: '3' },
+];
+const KEYBIND_KEY = 'stormdrift_keybinds';
+const keyBinds = {};
+for (const a of KEY_ACTIONS) keyBinds[a.id] = a.def;
+try {
+  const raw = localStorage.getItem(KEYBIND_KEY);
+  if (raw) {
+    const saved = JSON.parse(raw);
+    // Only ids this build knows about, and only strings. A save from a build
+    // with an action that no longer exists must not resurrect it, and a
+    // corrupted value must not brick the controls.
+    for (const a of KEY_ACTIONS) {
+      if (typeof saved[a.id] === 'string' && saved[a.id]) keyBinds[a.id] = saved[a.id];
+    }
+  }
+} catch (_) { /* private mode or malformed; the defaults above stand */ }
+
+function keyBinding(id) { return keyBinds[id]; }
+
+// Case-insensitive for single characters, exact for named keys ('ArrowUp',
+// 'Tab'). Mirrors what setKey already does when it records both cases.
+function sameKey(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length === 1 && b.length === 1) return a.toLowerCase() === b.toLowerCase();
+  return a === b;
+}
+function matchesBinding(evKey, id) { return sameKey(evKey, keyBinds[id]); }
+
+// Is the bound key down right now? Reads the same `keys` map the hardcoded
+// checks used, so nothing downstream of the input layer changes.
+function bindingHeld(id) {
+  const k = keyBinds[id];
+  if (!k) return false;
+  if (k.length === 1) return !!(keys[k.toLowerCase()] || keys[k.toUpperCase()]);
+  return !!keys[k];
+}
+
+function setKeyBinding(id, key) {
+  if (!keyBinds.hasOwnProperty(id) || typeof key !== 'string' || !key) return false;
+  // One key, one action. Whatever held it before is left UNBOUND rather than
+  // silently sharing, because two actions on one key is a bug the player cannot
+  // see and cannot diagnose.
+  for (const a of KEY_ACTIONS) {
+    if (a.id !== id && sameKey(keyBinds[a.id], key)) keyBinds[a.id] = '';
+  }
+  keyBinds[id] = key;
+  saveKeyBinds();
+  return true;
+}
+
+function resetKeyBindings() {
+  for (const a of KEY_ACTIONS) keyBinds[a.id] = a.def;
+  saveKeyBinds();
+}
+
+function saveKeyBinds() {
+  try { localStorage.setItem(KEYBIND_KEY, JSON.stringify(keyBinds)); } catch (_) { /* ignore */ }
+}
+
+// Has the player moved anything off its default? This is the Shadow temple's
+// desktop tell — the fight reads its own inputs correctly until the hero
+// rearranges the board under it. Handedness counts too, so a touch player and a
+// desktop player each have a real answer.
+function controlsChangedFromDefault() {
+  if (typeof touchPadOnLeft === 'function' && !touchPadOnLeft()) return true;
+  return KEY_ACTIONS.some(a => !sameKey(keyBinds[a.id], a.def));
+}
+
+// Translate a pressed key into the key the GAME's code is written against.
+//
+// Rebinding is done as one translation at the input boundary rather than as a
+// lookup at each of the several dozen places a key is read, and that choice is
+// deliberate. Movement especially is an internal protocol here: the touch
+// joystick and tap-to-travel both DRIVE the hero by injecting arrow keys into
+// the same `keys` map the keyboard writes, and player.js reads arrows out of it.
+// Teaching every reader about bindings would mean teaching the injectors too,
+// and the first one anybody forgot would be a control that works on keyboard and
+// not on touch.
+//
+// So: a bound key becomes its action's DEFAULT key here, and everything
+// downstream — the movement step, the weapon hotkeys, the modal handlers, the
+// injectors — keeps working in the vocabulary it was written in and never learns
+// that rebinding exists.
+//
+// Keys bound to nothing pass through untouched, which is what keeps Escape,
+// Enter, Space and the world-map's +/- working, and what keeps the arrow keys
+// driving the radial menu even for a player who has moved movement off them.
+function canonicalKey(evKey) {
+  for (const a of KEY_ACTIONS) {
+    if (keyBinds[a.id] && sameKey(evKey, keyBinds[a.id])) return a.def;
+  }
+  // A key that is some action's DEFAULT but is no longer bound to it has to go
+  // DEAD, not pass through. Without this the old key keeps working: move melee
+  // from Z to K and Z still swings, because Z is the vocabulary the downstream
+  // code reads and nothing had unbound it. A rebinding screen whose old keys
+  // still fire is not a rebinding screen.
+  //
+  // '' is a key nothing reads and nothing compares equal to, so the press is
+  // recorded harmlessly and every branch below misses it.
+  //
+  // This is also why rebinding movement off the arrows stops the arrows driving
+  // the radial menu: the keys that replaced them drive it instead, through this
+  // same translation, so the menu follows the player's layout rather than
+  // keeping a second hidden one.
+  for (const a of KEY_ACTIONS) {
+    if (sameKey(evKey, a.def)) return '';
+  }
+  return evKey;
+}
+
+// Human-readable, for the Controls window.
+function keyLabel(k) {
+  if (!k) return '—';
+  const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+                  ' ': 'Space', Tab: 'Tab', Escape: 'Esc', Enter: 'Enter' };
+  if (named[k]) return named[k];
+  return k.length === 1 ? k.toUpperCase() : k;
+}
+
+// ─── Handedness: which side of the screen the touch controls live on ─────────
+// Default is pad bottom-LEFT and the action buttons bottom-RIGHT, which is what
+// this game has always done. 'right' mirrors both.
+//
+// This exists for two unrelated reasons and serves each fully.
+//
+// It is an accessibility setting first: a left-handed player steering with their
+// right thumb has had the pad under their weak hand since the touch controls
+// shipped, and there was no way to move it.
+//
+// It is also the touch half of the Shadow temple's counter. That fight front-
+// runs the player's inputs and is beaten by changing your control settings —
+// which on a device with no keys to rebind needs to mean something real. Moving
+// the controls to the other side of the screen is that something.
+const TOUCH_SIDE_KEY = 'stormdrift_touch_side';
+let touchSidePref = 'left';
+try {
+  const stored = localStorage.getItem(TOUCH_SIDE_KEY);
+  if (stored === 'left' || stored === 'right') touchSidePref = stored;
+} catch (_) { /* private mode; keep the default */ }
+
+function touchPadOnLeft() { return touchSidePref !== 'right'; }
+
+// Stamped on <html> so the CSS can mirror the action buttons; the canvas-drawn
+// pad reads touchPadOnLeft() directly (joyHome, main.js).
+function applyTouchSide() {
+  document.documentElement.dataset.touchSide = touchSidePref;
+}
+
+function setTouchSide(side) {
+  touchSidePref = (side === 'right') ? 'right' : 'left';
+  try { localStorage.setItem(TOUCH_SIDE_KEY, touchSidePref); } catch (_) { /* ignore */ }
+  applyTouchSide();
+  if (typeof refreshControlHints === 'function') refreshControlHints();
+  if (typeof updateHUD === 'function') updateHUD();
+}
+
+function toggleTouchSide() {
+  setTouchSide(touchPadOnLeft() ? 'right' : 'left');
+  if (typeof buzz === 'function') buzz(8);
+}
+
+function touchSideLabel() {
+  return touchPadOnLeft() ? 'Pad left' : 'Pad right';
 }
 
 function uiModeLabel() {

@@ -759,6 +759,105 @@ function ensurePortalKeeper(mapObj) {
 // savedVillagers if present, otherwise generate fresh (only if the map is an
 // activated village), otherwise empty. Any map with a portal also gets a
 // Gatekeeper standing watch beside it.
+// ─── The frog on the Earth dead-ends ─────────────────────────────────────────
+// A foreshadowing NPC for the Shadow temple (tier 12), planted nine regions
+// early in Earth (tier 4). What it says is the whole point: the Shadow boss
+// front-runs the player's key presses, and the counter is to change the control
+// bindings. A player who has heard "your shadow self can read your mind" has a
+// chance of reaching for that on their own instead of grinding a fight that
+// reads as unfair.
+//
+// Placed on a SEALED dead-end overworld map rather than in Stoneheart Burrow,
+// which makes it genuinely missable — a deliberate trade for the encounter
+// landing as something found rather than something handed over at a market
+// stall. Follows ensureTimmyOnDeadEnd's shape for exactly that reason: that is
+// the pattern this game already uses for "someone is out here, off the path".
+//
+// One per world, remembered on the player so re-entering the map does not stack
+// a second frog and a later dead-end does not mint another.
+const FROG_NAME = 'Warty Oracle';
+// One line, and only ever this line.
+//
+// The frog is a CLUE, not a tutorial. It sits on a sealed Earth dead-end that
+// most players will never open, and the Shadow fight it hints at is eight
+// regions away — so it cannot be load-bearing, and nothing anywhere checks
+// whether the hero met it. It said three escalating lines for a while, the last
+// of which spelled the boss's counter out; that made a missable NPC into the
+// place the answer lived, which is exactly what a missable NPC must not be.
+//
+// The fight explains itself to everyone (stepEclipseSovereign, enemies.js).
+// This is the wink for the people who got to the corner it lives in.
+const FROG_LINE = "Your shadow self knows what you're thinking.";
+
+function ensureEarthFrog(mapObj) {
+  if (!mapObj || !mapObj.sealed || !mapObj.map) return;   // dead-ends only
+  if (typeof villagers === 'undefined') return;
+  if (typeof player === 'undefined' || typeof REGIONS === 'undefined') return;
+  const regionIdx = (typeof mapObj.regionIdx === 'number')
+    ? mapObj.regionIdx
+    : REGIONS.findIndex(r => r.id === mapObj.biome);
+  if (regionIdx < 0 || !REGIONS[regionIdx] || REGIONS[regionIdx].id !== 'earth') return;
+  if (player.frogOracleMapId != null && player.frogOracleMapId !== mapObj.id) return;
+  if (villagers.some(v => v.role === 'frog')) return;
+
+  const spot = findFrogSpot(mapObj);
+  if (!spot) return;                       // no open tile; try the next dead-end
+  const nextId = villagers.reduce((mx, v) => Math.max(mx, v.id || 0), -1) + 1;
+  villagers.push({
+    id: nextId,
+    kind: FROG_NAME, role: 'frog',
+    // Read by nothing on the frog path, but every villager record carries them
+    // and a half-filled one is a trap for the next person to add a field.
+    robe: '#3f6b2a', hair: '#2a4a1c', skin: '#7fae4a',
+    size: 0.8,
+    x: spot.x, y: spot.y, renderX: spot.x, renderY: spot.y,
+    stationary: true,
+    dir: { x: 0, y: 1 },
+    timer: 0, stepMs: 9999,
+  });
+  player.frogOracleMapId = mapObj.id;
+  mapObj.savedVillagers = villagers.map(v => ({ ...v }));
+}
+
+// A frog wants somewhere damp. T.MUD leads the list and is doing the real work:
+// Earth is a dry region with no water tiles at all — measured, zero across
+// thirty generated maps — so a pool-only search always fell through to the
+// centre fallback and stood the frog in the middle of a scree field. Mud is
+// Earth's own decoration tile, so it is both plentiful here and the right place
+// to find a frog. The standing water below still comes first where it exists,
+// for whichever region reuses this later.
+function findFrogSpot(mapObj) {
+  const m = mapObj.map;
+  const open = (c, r) =>
+    c > 1 && r > 1 && c < MCOLS - 2 && r < MROWS - 2 &&
+    !isSolid(m, c, r) && !isVillagerOffLimits(m[r][c]) &&
+    !villagers.some(v => v.x === c && v.y === r);
+  const wet = new Set([T.WATER, T.MEDIUM_WATER, T.SHALLOW_WATER, T.BOG_POOL,
+    T.OASIS_WATER, T.MUD, T.BOG]
+    .filter(v => v !== undefined));
+  for (let r = 2; r < MROWS - 2; r++)
+    for (let c = 2; c < MCOLS - 2; c++) {
+      if (!wet.has(m[r][c])) continue;
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+        if (open(c + dc, r + dr)) return { x: c + dc, y: r + dr };
+    }
+  const midR = Math.floor(MROWS / 2), midC = Math.floor(MCOLS / 2);
+  for (let rad = 0; rad < 20; rad++)
+    for (let dr = -rad; dr <= rad; dr++)
+      for (let dc = -rad; dc <= rad; dc++)
+        if (open(midC + dc, midR + dr)) return { x: midC + dc, y: midR + dr };
+  return null;
+}
+
+// Talk. Walks its three lines and then holds on the last one, which is the one
+// carrying the actual instruction — a player who comes back for a reminder
+// should get the useful half, not the atmospheric opener.
+// Says its one line, every time, and remembers nothing. No flag: nothing in the
+// game cares whether the hero found it.
+function talkEarthFrog(v) {
+  if (typeof sayNPC === 'function') sayNPC(FROG_NAME, FROG_LINE);
+}
+
 function spawnVillagersForMap(mid) {
   const rm = worldMaps[mid];
   if (!rm) { villagers = []; return; }
@@ -769,6 +868,7 @@ function spawnVillagersForMap(mid) {
     ensureTimmyOnDeadEnd(rm);
     ensureEscortTargets(rm);
     ensureFortuneTeller(rm);
+    ensureEarthFrog(rm);
     return;
   }
   if (rm.type === 'village' && rm.activated) {
@@ -789,6 +889,7 @@ function spawnVillagersForMap(mid) {
   if (typeof ensureGuildRecruiter === 'function') ensureGuildRecruiter(rm);
   ensureTimmyOnDeadEnd(rm);
   ensureEscortTargets(rm);
+  ensureEarthFrog(rm);
   // Persist so the keeper survives re-entry. Previously only villages saved;
   // the cabin needs it too now that it has a portal keeper.
   if (villagers.length) rm.savedVillagers = villagers.map(v => ({ ...v }));
@@ -894,6 +995,97 @@ function drawVillager(v, ts) {
     ctx.rotate(((v.id || 0) % 2 ? 1 : -1) * Math.PI * 0.46);
     ctx.translate(-pivotX, -pivotY);
     ctx.globalAlpha = 0.92;
+  }
+
+  // ── The frog ──────────────────────────────────────────────────────────────
+  // Not a person, so it takes neither the sheet path below (which is a humanoid)
+  // nor the procedural body under that (which is also a humanoid, with thirteen
+  // role overlays hung off its geometry). It is its own small body, drawn here
+  // and returning before either.
+  //
+  // Canvas primitives rather than a sprite sheet on purpose: this is one
+  // stationary NPC that speaks three lines and never walks, and every other
+  // role-bearing NPC in the game is drawn exactly this way. A sheet would mean a
+  // Lua generator, a PNG, a JSON, an atlas, a sprite module and two more script
+  // tags for a character that has no animation to spend them on. If the frog
+  // ever needs to hop, that is the moment to give it a sheet.
+  if (v.role === 'frog') {
+    const w = s * 0.62, h = s * 0.44;
+    const fx = cx, fy = py + s * 0.80;          // squat, sitting on its own feet
+    const BODY_D = '#2f5320', BODY = '#4d8a2e', BELLY = '#a8c86a';
+    const throat = Math.sin(Date.now() / 340 + phase) * 0.5 + 0.5;   // slow breath
+
+    ctx.lineWidth = Math.max(1, s * 0.045);
+    ctx.strokeStyle = '#14210d';
+
+    // Back legs, folded — two wedges either side, drawn before the body so the
+    // body reads as sitting on top of them.
+    ctx.fillStyle = BODY_D;
+    for (const sgn of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(fx + sgn * w * 0.46, fy - h * 0.10, w * 0.24, h * 0.34, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+
+    // Body
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.ellipse(fx, fy - h * 0.42, w * 0.52, h * 0.62, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+
+    // Throat, inflating and settling. The one moving part, and the thing that
+    // makes it read as alive rather than as a green stone.
+    ctx.fillStyle = BELLY;
+    ctx.beginPath();
+    ctx.ellipse(fx, fy - h * 0.16, w * 0.30, h * (0.20 + throat * 0.09), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Front feet
+    ctx.fillStyle = BODY_D;
+    for (const sgn of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(fx + sgn * w * 0.26, fy, w * 0.14, h * 0.11, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+
+    // Head, wider than it is tall, sunk into the shoulders
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.ellipse(fx, fy - h * 1.02, w * 0.42, h * 0.34, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+
+    // Eyes: domes standing proud of the skull, which is the whole silhouette of
+    // a frog. Slit pupils so it reads as watching rather than as googly.
+    for (const sgn of [-1, 1]) {
+      const ex = fx + sgn * w * 0.24, ey = fy - h * 1.30;
+      ctx.fillStyle = '#d8c24a';
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, w * 0.15, h * 0.20, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#0d1408';
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, w * 0.045, h * 0.13, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Mouth — one flat line, corner to corner. A frog is mostly mouth.
+    ctx.beginPath();
+    ctx.moveTo(fx - w * 0.30, fy - h * 0.94);
+    ctx.lineTo(fx + w * 0.30, fy - h * 0.94);
+    ctx.stroke();
+
+    // Speckles, placed off the id so every frog is freckled the same way twice.
+    ctx.fillStyle = BODY_D;
+    for (let i = 0; i < 5; i++) {
+      const a = phase + i * 2.1;
+      ctx.beginPath();
+      ctx.ellipse(fx + Math.cos(a) * w * 0.30, fy - h * 0.50 + Math.sin(a) * h * 0.26,
+                  w * 0.05, h * 0.05, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+    return;
   }
 
   // ── Sprite-sheet path (villager-sheet.png, see villager-sprite.js) ────────
@@ -1325,6 +1517,8 @@ function tryVillagerInteraction() {
   if (v.role === 'completionist') { talkChronicler(v); return true; }
   // The Fortune Teller reads one fragment of the crown's history (stage 8).
   if (v.role === 'fortune') { talkFortuneTeller(v); return true; }
+  // The frog on an Earth dead-end foreshadows the Shadow temple boss.
+  if (v.role === 'frog') { talkEarthFrog(v); return true; }
   // The Worried Parent hands out (and closes) the "Find Timmy" quest.
   if (v.role === 'lostson')   { talkLostParent(v);  return true; }
   // The Guild Recruiter inducts the hero into the Sword & Shield Guild.

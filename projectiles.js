@@ -576,6 +576,11 @@ function stepEnemies(dt, map) {
     // else that ever needs to be stopped without being made dormant — dormant
     // is a sleeping enemy, this is an interrupted one.
     if (e.staggerT > 0) { e.staggerT -= dt; continue; }
+    // Rooted: a toxic bloom is a plant. It never steps and never swings — its
+    // whole threat is the spore cloud on its own clock (stepToxicBlooms,
+    // enemies.js), so it leaves this loop before the movement and the melee
+    // contact check below it.
+    if (e.rooted) continue;
     e.timer -= dt;
     if (e.timer > 0) continue;
     e.timer = e.spd;
@@ -634,7 +639,21 @@ function stepEnemies(dt, map) {
       ? !inBounds
       : (stepsUpTooFar ||
          (isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny))));
-    if (!blocked && !otherEnemy && !onPlayer && !onVillager) {
+    // Body-blocking. A skeleton ally does not make the enemy retarget — the horde
+    // is still coming for the hero — but it cannot be walked through, and an
+    // enemy that tries to step into one takes a swing at it instead. That is
+    // what makes a skeleton a wall that hits back without touching any of the
+    // fourteen places targeting reads the player.
+    const onSkeleton = typeof skeletonAt === 'function' && skeletonAt(nx, ny);
+    if (onSkeleton) {
+      if (e.attackAllyT === undefined) e.attackAllyT = 0;
+      e.attackAllyT -= dt;
+      if (e.attackAllyT <= 0) {
+        e.attackAllyT = 700;
+        if (typeof damageSkeletonAt === 'function') damageSkeletonAt(nx, ny, e.dmg);
+      }
+    }
+    if (!blocked && !otherEnemy && !onPlayer && !onVillager && !onSkeleton) {
       const okey = tkey(e.x, e.y);
       occ.set(okey, (occ.get(okey) || 0) - 1);
       e.x = nx; e.y = ny;
@@ -898,6 +917,15 @@ function stepProjectiles(dt, map) {
         }
       }
     } else if (p.type === 'enemy') {
+      // Luminous armor's aura burns the shot out of the air at the rim of the
+      // light, before it reaches the hero (luminousAuraBlocks, abilities.js).
+      // Checked ahead of the hit test so a blocked shot never touches the
+      // damage path at all — no i-frames spent, no damage number, nothing to
+      // explain away.
+      if (typeof luminousAuraBlocks === 'function' && luminousAuraBlocks(p.tx, p.ty)) {
+        p.life = -999;
+        return;
+      }
       const dx = player.x - p.tx, dy = player.y - p.ty;
       if (Math.abs(dx) < 0.8 && Math.abs(dy) < 0.8 && player.invincible <= 0) {
         damagePlayer(p.dmg, p.element);

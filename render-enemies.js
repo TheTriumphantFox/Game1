@@ -48,6 +48,78 @@ function dragonSmoke(px, pyd, s, tt, phase) {
 
 // ─── Enemy sprites ────────────────────────────────────────────────────────────
 // Each type has hand-drawn pixel art. Generic fallback at the end.
+// A risen skeleton ally (enemies.js). Deliberately drawn NOT to be mistaken for
+// the necrotic region's own `skeleton` enemy, which shares its bones: allies
+// carry a violet armor-glow and a soft ground light in the Mana/Necrotic purple,
+// and enemies carry neither. In a fight in the necrotic wastes there will be
+// skeletons on both sides, and a player who cannot tell them apart at a glance
+// cannot tell whether they are winning.
+function drawSkeletonAlly(a, ts) {
+  const s = ts;
+  const fb = footBox(a.renderX, a.renderY, 0, s);
+  const px = fb.x, cx = fb.x + s / 2;
+  const phase = (a.id || 0) * 1.7;
+  const bob = Math.sin(Date.now() / 240 + phase) * s * 0.02;
+  const py = fb.y + bob;
+  // Rising: the first 400ms are spent clawing up out of the ground, drawn by
+  // clipping the body against a floor line that sweeps up as it emerges.
+  const age = Date.now() - (a.bornAt || 0);
+  const rise = Math.max(0, Math.min(1, age / 400));
+
+  if (typeof groundShadow === 'function') groundShadow(a.renderX, a.renderY, 0, 0.24, 0.06, 0.32);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(px - s, py + s * (1 - rise) - s * 0.05, s * 3, s * 1.2);
+  ctx.clip();
+
+  // The violet aura that marks it as yours.
+  ctx.globalAlpha = 0.30 + 0.14 * Math.sin(Date.now() / 300 + phase);
+  ctx.fillStyle = '#8a5fd0';
+  ctx.beginPath(); ctx.ellipse(cx, py + s * 0.60, s * 0.30, s * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  const BONE = '#d8d2c0', BONE_D = '#a89e88';
+  // Legs
+  ctx.fillStyle = BONE_D;
+  ctx.fillRect(cx - s*0.11, py + s*0.68, s*0.07, s*0.26);
+  ctx.fillRect(cx + s*0.04, py + s*0.68, s*0.07, s*0.26);
+  // Ribcage
+  ctx.fillStyle = BONE;
+  ctx.fillRect(cx - s*0.13, py + s*0.40, s*0.26, s*0.28);
+  ctx.strokeStyle = BONE_D;
+  ctx.lineWidth = Math.max(1, s*0.025);
+  for (let i = 0; i < 3; i++) {
+    const ry = py + s*(0.45 + i*0.07);
+    ctx.beginPath(); ctx.moveTo(cx - s*0.13, ry); ctx.lineTo(cx + s*0.13, ry); ctx.stroke();
+  }
+  // Arms — the leading one raised when it is swinging
+  ctx.fillStyle = BONE_D;
+  const swing = (a.attackT || 0) > 0 ? s*0.10 : 0;
+  ctx.fillRect(cx - s*0.20, py + s*0.42 - swing, s*0.06, s*0.24);
+  ctx.fillRect(cx + s*0.14, py + s*0.42, s*0.06, s*0.24);
+  // Skull
+  ctx.fillStyle = BONE;
+  ctx.beginPath(); ctx.ellipse(cx, py + s*0.30, s*0.13, s*0.12, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#2a2030';
+  ctx.fillRect(cx - s*0.07, py + s*0.28, s*0.05, s*0.04);
+  ctx.fillRect(cx + s*0.02, py + s*0.28, s*0.05, s*0.04);
+  // Violet eye-lights: the clearest single tell that this one is on your side.
+  ctx.fillStyle = '#c9a4ff';
+  ctx.fillRect(cx - s*0.065, py + s*0.29, s*0.03, s*0.02);
+  ctx.fillRect(cx + s*0.032, py + s*0.29, s*0.03, s*0.02);
+  ctx.restore();
+
+  // A hurt ally shows it, so the player can choose to pull the fight off one.
+  if (a.hp < a.maxHp) {
+    const w = s * 0.44, h = Math.max(2, s * 0.045);
+    const bx = cx - w / 2, by = py + s * 0.16;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(bx, by, w, h);
+    ctx.fillStyle = '#a97fe0';
+    ctx.fillRect(bx, by, w * Math.max(0, a.hp / a.maxHp), h);
+  }
+}
+
 function drawEnemy(e, ts) {
   // Tile corner. Still needed: the one-tile aura backdrops further down, and
   // the HP bar / name tag centring, anchor to the TILE, not to the sprite box.
@@ -2752,6 +2824,21 @@ function drawEnemy(e, ts) {
       break;
     }
     case 'eclipse_sovereign': {
+      // Blinded: its read has failed and it is open. Drawn as a ring of pale
+      // light around it, because the whole fight hinges on the player knowing
+      // WHEN to commit, and a boss that is only situationally vulnerable has to
+      // say so rather than leave it to be inferred from damage numbers.
+      if (typeof sovereignIsBlind === 'function' && sovereignIsBlind()) {
+        const t = Date.now() / 260;
+        ctx.save();
+        ctx.globalAlpha = 0.35 + 0.25 * Math.sin(t);
+        ctx.strokeStyle = '#e8dcff';
+        ctx.lineWidth = Math.max(2, s * 0.06);
+        ctx.beginPath();
+        ctx.ellipse(cx, py + s * 0.55, s * 0.52, s * 0.42, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
       // The Eclipse Sovereign — the final horror. A regal void-figure crowned before
       // a black sun ringed with a shifting corona, its robe woven of unlight, its
       // gaze two cold violet stars. Boss: a violet void aura + eclipse disc behind.
@@ -3031,6 +3118,143 @@ function drawEnemy(e, ts) {
       // Rising embers around the beast.
       dragonEmbers(cx, py, s, tt, phase);
       ctx.lineCap = 'butt';
+      break;
+    }
+    case 'toxic_bloom': {
+      // A fungal bloom, rooted to its tile. The important part is not the plant
+      // but the TELL: the cloud swells visibly for the last 900ms before it
+      // bursts, and that ring is drawn from the same number the damage fires on
+      // (bloomSwell, enemies.js). A rooted enemy hitting an area with no wind-up
+      // would be unreadable, so the swell is the mechanic, not decoration.
+      const sw = (typeof bloomSwell === 'function') ? bloomSwell(e) : 0;
+      const rad = (typeof BLOOM_RADIUS !== 'undefined') ? BLOOM_RADIUS : 2.6;
+
+      // The threatened ground, faint at all times so the footprint is knowable
+      // before it ever fires, and bright as it swells.
+      ctx.save();
+      ctx.globalAlpha = 0.07 + 0.30 * sw;
+      const gg = ctx.createRadialGradient(cx, py + s*0.55, 0, cx, py + s*0.55, rad * ts);
+      gg.addColorStop(0, '#c8e08a');
+      gg.addColorStop(1, 'rgba(138,184,58,0)');
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(cx, py + s*0.55, rad * ts, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+
+      // Root cluster and stalk
+      ctx.fillStyle = '#4a5a2a';
+      ctx.beginPath(); ctx.ellipse(cx, py + s*0.90, s*0.30, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#6a7a38';
+      ctx.fillRect(cx - s*0.06, py + s*0.52, s*0.12, s*0.40);
+
+      // The sac, inflating with the swell — the plant itself shows the wind-up.
+      const bulge = 1 + 0.28 * sw;
+      ctx.fillStyle = '#8ab83a';
+      ctx.beginPath();
+      ctx.ellipse(cx, py + s*0.44, s*0.28*bulge, s*0.24*bulge, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(200,224,138,${0.35 + 0.5*sw})`;
+      ctx.beginPath();
+      ctx.ellipse(cx - s*0.08, py + s*0.38, s*0.10*bulge, s*0.08*bulge, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // Spore pores, opening as it fills
+      ctx.fillStyle = '#3d5218';
+      for (let i = 0; i < 4; i++) {
+        const a = i * 1.57 + 0.4;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(a)*s*0.15, py + s*0.44 + Math.sin(a)*s*0.12,
+                s*(0.022 + 0.026*sw), 0, Math.PI*2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'ice_golem':
+    case 'stone_golem':
+    case 'obsidian_golem': {
+      // One body, three palettes — the same reasoning as the shared state
+      // machine in enemies.js. A golem is a blocky humanoid slab, and the only
+      // thing that really differs between the regions is what it is carved from.
+      const GP = {
+        ice_golem:      { dark:'#5f93ad', mid:'#8fc4dc', lite:'#c8ecf8', eye:'#d8f4ff' },
+        stone_golem:    { dark:'#5e5a52', mid:'#8a857a', lite:'#a8a296', eye:'#ffd27a' },
+        obsidian_golem: { dark:'#241d22', mid:'#3a2f36', lite:'#584a54', eye:'#ff6a22' },
+      }[e.type];
+      // Asleep it is a statue: no idle bob, seams unlit, head bowed. Awake it
+      // stands up, its seams light, and the eyes come on. The pose difference is
+      // the tell — a player has to be able to see at a glance which golems in a
+      // field are still sleeping.
+      const woke = !e.dormant;
+      const bob = woke ? Math.sin(Date.now()/260 + phase) * s*0.02 : 0;
+      const top = py + bob;
+      const glow = woke ? (0.55 + 0.45*Math.sin(Date.now()/220 + phase)) : 0;
+
+      // Legs
+      ctx.fillStyle = GP.dark;
+      ctx.fillRect(px + s*0.28, top + s*0.66, s*0.16, s*0.30);
+      ctx.fillRect(px + s*0.56, top + s*0.66, s*0.16, s*0.30);
+      // Torso
+      ctx.fillStyle = GP.mid;
+      ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.36);
+      ctx.fillStyle = GP.lite;                                  // lit shoulder
+      ctx.fillRect(px + s*0.24, top + s*0.34, s*0.26, s*0.36);
+      // Arms — hanging when asleep, raised a little when awake
+      ctx.fillStyle = GP.dark;
+      const armY = woke ? top + s*0.36 : top + s*0.42;
+      ctx.fillRect(px + s*0.12, armY, s*0.14, s*0.34);
+      ctx.fillRect(px + s*0.74, armY, s*0.14, s*0.34);
+      // Head, bowed while dormant
+      ctx.fillStyle = GP.mid;
+      ctx.fillRect(px + s*0.34, top + (woke ? s*0.12 : s*0.18), s*0.32, s*0.24);
+      // Seams: dead grooves asleep, lit veins awake.
+      ctx.strokeStyle = woke ? `rgba(255,220,150,${0.35 + 0.4*glow})` : 'rgba(0,0,0,0.30)';
+      ctx.lineWidth = Math.max(1, s*0.035);
+      ctx.beginPath();
+      ctx.moveTo(px + s*0.30, top + s*0.44); ctx.lineTo(px + s*0.52, top + s*0.52);
+      ctx.lineTo(px + s*0.42, top + s*0.66);
+      ctx.stroke();
+      // Obsidian awake is MOLTEN, not merely lit. Its shell cracks into running
+      // lava, which is the visual half of the heat it is now radiating at the
+      // hero (moltenHeatAt, enemies.js) — the fight has to look like the reason
+      // the overheat bar is climbing, or the bar reads as unrelated.
+      if (woke && e.type === 'obsidian_golem') {
+        const flow = Date.now() / 380 + phase;
+        ctx.fillStyle = `rgba(255,106,34,${0.45 + 0.30 * Math.sin(flow)})`;
+        ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.36);   // core glow
+        ctx.fillStyle = `rgba(255,196,90,${0.30 + 0.25 * Math.sin(flow * 1.4)})`;
+        ctx.fillRect(px + s*0.34, top + s*0.12, s*0.32, s*0.24);   // head glow
+        // Lava running down the body: short vertical runs on their own phases,
+        // so it drips rather than pulses as one block.
+        ctx.strokeStyle = 'rgba(255,140,40,0.75)';
+        ctx.lineWidth = Math.max(1, s*0.04);
+        for (let i = 0; i < 3; i++) {
+          const rx = px + s * (0.32 + i * 0.16);
+          const run = (Math.sin(flow + i * 1.9) * 0.5 + 0.5) * s * 0.24;
+          ctx.beginPath();
+          ctx.moveTo(rx, top + s*0.40);
+          ctx.lineTo(rx, top + s*0.40 + run);
+          ctx.stroke();
+        }
+        // Embers coming off it.
+        ctx.fillStyle = 'rgba(255,220,150,0.55)';
+        for (let i = 0; i < 2; i++) {
+          const a = flow * 1.6 + i * 3.1;
+          ctx.fillRect(px + s * (0.42 + 0.18 * Math.sin(a)),
+                       top + s * (0.30 - 0.22 * ((a * 0.3) % 1)), s*0.05, s*0.05);
+        }
+      }
+
+      // Eyes only once it is awake. A statue does not stare back.
+      if (woke) {
+        ctx.fillStyle = GP.eye;
+        const ey = top + s*0.20;
+        ctx.fillRect(px + s*0.39, ey, s*0.07, s*0.05);
+        ctx.fillRect(px + s*0.54, ey, s*0.07, s*0.05);
+      } else {
+        // Asleep: a dusting of the region's own weathering on the shoulders, so
+        // it reads as something that has stood here a long time.
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.04);
+      }
       break;
     }
     default: {

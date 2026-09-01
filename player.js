@@ -441,7 +441,7 @@ function stepPlayerJump(dt) {
   // Deriving it here means it is right by construction, and a stale groundZ
   // from a save is corrected on the first stepped frame.
   const _m = (typeof mapData === 'function') ? mapData() : null;
-  player.groundZ = _m ? surfaceZ(_m, player.x, player.y) : 0;
+  player.groundZ = _m ? actorSurfaceZ(_m, player.x, player.y) : 0;
 
   // A fall belongs to the step that started it. If the hero got somewhere he
   // could not have WALKED to since the last frame, that step is over and any
@@ -461,7 +461,16 @@ function stepPlayerJump(dt) {
   // Advance a drop first, so z is always hop + whatever is left to fall.
   if (playerFallZ > 0) {
     const f = dt / 16;
-    playerFallVz += PLAYER_FALL_GRAVITY * f;
+    // Air armor turns a ledge drop into a slow fall. Purely visual, and knowingly
+    // so: ledge falls deal no damage, so this changes how a drop LOOKS and
+    // nothing about what it costs. Kept because a hero in Air armor drifting
+    // down off a causeway reads correctly; not counted as the armor's power.
+    // What the armor actually grants is the longer glide (GLIDE_ARMOR_RANGE,
+    // abilities.js). Adding fall damage to make this matter was considered and
+    // rejected — it would retune every ledge in the game.
+    const gravityScale = (typeof wearingElementalArmor === 'function' && wearingElementalArmor('air'))
+      ? 0.35 : 1;
+    playerFallVz += PLAYER_FALL_GRAVITY * gravityScale * f;
     playerFallZ -= playerFallVz * f;
     if (playerFallZ <= 0) { playerFallZ = 0; playerFallVz = 0; }
   }
@@ -728,7 +737,33 @@ function rollEnemyTypeDrops(e) {
   if (e.ranged && Math.random() < 0.50) {
     drop({ type: 'arrows', val: 5, element: mapArrowElementId() });
   }
+
+  // ── Golems: rubies and the region's raw ore ────────────────────────────────
+  // The one reliable ore source in the game. Ore is otherwise a 2% roll off any
+  // kill, and ore is what the Blacksmith needs to upgrade elemental armor — so
+  // making the golems pay it closes a loop that was open: fell golems to upgrade
+  // your armor, and the upgraded armor is what walks you past the next ones
+  // asleep. It also fits what they are. A thing made of rock, ice or obsidian
+  // should come apart into rock, ice or obsidian.
+  //
+  // Guaranteed rather than rolled, because a golem is a fight the player CHOSE
+  // to start — by walking past unarmored or by hitting it — and a chosen fight
+  // that pays nothing teaches them not to choose it again.
+  if (typeof isGolem === 'function' && isGolem(e)) {
+    const ore = (typeof oreForMap === 'function') ? oreForMap(cm) : null;
+    if (ore) drop({ type: 'ore', ore: ore.id, val: GOLEM_ORE_DROP });
+    const regionOrder = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx + 1 : 1;
+    addItem('rubies', GOLEM_RUBY_BASE * regionOrder);
+    if (typeof showMsg === 'function') {
+      showMsg(`\u{1F5FF} The golem comes apart — ${ore ? ore.icon + ' ' + GOLEM_ORE_DROP + ' ' + ore.label : 'rubble'} and 💰${GOLEM_RUBY_BASE * regionOrder}.`, 2200);
+    }
+  }
 }
+
+// Golems pay ore in bulk and rubies scaled by how deep the region is, the same
+// shape a boss payout uses. Named here so the two numbers are tunable together.
+const GOLEM_ORE_DROP = 3;
+const GOLEM_RUBY_BASE = 40;
 
 // ─── Kill sound ───────────────────────────────────────────────────────────────
 // Every kill plays the classic Wilhelm scream. The problem this solves is real
@@ -1885,7 +1920,9 @@ function stepPlayerMovement() {
   // speed; swimming through MEDIUM_WATER is slower still — 40% of normal pace
   // (interval × 2.5). The step gate stretches to match while standing on one.
   const standTile = map[player.y][player.x];
-  const terrainMs = standTile === T.DUNE         ? MOVE_MS * 2
+  const fireWalk = typeof wearingElementalArmor === 'function' && wearingElementalArmor('fire');
+  const terrainMs = standTile === T.QUICKSAND    ? MOVE_MS * (fireWalk ? 1 : QUICKSAND_MOVE_MUL)
+                  : standTile === T.DUNE         ? MOVE_MS * (fireWalk ? 1 : 2)
                   : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
                   : standTile === T.MUD          ? MOVE_MS * 2
                   : standTile === T.BOG          ? MOVE_MS * 2
@@ -1896,7 +1933,15 @@ function stepPlayerMovement() {
   // the gate when a thumb is actually easing the stick — on top of the terrain
   // penalty above, never instead of it.
   const paceScale = (typeof joySpeedScale === 'function') ? joySpeedScale() : 1;
-  const stepMs = terrainMs / paceScale;
+  // Volcanic overheat drags at the hero once the meter passes its middle stage
+  // (heatMoveMultiplier, abilities.js). Deliberately a longer step interval and
+  // NOT dropped or delayed input: every press still lands exactly when it was
+  // made, which keeps this readable as exhaustion instead of as an input bug,
+  // and keeps it safe for anyone on assistive input. Multiplies the terrain
+  // penalty rather than replacing it — wading a magma field while cooking should
+  // be worse than either alone.
+  const heatMul = (typeof heatMoveMultiplier === 'function') ? heatMoveMultiplier() : 1;
+  const stepMs = (terrainMs * heatMul) / paceScale;
   if (moveTimer < stepMs) return;
 
   // Carry the sub-frame remainder past the gate (capped so an idle-accumulated
@@ -1916,13 +1961,16 @@ function stepPlayerMovement() {
   // The Water armor lets the hero swim through MEDIUM_WATER (the shelf between
   // wadeable SHALLOW_WATER and impassable DEEP_WATER). Without it, that tile is
   // solid like normal. DEEP_WATER stays off-limits regardless.
-  const canSwimMedium = player.activeArmorElement === 'water';
+  const earthClimb = typeof wearingElementalArmor === 'function' && wearingElementalArmor('earth');
   const blocked = (c, r) => {
-    if (enemyAt(c, r)) return true;
+    // A SLEEPING golem is furniture, not a wall: the hero steps onto its back
+    // (GOLEM_STAND_Z is exactly STEP_UP_MAX, so the step-up gate below allows
+    // it). An awake one blocks like any other enemy.
+    if (enemyAt(c, r) && !(typeof dormantGolemAt === 'function' && dormantGolemAt(c, r))) return true;
     if (typeof villagerAt === 'function' && villagerAt(c, r)) return true;
     if (typeof shrinePrepareMove === 'function' &&
         !shrinePrepareMove(currentMap(), player.x, player.y, c, r)) return true;
-    if (canSwimMedium && map[r] && map[r][c] === T.MEDIUM_WATER) return false;
+    if (typeof elementalArmorTraversesTile === 'function' && elementalArmorTraversesTile(map, c, r)) return false;
     if (isSolid(map, c, r)) return true;
     // Step-up gate (5d). A LEDGE is passable, so isSolid says nothing about it
     // and without this the hero would walk up a one-tile shelf as if it were
@@ -1934,7 +1982,7 @@ function stepPlayerMovement() {
     // reads surfaceZ rather than TILE_HEIGHT on purpose: a fern is 0.3 to the
     // renderer and 0 to the hero's knees, and walking into one must not start
     // failing. It also exempts T.CLIMB, which is the sanctioned way up a shelf.
-    return stepUpBlocked(map, player.x, player.y, c, r);
+    return stepUpBlocked(map, player.x, player.y, c, r, earthClimb ? Infinity : undefined);
   };
 
   // Try diagonal first; if blocked, slide along whichever axis is clear.
@@ -2055,8 +2103,15 @@ function stepWhirlpoolPull(dt) {
   const sp = screenPX(wx, wy);
   spawnParticle(sp.x, sp.y, '#eaf4ff', 14, 4);
   spawnParticle(sp.x, sp.y, '#2c5d8e', 10, 3);
-  showMsg('🌀 The whirlpool drags you under!', 2000);
-  if (player.invincible <= 0) {
+  // Water armor does NOT fight the pull. The dive is a destination — the flooded
+  // grotto below is optional content and the vortex is the only way in — so
+  // resisting it would close off the one route at exactly the point the hero is
+  // best equipped to take it. What the armor cancels is the toll: a swimmer at
+  // home in the water arrives at the grotto unhurt.
+  const swimmer = typeof wearingElementalArmor === 'function' && wearingElementalArmor('water');
+  showMsg(swimmer ? '🌀 The whirlpool takes you down — the armor holds.'
+                  : '🌀 The whirlpool drags you under!', 2000);
+  if (!swimmer && player.invincible <= 0) {
     damagePlayer(2, null);
     player.invincible = 900;
     if (player.hp <= 0) { whirlpoolChurnMs = 0; respawn(); }

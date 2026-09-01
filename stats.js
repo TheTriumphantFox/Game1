@@ -141,6 +141,9 @@ function renderStatsContents() {
   if (armorEl) {
     defense += statRow(`${armorEl.icon} ${armorEl.label} Block`,
       `${elementalArmorBlockPct(activeArmor)}%`, '#8ad6ff');
+    const power = typeof elementalArmorAbility === 'function'
+      ? elementalArmorAbility(activeArmor) : null;
+    if (power) defense += statRow('✦ Armor Ability', power.label, '#ffe89a');
   }
 
   // ── Inventory ──────────────────────────────────────────────────────────────
