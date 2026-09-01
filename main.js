@@ -143,6 +143,7 @@ function update(dt) {
   if (typeof stepAbilityCooldown === 'function') stepAbilityCooldown(dt);
   if (typeof stepElementalArmorEffects === 'function') stepElementalArmorEffects(dt);
   if (typeof stepGolems === 'function') stepGolems();
+  if (typeof stepToxicBlooms === 'function') stepToxicBlooms(dt);
   // The Emperor's HP thresholds (tower.js). Watched per frame rather than hooked
   // into the eight places that subtract enemy HP. After the freeze chain on
   // purpose: while the 50% line's box is still up, the 15% line waits its turn.

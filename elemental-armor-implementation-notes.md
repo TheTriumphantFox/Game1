@@ -104,8 +104,10 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 ### Tier 10: Poison
 
-- Toxic bloom enemies are missing.
-- Mushroom-cloud attacks and Poison armor resistance are missing.
+- **Toxic blooms and mushroom-cloud resistance: BUILT 2026-08-31** (`toxic_bloom`). A ROOTED plant that breathes a spore cloud on a 3.2s clock over a 2.6-tile radius for 6 damage. It never steps and never swings — `rooted` leaves the AI loop before both the movement and the melee contact check — so it is less a fight than terrain that hits back, and walking wide of one costs nothing but distance.
+- **The cloud is telegraphed and that is the mechanic, not decoration.** It swells for 900ms before bursting, the sac inflates and the threatened radius brightens, and the ring the player sees is drawn from `bloomSwell` — the same number the damage fires on. A rooted enemy hitting an area with no wind-up would be unreadable.
+- **Poison armor is full immunity to the cloud**, not a reduction, matching how Necrotic stops the cursed drain dead and Volcanic removes overheat. That is separate from and on top of the -50% elemental block any Poison armor already gives: the block is defence, this is the region's key.
+- Placement is landmark-style like the golems, because a rooted enemy's position IS its mechanic: 4-7 per poison map, never on `T.PATH`, ≥9 apart. Pulse clocks are randomised on spawn so a field breathes out of sync rather than detonating in unison. Verified over 8 seeds: 5.5 per map, 0 on roads, 0 pairs too close, 0 in other regions, 6 of 6 spawned with distinct clocks.
 - The drifting and diffusing miasma simulation, rendering, damage rules, map bounds, and performance limits are missing.
 - Existing swamp mushrooms and decorative miasma art are not gameplay hazards.
 

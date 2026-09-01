@@ -576,6 +576,11 @@ function stepEnemies(dt, map) {
     // else that ever needs to be stopped without being made dormant — dormant
     // is a sleeping enemy, this is an interrupted one.
     if (e.staggerT > 0) { e.staggerT -= dt; continue; }
+    // Rooted: a toxic bloom is a plant. It never steps and never swings — its
+    // whole threat is the spore cloud on its own clock (stepToxicBlooms,
+    // enemies.js), so it leaves this loop before the movement and the melee
+    // contact check below it.
+    if (e.rooted) continue;
     e.timer -= dt;
     if (e.timer > 0) continue;
     e.timer = e.spd;

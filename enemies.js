@@ -136,6 +136,9 @@ const DND_ENEMIES = {
   treant:         { name: 'Treant',              hp: 205, spd: 1000, dmg: 15, xp: 11500, color: '#4a5a2a', size: 1.4,  cr: 9, element: 'poison' },
   green_dragon:   { name: 'Young Green Dragon',  hp: 240, spd: 600,  dmg: 17, xp: 16000, color: '#3a6a3a', size: 1.45, ranged: true, cr: 8, element: 'poison' },
   purple_worm:    { name: 'Purple Worm',         hp: 290, spd: 750,  dmg: 19, xp: 20000, color: '#7a4a7a', size: 1.8,  cr: 15, element: 'poison' },
+  // Rooted, not a wanderer. Low HP for its tier because it cannot chase, cannot
+  // dodge and cannot be surprised — its danger is entirely the ground it denies.
+  toxic_bloom:    { name: 'Toxic Bloom',         hp: 96,  spd: 9999, dmg: 12, xp: 6000,  color: '#8ab83a', size: 1.15, cr: 4, element: 'poison', rooted: true },
 
   // ── Tier 10 · Mana / Arcane — aberrations & spellcasters. The final region. ──
   nothic:         { name: 'Nothic',              hp: 210, spd: 550,  dmg: 16, xp: 11000, color: '#8a6aaa', size: 0.85, ranged: true, cr: 2, element: 'mana' },
@@ -397,6 +400,90 @@ function wakeGolem(e) {
   if (typeof minimapDirty !== 'undefined') minimapDirty = true;
 }
 
+// ─── Toxic blooms ────────────────────────────────────────────────────────────
+// A rooted plant that breathes a mushroom cloud of spores over the ground around
+// it on a slow clock. It never moves and never chases, so it is not a fight so
+// much as a piece of terrain that hits back: the danger is the ground it denies,
+// and walking wide of one costs nothing but distance.
+//
+// Poison armor is complete immunity to the cloud rather than a reduction. That
+// matches how the other regional armors answer their own region — Necrotic
+// stops the cursed drain dead, Volcanic removes overheat — and it is separate
+// from the -50% elemental block that any Poison armor already gives. The block
+// is defence; this is the region's key.
+//
+// The cloud is TELEGRAPHED. It swells for BLOOM_SWELL_MS before it bursts, and
+// the swell is drawn, so being caught is a decision to stand still rather than
+// something that happens to a player with no warning. A rooted enemy that hits
+// an area with no tell would be unreadable.
+const BLOOM_PULSE_MS = 3200;      // between bursts
+const BLOOM_SWELL_MS = 900;       // visible wind-up before each one
+const BLOOM_RADIUS = 2.6;
+const BLOOM_DAMAGE = 6;
+
+function isBloom(e) { return !!e && e.type === 'toxic_bloom' && !e.dead; }
+
+// 0 when idle, ramping to 1 at the instant of the burst. Read by the renderer
+// so the swell the player sees is the same number the damage fires on.
+function bloomSwell(e) {
+  if (!isBloom(e)) return 0;
+  const t = e.bloomT || 0;
+  if (t < BLOOM_PULSE_MS - BLOOM_SWELL_MS) return 0;
+  return (t - (BLOOM_PULSE_MS - BLOOM_SWELL_MS)) / BLOOM_SWELL_MS;
+}
+
+function stepToxicBlooms(dt) {
+  if (typeof enemies === 'undefined' || typeof player === 'undefined') return;
+  const immune = typeof wearingElementalArmor === 'function' &&
+                 wearingElementalArmor('poison');
+  for (const e of enemies) {
+    if (!isBloom(e)) continue;
+    e.bloomT = (e.bloomT || 0) + dt;
+    if (e.bloomT < BLOOM_PULSE_MS) continue;
+    e.bloomT = 0;
+    burstBloom(e, immune);
+  }
+}
+
+function burstBloom(e, immune) {
+  const sp = (typeof screenPX === 'function') ? screenPX(e.x, e.y) : null;
+  if (sp && typeof spawnParticle === 'function') {
+    spawnParticle(sp.x, sp.y, '#8ab83a', 16, 5);
+    spawnParticle(sp.x, sp.y, '#c8e08a', 10, 3);
+  }
+  if (immune) return;                       // the armor is the answer to this
+  if (Math.hypot(e.x - player.x, e.y - player.y) > BLOOM_RADIUS) return;
+  if (player.invincible > 0) return;
+  if (typeof damagePlayer === 'function') damagePlayer(BLOOM_DAMAGE, 'poison');
+  player.invincible = 900;
+  if (typeof buzz === 'function') buzz([0, 30, 20, 40]);
+  if (typeof showMsg === 'function') showMsg('\u2620 Spores burst around you!', 1400);
+  if (player.hp <= 0 && typeof respawn === 'function') respawn();
+}
+
+// Blooms are placed like the golems and for the same reason: they are rooted, so
+// where they stand IS the mechanic. Never on T.PATH, so a road never runs
+// through a cloud, and spread out so they deny several separate pockets rather
+// than one large one.
+const BLOOM_COUNT_MIN = 4, BLOOM_COUNT_MAX = 7, BLOOM_MIN_APART = 9;
+
+function makeBloomDefs(regionId, map) {
+  if (regionId !== 'poison' || !map) return [];
+  const defs = [];
+  const want = rnd(BLOOM_COUNT_MIN, BLOOM_COUNT_MAX);
+  for (let i = 0; i < want; i++) {
+    for (let t = 0; t < 80; t++) {
+      const x = rnd(12, MCOLS - 13), y = rnd(12, MROWS - 13);
+      if (isSolid(map, x, y)) continue;
+      if (map[y][x] === T.PATH) continue;
+      if (defs.some(d => Math.hypot(d.x - x, d.y - y) < BLOOM_MIN_APART)) continue;
+      defs.push({ type: 'toxic_bloom', x, y });
+      break;
+    }
+  }
+  return defs;
+}
+
 // Stand a few sleeping golems on a map, as landmarks rather than as roster
 // spawns. Deliberately placed like the hazard blots are: never on T.PATH, so a
 // road never runs into one, and spread apart so they read as scattered ancient
@@ -511,7 +598,10 @@ function makeEnemyDefs(depth, mapType, map) {
   }
   // Sleeping golems stand on the OPEN region maps only. A boss village is an
   // arena and does not want statues in it.
-  if (!isVillage && region) defs.push(...makeGolemDefs(region.id, map));
+  if (!isVillage && region) {
+    defs.push(...makeGolemDefs(region.id, map));
+    defs.push(...makeBloomDefs(region.id, map));
+  }
   return defs;
 }
 
@@ -690,6 +780,11 @@ function spawnEnemiesForMap(mid) {
         color: base.color, size: (base.size || 1) * sizeMul,
         name: def.tier15 ? `Greater ${base.name}` : base.name,
         ranged: base.ranged || false,
+        // Rooted enemies never take a step (see the AI loop in projectiles.js).
+        // bloomT is the toxic bloom's own pulse clock, staggered on spawn so a
+        // field of them breathes out of sync instead of detonating in unison.
+        rooted: base.rooted || false,
+        bloomT: Math.random() * BLOOM_PULSE_MS,
         swims: base.swims || false,
         boss: base.boss || false,
         // Final-boss dragon plumbing — must be copied here or a never-visited

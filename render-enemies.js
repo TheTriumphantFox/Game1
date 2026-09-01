@@ -3033,6 +3033,54 @@ function drawEnemy(e, ts) {
       ctx.lineCap = 'butt';
       break;
     }
+    case 'toxic_bloom': {
+      // A fungal bloom, rooted to its tile. The important part is not the plant
+      // but the TELL: the cloud swells visibly for the last 900ms before it
+      // bursts, and that ring is drawn from the same number the damage fires on
+      // (bloomSwell, enemies.js). A rooted enemy hitting an area with no wind-up
+      // would be unreadable, so the swell is the mechanic, not decoration.
+      const sw = (typeof bloomSwell === 'function') ? bloomSwell(e) : 0;
+      const rad = (typeof BLOOM_RADIUS !== 'undefined') ? BLOOM_RADIUS : 2.6;
+
+      // The threatened ground, faint at all times so the footprint is knowable
+      // before it ever fires, and bright as it swells.
+      ctx.save();
+      ctx.globalAlpha = 0.07 + 0.30 * sw;
+      const gg = ctx.createRadialGradient(cx, py + s*0.55, 0, cx, py + s*0.55, rad * ts);
+      gg.addColorStop(0, '#c8e08a');
+      gg.addColorStop(1, 'rgba(138,184,58,0)');
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(cx, py + s*0.55, rad * ts, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+
+      // Root cluster and stalk
+      ctx.fillStyle = '#4a5a2a';
+      ctx.beginPath(); ctx.ellipse(cx, py + s*0.90, s*0.30, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#6a7a38';
+      ctx.fillRect(cx - s*0.06, py + s*0.52, s*0.12, s*0.40);
+
+      // The sac, inflating with the swell — the plant itself shows the wind-up.
+      const bulge = 1 + 0.28 * sw;
+      ctx.fillStyle = '#8ab83a';
+      ctx.beginPath();
+      ctx.ellipse(cx, py + s*0.44, s*0.28*bulge, s*0.24*bulge, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(200,224,138,${0.35 + 0.5*sw})`;
+      ctx.beginPath();
+      ctx.ellipse(cx - s*0.08, py + s*0.38, s*0.10*bulge, s*0.08*bulge, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // Spore pores, opening as it fills
+      ctx.fillStyle = '#3d5218';
+      for (let i = 0; i < 4; i++) {
+        const a = i * 1.57 + 0.4;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(a)*s*0.15, py + s*0.44 + Math.sin(a)*s*0.12,
+                s*(0.022 + 0.026*sw), 0, Math.PI*2);
+        ctx.fill();
+      }
+      break;
+    }
     case 'ice_golem':
     case 'stone_golem':
     case 'obsidian_golem': {
