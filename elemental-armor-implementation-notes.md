@@ -146,9 +146,9 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 ### Tier 12: Shadow
 
 - Armor-driven Shadow Step is functional using the existing thin-wall teleport.
-- The old shrine reward can also grant Shadow Step. This overlap needs a design decision.
-- The predictive Shadow temple boss is missing.
-- The Earth-region frog foreshadowing NPC is BUILT (see Tier 4). It sets `frog_warned_shadow`; the boss encounter should read that flag and adjust how much it explains.
+- The old shrine reward can also grant Shadow Step. Left alone pending the shrine overhaul.
+- The predictive Shadow temple boss is BUILT — see the Eclipse Sovereign entry at the end of this section. (This line said "missing" for a while after it shipped: there were two near-identical lines here and only one was updated.)
+- The Earth-region frog foreshadowing NPC is BUILT (see Tier 4). **Still open:** it sets `frog_warned_shadow` and nothing reads it. The Sovereign encounter should, and say less to a player the frog already warned. `tools/lint-conventions.py` flags the unread flag on every run.
 - **Touch counter: BUILT 2026-08-31.** A handedness setting (`touchSidePref`, config.js) mirrors the touch controls — steering pad and action buttons swap sides. That is the touch answer to "change your control settings", on a device with no keys to rebind. Exposed on the title screen and in the radial MENU ring, persisted in `localStorage`, and it moves the canvas-drawn pad (`joyHome`), the CSS-positioned buttons, and the control hint text together.
   - It is also an accessibility fix in its own right and was worth building regardless of the boss: a left-handed player has had the pad under their weak hand since touch controls shipped, with no way to move it.
   - Added `safeInsetRight` while doing it. `--safe-right` had always existed in CSS and been used by the action buttons, but nothing drawn on the canvas had ever needed the right edge, so it was never resolved into JS.
