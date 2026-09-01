@@ -400,6 +400,215 @@ function wakeGolem(e) {
   if (typeof minimapDirty !== 'undefined') minimapDirty = true;
 }
 
+// ─── Skeleton allies ─────────────────────────────────────────────────────────
+// Necrotic armor raises the dead to fight beside the hero. The first allied
+// units in this game, so a few decisions are load-bearing and are written down
+// here rather than discovered later.
+//
+// They rise ONLY when there is a fight to join, anywhere the armor is worn.
+// "In a fight" is defined as a live enemy within SKELETON_MUSTER_RADIUS of the
+// hero — proximity, not a damage timer. That matters because this codebase has
+// no in-combat concept at all, and inventing one for this would be a subsystem;
+// proximity is computable from what already exists and is the same shape the
+// golem wake check uses.
+//
+// Enemies do NOT retarget onto them. Enemy targeting reads the player's position
+// in fourteen places and rewriting all of it would risk skeletons pulling so
+// much aggro that the player becomes a spectator. Instead they body-block: an
+// enemy cannot walk through one, and an enemy that tries to step into a skeleton
+// attacks it instead. That gives them a real job — a wall that hits back — for a
+// fraction of the cost, and it keeps the hero the thing the horde is coming for.
+//
+// They do not block the HERO. Being boxed in by your own minions in a corridor
+// would be infuriating, and there is no upside to it.
+//
+// Their kills go through killEnemy (player.js), so XP and drops land exactly as
+// if the hero had swung. An armor that quietly cost you progression is an armor
+// nobody wears.
+const SKELETON_MAX = 3;
+const SKELETON_MUSTER_RADIUS = 8;    // a live enemy this close counts as a fight
+const SKELETON_SUMMON_MS = 1500;     // they rise one at a time
+const SKELETON_LINGER_MS = 4000;     // quiet for this long and they crumble
+const SKELETON_DEATH_COOLDOWN_MS = 6000;  // a fallen one is not replaced at once
+const SKELETON_HP = 24;
+const SKELETON_DAMAGE = 6;
+const SKELETON_ATTACK_MS = 900;
+const SKELETON_STEP_MS = 260;
+const SKELETON_SEEK_RADIUS = 9;
+
+let allies = [];
+let skeletonSummonMs = 0;
+let skeletonDeathCooldownMs = 0;
+let skeletonQuietMs = 0;
+let skeletonNextId = 0;
+
+function skeletonAt(c, r) {
+  return allies.some(a => !a.dead && a.x === c && a.y === r);
+}
+function skeletonObjAt(c, r) {
+  return allies.find(a => !a.dead && a.x === c && a.y === r) || null;
+}
+
+function nearestLiveEnemy(x, y, radius) {
+  if (typeof enemies === 'undefined') return null;
+  let best = null, bestD = radius;
+  for (const e of enemies) {
+    if (e.dead || e.dormant) continue;
+    const d = Math.hypot(e.x - x, e.y - y);
+    if (d <= bestD) { bestD = d; best = e; }
+  }
+  return best;
+}
+
+function stepSkeletons(dt) {
+  if (typeof player === 'undefined') return;
+  const worn = typeof wearingElementalArmor === 'function' && wearingElementalArmor('necrotic');
+  if (!worn) { if (allies.length) crumbleAll(); return; }
+
+  if (skeletonDeathCooldownMs > 0) skeletonDeathCooldownMs -= dt;
+
+  // Is there a fight? Proximity to a live, awake enemy.
+  const fighting = !!nearestLiveEnemy(player.x, player.y, SKELETON_MUSTER_RADIUS);
+  if (fighting) {
+    skeletonQuietMs = 0;
+    skeletonSummonMs += dt;
+    if (allies.length < SKELETON_MAX && skeletonSummonMs >= SKELETON_SUMMON_MS &&
+        skeletonDeathCooldownMs <= 0) {
+      skeletonSummonMs = 0;
+      raiseSkeleton();
+    }
+  } else {
+    skeletonSummonMs = 0;
+    skeletonQuietMs += dt;
+    if (allies.length && skeletonQuietMs >= SKELETON_LINGER_MS) crumbleAll();
+  }
+
+  for (const a of allies) stepOneSkeleton(a, dt);
+  allies = allies.filter(a => !a.dead);
+}
+
+// Claw one up out of the ground beside the hero. Any open tile will do — they
+// rise from whatever is underfoot rather than needing a grave, because the armor
+// works in all thirteen regions and twelve of them have no graves.
+function raiseSkeleton() {
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map) return;
+  for (let rad = 1; rad <= 4; rad++) {
+    for (let dr = -rad; dr <= rad; dr++) {
+      for (let dc = -rad; dc <= rad; dc++) {
+        if (Math.abs(dr) !== rad && Math.abs(dc) !== rad) continue;
+        const x = player.x + dc, y = player.y + dr;
+        if (x < 1 || y < 1 || x >= MCOLS - 1 || y >= MROWS - 1) continue;
+        if (isSolid(map, x, y)) continue;
+        if (skeletonAt(x, y)) continue;
+        if (typeof enemies !== 'undefined' &&
+            enemies.some(e => !e.dead && e.x === x && e.y === y)) continue;
+        allies.push({
+          id: skeletonNextId++, x, y, renderX: x, renderY: y,
+          dir: { x: 0, y: 1 },
+          hp: SKELETON_HP, maxHp: SKELETON_HP,
+          stepT: 0, attackT: 0, bornAt: Date.now(), dead: false,
+        });
+        const sp = screenPX(x, y);
+        spawnParticle(sp.x, sp.y, '#cfc8b4', 12, 4);
+        spawnParticle(sp.x, sp.y, '#7a5f8a', 8, 3);
+        return;
+      }
+    }
+  }
+}
+
+function stepOneSkeleton(a, dt) {
+  if (a.dead) return;
+  // Render lerp, same easing every other actor uses.
+  a.renderX += (a.x - a.renderX) * Math.min(1, dt / 90);
+  a.renderY += (a.y - a.renderY) * Math.min(1, dt / 90);
+
+  if (a.attackT > 0) a.attackT -= dt;
+  a.stepT += dt;
+
+  const target = nearestLiveEnemy(a.x, a.y, SKELETON_SEEK_RADIUS);
+  if (!target) return;
+
+  const dx = target.x - a.x, dy = target.y - a.y;
+  a.dir = Math.abs(dx) >= Math.abs(dy)
+    ? { x: Math.sign(dx) || 0, y: 0 } : { x: 0, y: Math.sign(dy) || 0 };
+
+  // Adjacent: swing.
+  if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+    if (a.attackT > 0) return;
+    a.attackT = SKELETON_ATTACK_MS;
+    target.hp -= SKELETON_DAMAGE;
+    const tp = screenPX(target.x, target.y);
+    spawnParticle(tp.x, tp.y, '#cfc8b4', 5, 2);
+    if (typeof damageNumbers !== 'undefined') {
+      damageNumbers.push({ entity: target, val: SKELETON_DAMAGE, color: '#cfc8b4',
+        life: 900, rise: 0 });
+    }
+    // Through killEnemy so XP, drops, the kill sound and every other death
+    // consequence are identical to the hero landing the blow.
+    if (target.hp <= 0 && typeof killEnemy === 'function') killEnemy(target);
+    return;
+  }
+
+  // Otherwise close the distance, on its own cadence.
+  if (a.stepT < SKELETON_STEP_MS) return;
+  a.stepT = 0;
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map) return;
+  const tryStep = (mx, my) => {
+    const nx = a.x + mx, ny = a.y + my;
+    if (nx < 1 || ny < 1 || nx >= MCOLS - 1 || ny >= MROWS - 1) return false;
+    if (isSolid(map, nx, ny)) return false;
+    if (stepUpBlocked(map, a.x, a.y, nx, ny)) return false;
+    if (skeletonAt(nx, ny)) return false;
+    if (typeof enemies !== 'undefined' &&
+        enemies.some(e => !e.dead && e.x === nx && e.y === ny)) return false;
+    a.x = nx; a.y = ny;
+    return true;
+  };
+  if (!tryStep(a.dir.x, a.dir.y)) {
+    // Slide along the other axis rather than grinding against a wall.
+    tryStep(Math.sign(dx) && !a.dir.x ? Math.sign(dx) : 0,
+            Math.sign(dy) && !a.dir.y ? Math.sign(dy) : 0);
+  }
+}
+
+// Damage from an enemy. Returns true if the hit was taken by a skeleton, so the
+// caller knows not to also apply it elsewhere.
+function damageSkeletonAt(c, r, dmg) {
+  const a = skeletonObjAt(c, r);
+  if (!a) return false;
+  a.hp -= dmg;
+  const sp = screenPX(a.x, a.y);
+  spawnParticle(sp.x, sp.y, '#cfc8b4', 6, 3);
+  if (a.hp <= 0) fellSkeleton(a);
+  return true;
+}
+
+function fellSkeleton(a) {
+  a.dead = true;
+  const sp = screenPX(a.x, a.y);
+  spawnParticle(sp.x, sp.y, '#cfc8b4', 14, 4);
+  spawnParticle(sp.x, sp.y, '#5a4a6a', 8, 3);
+  // The cooldown the design asks for: a fallen skeleton is not replaced at once,
+  // so losing one costs something and a wall of them cannot be maintained for
+  // free through a long fight.
+  skeletonDeathCooldownMs = SKELETON_DEATH_COOLDOWN_MS;
+  skeletonSummonMs = 0;
+}
+
+function crumbleAll() {
+  for (const a of allies) {
+    if (a.dead) continue;
+    const sp = screenPX(a.x, a.y);
+    spawnParticle(sp.x, sp.y, '#cfc8b4', 8, 3);
+  }
+  allies = [];
+  skeletonSummonMs = 0;
+  skeletonQuietMs = 0;
+}
+
 // ─── Toxic blooms ────────────────────────────────────────────────────────────
 // A rooted plant that breathes a mushroom cloud of spores over the ground around
 // it on a slow clock. It never moves and never chases, so it is not a fight so

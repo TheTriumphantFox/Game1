@@ -2132,19 +2132,23 @@ const DEPTH_DROP     = 1;
 const DEPTH_PROJ     = 2;
 const DEPTH_ENEMY    = 3;
 const DEPTH_VILLAGER = 4;
-const DEPTH_PLAYER   = 5;
+// Skeleton allies sort with the crowd, just under the hero: they are actors on
+// the ground like everything else here, and a minion standing south of the hero
+// must paint over them the same way a villager would.
+const DEPTH_ALLY     = 5;
+const DEPTH_PLAYER   = 6;
 // A forest-village roof sorts AFTER every actor on its own row, because its job
 // is to hide the people inside the house. Its key is the house's south row, so
 // an actor inside (rows r1..r2) is covered while one standing south of the door
 // (r2 + 1) is not. That replaces redrawPlayerInFront, which drew the whole hero
 // a second time to get the same effect for the one pilot cottage.
-const DEPTH_ROOF     = 6;
+const DEPTH_ROOF     = 7;
 // The Obsidian Spire (village-shadow.js). Keyed to its foot row like any actor,
 // which is what lets the hero walk up to the castle gate and pass in FRONT of a
 // thirty-tile tower instead of being painted over by it. Sorts before a roof on
 // the same row for the same reason a roof sorts last: the roof is the only thing
 // meant to hide what is under it.
-const DEPTH_SPIRE    = 7;
+const DEPTH_SPIRE    = 8;
 
 // Sub-kinds for a tall tile, so the merge can dispatch without a string compare.
 const TALL_EXTRUDE  = 0;
@@ -2344,6 +2348,12 @@ function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
   // (y, kind) pairs keep insertion order and spawn order survives.
   actors.sort((a, b) => (a.y - b.y) || (a.k - b.k));
 
+  // Skeleton allies (enemies.js). Transient and never saved, so they are pushed
+  // here each frame rather than living in any of the map's own lists.
+  if (typeof allies !== 'undefined') {
+    for (const a of allies) if (!a.dead) actors.push({ y: a.y, k: DEPTH_ALLY, o: a });
+  }
+
   const tall = mapTallTiles(mapObj);
   let ti = 0;
 
@@ -2359,6 +2369,7 @@ function drawDepthLayer(mapObj, map, ts, startC, startR, endC, endR) {
       case DEPTH_PROJ:     drawProjectile(act.o); break;
       case DEPTH_ENEMY:    drawEnemy(act.o, ts); break;
       case DEPTH_VILLAGER: drawVillager(act.o, ts); break;
+      case DEPTH_ALLY:     drawSkeletonAlly(act.o, ts); break;
       case DEPTH_PLAYER:   drawPlayer(ts); break;
       case DEPTH_ROOF:     drawForestHouseRoof(act.o, mapObj, ts); break;
       case DEPTH_SPIRE:    drawObsidianSpire(mapObj, ts); break;

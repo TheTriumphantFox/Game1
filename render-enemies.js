@@ -48,6 +48,78 @@ function dragonSmoke(px, pyd, s, tt, phase) {
 
 // ─── Enemy sprites ────────────────────────────────────────────────────────────
 // Each type has hand-drawn pixel art. Generic fallback at the end.
+// A risen skeleton ally (enemies.js). Deliberately drawn NOT to be mistaken for
+// the necrotic region's own `skeleton` enemy, which shares its bones: allies
+// carry a violet armor-glow and a soft ground light in the Mana/Necrotic purple,
+// and enemies carry neither. In a fight in the necrotic wastes there will be
+// skeletons on both sides, and a player who cannot tell them apart at a glance
+// cannot tell whether they are winning.
+function drawSkeletonAlly(a, ts) {
+  const s = ts;
+  const fb = footBox(a.renderX, a.renderY, 0, s);
+  const px = fb.x, cx = fb.x + s / 2;
+  const phase = (a.id || 0) * 1.7;
+  const bob = Math.sin(Date.now() / 240 + phase) * s * 0.02;
+  const py = fb.y + bob;
+  // Rising: the first 400ms are spent clawing up out of the ground, drawn by
+  // clipping the body against a floor line that sweeps up as it emerges.
+  const age = Date.now() - (a.bornAt || 0);
+  const rise = Math.max(0, Math.min(1, age / 400));
+
+  if (typeof groundShadow === 'function') groundShadow(a.renderX, a.renderY, 0, 0.24, 0.06, 0.32);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(px - s, py + s * (1 - rise) - s * 0.05, s * 3, s * 1.2);
+  ctx.clip();
+
+  // The violet aura that marks it as yours.
+  ctx.globalAlpha = 0.30 + 0.14 * Math.sin(Date.now() / 300 + phase);
+  ctx.fillStyle = '#8a5fd0';
+  ctx.beginPath(); ctx.ellipse(cx, py + s * 0.60, s * 0.30, s * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  const BONE = '#d8d2c0', BONE_D = '#a89e88';
+  // Legs
+  ctx.fillStyle = BONE_D;
+  ctx.fillRect(cx - s*0.11, py + s*0.68, s*0.07, s*0.26);
+  ctx.fillRect(cx + s*0.04, py + s*0.68, s*0.07, s*0.26);
+  // Ribcage
+  ctx.fillStyle = BONE;
+  ctx.fillRect(cx - s*0.13, py + s*0.40, s*0.26, s*0.28);
+  ctx.strokeStyle = BONE_D;
+  ctx.lineWidth = Math.max(1, s*0.025);
+  for (let i = 0; i < 3; i++) {
+    const ry = py + s*(0.45 + i*0.07);
+    ctx.beginPath(); ctx.moveTo(cx - s*0.13, ry); ctx.lineTo(cx + s*0.13, ry); ctx.stroke();
+  }
+  // Arms — the leading one raised when it is swinging
+  ctx.fillStyle = BONE_D;
+  const swing = (a.attackT || 0) > 0 ? s*0.10 : 0;
+  ctx.fillRect(cx - s*0.20, py + s*0.42 - swing, s*0.06, s*0.24);
+  ctx.fillRect(cx + s*0.14, py + s*0.42, s*0.06, s*0.24);
+  // Skull
+  ctx.fillStyle = BONE;
+  ctx.beginPath(); ctx.ellipse(cx, py + s*0.30, s*0.13, s*0.12, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#2a2030';
+  ctx.fillRect(cx - s*0.07, py + s*0.28, s*0.05, s*0.04);
+  ctx.fillRect(cx + s*0.02, py + s*0.28, s*0.05, s*0.04);
+  // Violet eye-lights: the clearest single tell that this one is on your side.
+  ctx.fillStyle = '#c9a4ff';
+  ctx.fillRect(cx - s*0.065, py + s*0.29, s*0.03, s*0.02);
+  ctx.fillRect(cx + s*0.032, py + s*0.29, s*0.03, s*0.02);
+  ctx.restore();
+
+  // A hurt ally shows it, so the player can choose to pull the fight off one.
+  if (a.hp < a.maxHp) {
+    const w = s * 0.44, h = Math.max(2, s * 0.045);
+    const bx = cx - w / 2, by = py + s * 0.16;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(bx, by, w, h);
+    ctx.fillStyle = '#a97fe0';
+    ctx.fillRect(bx, by, w * Math.max(0, a.hp / a.maxHp), h);
+  }
+}
+
 function drawEnemy(e, ts) {
   // Tile corner. Still needed: the one-tile aura backdrops further down, and
   // the HP bar / name tag centring, anchor to the TILE, not to the sprite box.

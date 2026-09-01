@@ -639,7 +639,21 @@ function stepEnemies(dt, map) {
       ? !inBounds
       : (stepsUpTooFar ||
          (isSolid(map, nx, ny) && !(e.swims && isMediumWater(map, nx, ny))));
-    if (!blocked && !otherEnemy && !onPlayer && !onVillager) {
+    // Body-blocking. A skeleton ally does not make the enemy retarget — the horde
+    // is still coming for the hero — but it cannot be walked through, and an
+    // enemy that tries to step into one takes a swing at it instead. That is
+    // what makes a skeleton a wall that hits back without touching any of the
+    // fourteen places targeting reads the player.
+    const onSkeleton = typeof skeletonAt === 'function' && skeletonAt(nx, ny);
+    if (onSkeleton) {
+      if (e.attackAllyT === undefined) e.attackAllyT = 0;
+      e.attackAllyT -= dt;
+      if (e.attackAllyT <= 0) {
+        e.attackAllyT = 700;
+        if (typeof damageSkeletonAt === 'function') damageSkeletonAt(nx, ny, e.dmg);
+      }
+    }
+    if (!blocked && !otherEnemy && !onPlayer && !onVillager && !onSkeleton) {
       const okey = tkey(e.x, e.y);
       occ.set(okey, (occ.get(okey) || 0) - 1);
       e.x = nx; e.y = ny;

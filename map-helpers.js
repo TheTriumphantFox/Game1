@@ -187,13 +187,6 @@ function isRampStep(map, c1, r1, c2, r2) {
          (map[r2] && map[r2][c2] === T.CLIMB);
 }
 
-// Can an actor standing at (c1, r1) step to (c2, r2) without a ramp? Solidity is
-// the caller's business; this answers height only.
-//
-// One rule, one place. The hero (player.js), enemies (projectiles.js) and the
-// tap-to-travel pathfinder (main.js) all ask here, because a pathfinder that
-// disagrees with the movement it is planning for walks the hero into a wall it
-// cannot climb and then gives up.
 // The height an ACTOR actually stands at here: the tile's own surface, or a
 // sleeping golem's back if one is parked on it (golemStandZ, enemies.js).
 //
@@ -207,6 +200,13 @@ function actorSurfaceZ(map, c, r) {
   return Math.max(base, golem);
 }
 
+// Can an actor standing at (c1, r1) step to (c2, r2) without a ramp? Solidity is
+// the caller's business; this answers height only.
+//
+// One rule, one place. The hero (player.js), enemies (projectiles.js) and the
+// tap-to-travel pathfinder (main.js) all ask here, because a pathfinder that
+// disagrees with the movement it is planning for walks the hero into a wall it
+// cannot climb and then gives up.
 function stepUpBlocked(map, c1, r1, c2, r2, maxStep) {
   if (isRampStep(map, c1, r1, c2, r2)) return false;
   const limit = maxStep === undefined ? STEP_UP_MAX : maxStep;

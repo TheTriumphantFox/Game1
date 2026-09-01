@@ -98,7 +98,15 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 - The drain reads the tile under the hero every frame rather than hooking the movement step, so standing still on it hurts too, and the clock resets on stepping clear — crossing a narrow finger costs nothing, wading into a field costs plenty.
 - `addCursedGround` (mapgen-biomes.js) blots 3-6 patches per map, seeding each centre on open ground; a uniform centre landed in rock four times in five and yielded 51 tiles a map against the 141 it makes now (range 58-204 over ten seeds).
 - Generation skips `T.PATH`, so the roads stay clean. Verified over fifteen maps: **all four exits reachable on every map without ever standing on cursed ground**, and zero cursed tiles on a road.
-- Allied skeleton summoning, ownership, following, targeting, collision, damage, persistence, despawning, and save behavior are missing.
+- **Skeleton allies: BUILT 2026-08-31.** The first allied units in the game (`allies`, `stepSkeletons` and friends in enemies.js). Up to 3 rise while Necrotic armor is worn AND a fight is on; they seek and attack nearby enemies; they crumble when it's over.
+- **"In a fight" is defined as a live, awake enemy within 8 tiles of the hero** — proximity, not a damage timer. This codebase has no in-combat concept at all and inventing one would be a subsystem; proximity is computable from what exists and is the same shape the golem wake check uses.
+- **Enemies do NOT retarget onto them.** Targeting reads the player's position in fourteen places, and rewriting all of it risks skeletons pulling so much aggro that the player becomes a spectator. Instead they **body-block**: an enemy cannot walk through one, and an enemy that tries to step into a skeleton attacks it instead. A wall that hits back, for a fraction of the cost, and the horde is still coming for the hero.
+- **They do not block the HERO.** Being boxed into a corridor by your own minions would be infuriating and has no upside.
+- **Their kills route through `killEnemy` (player.js)**, so XP, drops, the kill sound and every other death consequence are identical to the hero landing the blow. Verified: 12 of 12 skeleton kills paid 700 XP and 10 drops. An armor that quietly cost you progression is an armor nobody wears.
+- A fallen skeleton arms a 6s cooldown before any replacement rises, so losing one costs something and a wall cannot be maintained for free through a long fight.
+- Transient: never saved, crumble on unequip, and rise from whatever ground is underfoot rather than needing graves — the armor works in all thirteen regions and twelve of them have none.
+- Drawn deliberately UNLIKE the necrotic region's own `skeleton` enemy, which shares its bones: allies carry a violet aura and violet eye-lights and enemies carry neither. In a fight in the wastes there are skeletons on both sides, and a player who cannot tell them apart cannot tell whether they are winning.
+- Still open: the spirits stretch goal below.
 - Seeing and interacting with spirits remains a stretch goal.
 - The existing Ember Lantern shrine reward is inert after fog of war removal and may be reusable here, but that needs a design decision.
 
