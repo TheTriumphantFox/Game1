@@ -776,11 +776,18 @@ function ensurePortalKeeper(mapObj) {
 // One per world, remembered on the player so re-entering the map does not stack
 // a second frog and a later dead-end does not mint another.
 const FROG_NAME = 'Warty Oracle';
-const FROG_LINES = [
-  'Careful, little hero. Down in the dark at the end of the world, your shadow self can read your mind.',
-  'It knows the sword before you swing it. It knows the step before you take it. It has watched your hands your whole life.',
-  "A mind can't be hidden. But hands can be taught new habits — change how you hold the reins, and the thing wearing your face guesses wrong.",
-];
+// One line, and only ever this line.
+//
+// The frog is a CLUE, not a tutorial. It sits on a sealed Earth dead-end that
+// most players will never open, and the Shadow fight it hints at is eight
+// regions away — so it cannot be load-bearing, and nothing anywhere checks
+// whether the hero met it. It said three escalating lines for a while, the last
+// of which spelled the boss's counter out; that made a missable NPC into the
+// place the answer lived, which is exactly what a missable NPC must not be.
+//
+// The fight explains itself to everyone (stepEclipseSovereign, enemies.js).
+// This is the wink for the people who got to the corner it lives in.
+const FROG_LINE = "Your shadow self knows what you're thinking.";
 
 function ensureEarthFrog(mapObj) {
   if (!mapObj || !mapObj.sealed || !mapObj.map) return;   // dead-ends only
@@ -807,7 +814,6 @@ function ensureEarthFrog(mapObj) {
     stationary: true,
     dir: { x: 0, y: 1 },
     timer: 0, stepMs: 9999,
-    frogLine: 0,
   });
   player.frogOracleMapId = mapObj.id;
   mapObj.savedVillagers = villagers.map(v => ({ ...v }));
@@ -846,13 +852,10 @@ function findFrogSpot(mapObj) {
 // Talk. Walks its three lines and then holds on the last one, which is the one
 // carrying the actual instruction — a player who comes back for a reminder
 // should get the useful half, not the atmospheric opener.
+// Says its one line, every time, and remembers nothing. No flag: nothing in the
+// game cares whether the hero found it.
 function talkEarthFrog(v) {
-  const i = Math.min(v.frogLine || 0, FROG_LINES.length - 1);
-  if (typeof sayNPC === 'function') sayNPC(FROG_NAME, FROG_LINES[i]);
-  v.frogLine = Math.min((v.frogLine || 0) + 1, FROG_LINES.length - 1);
-  const cm = (typeof currentMap === 'function') ? currentMap() : null;
-  if (cm) cm.savedVillagers = villagers.map(x => ({ ...x }));
-  if (typeof setFlag === 'function') setFlag('frog_warned_shadow');
+  if (typeof sayNPC === 'function') sayNPC(FROG_NAME, FROG_LINE);
 }
 
 function spawnVillagersForMap(mid) {
