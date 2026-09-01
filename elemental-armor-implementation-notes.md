@@ -100,10 +100,10 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 
 ### Tier 11: Mana / Arcane
 
-- Arcane wards and barriers are missing as world objects.
-- Dispel interaction, feedback, barrier state, map persistence, and generation are missing.
-- Existing Arcane Sight reveals rune marks but does not dispel anything.
-- Decide whether Mana armor replaces, supplements, or remains separate from the Arcane Sight shrine reward.
+- **DESIGN CHANGED 2026-08-31.** The ward/barrier + dispel concept is dropped. Mana armor's ability is now the **Arcane Doppelganger**: a short-lived clone that replays the hero's recent path a fixed beat behind, and can hold glyphs, block hazards or projectiles, and be stood on.
+- A placement proposal exists at `mana-doppelganger-proposal.md` — codebase hooks, the trail-buffer and clone data structures, placeholder cues, and the decisions still open. **No code written yet**; the proposal was requested before implementation.
+- Three findings from that research worth carrying: there is **no movement history** anywhere in the codebase today and the trail buffer is the foundational piece; the **`[F]` slot is already claimed** by Air and Shadow armor and Mana would be the third, against a documented constraint of no fourth touch button; and **pressure plates are shrine-scoped and held by pushable blocks, not actors**, so "clone holds a glyph" is a new concept rather than an integration.
+- Existing Arcane Sight reveals rune marks and is unrelated; leave it to the shrine overhaul.
 
 ### Tier 12: Shadow
 
