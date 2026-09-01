@@ -2824,6 +2824,21 @@ function drawEnemy(e, ts) {
       break;
     }
     case 'eclipse_sovereign': {
+      // Blinded: its read has failed and it is open. Drawn as a ring of pale
+      // light around it, because the whole fight hinges on the player knowing
+      // WHEN to commit, and a boss that is only situationally vulnerable has to
+      // say so rather than leave it to be inferred from damage numbers.
+      if (typeof sovereignIsBlind === 'function' && sovereignIsBlind()) {
+        const t = Date.now() / 260;
+        ctx.save();
+        ctx.globalAlpha = 0.35 + 0.25 * Math.sin(t);
+        ctx.strokeStyle = '#e8dcff';
+        ctx.lineWidth = Math.max(2, s * 0.06);
+        ctx.beginPath();
+        ctx.ellipse(cx, py + s * 0.55, s * 0.52, s * 0.42, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
       // The Eclipse Sovereign — the final horror. A regal void-figure crowned before
       // a black sun ringed with a shifting corona, its robe woven of unlight, its
       // gaze two cold violet stars. Boss: a violet void aura + eclipse disc behind.

@@ -146,6 +146,7 @@ function update(dt) {
   if (typeof stepGolems === 'function') stepGolems();
   if (typeof stepToxicBlooms === 'function') stepToxicBlooms(dt);
   if (typeof stepSkeletons === 'function') stepSkeletons(dt);
+  if (typeof stepEclipseSovereign === 'function') stepEclipseSovereign(dt);
   // The Emperor's HP thresholds (tower.js). Watched per frame rather than hooked
   // into the eight places that subtract enemy HP. After the freeze chain on
   // purpose: while the 50% line's box is still up, the 15% line waits its turn.
@@ -405,6 +406,12 @@ document.addEventListener('keydown', e => {
       ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(ck)) {
     cancelAutoNav();
   }
+  // The Eclipse Sovereign reads FINGERS, not intentions: it is handed the raw
+  // key, before canonicalKey translates it. That is the whole mechanic — its
+  // snapshot maps physical keys to actions, so rebinding is what breaks the
+  // read. Placed here rather than at the top of the handler so it only ever sees
+  // gameplay input; every modal above has already returned.
+  if (typeof sovereignObserveKey === 'function' && !e.repeat) sovereignObserveKey(e.key);
   setKey(ck, true);
   if (ck === 'Tab') { e.preventDefault(); if (!e.repeat) showMinimap = !showMinimap; }
   // 'P' drinks one Health Potion (fires on the press itself, not while held)

@@ -159,7 +159,15 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
   - One key holds one action; taking a bound key leaves its previous owner explicitly `unbound` and the window says so in red, because two actions on one key is a bug the player cannot see.
 - **`controlsChangedFromDefault()` is the Shadow boss's hook.** True when any key differs from its default OR the touch controls have been mirrored, so a keyboard player and a touch player each have a real answer to a fight that reads your inputs.
 - Both halves live in one **Controls window** (`openControlsWindow`, sysmenu.js), reached from the radial MENU ring, holding the scheme override, the touch handedness setting and the full key list. It joins the world-freeze and touch-block lists, so the game does not run underneath it.
-- The predictive Shadow temple boss itself is still missing.
+- **The predictive boss: BUILT 2026-09-01.** The Eclipse Sovereign (`eclipse_sovereign`, already in the roster) now reads the player's controls. Driver is `stepEclipseSovereign` / `sovereignObserveKey` in enemies.js.
+  - **The baseline is the fight's own start, not the game's defaults.** It SNAPSHOTS whatever bindings and handedness the hero walks in using, so arriving with an already-custom layout buys nothing and the fight has to be solved *during* the fight. Verified: walk in on a custom melee key and its read still lands.
+  - While the snapshot holds, the read LANDS — it blinks clear and the swing closes on empty ground. Rebind anything mid-fight and the read FAILS: it commits toward the hero, into the attack, and is left staggered and open. That stagger is the damage window.
+  - Blinking rather than an invulnerability flag is deliberate: it needs no hook into any of the several places enemy HP is decremented, and "your sword passes through where it was standing" tells the story better than a damage number reading 0.
+  - **It RE-LEARNS** after `SOVEREIGN_RELEARN_MS` (14s), so one trip to the Controls window is a reprieve rather than a win and the fight is a rhythm of changing the board under it. This was a judgement call, not a specified one; set the constant to `Infinity` for a one-change fight.
+  - Touch handedness counts as a control change, so a touch player has the same answer as a keyboard player.
+  - A ring of pale light marks it while blind. A boss that is only situationally vulnerable has to say so rather than leave it to be inferred from damage numbers.
+  - Reads `frog_warned_shadow`'s subject matter — the Earth frog has been telling the player this since tier 4, and its third line is the instruction.
+  - **Bug worth remembering:** the first version asked the SNAPSHOT both "was this a combat input" and "what action is it". That was silently broken — after a rebind the player presses a key the snapshot has never heard of, so the Sovereign observed nothing, never guessed wrong, and could never be punished. "Was this combat input" must come from the CURRENT bindings; only the prediction comes from the snapshot.
 
 ## Cross-system decisions — SETTLED 2026-08-31
 

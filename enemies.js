@@ -400,6 +400,181 @@ function wakeGolem(e) {
   if (typeof minimapDirty !== 'undefined') minimapDirty = true;
 }
 
+// ─── The Eclipse Sovereign ───────────────────────────────────────────────────
+// The Shadow temple's boss reads the player's mind — which, in a game, means it
+// reads their CONTROLS. The frog on the Earth dead-ends has been telling the
+// player this since tier 4: "It knows the sword before you swing it… A mind
+// can't be hidden. But hands can be taught new habits — change how you hold the
+// reins, and the thing wearing your face guesses wrong."
+//
+// How it works, and the important part is what the baseline is:
+//
+//   • When the fight starts, the Sovereign SNAPSHOTS the player's current
+//     bindings and handedness. Not the game's defaults — whatever the player
+//     walked in using. So arriving with an already-custom layout buys nothing,
+//     and the fight has to be solved during the fight.
+//   • Every gameplay key the player presses is checked against that snapshot.
+//     While the snapshot still describes their controls, the read LANDS: the
+//     Sovereign blinks clear of the attack before it arrives, and the swing
+//     hits the space it just left.
+//   • Rebind anything mid-fight and the snapshot is stale. The read FAILS: it
+//     commits to a counter for an action the player is no longer taking, blinks
+//     the wrong way, and is left staggered and open. That stagger is the damage
+//     window, and it is the only reliable one.
+//
+// Blinking rather than an invulnerability flag is deliberate. It needs no hook
+// into any of the several places enemy HP is decremented, and "your sword passes
+// through where it was standing" tells the story better than a damage number
+// that says 0.
+//
+// It RE-LEARNS. Left alone on a stable layout it re-snapshots after
+// SOVEREIGN_RELEARN_MS and starts reading correctly again, so one trip to the
+// Controls window is a reprieve rather than a win and the fight is a rhythm of
+// changing the board under it. Set the constant to Infinity for a one-change
+// fight; this was a judgement call and it is a one-line change.
+const SOVEREIGN_TYPE = 'eclipse_sovereign';
+const SOVEREIGN_ENGAGE_RADIUS = 11;
+const SOVEREIGN_RELEARN_MS = 14000;
+const SOVEREIGN_READ_COOLDOWN_MS = 900;   // between reads, so it is not a strobe
+const SOVEREIGN_WHIFF_STAGGER_MS = 1900;  // the opening a failed read leaves
+const SOVEREIGN_BLINK_RANGE = 3;
+
+// The actions worth reading. Menu, minimap and the weapon hotkeys are not
+// combat inputs and predicting them would only add noise.
+const SOVEREIGN_READ_ACTIONS = ['up', 'down', 'left', 'right', 'melee', 'bow', 'bomb', 'ability'];
+
+let sovereign = null;   // { snapshot, padLeft, learnedAt, readCdMs, blind }
+
+function findSovereign() {
+  if (typeof enemies === 'undefined') return null;
+  return enemies.find(e => e.type === SOVEREIGN_TYPE && !e.dead && !e.dormant) || null;
+}
+
+function snapshotControls() {
+  const snap = {};
+  if (typeof KEY_ACTIONS !== 'undefined') {
+    for (const a of KEY_ACTIONS) snap[a.id] = (typeof keyBinding === 'function') ? keyBinding(a.id) : a.def;
+  }
+  return snap;
+}
+
+function sovereignLearn(now) {
+  sovereign.snapshot = snapshotControls();
+  sovereign.padLeft = (typeof touchPadOnLeft === 'function') ? touchPadOnLeft() : true;
+  sovereign.learnedAt = now;
+  sovereign.blind = false;
+}
+
+function stepEclipseSovereign(dt) {
+  const e = findSovereign();
+  if (!e) { sovereign = null; return; }
+  const near = Math.hypot(e.x - player.x, e.y - player.y) <= SOVEREIGN_ENGAGE_RADIUS;
+  if (!sovereign) {
+    if (!near) return;                       // the fight has not started yet
+    sovereign = { snapshot: null, padLeft: true, learnedAt: 0, readCdMs: 0, blind: false };
+    sovereignLearn(Date.now());
+    if (typeof showMsg === 'function') {
+      showMsg('\u{1F311} The Eclipse Sovereign watches your hands.', 2600);
+    }
+    return;
+  }
+  if (sovereign.readCdMs > 0) sovereign.readCdMs -= dt;
+
+  // Re-learn. Only while it is NOT blind — being blinded is what buys the player
+  // time, and the clock on the new layout starts when it recovers.
+  if (sovereign.blind && Date.now() - sovereign.learnedAt >= SOVEREIGN_RELEARN_MS) {
+    sovereignLearn(Date.now());
+    if (typeof showMsg === 'function') {
+      showMsg('\u{1F311} It has learned your new hands.', 2400);
+    }
+  }
+}
+
+// Does the snapshot still describe how this player is playing? Handedness counts
+// for the same reason it does everywhere else: on a touch device there are no
+// keys to rebind, and moving the controls to the other side of the screen is
+// that player's version of the same act.
+function sovereignSnapshotStale() {
+  if (!sovereign || !sovereign.snapshot) return false;
+  const padLeft = (typeof touchPadOnLeft === 'function') ? touchPadOnLeft() : true;
+  if (padLeft !== sovereign.padLeft) return true;
+  for (const id of SOVEREIGN_READ_ACTIONS) {
+    const now = (typeof keyBinding === 'function') ? keyBinding(id) : null;
+    if (!sameKey(now, sovereign.snapshot[id])) return true;
+  }
+  return false;
+}
+
+// Called from the keydown handler with the RAW key, before translation — the
+// Sovereign reads fingers, not intentions.
+function sovereignObserveKey(rawKey) {
+  const e = findSovereign();
+  if (!e || !sovereign || !sovereign.snapshot) return;
+  if (Math.hypot(e.x - player.x, e.y - player.y) > SOVEREIGN_ENGAGE_RADIUS) return;
+  if (sovereign.readCdMs > 0) return;
+  // "Was this a combat input" comes from the player's CURRENT bindings; only the
+  // prediction comes from the snapshot. Asking the snapshot both questions was
+  // the first version and it was silently broken: after a rebind the player
+  // presses a key the snapshot has never heard of, so the Sovereign observed
+  // nothing, never guessed wrong, and could never be punished — the one thing
+  // the whole fight is built to make happen.
+  let action = null;
+  for (const id of SOVEREIGN_READ_ACTIONS) {
+    const bound = (typeof keyBinding === 'function') ? keyBinding(id) : null;
+    if (bound && sameKey(rawKey, bound)) { action = id; break; }
+  }
+  if (!action) return;
+  sovereign.readCdMs = SOVEREIGN_READ_COOLDOWN_MS;
+  if (sovereignSnapshotStale()) sovereignReadFails(e);
+  else sovereignReadLands(e);
+}
+
+function sovereignReadLands(e) {
+  sovereign.blind = false;
+  // Step clear of where the blow is about to land. Away from the hero, so the
+  // swing closes on empty ground.
+  blinkSovereign(e, +1);
+  if (typeof showMsg === 'function') showMsg('\u{1F311} It moves before you do.', 1100);
+}
+
+function sovereignReadFails(e) {
+  if (!sovereign.blind) {
+    sovereign.blind = true;
+    sovereign.learnedAt = Date.now();     // the re-learn clock starts here
+    if (typeof showMsg === 'function') {
+      showMsg('\u2728 It guesses wrong — the shadow is open!', 2200);
+    }
+  }
+  // Commits the wrong way: TOWARD the hero, into the attack, and is left reeling.
+  blinkSovereign(e, -1);
+  e.staggerT = Math.max(e.staggerT || 0, SOVEREIGN_WHIFF_STAGGER_MS);
+}
+
+// Step a few tiles along the hero axis. `sign` +1 is away, -1 is toward.
+function blinkSovereign(e, sign) {
+  const map = (typeof mapData === 'function') ? mapData() : null;
+  if (!map) return;
+  const dx = e.x - player.x, dy = e.y - player.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  for (let d = SOVEREIGN_BLINK_RANGE; d >= 1; d--) {
+    const nx = Math.round(e.x + ux * d * sign);
+    const ny = Math.round(e.y + uy * d * sign);
+    if (nx < 1 || ny < 1 || nx >= MCOLS - 1 || ny >= MROWS - 1) continue;
+    if (isSolid(map, nx, ny)) continue;
+    if (nx === player.x && ny === player.y) continue;
+    const sp = screenPX(e.x, e.y);
+    spawnParticle(sp.x, sp.y, '#5a3f8a', 12, 4);
+    e.x = nx; e.y = ny;
+    const np = screenPX(nx, ny);
+    spawnParticle(np.x, np.y, '#8b5cf6', 12, 4);
+    return;
+  }
+}
+
+// Read by the renderer: the boss is open right now.
+function sovereignIsBlind() { return !!(sovereign && sovereign.blind); }
+
 // ─── Skeleton allies ─────────────────────────────────────────────────────────
 // Necrotic armor raises the dead to fight beside the hero. The first allied
 // units in this game, so a few decisions are load-bearing and are written down
