@@ -438,6 +438,7 @@ const SOVEREIGN_RELEARN_MS = 14000;
 const SOVEREIGN_READ_COOLDOWN_MS = 900;   // between reads, so it is not a strobe
 const SOVEREIGN_WHIFF_STAGGER_MS = 1900;  // the opening a failed read leaves
 const SOVEREIGN_BLINK_RANGE = 3;
+const SOVEREIGN_NUDGE_MS = 22000;   // before the unwarned are told outright
 
 // The actions worth reading. Menu, minimap and the weapon hotkeys are not
 // combat inputs and predicting them would only add noise.
@@ -471,14 +472,43 @@ function stepEclipseSovereign(dt) {
   const near = Math.hypot(e.x - player.x, e.y - player.y) <= SOVEREIGN_ENGAGE_RADIUS;
   if (!sovereign) {
     if (!near) return;                       // the fight has not started yet
-    sovereign = { snapshot: null, padLeft: true, learnedAt: 0, readCdMs: 0, blind: false };
+    sovereign = { snapshot: null, padLeft: true, learnedAt: 0, readCdMs: 0, blind: false,
+                  warned: typeof hasFlag === 'function' && hasFlag('frog_warned_shadow'),
+                  openedAt: Date.now(), nudges: 0 };
     sovereignLearn(Date.now());
+    // How much this fight explains itself depends on whether the Earth frog got
+    // to the player first (frog_warned_shadow, villagers.js).
+    //
+    // The frog is deliberately missable — it stands on a sealed Earth dead-end
+    // eight regions earlier — so this cannot be the payoff to a setup half the
+    // players never saw. A hero who was warned gets the callback and nothing
+    // more, because they were told and being told twice is worse than being
+    // told once. A hero who was not gets the mechanic stated outright, because
+    // the alternative is a tier-12 boss that cannot be beaten by anyone who
+    // missed an optional NPC on an optional map.
     if (typeof showMsg === 'function') {
-      showMsg('\u{1F311} The Eclipse Sovereign watches your hands.', 2600);
+      showMsg(sovereign.warned
+        ? '\u{1F311} It watches your hands. The frog was not being strange.'
+        : '\u{1F311} The Eclipse Sovereign learns your hands — it knows every key you hold.',
+        2800);
     }
     return;
   }
   if (sovereign.readCdMs > 0) sovereign.readCdMs -= dt;
+
+  // A second, blunter nudge for the unwarned, once, if they are still fighting
+  // it on the layout it read at the start. One toast at the top of a boss fight
+  // is easy to miss, and this is the only route to the answer for a player the
+  // frog never reached. Nobody who has already changed something gets it, and
+  // nobody the frog warned gets it at all.
+  if (!sovereign.warned && sovereign.nudges === 0 && !sovereign.blind &&
+      Date.now() - sovereign.openedAt > SOVEREIGN_NUDGE_MS &&
+      !sovereignSnapshotStale()) {
+    sovereign.nudges = 1;
+    if (typeof showMsg === 'function') {
+      showMsg('\u{1F311} It reads the hands you came in with. Change your controls.', 3400);
+    }
+  }
 
   // Re-learn. Only while it is NOT blind — being blinded is what buys the player
   // time, and the clock on the new layout starts when it recovers.
