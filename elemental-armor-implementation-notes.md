@@ -88,8 +88,10 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 ### Tier 8: Luminous
 
 - Periodic nearby-enemy stun is functional.
-- Fog of war was removed from the game, so there is currently nothing for the reveal half of the aura to uncover.
-- A replacement darkness, hidden-object, or local-visibility system is needed before reveal can matter.
+- **AWAITING A REDESIGN (decided 2026-08-31). Do not build a visibility system for this.**
+- The reveal half of the aura has never worked, because fog of war was removed from the game and there is nothing left to uncover. Luminous is the only armor whose stated power is half fiction.
+- Building darkness back purely to give this something to reveal was explicitly rejected. The precedent is Mana: its first two designs (ward/dispel, then a replaying clone) were both subsystems, and the third — a slow heal — was twenty lines and better. Luminous deserves that same conversation before anyone writes code.
+- What works today and should be kept whatever replaces the reveal: the periodic nearby-enemy stun pulse.
 - Pulse radius, cooldown, normal stun, and boss stagger need playtesting. All four are named constants at the top of `abilities.js` (`RADIANT_*`).
 
 ### Tier 9: Necrotic
