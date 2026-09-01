@@ -66,7 +66,10 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
   - `sluggish` is implemented as a LONGER STEP INTERVAL, never as dropped, delayed or randomised input, and the haze is a colour wash and rising bands, never a warp or blur of the playfield. Degrading real controls or distorting what the player is aiming at breaks assistive input and motion sensitivity and reads as a bug rather than as heat. Both carry that reasoning inline; do not "improve" either into actual input interference.
 - `addVolcanicHazards` widens the fissure dapple into fields via `stampHazardBlots`, skipping `T.PATH` and refusing lava and bridges. Verified over twelve maps: 168 fissure tiles average (70-386) and **all four exits reachable by a completely cool route on 12 of 12**.
 - **Obsidian golems: BUILT 2026-08-31** (`obsidian_golem`) on the same shared machine. Idle hardening and climbable hardened bodies ARE the shared dormant/climbable behaviour, so those are done.
-- Still open for obsidian alone: the MELT state. It currently has the same two states as its siblings (dormant statue / awake attacker), no molten form, and no tie to the overheat meter.
+- **Melt state: BUILT 2026-08-31.** A woken obsidian golem runs MOLTEN and is a heat source in its own right (`moltenHeatAt`, enemies.js): it feeds the overheat meter from wherever it stands, whatever the hero is standing on. That is what makes it more than a big enemy with a big number — fighting one on cool ground still costs, retreating is a real option, and Volcanic armor answers the fight and the region with one decision.
+  - Falls off linearly to zero at 4.5 tiles, sums over every molten golem in range, clamps at 0.22/s so a crowd cannot multiply the meter. A DORMANT obsidian golem radiates nothing — statues are cold.
+  - Measured on cool ground beside one: 0.078/s adjacent, 0.033/s at 3 tiles, 0.311 heat after 4s, halved by Fire armor, zero in Volcanic armor. Two adjacent stack to 0.156 and clamp.
+  - Its awake art is molten rather than merely lit — running lava, core glow, embers — because the fight has to look like the reason the bar is climbing, or the bar reads as unrelated.
 - Open lava remains blocked and should not automatically become traversable unless separately approved.
 
 ### Tier 6: Air

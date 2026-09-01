@@ -298,6 +298,42 @@ const GOLEM_STAND_Z = 0.5;
 
 function isGolem(e) { return !!e && GOLEM_TYPES.has(e.type); }
 
+// ─── The obsidian golem's melt ───────────────────────────────────────────────
+// Obsidian is the one golem whose two states are more than a pose. Hardened, it
+// is the same climbable statue as its Ice and Earth siblings. Woken, it runs
+// MOLTEN — and a molten thing in a region that already measures how hot the hero
+// is should be measured by it. So an awake obsidian golem is a heat source: it
+// feeds the overheat meter (HEAT_REGIONS.volcanic, abilities.js) from wherever
+// it is standing, whatever the hero is standing on.
+//
+// That is what makes it different from a big enemy with a big number. Fighting
+// one on cool ground still costs, retreating is a real option, and Volcanic
+// armor answers the fight and the region with one decision instead of two.
+//
+// Contribution falls off linearly with distance and is summed over every molten
+// golem in range, then clamped: standing between two is worse than standing
+// beside one, but a crowd cannot multiply the meter arbitrarily.
+const MOLTEN_HEAT_RADIUS = 4.5;
+const MOLTEN_HEAT_PER_SEC = 0.10;   // adjacent to one, at full strength
+const MOLTEN_HEAT_MAX = 0.22;       // ceiling however many are crowding in
+
+function isMoltenGolem(e) {
+  return !!e && e.type === 'obsidian_golem' && !e.dormant && !e.dead;
+}
+
+// Heat per second radiated onto (x, y) by every molten golem in range.
+function moltenHeatAt(x, y) {
+  if (typeof enemies === 'undefined') return 0;
+  let sum = 0;
+  for (const e of enemies) {
+    if (!isMoltenGolem(e)) continue;
+    const d = Math.hypot(e.x - x, e.y - y);
+    if (d > MOLTEN_HEAT_RADIUS) continue;
+    sum += MOLTEN_HEAT_PER_SEC * (1 - d / MOLTEN_HEAT_RADIUS);
+  }
+  return Math.min(MOLTEN_HEAT_MAX, sum);
+}
+
 // The stand-height contributed by a sleeping golem on this tile, or 0. An AWAKE
 // golem contributes nothing — it is walking around, not furniture.
 function golemStandZ(c, r) {
@@ -353,7 +389,10 @@ function wakeGolem(e) {
   if (typeof buzz === 'function') buzz([0, 40, 30, 60]);
   if (typeof showMsg === 'function') {
     const base = (typeof DND_ENEMIES !== 'undefined' && DND_ENEMIES[e.type]) || null;
-    showMsg(`\u{1F5FF} The ${base ? base.name : 'golem'} grinds awake!`, 1800);
+    const name = base ? base.name : 'golem';
+    showMsg(e.type === 'obsidian_golem'
+      ? `\u{1F30B} The ${name} cracks open and runs molten!`
+      : `\u{1F5FF} The ${name} grinds awake!`, 1800);
   }
   if (typeof minimapDirty !== 'undefined') minimapDirty = true;
 }

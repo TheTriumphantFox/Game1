@@ -366,9 +366,18 @@ function stepRegionalHeat(dt) {
 
   const onHot = spec.hot().includes(map[player.y][player.x]);
   const sec = dt / 1000;
-  if (onHot) {
-    const scale = worn(spec.slowArmor) ? HEAT_ARMOR_FILL_SCALE : 1;
-    player.heat = Math.min(1, (player.heat || 0) + spec.fillPerSec * scale * sec);
+  const scale = worn(spec.slowArmor) ? HEAT_ARMOR_FILL_SCALE : 1;
+  // A molten obsidian golem is a heat source in its own right (moltenHeatAt,
+  // enemies.js), so a fight beside one cooks the hero even on cool ground. Added
+  // to the tile's own contribution rather than replacing it: standing on a
+  // fissure while one bears down is the worst place to be, and should read that
+  // way. Zero in every region that has no molten golems, which is all of them
+  // but Volcanic.
+  const molten = (typeof moltenHeatAt === 'function')
+    ? moltenHeatAt(player.x, player.y) : 0;
+  const gain = ((onHot ? spec.fillPerSec : 0) + molten) * scale;
+  if (gain > 0) {
+    player.heat = Math.min(1, (player.heat || 0) + gain * sec);
   } else {
     player.heat = Math.max(0, (player.heat || 0) - spec.coolPerSec * sec);
   }

@@ -3077,6 +3077,37 @@ function drawEnemy(e, ts) {
       ctx.moveTo(px + s*0.30, top + s*0.44); ctx.lineTo(px + s*0.52, top + s*0.52);
       ctx.lineTo(px + s*0.42, top + s*0.66);
       ctx.stroke();
+      // Obsidian awake is MOLTEN, not merely lit. Its shell cracks into running
+      // lava, which is the visual half of the heat it is now radiating at the
+      // hero (moltenHeatAt, enemies.js) — the fight has to look like the reason
+      // the overheat bar is climbing, or the bar reads as unrelated.
+      if (woke && e.type === 'obsidian_golem') {
+        const flow = Date.now() / 380 + phase;
+        ctx.fillStyle = `rgba(255,106,34,${0.45 + 0.30 * Math.sin(flow)})`;
+        ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.36);   // core glow
+        ctx.fillStyle = `rgba(255,196,90,${0.30 + 0.25 * Math.sin(flow * 1.4)})`;
+        ctx.fillRect(px + s*0.34, top + s*0.12, s*0.32, s*0.24);   // head glow
+        // Lava running down the body: short vertical runs on their own phases,
+        // so it drips rather than pulses as one block.
+        ctx.strokeStyle = 'rgba(255,140,40,0.75)';
+        ctx.lineWidth = Math.max(1, s*0.04);
+        for (let i = 0; i < 3; i++) {
+          const rx = px + s * (0.32 + i * 0.16);
+          const run = (Math.sin(flow + i * 1.9) * 0.5 + 0.5) * s * 0.24;
+          ctx.beginPath();
+          ctx.moveTo(rx, top + s*0.40);
+          ctx.lineTo(rx, top + s*0.40 + run);
+          ctx.stroke();
+        }
+        // Embers coming off it.
+        ctx.fillStyle = 'rgba(255,220,150,0.55)';
+        for (let i = 0; i < 2; i++) {
+          const a = flow * 1.6 + i * 3.1;
+          ctx.fillRect(px + s * (0.42 + 0.18 * Math.sin(a)),
+                       top + s * (0.30 - 0.22 * ((a * 0.3) % 1)), s*0.05, s*0.05);
+        }
+      }
+
       // Eyes only once it is awake. A statue does not stare back.
       if (woke) {
         ctx.fillStyle = GP.eye;
