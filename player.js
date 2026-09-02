@@ -749,21 +749,35 @@ function rollEnemyTypeDrops(e) {
   // Guaranteed rather than rolled, because a golem is a fight the player CHOSE
   // to start — by walking past unarmored or by hitting it — and a chosen fight
   // that pays nothing teaches them not to choose it again.
+  // Math.random and not rnd(): rnd draws from the SEEDED map generator, and
+  // spending that stream at kill time would make a map's later generation depend
+  // on what the hero killed on it.
   if (typeof isGolem === 'function' && isGolem(e)) {
     const ore = (typeof oreForMap === 'function') ? oreForMap(cm) : null;
-    if (ore) drop({ type: 'ore', ore: ore.id, val: GOLEM_ORE_DROP });
+    const oreN = 1 + Math.floor(Math.random() * GOLEM_ORE_DIE);
+    if (ore) drop({ type: 'ore', ore: ore.id, val: oreN });
     const regionOrder = (cm && typeof cm.regionIdx === 'number') ? cm.regionIdx + 1 : 1;
-    addItem('rubies', GOLEM_RUBY_BASE * regionOrder);
+    const purse = GOLEM_RUBY_MIN
+      + Math.floor(Math.random() * (GOLEM_RUBY_MAX - GOLEM_RUBY_MIN + 1))
+      + GOLEM_RUBY_PER_REGION * regionOrder;
+    addItem('rubies', purse);
     if (typeof showMsg === 'function') {
-      showMsg(`\u{1F5FF} The golem comes apart — ${ore ? ore.icon + ' ' + GOLEM_ORE_DROP + ' ' + ore.label : 'rubble'} and 💰${GOLEM_RUBY_BASE * regionOrder}.`, 2200);
+      showMsg(`\u{1F5FF} The golem comes apart — ${ore ? ore.icon + ' ' + oreN + ' ' + ore.label : 'rubble'} and 💰${purse}.`, 2200);
     }
   }
 }
 
 // Golems pay ore in bulk and rubies scaled by how deep the region is, the same
-// shape a boss payout uses. Named here so the two numbers are tunable together.
-const GOLEM_ORE_DROP = 3;
-const GOLEM_RUBY_BASE = 40;
+// shape a boss payout uses. Named here so the numbers are tunable together.
+//
+// Both were flat when there were three golems in the whole world. With one in
+// every region from Fire up they are the ore economy rather than a corner of it,
+// so the purse is a roll and the ore is a die: two golems on the same map should
+// not pay the identical amount to the ruby.
+const GOLEM_ORE_DIE = 6;          // 1d6 of the region's own ore
+const GOLEM_RUBY_MIN = 50;
+const GOLEM_RUBY_MAX = 100;
+const GOLEM_RUBY_PER_REGION = 50; // times the region's progression order
 
 // ─── Kill sound ───────────────────────────────────────────────────────────────
 // Every kill plays the classic Wilhelm scream. The problem this solves is real

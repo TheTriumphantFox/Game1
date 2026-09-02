@@ -27,11 +27,11 @@ wrong (empty) file.
 propose renaming the GitHub repo or the folders unless the user asks.
 
 **Sibling skills:** `.claude/skills/` also holds `enemy-forge` (CR-based enemy
-balance math) and `design-workbook` (keeps `Game1.xlsx` in sync with the balance
+balance math) and `design-workbook` (keeps `Game1.current.xlsx` in sync with the balance
 tables in the source). Both post-date the notes above; check them before
 hand-rolling either job.
 
 **Repo layout gotcha:** the git repository is the *inner* `Game1\Game1`
 directory, which on the current machine is `/home/hm/Projects/Game1/Game1`. The outer folder is not a repo, and holds loose reference material
-(the .docx main-quest script, `Game1.xlsx`, `story-decisions-todo.md`, concept
+(the .docx main-quest script, the dated `Game1.*.xlsx` workbooks, `story-decisions-todo.md`, concept
 PNGs) that is not version controlled and does not travel with a clone.

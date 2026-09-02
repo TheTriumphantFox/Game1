@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ─── Design-data exporter ─────────────────────────────────────────────────────
 // Dumps the game's authoritative balance tables as one JSON document, so the
-// design workbook (../Game1.xlsx) can be audited against the real code instead
+// design workbook (../Game1.current.xlsx) can be audited against the real code instead
 // of by eye. Run it directly to inspect the data; tools/design-audit.py consumes
 // it. Nothing here reads or writes the workbook.
 //

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>golem check</title>
+<style>html,body{margin:0;background:#111;color:#ddd;font:13px monospace}iframe{border:0}</style>
+<pre id="log">booting…</pre>
+<iframe id="f" src="index.html" width="900" height="500"></iframe>
+<script>
+// Temporary dev harness, same shape as shadow-shot.html. Boots the game and
+// injects tools/verify-golems.js so the placement rules can be checked against
+// real generated maps. Not part of the game.
+const f = document.getElementById('f'), log = document.getElementById('log');
+f.onload = () => setTimeout(() => {
+  const w = f.contentWindow;
+  const btn = t => [...w.document.querySelectorAll('button')].find(b => b.textContent.includes(t));
+  try {
+    btn('skip').click();
+    const i = w.document.querySelector('input[type=text]');
+    if (i) i.value = 'Dev';
+    btn('Begin Adventure').click();
+  } catch (e) { log.textContent = 'boot failed: ' + e.message; return; }
+  setTimeout(() => {
+    const s = w.document.createElement('script');
+    s.src = 'tools/verify-golems.js';
+    s.onerror = () => { log.textContent = 'inject failed'; };
+    w.document.body.appendChild(s);
+    const t = setInterval(() => {
+      if (!w.__golemCheck) return;
+      clearInterval(t);
+      log.textContent = JSON.stringify(w.__golemCheck, null, 1);
+      document.title = w.document.title;
+    }, 300);
+  }, 500);
+}, 1000);
+</script>

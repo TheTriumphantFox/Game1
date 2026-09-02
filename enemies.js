@@ -86,9 +86,10 @@ const DND_ENEMIES = {
   // their tier's roster, because a woken golem is a fight the player chose to
   // start — by walking past unarmored or by hitting it — rather than a wandering
   // spawn that found them.
-  ice_golem:      { name: 'Ice Golem',           hp: 110, spd: 780,  dmg: 9,  xp: 2400,  color: '#a8d8ea', size: 1.35, cr: 6, element: 'ice' },
-  stone_golem:    { name: 'Stone Golem',         hp: 130, spd: 800,  dmg: 10, xp: 2900,  color: '#8a857a', size: 1.4,  cr: 7, element: 'earth' },
-  obsidian_golem: { name: 'Obsidian Golem',      hp: 145, spd: 760,  dmg: 12, xp: 3400,  color: '#3a2f36', size: 1.4,  cr: 8, element: 'volcanic' },
+  // The golems are NOT authored here. There is one per region from Fire up, and
+  // each one's stats are derived from its own region's roster rather than typed
+  // out twelve times — see GOLEM_REGIONS below, which builds them into this
+  // object at load time.
 
   // ── Tier 4 · Earth — gargoyles, burrowers & stone giants. ──
   gargoyle:       { name: 'Gargoyle',            hp: 64,  spd: 550,  dmg: 6,  xp: 1100,  color: '#777066', size: 0.95, cr: 2, element: 'earth' },
@@ -279,13 +280,67 @@ const ENEMY_POOLS = [
 //
 // A dormant golem is SOLID but CLIMBABLE, which is the interesting half. See
 // golemStandZ.
+// One golem per region from Fire (1) up. FOREST IS DELIBERATELY ABSENT and this
+// is the only entry in the table that needs a reason: the rule that makes golems
+// legible is "the region's own armor keeps it asleep", and forest is tier 0 and
+// has no armor (see ELEMENTAL_ARMOR_ABILITIES, elements.js — it starts at fire).
+// A forest golem would either be permanently hostile on approach or need some
+// second pacifier invented for it, and either one breaks the sentence. So the
+// gentlest region simply has none.
+//
+// `rgn` is the region's index, and it is written here rather than looked up from
+// REGIONS so this file still loads on its own in the headless harnesses.
 const GOLEM_REGIONS = {
-  ice:      { type: 'ice_golem',      armor: 'ice' },
-  earth:    { type: 'stone_golem',    armor: 'earth' },
-  volcanic: { type: 'obsidian_golem', armor: 'volcanic' },
+  fire:      { rgn: 1,  type: 'sandstone_golem', name: 'Sandstone Golem', armor: 'fire',      color: '#c89858' },
+  water:     { rgn: 2,  type: 'coral_golem',     name: 'Coral Golem',     armor: 'water',     color: '#e8765a' },
+  ice:       { rgn: 3,  type: 'ice_golem',       name: 'Ice Golem',       armor: 'ice',       color: '#a8d8ea' },
+  earth:     { rgn: 4,  type: 'stone_golem',     name: 'Stone Golem',     armor: 'earth',     color: '#8a857a' },
+  volcanic:  { rgn: 5,  type: 'obsidian_golem',  name: 'Obsidian Golem',  armor: 'volcanic',  color: '#3a2f36' },
+  air:       { rgn: 6,  type: 'cloud_golem',     name: 'Cloudstone Golem',armor: 'air',       color: '#bcc8de' },
+  lightning: { rgn: 7,  type: 'fulgurite_golem', name: 'Fulgurite Golem', armor: 'lightning', color: '#7ec8ff' },
+  luminous:  { rgn: 8,  type: 'lumen_golem',     name: 'Lumen Golem',     armor: 'luminous',  color: '#ffe9a6' },
+  necrotic:  { rgn: 9,  type: 'bone_golem',      name: 'Bone Golem',      armor: 'necrotic',  color: '#d8cfb4' },
+  poison:    { rgn: 10, type: 'mire_golem',      name: 'Mire Golem',      armor: 'poison',    color: '#7a8a3a' },
+  mana:      { rgn: 11, type: 'rune_golem',      name: 'Rune Golem',      armor: 'mana',      color: '#4aa06a' },
+  shadow:    { rgn: 12, type: 'umbral_golem',    name: 'Umbral Golem',    armor: 'shadow',    color: '#4a3d63' },
 };
 const GOLEM_TYPES = new Set(Object.values(GOLEM_REGIONS).map(g => g.type));
 const GOLEM_WAKE_RADIUS = 3.5;
+
+// Every golem is measured against the toughest thing in its own region's pool,
+// so a golem is always "a little worse than the worst you have already met here"
+// and stays that way if a roster is retuned. Twelve hand-typed stat blocks would
+// each be one more number to forget.
+//
+// HP is the only figure that is scaled; damage, XP and CR are taken straight
+// from the region's top creature. 1.10 is the ratio the three original golems
+// already sat at against their regions (1.05, 1.08, 1.13), so this reproduces
+// them within a few points rather than inventing a new curve.
+const GOLEM_HP_MUL = 1.10;
+const GOLEM_SPD = 780;    // the slowest thing in the game; every roster is 450-800
+const GOLEM_SIZE = 3;     // three tiles tall AWAKE. Purely a render scale: nothing
+                          // outside the draw code reads `size`, so the hitbox is
+                          // one tile like everything else. Asleep it draws as a
+                          // one-tile pile instead (drawEnemy, render-enemies.js).
+
+for (const spec of Object.values(GOLEM_REGIONS)) {
+  const pool = ENEMY_POOLS[spec.rgn] || [];
+  const top = pool.map(k => DND_ENEMIES[k]).reduce((a, b) => (b.hp > a.hp ? b : a));
+  DND_ENEMIES[spec.type] = {
+    name: spec.name,
+    hp: Math.round(top.hp * GOLEM_HP_MUL / 5) * 5,   // to the nearest 5, so the
+    spd: GOLEM_SPD,                                  // sheet reads as authored
+    dmg: top.dmg,
+    xp: top.xp,
+    color: spec.color,
+    size: GOLEM_SIZE,
+    cr: top.cr,
+    // A region's element id and its region id are the same string for all twelve
+    // of these, which is what makes the armor that answers the golem the armor
+    // forged in its region.
+    element: Object.keys(GOLEM_REGIONS).find(k => GOLEM_REGIONS[k] === spec),
+  };
+}
 
 // How high a sleeping golem stands, and it is 0.5 for a precise reason:
 // STEP_UP_MAX is 0.5, so exactly this height is the tallest thing an actor can
@@ -898,21 +953,111 @@ function makeBloomDefs(regionId, map) {
 //
 // They cannot wall a route off even so — a dormant golem is climbable, and a
 // woken one walks away — so this is about how they READ, not about connectivity.
-const GOLEM_COUNT_MIN = 3, GOLEM_COUNT_MAX = 5, GOLEM_MIN_APART = 12;
+// 1d6 - 2, floored at 0. Rolling a 1 or a 2 means this map has no golem on it at
+// all, which is a third of maps and is the point: a hazard you meet on every
+// single map is scenery, and one you meet on two maps in three is a thing that
+// happens to you.
+const GOLEM_MIN_APART = 12;
+
+function golemCount() { return Math.max(0, rnd(1, 6) - 2); }
+
+// How far a golem has to sit from the nearest road, and it is derived rather
+// than picked: GOLEM_WAKE_RADIUS is 3.5, so anything beyond that cannot be woken
+// by someone who stays on the path. 5 leaves a tile and a half of margin for a
+// hero who steps off the verge without meaning to commit.
+//
+// "Road" means T.PATH and nothing else. The corridors the connectivity pass
+// carves are laid as PATHTILE, which is T.PATH on twelve of the thirteen
+// regions, so they are covered by the same test.
+//
+// THE WATER REGION IS THE EXCEPTION AND THE RULE IS VACUOUS THERE. It overrides
+// `path` to T.SAND (regions.js), which is also its `ground`, so a water map
+// contains no T.PATH tile at all — measured: 0 across 40 generated maps — and
+// its road is not a distinguishable thing to stand on in the first place. Golems
+// there place freely on the sand. That is the honest outcome rather than a gap:
+// there is no "stay on the road" promise to keep where the road and the beach
+// are the same tile. If the water region ever gets a real corridor tile, this
+// test has to learn about it.
+const GOLEM_ROAD_CLEAR = 5;
+
+// Golem piles are drawn to blend into the region (see drawEnemy), and three
+// regions scatter cuttable rubble that they will read as: Stones in the water
+// region, Bones in the desert, Bone Piles in the wastes. A sword swing clears a
+// 3x3 of foliage, so a hero harvesting a rubble tile two clear of a pile can
+// never catch it — and damage wakes a golem whatever it is wearing.
+// Built on call rather than at module scope on purpose: nothing else in this
+// file touches T at load time, which is what lets the headless harnesses load it
+// on its own to read DND_ENEMIES without dragging config.js in behind it.
+const GOLEM_RUBBLE_CLEAR = 2;
+function golemRubbleTiles() {
+  return [T.STONES, T.BONES, T.BONE_PILE].filter(t => t !== undefined);
+}
+
+// Mark every cell within `radius` of any tile in `tiles` as unusable.
+//
+// One pass over the map per clearance instead of a box scan per candidate. That
+// is not premature: see makeGolemDefs for the measurement that made it
+// necessary.
+function golemBlockOut(map, blocked, tiles, radius) {
+  const rr = radius * radius;
+  for (let r = 0; r < MROWS; r++) {
+    for (let c = 0; c < MCOLS; c++) {
+      if (!tiles.includes(map[r][c])) continue;
+      for (let dy = -radius; dy <= radius; dy++) {
+        const y = r + dy;
+        if (y < 0 || y >= MROWS) continue;
+        for (let dx = -radius; dx <= radius; dx++) {
+          const x = c + dx;
+          if (x < 0 || x >= MCOLS) continue;
+          if (dx * dx + dy * dy <= rr) blocked[y * MCOLS + x] = 1;
+        }
+      }
+    }
+  }
+}
 
 function makeGolemDefs(regionId, map) {
   const spec = GOLEM_REGIONS[regionId];
   if (!spec || !map) return [];
-  const defs = [];
-  const want = rnd(GOLEM_COUNT_MIN, GOLEM_COUNT_MAX);
-  for (let i = 0; i < want; i++) {
-    for (let t = 0; t < 80; t++) {
-      const x = rnd(14, MCOLS - 15), y = rnd(14, MROWS - 15);
+  const want = golemCount();
+  if (!want) return [];
+
+  // The legal ground is built ONCE and drawn from, rather than guessed at with
+  // rejection sampling, and that is a measured decision rather than a tidiness
+  // one. Sampling 240 candidate tiles per golem still lost 47% of the shadow
+  // region's rolls and 39% of lightning's: both regions are dense enough that
+  // open ground which is also 5 clear of a road is rare, and random darts miss
+  // it. Averaged over 480 maps the world was getting 1.49 golems a map against
+  // the 1.667 the die asks for, and the shortfall was landing on two regions.
+  //
+  // Building the set means a map places exactly what it rolled whenever it has
+  // anywhere at all to put it, in every region. It is also the same shape of fix
+  // the gas vents needed when their spacing was measured (mapgen-biomes.js).
+  const blocked = new Uint8Array(MROWS * MCOLS);
+  golemBlockOut(map, blocked, [T.PATH], GOLEM_ROAD_CLEAR);
+  golemBlockOut(map, blocked, golemRubbleTiles(), GOLEM_RUBBLE_CLEAR);
+
+  const legal = [];
+  for (let y = 14; y <= MROWS - 15; y++) {
+    for (let x = 14; x <= MCOLS - 15; x++) {
+      if (blocked[y * MCOLS + x]) continue;
       if (isSolid(map, x, y)) continue;
-      if (map[y][x] === T.PATH) continue;
-      if (defs.some(d => Math.hypot(d.x - x, d.y - y) < GOLEM_MIN_APART)) continue;
-      defs.push({ type: spec.type, x, y, dormant: true });
-      break;
+      legal.push(y * MCOLS + x);
+    }
+  }
+
+  const defs = [];
+  const apart = GOLEM_MIN_APART * GOLEM_MIN_APART;
+  for (let i = 0; i < want && legal.length; i++) {
+    const at = rnd(0, legal.length - 1);
+    const cell = legal[at];
+    const x = cell % MCOLS, y = (cell - x) / MCOLS;
+    defs.push({ type: spec.type, x, y, dormant: true });
+    // Spacing is enforced by shrinking the pool rather than by re-rolling, so
+    // the next pick cannot fail on it either.
+    for (let k = legal.length - 1; k >= 0; k--) {
+      const o = legal[k], ox = o % MCOLS, oy = (o - ox) / MCOLS;
+      if ((ox - x) * (ox - x) + (oy - y) * (oy - y) < apart) legal.splice(k, 1);
     }
   }
   return defs;

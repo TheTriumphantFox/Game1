@@ -4,14 +4,32 @@
     {
       "name": "hero-of-stormdrift",
       "runtimeExecutable": "powershell",
-      "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-File", ".claude/serve.ps1"],
+      "runtimeArgs": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".claude/serve.ps1"
+      ],
       "port": 8765
     },
     {
       "name": "hero-of-stormdrift-posix",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8766"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766"
+      ],
       "port": 8766
+    },
+    {
+      "name": "stormdrift-stills",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "tools/stills-server.py",
+        "8767"
+      ],
+      "port": 8767
     }
   ]
 }

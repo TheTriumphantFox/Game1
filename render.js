@@ -1381,7 +1381,12 @@ function drawMinimap() {
   // Enemy dots (live) — larger, centered on the tile and ringed with a dark
   // backing so they stay legible against any terrain color. Bosses are drawn
   // noticeably bigger than regular foes so they read at a glance.
-  enemies.filter(e => !e.dead).forEach(e => {
+  // Sleeping golems are left off. They are drawn to be indistinguishable from
+  // the region's own rubble on the map (drawEnemy, render-enemies.js), and a red
+  // dot on the minimap would hand the player the answer the world is hiding.
+  // They appear the moment one wakes, which is also when it becomes a threat.
+  enemies.filter(e => !e.dead &&
+                      !(e.dormant && typeof isGolem === 'function' && isGolem(e))).forEach(e => {
     const sz = e.boss ? 6 : 4;
     const cx = mx + Math.floor(e.x*scale), cy = my + Math.floor(e.y*scale);
     ctx.fillStyle = '#000';
