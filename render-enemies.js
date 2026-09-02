@@ -124,7 +124,24 @@ function drawEnemy(e, ts) {
   // Tile corner. Still needed: the one-tile aura backdrops further down, and
   // the HP bar / name tag centring, anchor to the TILE, not to the sprite box.
   const sx = (e.x - camC) * ts, sy = (e.y - camR) * ts;
-  const s = ts * e.size;
+
+  // A SLEEPING GOLEM IS A RUBBLE PILE, and the pile has to be able to hide.
+  //
+  // It draws at one tile rather than at the creature's own size, which is 3 —
+  // a three-tile heap of rubble is not rubble, it is a landmark. Everything
+  // else that would give it away is turned off with it: the elemental aura
+  // below, and the sleeping name tag at the end of this function. The minimap
+  // skips them too (drawMinimap, render.js).
+  //
+  // Deliberately keyed on `dormant && isGolem` and not on `dormant` alone. The
+  // other dormant creature in the game is the final-boss dragon, which is meant
+  // to be seen and keeps its tag.
+  const dormantPile = !!e.dormant && typeof isGolem === 'function' && isGolem(e);
+  // The render scale. Every `e.size` below reads this instead, so the shadow and
+  // the aura shrink with the body rather than ringing a one-tile pile with a
+  // three-tile mark.
+  const drawSize = dormantPile ? 1 : e.size;
+  const s = ts * drawSize;
 
   // The sprite box is planted on the ground instead of being centred in its
   // tile. At size 1.0 this is exactly the box it always was, because the old
@@ -189,23 +206,27 @@ function drawEnemy(e, ts) {
   // CENTRED on; drawing it now, from the foot row, would put it about 174px
   // lower. So the sliver goes, deliberately.
   if (!e.cutsceneActor) {
-    groundShadow(e.x, e.y, (e.z || 0) + (e.groundZ || 0), 0.30 * e.size,
-                 0.07 * e.size, 0.38, 0, undefined, e.groundZ || 0);
+    groundShadow(e.x, e.y, (e.z || 0) + (e.groundZ || 0), 0.30 * drawSize,
+                 0.07 * drawSize, 0.38, 0, undefined, e.groundZ || 0);
   }
 
   // ── Elemental aura (behind the sprite) ───────────────────────────────
   // Enemies whose attacks carry an element wear that element's signature FX,
   // so the threat reads at a glance and matches its projectiles/contact hits.
-  if (e.element) {
-    drawElementFX(cx, cy, ts * 0.6 * e.size, e.element, 0.55, (e.id || 0) * 0.37);
+  // Skipped for a sleeping golem: an elemental aura is exactly the "something
+  // lives here" tell the pile is trying not to have.
+  if (e.element && !dormantPile) {
+    drawElementFX(cx, cy, ts * 0.6 * drawSize, e.element, 0.55, (e.id || 0) * 0.37);
   }
 
   // ── Blight aura (behind the sprite, over the elemental one) ──────────
   // The corrupted template's only visual tell — it deliberately does not change
   // the creature's size, because "bigger" already means Greater. A blighted
   // elemental creature wears both auras (see corruption.js).
-  if (e.corrupted && typeof drawCorruptedEnemyAura === 'function') {
-    drawCorruptedEnemyAura(e, cx, cy, ts * 0.52 * e.size);
+  // Skipped for a sleeping golem for the same reason as the elemental aura: a
+  // pile breathing violet in an uncleansed region is not hiding.
+  if (e.corrupted && !dormantPile && typeof drawCorruptedEnemyAura === 'function') {
+    drawCorruptedEnemyAura(e, cx, cy, ts * 0.52 * drawSize);
   }
 
   // ── Per-type sprite (uses px/py which include the bob offset) ────────
@@ -3168,25 +3189,120 @@ function drawEnemy(e, ts) {
       }
       break;
     }
+    case 'sandstone_golem':
+    case 'coral_golem':
     case 'ice_golem':
     case 'stone_golem':
-    case 'obsidian_golem': {
-      // One body, three palettes — the same reasoning as the shared state
+    case 'obsidian_golem':
+    case 'cloud_golem':
+    case 'fulgurite_golem':
+    case 'lumen_golem':
+    case 'bone_golem':
+    case 'mire_golem':
+    case 'rune_golem':
+    case 'umbral_golem': {
+      // One body, twelve palettes — the same reasoning as the shared state
       // machine in enemies.js. A golem is a blocky humanoid slab, and the only
       // thing that really differs between the regions is what it is carved from.
+      //
+      // `pile` is the fourth colour and it is not a shade of the body: it is the
+      // region's own GROUND, taken from TILE_COLORS, because the sleeping heap
+      // has to read as rubble that belongs to this map rather than as a golem
+      // sitting down. `dark`/`mid` still shade it, so the heap has form.
       const GP = {
-        ice_golem:      { dark:'#5f93ad', mid:'#8fc4dc', lite:'#c8ecf8', eye:'#d8f4ff' },
-        stone_golem:    { dark:'#5e5a52', mid:'#8a857a', lite:'#a8a296', eye:'#ffd27a' },
-        obsidian_golem: { dark:'#241d22', mid:'#3a2f36', lite:'#584a54', eye:'#ff6a22' },
+        sandstone_golem: { dark:'#a07840', mid:'#c89858', lite:'#e0bc84', eye:'#ffd27a', pile:'#d4b070' },
+        coral_golem:     { dark:'#a04a38', mid:'#e8765a', lite:'#f4a08c', eye:'#ffe0b0', pile:'#d4b070' },
+        ice_golem:       { dark:'#5f93ad', mid:'#8fc4dc', lite:'#c8ecf8', eye:'#d8f4ff', pile:'#e4ecf2' },
+        stone_golem:     { dark:'#5e5a52', mid:'#8a857a', lite:'#a8a296', eye:'#ffd27a', pile:'#8a8174' },
+        obsidian_golem:  { dark:'#241d22', mid:'#3a2f36', lite:'#584a54', eye:'#ff6a22', pile:'#4a3b34' },
+        cloud_golem:     { dark:'#8b98ac', mid:'#bcc8de', lite:'#e6eef8', eye:'#ffffff', pile:'#dde6f2' },
+        fulgurite_golem: { dark:'#2c4a80', mid:'#4a7ab8', lite:'#7ec8ff', eye:'#ffee33', pile:'#313749' },
+        lumen_golem:     { dark:'#c0a054', mid:'#e8cc84', lite:'#fff0bc', eye:'#ffffff', pile:'#f5edd8' },
+        bone_golem:      { dark:'#8a8068', mid:'#c4b898', lite:'#e8dcc0', eye:'#aa66dd', pile:'#3a2a3a' },
+        mire_golem:      { dark:'#3a4a1c', mid:'#5a6e2c', lite:'#8aa044', eye:'#b8e04a', pile:'#566b2c' },
+        rune_golem:      { dark:'#1c4a30', mid:'#2e7d4f', lite:'#5aa878', eye:'#cc44ff', pile:'#2e7d4f' },
+        umbral_golem:    { dark:'#140f20', mid:'#2a2340', lite:'#443a60', eye:'#8b5cf6', pile:'#241d33' },
       }[e.type];
-      // Asleep it is a statue: no idle bob, seams unlit, head bowed. Awake it
-      // stands up, its seams light, and the eyes come on. The pose difference is
-      // the tell — a player has to be able to see at a glance which golems in a
-      // field are still sleeping.
       const woke = !e.dormant;
-      const bob = woke ? Math.sin(Date.now()/260 + phase) * s*0.02 : 0;
+
+      // ── Asleep: a heap of region-coloured rubble ────────────────────────
+      // It is NOT a bowed statue any more. A statue is recognisably a golem, and
+      // the brief is that a sleeping one should be indistinguishable from the
+      // scenery until it stands up. Three overlapping mounds in the region's own
+      // ground colour, hashed off the tile so a field of them is not one stamp
+      // repeated, and nothing lit anywhere on it.
+      //
+      // The cost of this is real and it is deliberate: there is no way to tell a
+      // golem from a rock until it wakes. Placement is what makes that fair —
+      // never within 5 tiles of a road, never within 2 of cuttable rubble
+      // (makeGolemDefs, enemies.js) — so a hero can only ever meet one by
+      // walking well off the path into open ground.
+      if (!woke) {
+        const h = ((e.x * 71 + e.y * 59) % 7) / 7;         // 0..1, fixed per tile
+        // The heap is a SHADE off its region's floor rather than exactly it.
+        //
+        // Painted in the literal floor colour it does not read as a pile at all:
+        // shot against real terrain in all twelve regions, five of them
+        // (sandstone, stone, fulgurite, lumen, umbral) came out as bare ground
+        // with two chips floating on it. Blending in means looking like scenery,
+        // not looking like nothing — the player should see a heap of rubble and
+        // think nothing of it, which is a different thing from seeing no heap.
+        //
+        // Which way to push depends on the region: a pale floor wants the heap
+        // darker and a dark floor wants it lifted, or half the world gets a pile
+        // that is invisible in the other direction.
+        const pn = parseInt(GP.pile.slice(1), 16);
+        const lum = (((pn >> 16) & 255) * 0.299 + ((pn >> 8) & 255) * 0.587 + (pn & 255) * 0.114) / 255;
+        const heap = _shadeHex(GP.pile, lum > 0.45 ? 0.80 : 1.45);
+        // The heap sits ON the foot line and stands about half a tile, which is
+        // GOLEM_STAND_Z: the height the hero can step onto it from. A pile drawn
+        // shorter than the thing it lets you climb is a lie the player finds out
+        // about with their feet.
+        const foot = py + s * 0.95;
+        const mound = (fx, rx, ry, fill) => {
+          ctx.fillStyle = fill;
+          ctx.beginPath();
+          ctx.ellipse(px + s * fx, foot, s * rx, s * ry, 0, Math.PI, 0);
+          ctx.fill();
+        };
+        mound(0.32 + h * 0.05, 0.26, 0.30, _shadeHex(heap, 0.78));   // back left shoulder
+        mound(0.70 - h * 0.05, 0.24, 0.26, _shadeHex(heap, 0.90));   // back right shoulder
+        mound(0.50, 0.42, 0.44, heap);                               // the heap itself
+        // A rim of the floor's own colour along the foot, so the heap sits IN
+        // the ground rather than on top of it like a sticker.
+        ctx.fillStyle = GP.pile;
+        ctx.beginPath();
+        ctx.ellipse(px + s * 0.50, foot, s * 0.44, s * 0.07, 0, Math.PI, 0);
+        ctx.fill();
+        // Chips of the darker stone on the crown, so it has texture at a glance
+        // instead of reading as one smooth blob.
+        ctx.fillStyle = _shadeHex(heap, 0.66);
+        ctx.fillRect(px + s * (0.34 + h * 0.12), foot - s * 0.30, s * 0.11, s * 0.09);
+        ctx.fillRect(px + s * (0.58 - h * 0.10), foot - s * 0.20, s * 0.09, s * 0.08);
+        ctx.fillStyle = _shadeHex(heap, 1.20);
+        ctx.fillRect(px + s * (0.46 + h * 0.06), foot - s * 0.38, s * 0.08, s * 0.07);
+        ctx.restore();
+        return;
+      }
+      const bob = Math.sin(Date.now()/260 + phase) * s*0.02;
       const top = py + bob;
-      const glow = woke ? (0.55 + 0.45*Math.sin(Date.now()/220 + phase)) : 0;
+      const glow = 0.55 + 0.45*Math.sin(Date.now()/220 + phase);
+
+      // THE BODY IS STRETCHED TO FILL ITS BOX, and this is the one thing here
+      // that is not just art.
+      //
+      // Everything below is authored between 0.12 and 0.96 of the sprite box, so
+      // a golem at size 3 measured 2.52 tiles tall rather than the three the
+      // design asks for. Restating fifteen coordinates to fix that would be
+      // fifteen chances to typo a slab into a stack of loose rectangles, so the
+      // whole body is scaled about its own foot line instead. Vertical only —
+      // the slab's width is already right, and stretching it sideways would make
+      // a golem look inflated rather than tall.
+      const GOLEM_FILL = 1 / 0.84;
+      ctx.save();
+      ctx.translate(0, top + s * 0.96);
+      ctx.scale(1, GOLEM_FILL);
+      ctx.translate(0, -(top + s * 0.96));
 
       // Legs
       ctx.fillStyle = GP.dark;
@@ -3197,16 +3313,16 @@ function drawEnemy(e, ts) {
       ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.36);
       ctx.fillStyle = GP.lite;                                  // lit shoulder
       ctx.fillRect(px + s*0.24, top + s*0.34, s*0.26, s*0.36);
-      // Arms — hanging when asleep, raised a little when awake
+      // Arms, raised a little off the body.
       ctx.fillStyle = GP.dark;
-      const armY = woke ? top + s*0.36 : top + s*0.42;
+      const armY = top + s*0.36;
       ctx.fillRect(px + s*0.12, armY, s*0.14, s*0.34);
       ctx.fillRect(px + s*0.74, armY, s*0.14, s*0.34);
-      // Head, bowed while dormant
+      // Head
       ctx.fillStyle = GP.mid;
-      ctx.fillRect(px + s*0.34, top + (woke ? s*0.12 : s*0.18), s*0.32, s*0.24);
-      // Seams: dead grooves asleep, lit veins awake.
-      ctx.strokeStyle = woke ? `rgba(255,220,150,${0.35 + 0.4*glow})` : 'rgba(0,0,0,0.30)';
+      ctx.fillRect(px + s*0.34, top + s*0.12, s*0.32, s*0.24);
+      // Seams, lit as running veins now that it is moving.
+      ctx.strokeStyle = `rgba(255,220,150,${0.35 + 0.4*glow})`;
       ctx.lineWidth = Math.max(1, s*0.035);
       ctx.beginPath();
       ctx.moveTo(px + s*0.30, top + s*0.44); ctx.lineTo(px + s*0.52, top + s*0.52);
@@ -3216,7 +3332,7 @@ function drawEnemy(e, ts) {
       // lava, which is the visual half of the heat it is now radiating at the
       // hero (moltenHeatAt, enemies.js) — the fight has to look like the reason
       // the overheat bar is climbing, or the bar reads as unrelated.
-      if (woke && e.type === 'obsidian_golem') {
+      if (e.type === 'obsidian_golem') {
         const flow = Date.now() / 380 + phase;
         ctx.fillStyle = `rgba(255,106,34,${0.45 + 0.30 * Math.sin(flow)})`;
         ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.36);   // core glow
@@ -3243,18 +3359,13 @@ function drawEnemy(e, ts) {
         }
       }
 
-      // Eyes only once it is awake. A statue does not stare back.
-      if (woke) {
-        ctx.fillStyle = GP.eye;
-        const ey = top + s*0.20;
-        ctx.fillRect(px + s*0.39, ey, s*0.07, s*0.05);
-        ctx.fillRect(px + s*0.54, ey, s*0.07, s*0.05);
-      } else {
-        // Asleep: a dusting of the region's own weathering on the shoulders, so
-        // it reads as something that has stood here a long time.
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.04);
-      }
+      // Eyes. Everything from the sleeping return down is the awake body, so
+      // there is nothing left to guard on: a pile has no eyes to draw.
+      ctx.fillStyle = GP.eye;
+      const ey = top + s*0.20;
+      ctx.fillRect(px + s*0.39, ey, s*0.07, s*0.05);
+      ctx.fillRect(px + s*0.54, ey, s*0.07, s*0.05);
+      ctx.restore();
       break;
     }
     default: {
@@ -3289,6 +3400,10 @@ function drawEnemy(e, ts) {
   // never in `enemies`, so there is nothing to target and the unwinnable
   // encounter is unwinnable without disabling anything.
   if (e.cutsceneActor) { ctx.restore(); return; }
+  // A sleeping golem is untargetable AND unlabelled. It gets no tag at all,
+  // because the tag is the loudest tell there is: a pile that announces itself
+  // in text is not blending into anything.
+  if (dormantPile) { ctx.restore(); return; }
   // The dormant dragon is untargetable — no HP bar, just a slumbering tag.
   if (e.dormant) {
     ctx.font = 'bold 10px monospace';
@@ -3303,7 +3418,7 @@ function drawEnemy(e, ts) {
     ctx.restore();
     return;
   }
-  const barW = ts * e.size * 0.92;
+  const barW = ts * drawSize * 0.92;
   const barX = fb.x + s * 0.04, barY = boxTop - 8;
   const barH = 5;
   ctx.fillStyle = '#000';
