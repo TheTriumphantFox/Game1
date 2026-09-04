@@ -40,12 +40,18 @@ const DND_ENEMIES = {
   // power from forest (tier 0) up to the arcane mana region (tier 10).
 
   // ── Tier 0 · Forest — fey, beasts & plants. Gentlest region. ──
+  // Every creature here deals exactly 1 damage. That is deliberate and not a
+  // stub: forest is where the player learns to fight, so the roster varies by
+  // HP, speed and reach while the cost of a mistake stays flat. Do not 'restore'
+  // these to their CR-derived values. Two things are NOT flattened with them —
+  // the Village of the Lost's Greater variants still double to 2 (see the tier15
+  // multiplier in the spawn loop), and the FOREST LICH keeps its boss damage.
   goblin:         { name: 'Goblin',              hp: 7,   spd: 600,  dmg: 1,  xp: 50,    color: '#558844', size: 0.6,  cr: '1/4' },
-  wolf:           { name: 'Wolf',                hp: 11,  spd: 450,  dmg: 2,  xp: 100,   color: '#886644', size: 0.7,  cr: '1/4' },
+  wolf:           { name: 'Wolf',                hp: 11,  spd: 450,  dmg: 1,  xp: 100,   color: '#886644', size: 0.7,  cr: '1/4' },
   pixie:          { name: 'Pixie Swarm',         hp: 9,   spd: 400,  dmg: 1,  xp: 50,    color: '#88aaff', size: 0.5,  ranged: true, cr: '1/4', element: 'luminous', hover: 0.40 },
-  dryad:          { name: 'Dryad',               hp: 22,  spd: 650,  dmg: 3,  xp: 450,   color: '#44aa44', size: 0.8,  cr: 1, element: 'poison' },
-  giant_spider:   { name: 'Giant Spider',        hp: 24,  spd: 500,  dmg: 3,  xp: 450,   color: '#4a3a55', size: 0.8,  ranged: true, cr: 1, element: 'poison' },
-  owlbear:        { name: 'Owlbear',             hp: 28,  spd: 550,  dmg: 3,  xp: 450,   color: '#8a6622', size: 0.95, cr: 3 },
+  dryad:          { name: 'Dryad',               hp: 22,  spd: 650,  dmg: 1,  xp: 450,   color: '#44aa44', size: 0.8,  cr: 1, element: 'poison' },
+  giant_spider:   { name: 'Giant Spider',        hp: 24,  spd: 500,  dmg: 1,  xp: 450,   color: '#4a3a55', size: 0.8,  ranged: true, cr: 1, element: 'poison' },
+  owlbear:        { name: 'Owlbear',             hp: 28,  spd: 550,  dmg: 1,  xp: 450,   color: '#8a6622', size: 0.95, cr: 3 },
 
   // ── Prologue only · Hendricks' dog ──
   // Not part of any tier or pool, and never rolled by makeEnemyDefs — the
