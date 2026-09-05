@@ -920,7 +920,7 @@ function playWhatsLeftBeat() {
     { run: () => {
         burnLevel = 0.25;      // the fire burns down but the ruin keeps smouldering
         letterboxLevel = 0;
-        showMapMsg('⚔️  H E R O   O F   S T O R M D R I F T');
+        showMapMsg('⚔️ Hero of Stormdrift');
       } },
     { wait: 2600 },
     { fade: 0, ms: 1600 },
@@ -1125,7 +1125,7 @@ function skipPrologue() {
   // Same card Beat 5 shows. It used to lag a rename behind and show the old
   // title — the one thing a skipped prologue put on screen that a played one
   // never did (see the storage-key migration in config.js for the renames).
-  showMapMsg('⚔️  H E R O   O F   S T O R M D R I F T');
+  showMapMsg('⚔️ Hero of Stormdrift');
 }
 
 // ─── Restoring a save ─────────────────────────────────────────────────────────
