@@ -1001,6 +1001,12 @@ function stepDrops(dt) {
         spawnParticle(sp.x, sp.y, '#bfe2f5', 10, 3);
         spawnParticle(sp.x, sp.y, '#eaf6fd', 6, 2);
         showMsg(`💮 +${d.val} Frost Petal (now ${player.frostpetals})`, 1500);
+      } else if (d.type === 'stone') {
+        addItem('stones', d.val);
+        const sp = screenPX(d.x, d.y);
+        spawnParticle(sp.x, sp.y, '#8a857a', 10, 3);
+        spawnParticle(sp.x, sp.y, '#b0aca0', 6, 2);
+        showMsg(`🪨 +${d.val} Stone (now ${player.stones})`, 1500);
       } else if (d.type === 'seashell') {
         addItem('seashells', d.val);
         const sp = screenPX(d.x, d.y);

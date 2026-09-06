@@ -242,6 +242,11 @@ function build() {
     const primary = drops.find(d => d.type !== 'potion' && d.type !== 'arrows');
     const others = drops.filter(d => d !== primary);
     const pct = n => Math.round(n * 100);
+    // Golems and blooms are rooted hazards, not lootable kills — ENEMY_DROPS has
+    // no entry for either, and the sheet spells that out as "None" rather than
+    // leaving the cell blank (blank is reserved for genuinely inapplicable
+    // columns like Drop % / Trophy Sell, which stay null below).
+    const lootless = klass === 'Hazard';
     return {
       region: SHEET_REGION_LABEL[REGIONS[regionIdx] && REGIONS[regionIdx].id] || 'Castle Tower',
       regionNum: regionIdx,
@@ -252,11 +257,12 @@ function build() {
       element: e.element ? cap(e.element) : 'Physical',
       vulnerability: e.element && OPPOSITE[e.element] ? cap(OPPOSITE[e.element]) : NONE,
       swims: e.swims ? 'Yes' : null,
-      trophy: e.boss ? 'None (boss)' : (primary ? labelFor(primary.type) : null),
-      trophyPct: e.boss ? null : (primary ? pct(primary.chance) : null),
-      trophySell: e.boss ? null : (primary ? valueFor(primary.type) : null),
+      trophy: e.boss ? 'None (boss)' : lootless ? 'None' : (primary ? labelFor(primary.type) : null),
+      trophyPct: (e.boss || lootless) ? null : (primary ? pct(primary.chance) : null),
+      trophySell: (e.boss || lootless) ? null : (primary ? valueFor(primary.type) : null),
       otherDrops: e.boss
         ? `${100 * (regionIdx + 1)} rubies + 6 HP heart`
+        : lootless ? 'None'
         : (others.map(d => `${d.type === 'potion' ? 'Potion' : labelFor(d.type)} ${pct(d.chance)}%`)
                  .join(', ') || null),
       xp: Math.floor(e.xp * 0.5),
@@ -265,6 +271,11 @@ function build() {
       cr: e.cr,
     };
   }
+  // One golem per region from Fire up (see GOLEM_REGIONS in enemies.js); Forest
+  // deliberately has none. Its stats are computed at load time straight into
+  // DND_ENEMIES, so enemyRow needs no special-cased math here, just the right
+  // spot in the sheet's row order: after that region's roster, before its boss.
+  const GOLEM_REGIONS = G('GOLEM_REGIONS');
   const enemies = [];
   REGIONS.forEach((region, i) => {
     const pool = POOLS[region.enemyTier] || [];
@@ -272,6 +283,11 @@ function build() {
     const ranged = pool.filter(t => DND[t].ranged).sort((a, b) => DND[a].name.localeCompare(DND[b].name));
     melee.forEach(t => enemies.push(enemyRow(t, i, 'Melee')));
     ranged.forEach(t => enemies.push(enemyRow(t, i, 'Ranged')));
+    // The Poison region's rooted toxic bloom hazard (see makeBloomDefs, enemies.js)
+    // sits before that region's golem in the sheet, same "Hazard" class.
+    if (region.id === 'poison') enemies.push(enemyRow('toxic_bloom', i, 'Hazard'));
+    const golem = GOLEM_REGIONS[region.id];
+    if (golem) enemies.push(enemyRow(golem.type, i, 'Hazard'));
     enemies.push(enemyRow(region.boss, i, 'Boss'));
   });
   // The pinnacle dragon belongs to no region; it sits one tier past Shadow and

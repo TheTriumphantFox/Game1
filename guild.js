@@ -317,6 +317,8 @@ function makeBountyEnemy(creature, x, y, regionId, kind, id) {
   return {
     id: id != null ? id : 9500,
     type: creature, x, y, hp, maxHp: hp,
+    // 0.75x, not the global 0.5x every other spawn path applies (see spawnEnemiesForMap,
+    // makeGuildBossEnemy) — intentional: Guild contracts pay above the normal rate.
     spd: base.spd, dmg: Math.round(base.dmg * dmgMul), xp: Math.floor(base.xp * 0.75),
     color: base.color, size: (base.size || 1) * (kind === 'maneater' ? 1.45 : 1.3),
     name: `${base.name}, ${title}`,

@@ -281,6 +281,9 @@ function _csFinish() {
 function cancelCutscene() {
   if (!cutsceneActive) return;
   _csOnDone = null;
+  cutsceneActive = false;
+  _csSteps = [];
+  _csIndex = 0;
   if (typeof dialogueOpen !== 'undefined' && dialogueOpen) closeDialogue();
   prologueEmperor = null;
   fadeLevel = 0;

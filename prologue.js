@@ -1117,6 +1117,10 @@ function skipPrologue() {
   // prop lying in a room the hero had supposedly just picked it up from.
   pgBurnChestOpen();
   grantGrandmothersWeapons();
+  // Match the grandmother beat's potion gift (prologue.js's `grandmother` handler,
+  // above), or a skipped run starts the open world with 0 potions instead of 5.
+  setFlag('gran_potions_given');
+  addItem('potions', GRAN_POTION_GIFT);
   placePlayerInFamilyHome(home);
   burnLevel = 0.25;
   minimapDirty = true;

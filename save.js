@@ -174,6 +174,8 @@ const DEFAULT_PLAYER = {
   swordTimer: 0, swordDir: { x: 0, y: -1 },
   // Punch swing clock — the fists' twin of swordTimer (see player.js).
   punchTimer: 0,
+  // Bow-draw pose clock, the ranged twin of swordTimer/punchTimer (see player.js).
+  bowTimer: 0,
   invincible: 0,
   // Which dead-end map the Earth frog was planted on, or null before the hero
   // has found one. Null-safe on load: a save written before the frog existed
@@ -874,7 +876,11 @@ function resetGame(heroName) {
     x: EXIT_COL, y: EXIT_ROW,
     hp: 12, maxHp: 12, tempHp: 0,
     rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
-    swordTimer: 0, swordDir: { x: 0, y: -1 }, punchTimer: 0, invincible: 0,
+    swordTimer: 0, swordDir: { x: 0, y: -1 }, punchTimer: 0, bowTimer: 0, invincible: 0,
+    // Cleared so a New Game started mid-session (no page reload) can't inherit the
+    // previous world's Earth dead-end id and silently never spawn its own frog
+    // (see ensureEarthFrog in villagers.js).
+    frogOracleMapId: null,
     weapon: 'sword', bowLevel: 1, swordLevel: 1, armor: 0,
     // Both of Grandmother's weapons are re-locked for the new hero. hasSword has
     // to be named explicitly: Object.assign only overwrites the keys it lists, so

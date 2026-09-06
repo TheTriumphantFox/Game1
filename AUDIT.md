@@ -1,245 +1,336 @@
 # Code Audit — Hero of Stormdrift
 
-Date: 2026-08-13
-Scope: `Game1/` — 45 files, ~33,500 lines of vanilla ES, no build step, no dependencies.
-Method: full read of the core layers (boot, input, player, save, world, fog, connectivity,
-projectiles, UI, shops), targeted reads elsewhere, cross-file collision analysis, and live
-verification in a browser against a running instance on `localhost:8765`.
+Date: 2026-09-05
+Scope: `Game1/` — 66 flat `.js` files, ~43,000 lines, no build step, no dependencies.
+Method: six parallel full-file reads covering every script in the repo (core state
+and save, procedural map generation, enemies and combat, rendering and sprites,
+economy and UI overlays, story and dialogue), plus a targeted re-verification of
+every finding in the prior audit below. The two highest-value findings (the
+cutscene-cancel leak and the dead Water-region drop) were independently
+re-confirmed by direct reads before being written up here.
 
-Every finding below marked **Verified** was reproduced against the running game, not
-inferred from reading.
+This file replaces the 2026-08-13 audit below, which is now superseded.
 
 ---
 
-## Overall
+## The 2026-08-13 audit is resolved
 
-This is a well-engineered codebase for what it is. Specifically:
+Every High/Medium finding from that pass (H1 sealed-map save corruption, H2
+localStorage quota and silent autosave failure, H3 save-modal not freezing the
+world, M1 shop/portal modals not freezing the world, M2 XSS via hero name) is
+fixed, each with an in-code comment narrating the original bug. So are L1
+(stale damage numbers), L2 (`DEFAULT_PLAYER` reference sharing), and L3 (the
+duplicate shop-core.js listener). L4's core claim, that generation ignored its
+`seed` parameter, is also fixed: every `mapgen-*.js` builder now runs through
+`beginSeededGeneration(seed)` and a seeded `rnd()` (mulberry32, in
+map-helpers.js). One sub-finding from L4 is still open: `prologue.js:1072` sets
+the flag `dog_outrun`, and nothing reads it (see Low, below).
 
-- **No global namespace collisions.** 704 top-level functions and 309 top-level
-  `const`/`let`/`var` across 45 non-module scripts sharing one global scope, and not a
-  single duplicate name. That is discipline, and it is the thing most likely to go wrong
-  in this architecture.
-- **Boots clean.** No console errors, no failed resource loads, correct script ordering.
-- **Performance is not a problem.** On a fully-stocked 150×150 forest map with 20 enemies
-  and a mostly-revealed fog layer: `update()` 0.02 ms, `render()` 0.72 ms, against a
-  16.7 ms budget at 60 fps. The tile sprite cache and the fog "paint only the new
-  crescent" optimisation (`fog.js:61-77`) are both doing their job. Minimap-on and
-  zoomed-out modes are also well inside budget.
-- **Comment quality is unusually high** — comments explain *why*, record rejected
-  alternatives, and flag ordering constraints. `main.js:88-96` and `save.js:224-240` are
-  good examples.
-- **The previous `Bug.Report.txt` (2026-08-05) is fully addressed.** Projectile and
-  particle frame-rate dependence now scale by `dt` (`projectiles.js:619`, `:1029`), the
-  arrow multi-hit has an explicit `break` (`projectiles.js:740`), `resetGame` clears
-  drops/projectiles and zeroes field-earned stock (`save.js:699-741`), and the README
-  matches the current structure. That report can be retired.
-
-The problems that remain cluster in two places: **what the save format does not
-preserve**, and **which overlays are wired into the freeze/input chain**.
+The full file has been deleted rather than kept as a scrolling history. If you
+want the original text, it is in git history for this file.
 
 ---
 
 ## High
 
-### H1 — Save/load destroys sealed dead-end maps and breaks the region seal
+### H1 — Canceling a cutscene can leak execution of its next step, including opening a new dialogue box
 
-**Verified.** Round-tripped a `createSealedNeighbor` map through
-`buildSaveData()` → `applyLoadData()`:
+**Verified by direct read.** `cutscene.js:281-290`:
 
-| | before save | after load |
-|---|---|---|
-| open sides | `right` only | **all four** |
-| `sealed` flag | `true` | **absent** |
-| Hero's Cache | 1 `LARGE_CHEST` | **0** (downgraded to plain `CHEST`) |
-| terrain | — | **completely regenerated** |
+```js
+function cancelCutscene() {
+  if (!cutsceneActive) return;
+  _csOnDone = null;
+  if (typeof dialogueOpen !== 'undefined' && dialogueOpen) closeDialogue();
+  ...
+  _csFinish();   // this is what actually sets cutsceneActive = false
+}
+```
 
-Three separate causes compound:
+`closeDialogue()` (`dialogue.js:117-130`) fires the open dialogue's `onDone`
+callback synchronously, before returning. For a cutscene `say` step that
+callback is `() => { if (cutsceneActive) _csAdvance(); }` (`cutscene.js:138`).
+`cutsceneActive` is only cleared inside `_csFinish()`, which runs *after* the
+`closeDialogue()` call on the line above it. So at the moment the callback
+checks the guard, it is still `true`, the guard passes, and `_csAdvance()`
+runs the next scripted step (including any `run:` side effects) before the
+cancel has actually finished.
 
-1. `save.js:46` — `mapTiles: m.visited ? encodeMap(m.map) : null`. Dead-ends are created
-   by `sealRegion` with `visited: false` (`world.js:585`), so their tiles are never stored.
-2. `save.js:305` — the rebuild path calls
-   `buildRegionMap(lite.id, lite.depth, undefined, region)` with `openSides` **undefined**,
-   and `mapgen-biomes.js:637` defaults that to `{left:true, right:true, up:true, down:true}`.
-   A one-exit dead-end comes back as a four-exit map.
-3. `sealed: true` is not in the `worldMapsLite` projection at all, so the flag is lost.
+**Concrete scenario.** Load a save mid-dialogue at `prologue.js:907-909`
+("The lock is gone, burned through..."). `cancelCutscene()` fires (loading a
+save is one of its two callers) and leaks into the very next step:
+`grantGrandmothersWeapons()` and `setFlag('revenge_triggered')` run
+(`prologue.js:910-915`), then the step after that calls `startDialogue()`
+again (`prologue.js:916`), setting `dialogueOpen = true` a second time.
+`_csFinish()` then clears `cutsceneActive`/`cutsceneInputLocked` but never
+touches `dialogueOpen`, so the player is left with a dialogue box open and no
+cutscene behind it. A second manifestation: canceling during the "There you
+are. Good..." line (`prologue.js:847-852`) leaks into the `walkPlayer` step at
+`prologue.js:854-855`, arming `autoNav`, so after the cancel the hero can be
+seen auto-walking toward the bow with nothing driving it.
 
-Consequences beyond the map itself — every one of these reads a flag that no longer exists:
-
-- `player.js:905` — sealed maps are excluded from `regionMapsVisited`. After a reload they
-  count, inflating progress toward the 21-map village trigger.
-- `guild.js:143` / `guild.js:333` — Guild Quarry and bounty elites filter on `!mm.sealed`.
-  After a reload, quest targets can spawn on dead-end maps.
-- `abilities.js:296` — ability secrets are deliberately not stamped on sealed maps. After a
-  reload they become eligible.
-
-There is also a border-symmetry break: the neighbouring map's tiles *are* stored, so the
-regenerated dead-end opens toward a neighbour with no opening back — precisely the one-way
-doorway `reconcileOpenSides` (`world.js:60-69`) exists to prevent. That reconcile only runs
-at creation time, never on load.
-
-**Fix.** Cheapest correct option: persist `openSides` (or just `sealed` plus the four
-`mapEdgeOpen` results) per map, and store `mapTiles` for sealed maps regardless of
-`visited`. Given H2, storing tiles for every generated map is the wrong direction — better
-is to persist `sealed` + the open-side set and pass it into the rebuild, and to re-run
-`reconcileOpenSides` after rebuilding. The Hero's Cache upgrade in
-`world.js:565-579` also needs to move into the rebuild path or be recorded.
-
-### H2 — A completed save will not fit in localStorage; the autosave fails silently
-
-**Verified by measurement.** Per visited map:
-
-- tiles, base64: **30,002** chars (`encodeMap`, 1 byte/tile — fine)
-- fog, `Array.from()` → JSON: **45,001** chars (`save.js:45`)
-
-Fog is **1.5× the size of the entire tile map**, for one bit of information per tile. At the
-232 maps the save UI itself advertises (`save.js:491`, `:522` — `Map N/232`), one slot
-projects to **~16.6 MB**, of which **~10 MB is fog**. Six named slots plus the rolling
-autosave share one origin quota.
-
-Measured ceiling in this Chromium: 48.5 MB — so a single completed save fits, but two do
-not, and the README documents touch/phone support as a first-class target, where iOS
-Safari's ~5 MB origin cap is a hard wall reached at roughly map 68 of 232.
-
-The failure mode is the serious part. **Verified** by forcing `QuotaExceededError`:
-
-- `doSave` reports it — `❌ Save failed (storage full?)` (`save.js:598`).
-- `autoSave` shows **nothing at all** (`save.js:450`, empty `catch`), and leaves
-  `lastCheckpoint` pointing at the previous payload. Since `respawn()` restores from
-  `lastCheckpoint` (`player.js:472`), the player keeps clearing villages and tower floors
-  while their death-restore point silently stops advancing. The only cue is the *absence*
-  of the `💾 Auto-saved` toast they normally see.
-
-**Fix.** Two independent changes:
-
-1. Pack fog to bits and base64 it — 22,500 bits → 2,813 bytes → ~3,752 chars, a **~12×
-   reduction** that takes the projected save from ~16.6 MB to ~7.2 MB. (Fog is
-   large contiguous runs, so RLE would do better still.)
-2. Make `autoSave`'s catch report — a toast, and ideally a persistent HUD warning, since a
-   silently-not-advancing checkpoint is the kind of bug players only discover by losing
-   hours.
-
-### H3 — The Save/Load modal neither freezes the world nor captures input
-
-**Verified.** With the save modal open and the name field focused:
-
-| keypress | what happens |
-|---|---|
-| `Space` | `preventDefault()` — **the space is never typed into the save name** |
-| `v` | opens the radial menu **on top of the save modal** |
-| `ArrowDown` / `ArrowUp` | swallowed; also steps the hero |
-| `z` | swings the sword |
-
-And the world keeps running underneath: with the modal open, one `update(16)` moved the
-hero. Since `stepPlayerMovement` ends in `tryTransition()` (`player.js:1888`), the player
-can walk off the map edge while the save dialog is up.
-
-The cause is that the save modal is absent from both gates:
-
-- the freeze chain in `main.js:101-111` lists `radialMenuOpen`, `ledgerOpen`,
-  `statsPageOpen`, `worldMapOpen`, `sysMenuOpen`, `victoryOpen`, `dialogueOpen`,
-  `cutsceneBlocking` — but has no term for `modalMode`;
-- the keydown handler (`main.js:241-378`) has a branch for every one of those overlays and
-  none for this one.
-
-The hero-name prompt gets this right — its input calls `e.stopPropagation()`
-(`main.js:82`). The save-name input (`save.js:681-684`) does not.
-
-**Fix.** Add `modalMode` to both chains, and add `e.stopPropagation()` to the
-`modal-name-input` listener to match `name-input`.
+**Fix.** Clear `cutsceneActive` (and ideally `_csSteps`/`_csIndex`) *before*
+calling `closeDialogue()` in `cancelCutscene()`, not after, so the guard in
+the `say` step's callback is already false when it runs.
 
 ---
 
 ## Medium
 
-### M1 — Shop and portal modals don't freeze the world either
+### M1 — Water-region beach "Stones" can be cut but never picked up; the region's Stone Shard trade is permanently unavailable
 
-**Verified** — the hero moved one step under an open shop modal. Same root cause as H3:
-`shopOpen` and `portalOpen` gate *keyboard* input (`main.js:262`, `:271`) and canvas
-touches (`main.js:507-517`), but neither appears in the `update()` freeze chain.
+**Verified by direct read.** Cutting a `T.STONES` cluster sets
+`dropType = 'stone'` (`projectiles.js:465`), which is pushed into `drops[]`.
+`stepDrops`'s pickup dispatch (`projectiles.js:942-1206`) has a case for
+every other foliage-cut drop type (herbal, mushroom, fiddlehead, seashell,
+coral, sage, moss, crystal, mote, and the rest) except `'stone'`. There is no
+`else` branch, so the drop never sets `d.collected`, never calls `addItem`,
+never shows a toast, and just sits there until its 10-second `life` runs out.
+`player.stones` can never leave 0, so the General Store's "Stone Shard" sell
+row (generated from `TROPHIES`'s `id:'stone'` entry) stays permanently
+disabled in every Water-region village.
 
-Mostly masked today because shops only open in cleared villages, where nothing is alive to
-hurt you — but the hero still walks under the modal (which is why `closeShopModals` has to
-force-clear `keys` at `shop-core.js:60`, treating the symptom), villagers still step, and
-`tryTransition()` can still fire. Adding the two flags to the freeze chain removes the need
-for that workaround.
+**Fix.** Add a `'stone'` case to the pickup switch in `stepDrops`, matching
+the shape of its neighbors (e.g. `'seashell'`).
 
-### M2 — Hero name is interpolated into `innerHTML` unescaped
+### M2 — `skipPrologue()` never grants the starting potions
 
-`stats.js:189`:
+**Verified by direct read.** `prologue.js:1063` states the invariant this
+function exists to preserve: "Everything it sets must match what the beats
+set, or a skipped run diverges." It grants the bow, sword, and arrows
+(`grantGrandmothersWeapons()`) and sets every prologue flag, but the 5 Minor
+Healing Potions granted when the player talks to Grandmother
+(`prologue.js:406-411`, gated on `gran_potions_given`) are never granted by
+the skip path, and the flag is never set. `STARTING_ITEM_AMOUNT` is 0
+(`player.js:15`), so a "New Game, skip prologue" hero starts the open world
+with 0 potions, while a hero who played the prologue and talked to
+Grandmother has 5.
 
-```js
-<div class="stats-name">${p.heroName || 'The Hero'}</div>
-```
+**Fix.** Call the same grant (or a small shared helper) from `skipPrologue()`.
 
-**Verified**: naming a hero `<img src=x onerror="...">` and opening the Character page
-executes the script. Every other surface that shows the name uses `textContent` and is safe
-(`save.js:486`, `:515`, `:521`).
+### M3 — Two of the 13 zone bosses break the otherwise-clean stat progression
 
-This is self-inflicted in a local single-player game, so the practical risk is low — but it
-also means a perfectly innocent name containing `<`, `&`, or `'` renders wrong or breaks the
-panel. Escape it, or build that node with `textContent` like the save-slot list does.
+**Verified.** Every other boss stat climbs (or holds) in region order across
+HP, damage, and XP. Two don't:
+
+- `archmage_void` (Mana, `enemies.js:185`) awards `xp: 90000`, less than
+  `hydra_queen` (Poison, the region immediately before it, `enemies.js:184`,
+  `xp: 100000`). HP and damage still climb normally (940→1100, 28→32) for this
+  pair, so only the XP value looks mistyped.
+- `wind_djinn` (Air, `enemies.js:180`) has `hp: 620`, less than both
+  `gaia_colossus` (Earth, `hp: 680`) and `magma_tyrant` (Volcanic, `hp: 700`)
+  immediately before it. Its speed (500) is notably higher than its
+  neighbors' (650-800), which could be a deliberate fast-but-fragile
+  archetype rather than a typo. Worth a deliberate call either way.
+
+**Fix, if these are typos:** bump `archmage_void.xp` above 100000 and
+`wind_djinn.hp` above 700, matching the neighboring gaps. If either is
+intentional, a one-line comment would keep the next audit pass from flagging
+it again.
+
+### M4 — Guild Bounty and Man-Eater elites skip the game's global XP halving
+
+**Verified.** `makeBountyEnemy` (`guild.js:320`) computes
+`xp: Math.floor(base.xp * 0.75)`. Every other spawn path applies the
+documented "Global XP rebalance: all enemies award half their D&D-derived
+value" rule explicitly: `spawnEnemiesForMap` (`enemies.js:1337`,
+`base.xp * xpMul * 0.5`) and `makeGuildBossEnemy` (`guild.js:93`,
+`base.xp * 0.5`). A Bounty or Man-Eater kill nets 50% more XP per base value
+than an ordinary kill of the same creature, stacked on top of already being a
+3-5x-HP elite. Worth confirming whether the richer payout is the point (the
+Guild pays well) or the halving was simply never applied here.
+
+### M5 — `resetGame()` doesn't clear `player.frogOracleMapId`
+
+**Verified.** `DEFAULT_PLAYER` (`save.js:181`) defaults this to `null`, so a
+save loaded via `applyLoadData` is fine. But `resetGame()` (the in-game "New
+Game" button, `save.js:866-906`) never lists this field in its
+`Object.assign`, so starting a second playthrough from inside a running
+session (without reloading the page) leaves the old world's map id behind.
+`ensureEarthFrog` (`villagers.js:800`) gates the Earth-region frog easter egg
+on this field matching the *current* world's map id, so in the new world no
+Earth dead-end will ever match the stale id, and the frog silently never
+spawns for the rest of that session. No crash or corruption, just permanent,
+silent content loss on a common flow (New Game without a page reload). Note
+`titleNewGame()`/`titleNewGameSkip()` are unaffected, since they run on a
+freshly-booted page where the field was never set.
+
+**Fix.** Add `frogOracleMapId: null` to `resetGame()`'s reset block.
 
 ---
 
 ## Low
 
-### L1 — Damage numbers survive map transitions
+- **`prologue.js:326` — `dog_fled` is set but never read.** A second dead
+  prologue flag alongside the already-tracked `dog_outrun` (`prologue.js:1072`).
+  Neither the "punched it down" nor the "outran it" outcome of the dog
+  encounter is ever checked anywhere else in the codebase.
+- **`prologue.js:1072` — `skipPrologue()` always hardcodes `dog_outrun`**,
+  never `dog_fled`. Harmless today since neither flag is read, but if either
+  is wired up later, skipped runs will be structurally unable to represent
+  the "punched it down" outcome.
+- **`save.js` — `DEFAULT_PLAYER` and `resetGame()` both omit `bowTimer`**,
+  unlike its sibling `punchTimer` (present in both) and `swordTimer`
+  (explicitly force-reset). `bowTimer` is live bow-draw-pose animation state.
+  Loading a save mid-draw, or hitting New Game mid-draw, can leave the hero
+  briefly rendered in the bow-draw pose out of context. Self-corrects within
+  ≤280ms since `main.js:130` ticks it to 0 regardless of source, so this is
+  cosmetic only. Same class of oversight as M5: a field present in the live
+  player object but forgotten in one of its reset/default siblings.
+- **`portal.js:213-220` — the exact duplicate-listener bug already fixed in
+  shop-core.js was never cleaned up here.** Both a `DOMContentLoaded`
+  registration and an immediate direct registration attach the same
+  click-outside-closes-modal handler to `#portal-modal-overlay`. Harmless
+  (`closePortalModal()` is idempotent) but it's dead weight matching a pattern
+  the project already identified and fixed elsewhere.
+- **`stats.js` — `statsRAF` is dead state.** Declared, checked, and
+  `cancelAnimationFrame`-ed, but nothing ever assigns it a real
+  `requestAnimationFrame` handle since the portrait animation loop it once
+  drove was removed in favor of a static image (the file's own comment says
+  so). `cancelAnimationFrame(null)` is a silent no-op, so no functional
+  effect, just leftover scaffolding.
+- **`cutscene.js:167` — the `emperorFly` step's `freeze: false` branch is
+  dead code.** No call site in `prologue.js` ever passes `freeze: false` for
+  this step type, so the non-blocking path is currently unreachable in
+  shipped content.
+- **`mapgen-biomes.js:1106-1119` — an 18-line dry-sandbar feature never
+  executes.** It's guarded by `region.pathDry !== undefined`, but no entry in
+  `regions.js`'s `REGIONS` table ever sets `pathDry`, so the condition is
+  always false. Looks like one half of a design (a consumer wired up, the
+  data side never connected) that was superseded by the current
+  shallow/medium/deep water-banding approach without being removed.
+- **`mapgen-biomes.js:952-953` — a comment describing the water region's
+  paths as "shallow water" is stale.** `regions.js:50` actually sets the
+  water region's `path` to `T.SAND`; its corridors are dry sand, matching
+  `mapgen-terrain.js`'s own language elsewhere. Likely the other half of the
+  same superseded design as the dead code above.
+- **`mapgen-biomes.js:939` (and `regions.js`'s own header) undercounts the
+  regions sharing `buildRegionMap`.** The comment says "the seven later
+  elemental regions," naming nine, while the function actually supports
+  eleven (volcanic and shadow are also fully wired in). Documentation drift
+  as regions were added over time; no behavioral effect.
+- **`mapgen-tower.js:444-451` — a comment misdescribes the Shadow Vault's
+  placement algorithm** as "a fixed offset from the floor's centre" when the
+  code is actually a plain top-left raster scan for the first open 5x5
+  patch. Functionally harmless (still deterministic per floor), just an
+  inaccurate description for the next reader. Lower confidence than the
+  other findings in this section.
+- **`enemies.js:76-77` — `kuo_toa`'s `cr` flavor tag reads oddly next to
+  `sahuagin`'s.** `sahuagin` is tagged the nominally tougher `cr: '1/2'` with
+  lower or equal hp/dmg/xp than `kuo_toa`'s `cr: '1/4'`. Since `cr` is
+  documented as unused at runtime and appears to preserve each creature's
+  real Monster Manual rating rather than the game's own tier curve (see also
+  `lich` at `cr: 21` beside a much-less-scary-in-game `vampire` at `cr: 5`),
+  this is very likely intentional flavor, flagged only as a "does this look
+  right to you" item, not a balance regression, since no gameplay stat
+  (hp/dmg/xp) breaks order within any region's own roster.
+- **`enemies.js:1135` — a `continue` as the last statement of its enclosing
+  loop body has no effect.** Harmless leftover from a refactor.
+- **`villager-sprite.js`'s `TINT_CACHE` and `render.js`'s `minimapCanvases`
+  have no eviction**, unlike every other cache in the rendering layer, which
+  invalidates deliberately. In practice this isn't a real leak (villager
+  palettes come from a small fixed set of hex literals, so the cache tops
+  out at a few dozen small canvases), flagged only as an inconsistency with
+  the codebase's otherwise-careful cache hygiene.
 
-**Verified.** `spawnEnemiesForMap` clears `projectiles`, `particles` and `drops` on a map
-change (`enemies.js:445-447`) but not `damageNumbers`. Entries hold a live `entity`
-reference (`projectiles.js:715`), so a number spawned just before a transition keeps
-rendering at the *old* enemy's tile coordinates on the *new* map for up to ~1.1 s.
-One-line fix: add `damageNumbers = []` alongside the other three.
+### Speculative, lower confidence
 
-### L2 — `DEFAULT_PLAYER`'s object fields are shared by reference
+- **`prologue.js` — Grandmother is left standing, unwounded, and silently
+  non-interactive during the Beat 4 run home.** `pgWound(...)` at
+  `prologue.js:770` wounds six named characters but not Grandmother; she
+  isn't relocated until Beat 5. `PG_LINES.grandmother` returns `null` under
+  `village_burning` (`prologue.js:389`), so a player who detours to her
+  original mark during the player-controlled window (`prologue.js:778-780`)
+  gets no line and no sign anything is wrong, ahead of Beat 5's "pinned under
+  a beam" reveal. Exact tile reachability from that spot wasn't confirmed.
+- **`prologue.js:477-479` — Mother's dying words assert a specific action**
+  ("You set it by the hearth, like I asked.") that the flag gating her death
+  (`fetch_quest_complete`, meaning only that the package is in hand) doesn't
+  actually verify happened. Likely intentional narrative compression, not a
+  bug, since the Beat 3 trigger radius (7 tiles) could plausibly fire before
+  the player has stepped inside.
+- **`corruption.js` — dormant enemies are excluded from corruptibility
+  checks** (`isCorruptible()`, line 152), and corruption state only resyncs
+  on map entry or cleansing. If a dormant golem wakes mid-visit after the
+  blight reaches its region, it might fight at un-corrupted stats until the
+  player leaves and re-enters. Not confirmed reachable from the files read;
+  flagged as a hypothesis for whoever next touches enemies.js and
+  corruption.js together.
 
-**Verified**: `Object.assign({}, DEFAULT_PLAYER, {}).arrows === DEFAULT_PLAYER.arrows`.
+---
 
-`applyLoadData` (`save.js:191`) does `Object.assign(player, sellableDefaults(),
-DEFAULT_PLAYER, data.player)`, then defensively re-clones `regionPotions`, `elixirs`,
-`collectorQuests`, `armorUpgrades`, `swordUpgrades` and others — but **not**
-`swordElements`, `armorElements`, `arrows`, or `swordDir` (`save.js:158-164`). Those are
-mutated in place elsewhere (`shop-blacksmith.js:448`, `:473`; `player.js:41`), so a save
-missing any of those keys would let the blacksmith permanently pollute `DEFAULT_PLAYER` for
-the rest of the session.
+## Not bugs: design decisions worth writing down
 
-Not currently reachable — every real save writes all four — so this is latent, not live.
-Worth closing anyway since the surrounding code already established the pattern.
-
-### L3 — Duplicate overlay listeners in `shop-core.js`
-
-`shop-core.js:64-75` registers the same outside-click handler twice: once inside a
-`DOMContentLoaded` callback, once immediately as a "fallback for when the script loads
-after DOMContentLoaded already fired". Classic scripts at the end of `<body>` run *before*
-`DOMContentLoaded`, so both always register. Harmless — `closeShopModals` is idempotent —
-but the fallback is dead weight and the doubled handler is misleading. Keep only the
-immediate registration.
-
-### L4 — Map generation is not deterministic, and the `seed` parameter is ignored
-
-The project's own linter reports this: `python tools/lint-conventions.py` → **0 errors, 68
-warnings**, all `Math.random() in generation code -- same seed must give same map`.
-
-`buildForestMap(seed, …)`, `buildDesertMap(seed, …)` and `buildRegionMap(seed, …)` all
-accept a `seed` and none of them use it; generation runs on bare `Math.random()`/`rnd()`.
-This is what makes H1 destructive rather than merely lossy — a regenerated map isn't a
-slightly different version of the original, it's an entirely unrelated one. Threading a
-small seeded PRNG through `rnd()` would fix H1's terrain half outright and make map
-regeneration a legitimate save-size strategy rather than a corruption vector.
-
-`prologue.js:1072` also sets the flag `dog_outrun`, which nothing reads.
+- **`village-shadow.js` (~650 lines) is a large, permanent, hand-rolled
+  procedural drawing system** for the shadow region's villages, including
+  the Obsidian Spire castle. This was flagged against a blanket "always use
+  Aseprite, never procedural drawing code" convention that existed in
+  project notes at the time of this audit; that blanket rule has since been
+  removed (2026-09-05), so this file is no longer an exception to anything
+  and needs no further action here. Noted for the record only.
+- **Umbral Sanctum / Obsidian Spire status, clarified.** None of the
+  `mapgen-*.js` files gate or block this region. `regions.js` fully defines
+  the shadow region's overworld generation (village name, boss, enemy tier,
+  landmark) exactly like every other late-game region, and `buildRegionMap`
+  supports it with no missing wiring. What's actually true: `mapgen-village.js`
+  has a bespoke dressing block for every other late region *except* shadow,
+  because the shadow region's boss village is built entirely by
+  `village-shadow.js` instead. No orientation-check gate was found in
+  `mapgen-*.js`, `world.js`, or `village-shadow.js` in this pass; if a memory
+  entry says this feature is currently blocked, that specific claim should
+  be re-verified against `village-shadow.js`'s actual entry conditions before
+  being repeated again, since this pass didn't locate it.
+- **Villager sprites are further along than my own notes said.** The
+  ambient-crowd sheet (`villager-sprite.js` + `villager-atlas.js` +
+  `villager-sheet.png`) is complete and shipped, wired into `villagers.js`.
+  Every role-bearing NPC and the fallen-pose scene stay procedural *on
+  purpose*, because their overlays are hand-anchored to the procedural
+  body's geometry and re-anchoring them to the sheet is separate, deferred
+  work, not an omission. Separately, the abandoned low-resolution revert
+  mentioned in project history was to the *hero* sprite, not the villagers,
+  and it never merged: it lives only on the unmerged branch
+  `hero-revert-lowres` (commit `8cb05d9`, whose own message says "not
+  intended for main"). There is no dead code from it on `main`.
 
 ---
 
 ## Suggested order of work
 
-1. **H2's autosave catch** — one line, and it's the difference between a visible problem
-   and a silent one.
-2. **H3 + M1** — add `modalMode`, `shopOpen`, `portalOpen` to the `update()` freeze chain
-   and the keydown chain; `stopPropagation` on the save-name input. Small, contained, and
-   fixes a bug players hit every time they name a save.
-3. **H1** — persist `sealed` and the open-side set; re-run `reconcileOpenSides` after
-   rebuild. This is the one that quietly corrupts long games.
-4. **H2's fog packing** — bit-pack + base64.
-5. **M2, L1, L2, L3** — small, independent.
-6. **L4** — largest change, and the enabler for doing H1/H2 properly rather than patching.
+1. **H1** — the cutscene-cancel leak. Small, contained fix (reorder two
+   lines), and it's the only finding in this pass that can leave the game in
+   a visibly broken state (a dialogue box with nothing behind it, or the
+   hero walking on its own).
+2. **M1** — the dead Water-region Stones drop. One missing `case` in a
+   switch statement, and it's a permanent, silent content gap for anyone
+   playing that region.
+3. **M2** — `skipPrologue()`'s missing potions. One function call, closes a
+   real (if minor) unfair-start gap between the two "New Game" paths.
+4. **M3, M4** — the two boss stat outliers and the Guild XP-halving skip are
+   all one-line changes, but need a judgment call first: typo or intentional?
+   Worth a quick decision from you before either gets "fixed."
+5. **M5** and its Low sibling (`bowTimer`) — add the two missing fields to
+   `resetGame()`/`DEFAULT_PLAYER`. Same shape as the L2 fix from the last
+   audit; worth doing as one pass since the pattern (a field present in the
+   live player object but forgotten in a reset/default block) has now
+   recurred twice.
+6. **Everything else in Low** — independent, low-risk, no urgency.
+7. **The two "not bugs" items** aren't code changes; they're a documentation
+   decision (ratify the shadow-village exception) and a note to re-verify
+   before repeating the Umbral Sanctum "blocked" claim again.
+
+---
+
+## Other things worth your attention
+
+- **The design workbook wasn't checked in this pass.** `Game1.current.xlsx`
+  tracks enemy stats among other tables; if M3/M4 above turn out to be real
+  typos rather than intentional design, the workbook likely needs the same
+  correction once the code does. Worth a `design-workbook` skill pass after
+  those are resolved, not before.
+- **Two of my own project-memory notes were stale and have been corrected**
+  as part of this audit: `sprite-verifier-tooling` said the four tools in
+  `tools/` were untracked; they were committed on 2026-08-30 (`1e950b0`) and
+  that memory now reflects it. The villager-sprite status is corrected above
+  rather than in memory directly. No code changes resulted from either
+  correction, just fixing my own notes so they stop asserting something
+  that's no longer true.

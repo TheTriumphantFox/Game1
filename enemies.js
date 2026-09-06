@@ -177,12 +177,12 @@ const DND_ENEMIES = {
   frost_titan:    { name: 'FROST TITAN',         hp: 580,  spd: 750, dmg: 20, xp: 14500, color: '#9cdcff', size: 1.7,              boss: true, cr: 'Boss', element: 'ice' },
   gaia_colossus:  { name: 'GAIA COLOSSUS',       hp: 680,  spd: 800, dmg: 22, xp: 14500, color: '#7a6a45', size: 1.8,              boss: true, cr: 'Boss' },
   magma_tyrant:   { name: 'MAGMA TYRANT',        hp: 700,  spd: 650, dmg: 22, xp: 20000, color: '#cc3311', size: 1.7, ranged: true, boss: true, cr: 'Boss', element: 'volcanic' },
-  wind_djinn:     { name: 'STORMCROWN DJINN',    hp: 620,  spd: 500, dmg: 22, xp: 29500, color: '#c8d8f0', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'air' },
+  wind_djinn:     { name: 'STORMCROWN DJINN',    hp: 700,  spd: 500, dmg: 22, xp: 29500, color: '#c8d8f0', size: 1.6, ranged: true, boss: true, cr: 'Boss', element: 'air' },
   storm_lord:     { name: 'VOLTHEART LORD',      hp: 700,  spd: 550, dmg: 24, xp: 36000, color: '#ffe055', size: 1.7, ranged: true, boss: true, cr: 'Boss' },
   seraph_judge:   { name: 'SERAPH OF JUDGEMENT', hp: 760,  spd: 600, dmg: 24, xp: 57500, color: '#fff2a0', size: 1.7, ranged: true, boss: true, cr: 'Boss', element: 'luminous' },
   death_knight:   { name: 'PALE KING',           hp: 860,  spd: 650, dmg: 28, xp: 65000, color: '#aa66dd', size: 1.8, ranged: true, boss: true, cr: 'Boss', element: 'necrotic' },
   hydra_queen:    { name: 'HYDRA QUEEN',         hp: 940,  spd: 700, dmg: 28, xp:100000, color: '#88cc44', size: 1.9, ranged: true, boss: true, cr: 'Boss', element: 'poison' },
-  archmage_void:  { name: 'VOID ARCHMAGE',       hp:1100,  spd: 600, dmg: 32, xp: 90000, color: '#aa66ee', size: 1.9, ranged: true, boss: true, cr: 'Boss' },
+  archmage_void:  { name: 'VOID ARCHMAGE',       hp:1100,  spd: 600, dmg: 32, xp:120000, color: '#aa66ee', size: 1.9, ranged: true, boss: true, cr: 'Boss' },
   eclipse_sovereign:{ name: 'ECLIPSE SOVEREIGN', hp:1250,  spd: 600, dmg: 34, xp:150000, color: '#1a0f2e', size: 2.0, ranged: true, boss: true, cr: 'Boss', element: 'shadow' },
 
   // The final boss atop the castle tower — sleeps on its hoard until every
@@ -1117,7 +1117,9 @@ function makeEnemyDefs(depth, mapType, map) {
 
   for (let i = 0; i < count; i++) {
     const type = pool[Math.floor(Math.random() * pool.length)];
-    let placed = false;
+    // If we can't find an open tile in MAX_TRIES, the loop just falls through
+    // without pushing a def, dropping the spawn rather than placing it inside
+    // a wall. With normal forest density this should basically never happen.
     for (let t = 0; t < MAX_TRIES; t++) {
       const x = rnd(spread, MCOLS - spread);
       const y = rnd(spread, MROWS - spread);
@@ -1125,14 +1127,9 @@ function makeEnemyDefs(depth, mapType, map) {
         const def = { type, x, y };
         if (tier15) def.tier15 = true;
         defs.push(def);
-        placed = true;
         break;
       }
     }
-    // If we couldn't find an open tile in MAX_TRIES, drop the spawn rather
-    // than place it inside a wall. With normal forest density this should
-    // basically never happen.
-    if (!placed) continue;
   }
 
   if (isVillage) {

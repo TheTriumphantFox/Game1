@@ -209,11 +209,10 @@ function portalLandingSpot(target) {
   return { x: Math.floor(MCOLS / 2), y: Math.floor(MROWS / 2) };
 }
 
-// Close on click outside the modal (matches shop modal behaviour).
-document.addEventListener('DOMContentLoaded', () => {
-  const el = document.getElementById('portal-modal-overlay');
-  if (el) el.addEventListener('click', e => { if (e.target === el) closePortalModal(); });
-});
+// Close on click outside the modal. Registered directly, not inside a
+// DOMContentLoaded callback: these scripts sit at the end of <body>, so the overlay
+// element is already parsed by the time this runs (see the matching fix and its
+// fuller explanation in shop-core.js).
 const _portalOverlay = document.getElementById('portal-modal-overlay');
 if (_portalOverlay) {
   _portalOverlay.addEventListener('click', e => { if (e.target === _portalOverlay) closePortalModal(); });

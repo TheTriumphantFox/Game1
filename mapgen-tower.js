@@ -441,8 +441,9 @@ function towerShadowVault(m, floorIdx) {
     }
     return true;
   };
-  // Fixed scan order from the middle of the floor outward, so every climb finds
-  // the vault in the same masonry rather than somewhere new each time.
+  // Plain top-left-to-bottom-right raster scan for the first fully-solid 5x5
+  // patch, so every climb finds the vault in the same masonry rather than
+  // somewhere new each time.
   let spot = null;
   for (let r = 20; r < MROWS - 20 && !spot; r++) {
     for (let c = 20; c < MCOLS - 20; c++) {

@@ -936,10 +936,11 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
   return m;
 }
 
-// Palette-swap of buildDesertMap for the seven later elemental regions (water,
-// ice, earth, air, lightning, luminous, necrotic, poison, mana). Takes a
-// region object from REGIONS — that supplies border/ground/decoration/accent
-// tiles and everything else here is identical structure to the desert builder.
+// Palette-swap of buildDesertMap for the eleven later elemental regions (water,
+// ice, earth, volcanic, air, lightning, luminous, necrotic, poison, mana,
+// shadow). Takes a region object from REGIONS — that supplies border/ground/
+// decoration/accent tiles and everything else here is identical structure to
+// the desert builder.
 function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   // Region id is part of the seed material so two regions sharing a seed/depth don't
   // generate the same shape under different palettes.
@@ -950,7 +951,7 @@ function buildRegionMap(seed, depth, openSides, region, placeDungeon) {
   const BORDER = region.border, GROUND = region.ground;
   const DECOR = region.decoration, ACCENT = region.accent;
   // Region-specific corridor tile. Defaults to the dirt PATH; the water region
-  // overrides this with SHALLOW_WATER so its paths read as a wadeable channel.
+  // overrides this with SAND so its corridors read as dry beach rather than mud.
   const PATHTILE = region.path || T.PATH;
   const m = makeTile(MROWS, MCOLS, BORDER);
 

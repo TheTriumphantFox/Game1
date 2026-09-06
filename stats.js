@@ -17,7 +17,6 @@
 // matching the shop / portal / ledger modal pattern.
 
 let statsPageOpen = false;
-let statsRAF = null;          // requestAnimationFrame handle for the element FX
 
 // ─── Portrait artwork ─────────────────────────────────────────────────────────
 // The character-sheet portrait is a painted illustration (hero-portrait.png) drawn
@@ -51,7 +50,6 @@ function openStatsPage() {
 function closeStatsPage() {
   statsPageOpen = false;
   document.getElementById('stats-modal-overlay').classList.remove('open');
-  if (statsRAF !== null) { cancelAnimationFrame(statsRAF); statsRAF = null; }
 }
 
 // ─── Stat readout ─────────────────────────────────────────────────────────────
@@ -628,7 +626,6 @@ function drawStatsProceduralModel(g2, canvas, cssW, cssH, dpr) {
 
 function startStatsModel() {
   statsHeroCache = null;   // procedural-fallback cache may be stale
-  if (statsRAF !== null) { cancelAnimationFrame(statsRAF); statsRAF = null; }
   // The portrait is a static image now, so a single paint is enough. If the
   // artwork is still loading, its onload handler repaints once it's ready.
   drawStatsModel();
