@@ -22,6 +22,7 @@ function startGame() {
 // the hero's name, then drop the title and greet the player.
 function titleNewGame() {
   openNamePrompt(name => {
+    initializeNewRunCheckpoint();
     player.heroName = name;
     startGame();
     // Straight into the opening beat — no "you awaken" banner, because the
@@ -38,6 +39,7 @@ function titleNewGame() {
 // screen for a second playthrough.
 function titleNewGameSkip() {
   openNamePrompt(name => {
+    initializeNewRunCheckpoint();
     player.heroName = name;
     startGame();
     if (typeof skipPrologue === 'function') skipPrologue();
@@ -104,6 +106,9 @@ function update(dt) {
   // tryTransition() and leave the map with the modal still up. That gap is also why
   // closeShopModals has to force-clear `keys` on the way out (shop-core.js): it was
   // treating the symptom. modalMode is the save/load modal (save.js), null when shut.
+  // namePromptOpen was missing too: the in-game 🆕 New button (save.js newGame())
+  // opens it mid-run, after gameStarted is already true, so without this the world
+  // kept ticking (enemies, cooldowns, held movement) behind the hero-name modal.
   if ((typeof radialMenuOpen    !== 'undefined' && radialMenuOpen)    ||
       (typeof ledgerOpen        !== 'undefined' && ledgerOpen)        ||
       (typeof statsPageOpen     !== 'undefined' && statsPageOpen)     ||
@@ -115,6 +120,7 @@ function update(dt) {
       (typeof portalOpen        !== 'undefined' && portalOpen)        ||
       (typeof victoryOpen       !== 'undefined' && victoryOpen)       ||
       (typeof dialogueOpen      !== 'undefined' && dialogueOpen)      ||
+      namePromptOpen                                                 ||
       (typeof cutsceneBlocking  !== 'undefined' && cutsceneBlocking)) {
     updateHUD();
     return;
@@ -275,10 +281,15 @@ document.addEventListener('keydown', e => {
   // The Controls window is capturing a key for rebinding: it takes this press
   // and nothing else sees it. Before every other branch, because a player
   // rebinding "menu" must not also open the menu with the key they are assigning.
+  // controlsCaptureKey returns false (instead of its usual true) for Tab/Enter/
+  // Space when the window is open but idle, so the browser's native focus-move
+  // and button-activate behavior still works inside it — the check right after
+  // still stops those keys from reaching the gameplay chain below.
   if (typeof controlsCaptureKey === 'function' && controlsCaptureKey(e)) {
     e.preventDefault();
     return;
   }
+  if (typeof controlsOpen !== 'undefined' && controlsOpen) return;
   // Everything below reads `ck`, not e.key: the pressed key translated into the
   // key this code was written against (canonicalKey, config.js). One translation
   // at the boundary, so no reader downstream knows rebinding exists.

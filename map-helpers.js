@@ -92,10 +92,9 @@ function rnd(a, b) {
 // but the moment the hero cuts foliage, bombs a rock, or raises a boss chest, the live
 // map and its recipe diverge and the tiles have to be stored.
 //
-// A hash rather than a diff on purpose. Regenerating a map to diff against costs ~6ms,
-// which is ~1.5s across a full world on every autosave; hashing is ~0.05ms, so the
-// clean/dirty question is answered for the whole world in a few milliseconds and only
-// genuinely modified maps pay for their tiles.
+// A hash still answers the clean/dirty question cheaply for every map. Only a dirty
+// seeded map is later rebuilt to produce its sparse delta, and save.js caches those
+// pristine baselines so subsequent autosaves do not regenerate them.
 function tileHash(mapArr) {
   let h = 0x811c9dc5;
   for (let r = 0; r < MROWS; r++) {
@@ -480,7 +479,7 @@ function scatterOn(m, tile, count, base) {
 function isProtectedFeature(t) {
   return isChestTile(t) || t === T.SHRINE || t === T.DUNGEON_DOOR ||
          t === T.FLOOR || t === T.PILLAR || t === T.TORCH ||
-         t === T.DOOR || t === T.PORTAL;
+         t === T.DOOR || t === T.WATERFALL_DOOR || t === T.PORTAL;
 }
 
 // Carve a winding channel from (sr,sc) toward (er,ec). Paints a band `width`
@@ -584,10 +583,12 @@ function freezeWaterToIce(m) {
 // water or land. The defaults fit big open water (~30% of maps, 8 tiles off
 // the medium shelf); small-pool regions pass a lower clearance — anything ≥2
 // still keeps the vortex AND its 1-tile suction ring fully inside swim-only
-// water, never beside where the player can wade or stand. The whirlpool tile
-// is solid (so it never changes connectivity), exactly like the medium water
-// it replaces. Returns true if one was placed. Run after all water has been
-// finalized (depth banding / demotion) and after connectivity.
+// water, never beside where the player can wade or stand. The chosen medium
+// tile must also belong to the armor-reachable component, so Water armor can
+// actually reach the optional vortex. The whirlpool tile is solid (so it never
+// changes connectivity), exactly like the medium water it replaces. Returns
+// true if one was placed. Run after all water has been finalized (depth banding /
+// demotion) and after connectivity.
 const WHIRLPOOL_CLEARANCE = 8;
 function placeWhirlpool(m, chance = 0.30, clearance = WHIRLPOOL_CLEARANCE) {
   if (genRandom() >= chance) return false;
@@ -613,11 +614,22 @@ function placeWhirlpool(m, chance = 0.30, clearance = WHIRLPOOL_CLEARANCE) {
       queue.push(ni);
     }
   }
-  // Collect every medium-water tile far enough from shore, then pick one.
+  // Connectivity has already joined every open exit. Ask its combined-armor
+  // graph for the component that a Water-armored player can reach, then only
+  // choose a vortex from that component. The fallback keeps this helper safe for
+  // any old caller that runs without the connectivity script.
+  const starts = typeof connectivityPrimaryStart === 'function'
+    ? connectivityPrimaryStart(m) : [];
+  const armorReachable = starts.length && typeof connectivityReachableWithArmor === 'function'
+    ? connectivityReachableWithArmor(m, starts) : null;
+
+  // Collect every medium-water tile far enough from shore and reachable with
+  // the Water traversal state, then pick one.
   const candidates = [];
   for (let r = 1; r < MROWS - 1; r++)
     for (let c = 1; c < MCOLS - 1; c++)
-      if (m[r][c] === T.MEDIUM_WATER && dist[r * MCOLS + c] >= clearance)
+      if (m[r][c] === T.MEDIUM_WATER && dist[r * MCOLS + c] >= clearance &&
+          (!armorReachable || armorReachable[r * MCOLS + c]))
         candidates.push([r, c]);
   if (!candidates.length) return false;
   const [wr, wc] = candidates[Math.floor(genRandom() * candidates.length)];
@@ -698,7 +710,10 @@ function cutExits(m, hasLeft, hasRight, hasUp, hasDown) {
 }
 
 // ─── Map tile (de)serialization ───────────────────────────────────────────────
-// Base64-pack a map's tiles for compact save-slot storage.
+// Base64-pack a map's tiles for the old save format. New saves use either the
+// sparse delta below (seeded maps) or the compact RLE form (maps without a
+// regeneration recipe); keeping this raw codec lets the loader understand an
+// older slot without making the new format depend on it.
 function encodeMap(mapArr) {
   const buf = new Uint8Array(MROWS * MCOLS);
   for (let r = 0; r < MROWS; r++) buf.set(mapArr[r], r * MCOLS);
@@ -709,6 +724,7 @@ function encodeMap(mapArr) {
 
 function decodeMap(b64) {
   const bin = atob(b64);
+  if (bin.length !== MROWS * MCOLS) throw new Error('Invalid raw map length');
   const mapArr = [];
   for (let r = 0; r < MROWS; r++) {
     const row = new Uint8Array(MCOLS);
@@ -716,4 +732,104 @@ function decodeMap(b64) {
     mapArr.push(row);
   }
   return mapArr;
+}
+
+// Store only [flat tile index, replacement tile] pairs. The flat array is
+// intentionally JSON-friendly: one changed cell is `[index, tile]` rather than
+// another 30 KB map. `baseline` is the exact seeded map rebuilt from its recipe.
+function encodeMapDelta(mapArr, baseline) {
+  const delta = [];
+  for (let r = 0; r < MROWS; r++) {
+    for (let c = 0; c < MCOLS; c++) {
+      if (mapArr[r][c] !== baseline[r][c]) delta.push(r * MCOLS + c, mapArr[r][c]);
+    }
+  }
+  return delta;
+}
+
+function applyMapDelta(mapArr, delta) {
+  if (!Array.isArray(delta) || delta.length % 2) throw new Error('Invalid map delta');
+  let previous = -1;
+  for (let i = 0; i < delta.length; i += 2) {
+    const cell = delta[i], tile = delta[i + 1];
+    if (!Number.isInteger(cell) || cell <= previous || cell >= MROWS * MCOLS ||
+        !Number.isInteger(tile) || tile < 0 || tile > 255) {
+      throw new Error('Invalid map delta entry');
+    }
+    mapArr[Math.floor(cell / MCOLS)][cell % MCOLS] = tile;
+    previous = cell;
+  }
+  return mapArr;
+}
+
+// Run-length encode a complete map. A run is one tile byte followed by a
+// base-128 run length, which keeps long border and room runs cheap while still
+// handling a deliberately noisy map without an integer-size assumption.
+function encodeMapRLE(mapArr) {
+  const bytes = [];
+  let last = mapArr[0][0], run = 0;
+  const flush = () => {
+    if (!run) return;
+    bytes.push(last);
+    let count = run;
+    do {
+      const low = count & 0x7f;
+      count >>>= 7;
+      bytes.push(count ? low | 0x80 : low);
+    } while (count);
+  };
+  for (let r = 0; r < MROWS; r++) {
+    for (let c = 0; c < MCOLS; c++) {
+      const tile = mapArr[r][c];
+      if (tile === last) { run++; continue; }
+      flush();
+      last = tile; run = 1;
+    }
+  }
+  flush();
+  const chars = new Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) chars[i] = String.fromCharCode(bytes[i]);
+  return btoa(chars.join(''));
+}
+
+function decodeMapRLE(b64) {
+  const bin = atob(b64);
+  const mapArr = makeTile(MROWS, MCOLS, 0);
+  const total = MROWS * MCOLS;
+  let pos = 0, cell = 0;
+  while (pos < bin.length) {
+    const tile = bin.charCodeAt(pos++);
+    let count = 0, shift = 0, byte;
+    do {
+      if (pos >= bin.length || shift > 28) throw new Error('Invalid RLE map length');
+      byte = bin.charCodeAt(pos++);
+      count += (byte & 0x7f) * (2 ** shift);
+      if (!Number.isSafeInteger(count)) throw new Error('Invalid RLE map run');
+      shift += 7;
+    } while (byte & 0x80);
+    if (!count || cell + count > total) throw new Error('Invalid RLE map run');
+    for (let i = 0; i < count; i++) {
+      const at = cell + i;
+      mapArr[Math.floor(at / MCOLS)][at % MCOLS] = tile;
+    }
+    cell += count;
+  }
+  if (cell !== total) throw new Error('Invalid RLE map length');
+  return mapArr;
+}
+
+// New complete-map payloads carry a one-character codec tag. Raw Base64 remains
+// a fallback for a pathological map where RLE would be larger; the tag keeps it
+// unambiguous from a pre-H3 `mapTiles` value.
+function encodeMapCompact(mapArr) {
+  const rle = encodeMapRLE(mapArr);
+  const raw = encodeMap(mapArr);
+  return rle.length < raw.length ? 'r' + rle : 'b' + raw;
+}
+
+function decodeMapCompact(packed) {
+  if (typeof packed !== 'string' || packed.length < 1) throw new Error('Invalid packed map');
+  if (packed[0] === 'r') return decodeMapRLE(packed.slice(1));
+  if (packed[0] === 'b') return decodeMap(packed.slice(1));
+  throw new Error('Unknown packed map codec');
 }

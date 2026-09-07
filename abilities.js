@@ -1011,7 +1011,9 @@ function placeGlideIslet(mapObj) {
 
 // A pocket hollowed inside a run of solid terrain: a chest walled in on all four
 // sides, two tiles deep from open ground — visible from the outside, and
-// unreachable without stepping through the wall.
+// unreachable without stepping through the wall. The pocket keeps one plain
+// standing tile beside the chest: Shadow Step lands there after crossing the two
+// wall tiles, while ordinary movement still cannot enter it.
 function placeShadowAlcove(mapObj) {
   const m = mapObj.map;
   const solidAt = (mm, c, r) => {
@@ -1028,7 +1030,8 @@ function placeShadowAlcove(mapObj) {
     return !solidAt(mm, c - 3, r) && !isSolid(mm, c - 3, r);
   });
   if (!spot) return false;
-  m[spot.y][spot.x] = T.CHEST;
+  m[spot.y][spot.x] = T.PATH;
+  m[spot.y][spot.x + 1] = T.CHEST;
   return true;
 }
 

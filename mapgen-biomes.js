@@ -92,9 +92,10 @@ function addSkyWindGusts(m, region) {
 // tryCaveTransition). Placed on a clearing so the whole room sits on already-open,
 // connected ground; the door is offset one tile south of the clearing centre so a
 // chest/shrine that happens to share the clearing can't land on (and clobber) it.
-// The DUNGEON_DOOR is an "interesting" tile, so ensureConnectivity always carves a
-// route to it even if the clearing pocket is otherwise walled off. Called once per
-// region, gated by createOverworldMap — never randomly per map.
+// The DUNGEON_DOOR is optional backtrack content: ensureConnectivity validates it
+// under the combined armor graph and repairs a malformed seed, but it is not part
+// of the armor-free exit contract. Called once per region, gated by
+// createOverworldMap — never randomly per map.
 function stampRuinedDungeon(m, clearings) {
   if (!clearings || !clearings.length) return;
   const cl = clearings[Math.floor(genRandom() * clearings.length)];
@@ -219,7 +220,8 @@ function buildForestMap(seed, depth, openSides, placeDungeon) {
 
   // Phase 9: the region's one ruined dungeon — placed here only when this map is
   // the chosen host for its region (see createOverworldMap). Its DUNGEON_DOOR
-  // drops into the region's dungeon; ensureConnectivity (below) guarantees a route.
+  // drops into the region's dungeon; ensureConnectivity (below) validates a route
+  // with the available armor traversal powers.
   if (placeDungeon) stampRuinedDungeon(m, clearings);
 
   // Phase 11: waterfalls — a source pool at the very top of the map spills down
@@ -258,8 +260,8 @@ function buildForestMap(seed, depth, openSides, placeDungeon) {
     // bottom of the falls. The door tile renders like the waterfall itself (so
     // it's unseen) apart from a faint glow — the only hint it's there. No path
     // is carved to it: the hero reaches it by swimming the medium-water splash
-    // pool behind the curtain. ensureConnectivity counts medium water as
-    // traversable, so the door still validates as reachable.
+    // pool behind the curtain. ensureConnectivity's combined armor graph counts
+    // the medium-water route when validating this optional door.
     if (genRandom() < 0.99) {
       m[fallBottom][wc] = T.WATERFALL_DOOR;
     }

@@ -70,6 +70,16 @@ project knowledge and the exact unfinished work found in this checkout.
 > Use a local static server for agent-side checks and ask a human for the
 > `file://` leg.
 >
+> **Update, 2026-09-01, added by a coding session.** H2 overworld connectivity is
+> now implemented and verified by `tools/verify-connectivity.js`: armor-free open
+> exits connect, and generated features plus medium-water/ledge terrain have
+> valid combined Water/Earth/Air/Shadow routes. H3 save-size growth is also fixed
+> in save format v2: seeded dirty maps store sparse tile deltas and unseeded maps
+> use tagged run-length encoding. The 180-map mutation probe round-trips at about
+> 195 KB and stores successfully in Firefox. Preserving pre-v2 saves was not a
+> requirement for this pass; the loader retains a narrow raw decoder only as a
+> convenience. New save-format changes remain uncommitted.
+>
 > Everything below this line is the 2026-08-27 snapshot and still reads as
 > written; treat its "uncommitted work" section as history, not as the state of
 > this checkout.

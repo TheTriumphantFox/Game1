@@ -137,9 +137,14 @@ function closeControlsWindow() {
 function controlsCaptureKey(e) {
   if (!controlsOpen) return false;
   if (!controlsCapturing) {
-    // Not capturing: the window is still modal, so Escape closes it and every
-    // other key is swallowed rather than reaching the world underneath.
-    if (e.key === 'Escape') closeControlsWindow();
+    // Not capturing: the window is still modal, so Escape closes it. Tab and
+    // Enter/Space return false here — the caller in main.js still stops them
+    // from reaching the world underneath, but doesn't preventDefault them, so
+    // the browser's native focus-move and button-activate behavior keeps
+    // working inside the window. Every other key (WASD, V, P, digits, ...) is
+    // still swallowed.
+    if (e.key === 'Escape') { closeControlsWindow(); return true; }
+    if (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ') return false;
     return true;
   }
   if (e.key === 'Escape') {            // cancel this one assignment, keep the window

@@ -1,11 +1,11 @@
 // ─── Save / load: named slot system ───────────────────────────────────────────
 // Stores each save under `stormdrift_slot_N` in localStorage, plus a
 // metadata index (`stormdrift_index`) with slot names and timestamps.
-// Saves written under either of the game's earlier names live under their own
-// prefixes; config.js copies them onto these keys on first load, so nothing
-// here has to know about the old names.
+// Save payloads use the compact v2 tile representation below: seeded maps carry
+// sparse changes and hand-built maps carry run-length encoded tiles.
 
 const SAVE_KEY_PREFIX = 'stormdrift_slot_';
+const SAVE_FORMAT_VERSION = 2;
 // Slot indices are 0-based here and displayed as i + 1, so this is also the
 // highest slot number the player sees. Raising it only widens the list: every
 // existing save keeps its own index and key, so nothing has to be migrated.
@@ -16,7 +16,19 @@ let pendingSlot = null;      // slot index currently being named
 
 function getSaveIndex() {
   const raw = localStorage.getItem('stormdrift_index');
-  return raw ? JSON.parse(raw) : {};
+  if (!raw) return {};
+  // A corrupted or hand-edited index used to throw straight out of JSON.parse,
+  // which broke renderSlotList() and everything that opens the save/load modal —
+  // the game had no menu left to save or load from until localStorage was
+  // cleared by hand. Treat it as an empty index instead; the modal still opens
+  // and the corrupted key is overwritten on the next setSaveIndex().
+  try {
+    const idx = JSON.parse(raw);
+    return (idx && typeof idx === 'object') ? idx : {};
+  } catch (e) {
+    console.warn('Save index was corrupted, resetting it', e);
+    return {};
+  }
 }
 function setSaveIndex(idx) {
   localStorage.setItem('stormdrift_index', JSON.stringify(idx));
@@ -25,30 +37,78 @@ function setSaveIndex(idx) {
 // Does this map's tile array have to go into the save, or can it be regenerated?
 //
 // Three ways out of paying 30 KB for a map:
-//   • never visited — the player has not seen it, and it always regenerated;
-//   • no recipe (no mapSeed / no pristineHash) — villages, caves, dungeons, tower
-//     floors, grottos, shrines and the home village are not seeded, so they always
-//     store tiles. Only the overworld builders take a seed;
-//   • seeded AND untouched — regeneration reproduces it exactly (verified byte-for-
-//     byte), so storing the tiles is redundant.
+//   • never visited — the player has not seen it, and it always regenerates;
+//   • seeded AND untouched — regeneration reproduces it exactly, so storing tiles
+//     is redundant;
+//   • seeded AND changed — only the [flat index, tile] replacements are stored;
+//     hand-built maps without a recipe use run-length encoding for their full grid.
 //
 // The moment gameplay writes to the tile array — cut foliage, a bombed rock, the
-// village boss chest, an unsealed shrine, an ability alcove — the hash diverges and
-// the tiles are stored as before. Correctness never depends on guessing which sites
-// mutate a map; the hash is what answers that.
+// village boss chest, an unsealed shrine, an ability alcove — the hash diverges.
+// The hash answers the cheap clean/dirty question; only dirty seeded maps pay the
+// one-time cost of rebuilding their pristine baseline to make a sparse delta.
 function mapNeedsStoredTiles(m) {
   if (!m.visited) return false;
   if (m.mapSeed == null || m.pristineHash == null) return true;
   return tileHash(m.map) !== m.pristineHash;
 }
 
-// Serialize everything needed to restore the world.
-// Map tiles are Base64-encoded for compactness. Maps that are unvisited — or that are
-// seeded and still exactly as generated — carry no tiles at all and are rebuilt from
-// their recipe on load (see mapNeedsStoredTiles).
+function saveRegionIndex(m) {
+  if (typeof m.regionIdx === 'number' && REGIONS[m.regionIdx]) return m.regionIdx;
+  const biome = m.biome === 'desert' ? 'fire' : m.biome;
+  const found = REGIONS.findIndex(region => region.id === biome);
+  return found < 0 ? 0 : found;
+}
+
+function isSeededOverworldType(type, regionIdx) {
+  const region = REGIONS[regionIdx];
+  return !!region && (type === region.id || (type === 'desert' && regionIdx === 1));
+}
+
+function mapHasSeedRecipe(m) {
+  return m.mapSeed != null && m.pristineHash != null &&
+         isSeededOverworldType(m.type, saveRegionIndex(m)) &&
+         typeof buildOverworldForRegion === 'function';
+}
+
+// Rebuilding a pristine seeded map is deterministic. Cache it by map object so
+// repeated autosaves do not pay the generation cost again, while a new world gets
+// a fresh cache key naturally when its map objects are replaced.
+const pristineMapCache = new WeakMap();
+function pristineMapForSave(m) {
+  if (!mapHasSeedRecipe(m)) return null;
+  const cached = pristineMapCache.get(m);
+  if (cached) return cached;
+  const regionIdx = saveRegionIndex(m);
+  const base = buildOverworldForRegion(regionIdx, m.mapSeed, m.depth,
+                                       mapOpenSides(m), !!m.placeDungeon);
+  if (m.sealed && typeof upgradeDeadEndChests === 'function') upgradeDeadEndChests(base);
+  pristineMapCache.set(m, base);
+  return base;
+}
+
+function mapTilePayload(m) {
+  if (!mapNeedsStoredTiles(m)) return {};
+  const baseline = pristineMapForSave(m);
+  if (baseline) {
+    const delta = encodeMapDelta(m.map, baseline);
+    const packed = encodeMapCompact(m.map);
+    // A badly mismatched recipe should not expand a save. RLE is the safe
+    // fallback when a sparse delta would be larger than a complete packed grid.
+    if (JSON.stringify(delta).length < packed.length) return { mapDelta: delta };
+    return { mapTiles: packed };
+  }
+  return { mapTiles: encodeMapCompact(m.map) };
+}
+
+// Serialize everything needed to restore the world. Maps that are unvisited — or
+// seeded and still exactly as generated — carry no tile payload and are rebuilt from
+// their recipe on load. New payloads are versioned so the complete-map codec is
+// unambiguous; the loader still recognizes the old raw Base64 field when present.
 function buildSaveData() {
   saveEnemyStateToMap(currentMapId);   // capture live enemies before serializing
   return {
+    saveVersion: SAVE_FORMAT_VERSION,
     player,
     currentMapId,
     // The one roster worth writing for a map that doesn't remember its dead: the
@@ -82,8 +142,8 @@ function buildSaveData() {
       savedVillagers: m.savedVillagers || null,
       // Fog of war has been removed from the game, so no fog is written any more.
       // Older saves still carry `fogPacked` / `fog` keys; the loader ignores them.
-      mapTiles: mapNeedsStoredTiles(m) ? encodeMap(m.map) : null,
-      // ─── Rebuild inputs, for maps that carry no mapTiles ────────────────────
+      ...mapTilePayload(m),
+      // ─── Rebuild inputs, for maps that carry no tile payload ────────────────
       // Only *visited* maps store their tiles, so anything the player never walked
       // into is regenerated from its builder on load. That rebuild was being handed
       // `undefined` for openSides, which the builders read as "all four sides open"
@@ -126,8 +186,8 @@ function buildSaveData() {
       castleExitDir: m.castleExitDir,
       // Which ability secret this map was stamped with, or null if it was
       // examined and didn't qualify (abilities.js). Persisted so the stamping
-      // pass knows it has already run here — the terrain it laid is in mapTiles
-      // already, and a second pass would hollow a second alcove.
+      // pass knows it has already run here — the terrain it laid is in the
+      // stored tile payload already, and a second pass would hollow a second alcove.
       abilitySecret: m.abilitySecret,
       // Sealed-shrine required element (set on the one overworld map per region
       // that hosts the shrine; used to tint the shrine + its clue runes).
@@ -264,7 +324,77 @@ function migrateLegacyShrines() {
   if (typeof migrateShrineSystemAfterLoad === 'function') migrateShrineSystemAfterLoad();
 }
 
+function rebuildSeededMapFromLite(lite, regionIdx) {
+  if (lite.mapSeed == null || !isSeededOverworldType(lite.type, regionIdx))
+    throw new Error('Map delta has no seeded recipe');
+  const map = buildOverworldForRegion(regionIdx, lite.mapSeed, lite.depth,
+                                      lite.openSides, !!lite.placeDungeon);
+  if (lite.sealed && typeof upgradeDeadEndChests === 'function') upgradeDeadEndChests(map);
+  return map;
+}
+
+// Applies a parsed save payload to the live game, restoring everything it
+// touches if anything throws partway through — a malformed or truncated save
+// (corrupted localStorage, a hand-edited slot, a future format this build
+// doesn't understand) used to fail midway through applyLoadDataUnsafe, after
+// `player` had already been overwritten but before `worldMaps` caught up (or
+// vice versa), leaving the running game a hybrid of the old session and a
+// half-applied new one. Every global applyLoadDataUnsafe can mutate is
+// snapshotted first and, on failure, restored before the error is rethrown to
+// the caller (doLoad / doLoadAuto / reloadLastSave already report the failure
+// and none of them assume the live state changed).
 function applyLoadData(data) {
+  const snapshot = {
+    player: { ...player },
+    currentMapId, mapsVisited, desertsVisited, currentRegionIdx,
+    regionMapsVisited, regionDungeonPlaced, mapSequence, worldGrid, worldSeed,
+    attackCooldown, bowCooldown, bombCooldown, transitionCooldown, moveTimer,
+    enemies, projectiles, particles, damageNumbers, drops, villagers,
+    minimapCanvases, minimapDirty, worldMaps,
+  };
+  try {
+    applyLoadDataUnsafe(data);
+  } catch (e) {
+    for (const k of Object.keys(player)) delete player[k];
+    Object.assign(player, snapshot.player);
+    currentMapId = snapshot.currentMapId;
+    mapsVisited = snapshot.mapsVisited;
+    desertsVisited = snapshot.desertsVisited;
+    currentRegionIdx = snapshot.currentRegionIdx;
+    regionMapsVisited = snapshot.regionMapsVisited;
+    regionDungeonPlaced = snapshot.regionDungeonPlaced;
+    mapSequence = snapshot.mapSequence;
+    worldGrid = snapshot.worldGrid;
+    worldSeed = snapshot.worldSeed;
+    attackCooldown = snapshot.attackCooldown;
+    bowCooldown = snapshot.bowCooldown;
+    bombCooldown = snapshot.bombCooldown;
+    transitionCooldown = snapshot.transitionCooldown;
+    moveTimer = snapshot.moveTimer;
+    enemies = snapshot.enemies;
+    projectiles = snapshot.projectiles;
+    particles = snapshot.particles;
+    damageNumbers = snapshot.damageNumbers;
+    drops = snapshot.drops;
+    villagers = snapshot.villagers;
+    minimapCanvases = snapshot.minimapCanvases;
+    minimapDirty = snapshot.minimapDirty;
+    worldMaps = snapshot.worldMaps;
+    throw e;
+  }
+}
+
+function applyLoadDataUnsafe(data) {
+  // A truncated write, a hand-edited slot, or a save from a format this build
+  // doesn't understand can produce JSON that parses fine but isn't shaped like
+  // a save. Fail before touching any live state rather than partway through —
+  // everything below this point assumes these two fields exist.
+  if (!data || typeof data !== 'object')
+    throw new Error('Save data is not an object');
+  if (!data.player || typeof data.player !== 'object')
+    throw new Error('Save data has no player state');
+  if (!Array.isArray(data.worldMapsLite) || data.worldMapsLite.length === 0)
+    throw new Error('Save data has no world maps');
   // Apply defaults first, then overlay saved values. This ensures fields
   // missing from older saves (e.g. armor) reset to their default rather than
   // leaking the current in-memory value. sellableDefaults() zeroes the forage /
@@ -377,52 +507,62 @@ function applyLoadData(data) {
       : Math.max(0, REGIONS.findIndex(r => r.id === biome));
     const region = REGIONS[regionIdx] || REGIONS[0];
 
-    // Visited maps normally trust their encoded tiles. Elderbrook is versioned
-    // separately so a layout redesign can replace those tiles once without
-    // invalidating or rewriting the player's other maps.
+    // Visited maps normally trust their stored tile payload. Seeded overworlds
+    // rebuild their exact pristine grid first when a sparse delta is present;
+    // Elderbrook is versioned separately so its layout migration still wins over
+    // any old tile payload.
     const migrateHomeLayout = lite.type === 'homevillage' &&
       lite.homeLayoutVersion !== HOME_LAYOUT_VERSION;
     const homeRuined = hasFlag('prologue_complete') || hasFlag('village_burning');
-
-    const md = lite.mapTiles && !migrateHomeLayout
-      ? decodeMap(lite.mapTiles)
+    const hasStoredTiles = !migrateHomeLayout &&
+      (lite.mapDelta !== undefined || !!lite.mapTiles);
+    let md;
+    if (!migrateHomeLayout && lite.mapDelta !== undefined) {
+      md = applyMapDelta(rebuildSeededMapFromLite(lite, regionIdx), lite.mapDelta);
+    } else if (!migrateHomeLayout && lite.mapTiles) {
+      // v2 mapTiles carry a codec tag; an unversioned payload is the old raw
+      // Base64 form and remains readable even though new saves no longer emit it.
+      md = data.saveVersion >= SAVE_FORMAT_VERSION
+        ? decodeMapCompact(lite.mapTiles) : decodeMap(lite.mapTiles);
+    } else {
       // A village only lands here when it was never entered (a visited one stores its
       // tiles). `lite.openSides` is the topology it actually had — without it the
       // rebuild opened all four gates, which re-cut the final village's sealed sides
       // and let the hero walk out of a border that had no map behind it. Saves written
       // before openSides existed still pass undefined and still get the old all-open
       // behaviour, since the information was never recorded for them.
-      : lite.type === 'village' ? buildVillageMap(region.id, lite.openSides)
-      : lite.type === 'cave'    ? buildCaveMap()
-      : lite.type === 'cave_chain' ? buildCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1)).map
-      : lite.type === 'sky_cave' ? buildSkyCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1), region).map
-      : lite.type === 'castle_tower' ? buildTowerFloorMap(lite.floorIdx || 1).map
-      : lite.type === 'dungeon' ? buildDungeonLevelMap().map
-      : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
-      : lite.type === 'shrine' ? buildShrineInterior(regionIdx).map
-      : lite.type === 'house'   ? buildStarterHouseMap()
-      // Map 0 since the prologue. Current-layout saves decode their exact tiles;
-      // missing tiles and older layout versions rebuild the correct standing or
-      // ruined Elderbrook from story flags.
-      : lite.type === 'homevillage'
-          ? (homeRuined ? buildRuinedHomeVillage() : buildHomeVillageMap())
-      // lite.openSides is the topology this map actually had when it was saved (see
-      // buildSaveData). It used to be `undefined` here, which the builders read as
-      // "open on all four sides" — the bug that unsealed every dead-end on load.
-      // Saves written before openSides existed still pass undefined and still get
-      // the old all-open behaviour; the information was never recorded, so there is
-      // nothing to recover for them.
-      // lite.mapSeed is the seed this map was generated under. Older saves have no
-      // mapSeed — they fall back to lite.id, which is what used to be passed and was
-      // ignored anyway, so those maps regenerate freshly exactly as they did before.
-      : lite.type === 'forest'
-          ? buildForestMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
-                           lite.depth, lite.openSides, lite.placeDungeon)
-      : lite.type === 'fire' || lite.type === 'desert'
-          ? buildDesertMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
-                           lite.depth, lite.openSides, lite.placeDungeon)
-      :     buildRegionMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
-                           lite.depth, lite.openSides, region, lite.placeDungeon);
+      md = lite.type === 'village' ? buildVillageMap(region.id, lite.openSides)
+        : lite.type === 'cave'    ? buildCaveMap()
+        : lite.type === 'cave_chain' ? buildCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1)).map
+        : lite.type === 'sky_cave' ? buildSkyCaveLevelMap((lite.chainDepth || 1) >= (lite.chainLen || 1), region).map
+        : lite.type === 'castle_tower' ? buildTowerFloorMap(lite.floorIdx || 1).map
+        : lite.type === 'dungeon' ? buildDungeonLevelMap().map
+        : lite.type === 'whirlpool_grotto' ? buildWhirlpoolGrottoMap()
+        : lite.type === 'shrine' ? buildShrineInterior(regionIdx).map
+        : lite.type === 'house'   ? buildStarterHouseMap()
+        // Map 0 since the prologue. Current-layout saves decode their exact tiles;
+        // missing tiles and older layout versions rebuild the correct standing or
+        // ruined Elderbrook from story flags.
+        : lite.type === 'homevillage'
+            ? (homeRuined ? buildRuinedHomeVillage() : buildHomeVillageMap())
+        // lite.openSides is the topology this map actually had when it was saved (see
+        // buildSaveData). It used to be `undefined` here, which the builders read as
+        // "open on all four sides" — the bug that unsealed every dead-end on load.
+        // Saves written before openSides existed still pass undefined and still get
+        // the old all-open behaviour; the information was never recorded, so there is
+        // nothing to recover for them.
+        // lite.mapSeed is the seed this map was generated under. Older saves have no
+        // mapSeed — they fall back to lite.id, which is what used to be passed and was
+        // ignored anyway, so those maps regenerate freshly exactly as they did before.
+        : lite.type === 'forest'
+            ? buildForestMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
+                             lite.depth, lite.openSides, lite.placeDungeon)
+        : lite.type === 'fire' || lite.type === 'desert'
+            ? buildDesertMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
+                             lite.depth, lite.openSides, lite.placeDungeon)
+        :     buildRegionMap(lite.mapSeed != null ? lite.mapSeed : lite.id,
+                             lite.depth, lite.openSides, region, lite.placeDungeon);
+    }
 
     // A rebuilt dead-end needs its Hero's Cache stamped back on — that upgrade
     // happens after generation in createSealedNeighbor (world.js), so a map rebuilt
@@ -431,7 +571,7 @@ function applyLoadData(data) {
     // and re-running this on one would promote unrelated chests the player has since
     // found. `openedChests` is keyed by "x,y" and both halves share the anchor's key,
     // so an already-looted cache stays looted.
-    if (lite.sealed && !(lite.mapTiles && !migrateHomeLayout)) {
+    if (lite.sealed && !hasStoredTiles) {
       if (typeof upgradeDeadEndChests === 'function') upgradeDeadEndChests(md);
     }
 
@@ -584,6 +724,14 @@ function applyLoadData(data) {
 // death reload restores from.
 const AUTOSAVE_KEY = 'stormdrift_autosave';
 let lastCheckpoint = null;
+
+// Start a fresh hero's checkpoint lifetime without touching named saves. This
+// runs after the name prompt is confirmed, so cancelling New Game keeps the
+// current run's checkpoint available.
+function initializeNewRunCheckpoint() {
+  lastCheckpoint = null;
+  try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* storage unavailable - nothing to clear */ }
+}
 
 function autoSave(label) {
   try {
@@ -866,6 +1014,7 @@ function newGame() {
 }
 
 function resetGame(heroName) {
+  initializeNewRunCheckpoint();
   Object.assign(player, {
     // Zero every field-earned sellable first (forage goods, snowballs, all raw
     // ores) so late-region stock never survives into a fresh game. Explicit
@@ -916,17 +1065,6 @@ function resetGame(heroName) {
   enemies = []; projectiles = []; particles = []; damageNumbers = []; drops = [];
   villagers = [];
   minimapCanvases = {}; minimapDirty = true;
-  // Drop the death-reload payload and the rolling autosave along with it.
-  // reloadLastSave() falls back to `lastCheckpoint` and then to AUTOSAVE_KEY,
-  // and neither belongs to this hero — without this, dying before the new game
-  // reaches its first checkpoint (village clear / first tower floor) restores
-  // the PREVIOUS game outright: old hero, old inventory, old maps.
-  // The load modal's auto-save row is gated on the key existing, so the stale
-  // `idx.auto` metadata left behind stays hidden and is overwritten wholesale
-  // by the next autoSave().
-  lastCheckpoint = null;
-  try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* storage unavailable — nothing to clear */ }
-
   initWorld();
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);

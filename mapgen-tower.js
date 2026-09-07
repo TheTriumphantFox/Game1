@@ -7,9 +7,10 @@
 // and arched windows, with each region's element bleeding through in courtyards
 // and accent pools. Plain <script> globals (see index.html load order).
 //
-// ⚠ Connectivity: ensureConnectivity() floods from the four BORDER exit gates,
-// and a tower floor has no open border — calling it would seal the whole castle.
-// Floors are instead connected by construction (every room is carved a corridor
+// ⚠ Connectivity: the overworld ensureConnectivity() joins open exits and
+// preserves armor-reachable feature pockets. A tower floor has no open border —
+// calling it would seal the whole castle. Floors are instead connected by
+// construction (every room is carved a corridor
 // straight into the gallery/spine network) and then self-verified with a flood
 // from the entry stair that walls off any unreachable pocket (defense in depth,
 // run BEFORE chests are placed so no chest is ever sealed away).

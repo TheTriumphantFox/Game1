@@ -329,8 +329,8 @@ function addFallenLogs(m, regionId, depth) {
 // forest stream idiom, scaled up). Run BEFORE the main path network (mana sets
 // region.edgeWater) so the central corridors bridge any river they cross on a slim
 // plank rather than fording it with dirt; the decorative bridges here span it
-// elsewhere, and the swim-reachable far banks keep connectivity intact
-// (ensureConnectivity floods through medium water). carveStream skips protected
+// elsewhere, and the Water-armored far banks keep the optional terrain usable
+// (ensureConnectivity's combined armor graph includes medium water). carveStream skips protected
 // structures, so chests/shrines/doors are never paved over. No-op for every other region.
 function addManaRivers(m, regionId, depth) {
   if (regionId !== 'mana') return;

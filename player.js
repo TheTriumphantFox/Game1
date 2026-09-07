@@ -579,18 +579,24 @@ function gainXP(amt) {
 
 // ─── Death / respawn ──────────────────────────────────────────────────────────
 function respawn() {
+  // Lifetime death count, read before reloadLastSave() can overwrite `player`
+  // wholesale from the checkpoint's own (older) `deaths` field. Adding 1 to the
+  // post-reload value instead counted from the checkpoint's death count every
+  // time, so dying repeatedly against the same checkpoint always landed on
+  // "checkpoint deaths + 1" instead of accumulating.
+  const lifetimeDeaths = (player.deaths || 0) + 1;
   // On death, restore the most recent checkpoint (manual save, auto-save, or the
   // save just loaded) instead of the old return-to-start penalty. The death is
   // counted on the restored state, and a brief grace window keeps any stale
   // contact damage from the frame we died on from immediately re-killing us.
   if (typeof reloadLastSave === 'function' && reloadLastSave()) {
-    player.deaths = (player.deaths || 0) + 1;
+    player.deaths = lifetimeDeaths;
     player.invincible = 1500;
     showMsg('💀 Defeated! Restored to your last save.', 3000);
     return;
   }
   // Fallback — no checkpoint reached yet: the original return-to-start behavior.
-  player.deaths = (player.deaths || 0) + 1;
+  player.deaths = lifetimeDeaths;
   player.hp = player.maxHp;
   currentMapId = 0;
   // Same spot a fresh game starts in. Old saves still have the lone cabin at
