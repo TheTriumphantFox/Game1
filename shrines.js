@@ -1,28 +1,38 @@
 // Stage 9: deterministic regional village shrines.
 // Plain-script global by design; loaded after world.js and before gameplay.
 
+// One key, because one ability survives. See the header of abilities.js for why
+// the other four were retired. The object shape is kept rather than collapsed to
+// a boolean so save.js, the radial and the stats screen keep reading a bag.
 const SHRINE_ABILITY_DEFAULTS = {
-  frostGrip: false,
-  updraftGlide: false,
-  emberLantern: false,
   arcaneSight: false,
-  shadowStep: false,
 };
 
+// Indexed by region (REGIONS order: forest, fire, water, ice, earth, volcanic,
+// air, lightning, luminous, necrotic, poison, mana, shadow).
+//
+// Twelve of the thirteen are Heart Containers: +2 Max HP and a full heal. The
+// five that used to grant a movement ability instead gave nothing to a hero who
+// already had the matching armor — and four of the five abilities are gone from
+// the game entirely now.
+//
+// Mana is the ONE exception and it is load-bearing. Arcane Sight is the only way
+// to see a T.RUNE_MARK trail, and the caches at the end of those trails have no
+// other key; a thirteenth heart would make that content permanently unreachable.
 const SHRINE_REWARDS = [
-  { kind:'heart', label:'Heart Container', icon:'❤' },
-  { kind:'heart', label:'Heart Container', icon:'❤' },
-  { kind:'heart', label:'Heart Container', icon:'❤' },
-  { kind:'ability', key:'frostGrip', label:'Frost Grip', icon:'❄' },
-  { kind:'heart', label:'Heart Container', icon:'❤' },
-  { kind:'heart', label:'Heart Container', icon:'❤' },
-  { kind:'ability', key:'updraftGlide', label:'Updraft Glide', icon:'🜁' },
-  { kind:'heart', label:'Heart Container', icon:'❤' },
-  { kind:'heart', label:'Heart Container', icon:'❤' },
-  { kind:'ability', key:'emberLantern', label:'Ember Lantern', icon:'🔥' },
-  { kind:'heart', label:'Heart Container', icon:'❤' },
-  { kind:'ability', key:'arcaneSight', label:'Arcane Sight', icon:'✦' },
-  { kind:'ability', key:'shadowStep', label:'Shadow Step', icon:'◐' },
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  0 forest
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  1 fire
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  2 water
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  3 ice
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  4 earth
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  5 volcanic
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  6 air
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  7 lightning
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  8 luminous
+  { kind:'heart', label:'Heart Container', icon:'❤' },   //  9 necrotic
+  { kind:'heart', label:'Heart Container', icon:'❤' },   // 10 poison
+  { kind:'ability', key:'arcaneSight', label:'Arcane Sight', icon:'✦' },  // 11 mana
+  { kind:'heart', label:'Heart Container', icon:'❤' },   // 12 shadow
 ];
 
 const SHRINE_NAMES = [
@@ -638,9 +648,9 @@ function claimShrineReward(cm) {
     }
   } else {
     // Through grantAbility (player.js) rather than by assignment, so there is
-    // one place that owns the bag. Then equip it if it is one of the two the
-    // [F] key drives, or the shrine that grants Updraft Glide would also demand
-    // a trip through the menu before the button did anything (abilities.js).
+    // one place that owns the bag. autoEquipAbility is a no-op for the one
+    // reward left (Arcane Sight is passive), and is kept because the [F] slot is
+    // still generic — a future active reward would want it (abilities.js).
     if (typeof grantAbility === 'function') grantAbility(reward.key);
     else player.abilities[reward.key] = true;
     if (typeof autoEquipAbility === 'function') autoEquipAbility(reward.key);

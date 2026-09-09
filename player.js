@@ -43,12 +43,18 @@ function addArrow(elemId, n) {
 }
 
 // ─── Shrine abilities ─────────────────────────────────────────────────────────
-// The five permanent powers won from the ability shrines. Accessors rather than
-// raw `player.abilities[id]` reads for the same reason story.js wraps the flag
-// bag: the field can be missing entirely on a save mid-load, and every caller
-// would otherwise need its own guard. The ids are listed on `abilities` in the
-// player literal below; shrines.js is what grants them.
-const ABILITY_IDS = ['frostGrip', 'updraftGlide', 'emberLantern', 'arcaneSight', 'shadowStep'];
+// The permanent powers won from the ability shrines — one of them, now that
+// twelve of the thirteen shrines give a Heart Container instead (SHRINE_REWARDS,
+// shrines.js, and the header of abilities.js for what happened to the other
+// four). Accessors rather than raw `player.abilities[id]` reads for the same
+// reason story.js wraps the flag bag: the field can be missing entirely on a save
+// mid-load, and every caller would otherwise need its own guard.
+//
+// A save made before this change still carries the retired keys in its bag. They
+// are harmless — nothing reads them any more — and are deliberately left rather
+// than stripped on load, so a save that predates the change is never rewritten by
+// merely opening it.
+const ABILITY_IDS = ['arcaneSight'];
 
 function hasAbility(id) {
   return !!(player.abilities && player.abilities[id]);
@@ -200,14 +206,14 @@ let player = {
   // load to { version:2, status, villageMapId, shrineMapId, rewardClaimed,
   // legacyCompleted }; new progression writes only that schema.
   shrineQuests: {},
-  // Permanent abilities won from Ice, Air, Necrotic, Mana, and Shadow. What each
-  // one does out in the world lives in abilities.js.
-  abilities: { frostGrip:false, updraftGlide:false, emberLantern:false,
-               arcaneSight:false, shadowStep:false },
-  // Which of the two ACTIVE abilities (Updraft Glide, Shadow Step) is on the [F]
-  // key and the touch ability button. The three passives are always on and never
-  // occupy it. Validated on read (equippedAbility, abilities.js), so a stale id
-  // from an older save reads as nothing equipped.
+  // Permanent abilities won from a shrine — just Mana's Arcane Sight. What it
+  // does out in the world lives in abilities.js.
+  abilities: { arcaneSight:false },
+  // Which ACTIVE ability is on the [F] key and the touch ability button. Every
+  // active is armor-supplied now (Air's Updraft Glide), so this stays null in
+  // practice; it is validated on read (equippedAbility, abilities.js) and kept as
+  // a save field so a stale id from an older save reads as nothing equipped
+  // rather than as a button that silently fails.
   equippedAbility: null,
   // Per-region Taxidermist quests (see openTaxidermistModal in shop-herbalist.js),
   // keyed by region id → { status:'active'|'done' }. Turning in one of every region
@@ -517,6 +523,7 @@ function clampCam(snap = false) {
   camTargetC = Math.max(0, Math.min(maxC, player.x - halfVC + 0.5));
   camTargetR = Math.max(0, Math.min(maxR, player.y - halfVR + 0.5));
   if (snap) {
+    glideVisual = null;
     camC = camTargetC; camR = camTargetR;
     player.renderX = player.x; player.renderY = player.y;
   }
@@ -530,14 +537,17 @@ function clampCam(snap = false) {
 // then pinned to the smoothed render position each frame (clamped at the map
 // edges), so the hero stays rock-steady on screen while the world glides by.
 function tickCamera(dt) {
+  const gliding = stepGlideVisual(dt || 16);
   // A cutscene owns the view — keep the hero's render position gliding (so he
   // still animates if he's walking) but leave camC/camR where the scene put them.
   if (camOverride) {
     const md = (dt || 16) / lastStepMs;
     const ap = (cur, target) =>
       Math.abs(target - cur) <= md ? target : cur + Math.sign(target - cur) * md;
-    player.renderX = ap(player.renderX, player.x);
-    player.renderY = ap(player.renderY, player.y);
+    if (!gliding) {
+      player.renderX = ap(player.renderX, player.x);
+      player.renderY = ap(player.renderY, player.y);
+    }
     camC = camOverride.c; camR = camOverride.r;
     return;
   }
@@ -545,8 +555,10 @@ function tickCamera(dt) {
   const approach = (cur, target) =>
     Math.abs(target - cur) <= maxDelta ? target
                                        : cur + Math.sign(target - cur) * maxDelta;
-  player.renderX = approach(player.renderX, player.x);
-  player.renderY = approach(player.renderY, player.y);
+  if (!gliding) {
+    player.renderX = approach(player.renderX, player.x);
+    player.renderY = approach(player.renderY, player.y);
+  }
   const halfVC = PW / TILE_PX / 2;
   const halfVR = PH / TILE_PX / 2;
   const maxC = Math.max(0, MCOLS - PW / TILE_PX);
@@ -1924,13 +1936,13 @@ function stepPlayerMovement() {
     // active for an extra ICE_SLIDE_MS, so the hero keeps gliding for a couple
     // of beats after you let go instead of halting on a dime.
     //
-    // Unless the hero has Frost Grip (the Ice shrine's reward, abilities.js),
-    // which is precisely the ability to stop where you meant to. Checked here
-    // rather than acted on from outside, because the slide is one branch in the
-    // middle of the movement step.
-    if (map[player.y][player.x] === T.ICE && lastWalkInput.t >= 0 &&
-        !(typeof frostGripHolds === 'function' && frostGripHolds()) &&
-        Date.now() - lastWalkInput.t <= ICE_SLIDE_MS) {
+    // Worn Ice armor shortens that window by its level (iceSlideMs, abilities.js):
+    // a fifth of it at level 1, all of it at level 6, which is the flat Frost Grip
+    // the armor used to give at any level. Checked here rather than acted on from
+    // outside, because the slide is one branch in the middle of the movement step.
+    const slideMs = (typeof iceSlideMs === 'function') ? iceSlideMs(ICE_SLIDE_MS) : ICE_SLIDE_MS;
+    if (map[player.y][player.x] === T.ICE && lastWalkInput.t >= 0 && slideMs > 0 &&
+        Date.now() - lastWalkInput.t <= slideMs) {
       mx = lastWalkInput.mx; my = lastWalkInput.my;
     }
     if (!mx && !my) return;
@@ -1939,14 +1951,35 @@ function stepPlayerMovement() {
   // MUD clump (earth region), or a boggy BOG mire (poison region) halves walk
   // speed; swimming through MEDIUM_WATER is slower still — 40% of normal pace
   // (interval × 2.5). The step gate stretches to match while standing on one.
+  //
+  // Three of those tiles are answered by a regional armor whose relief is a LEVEL
+  // curve rather than a flat "as if it were open ground": Fire on QUICKSAND and
+  // DUNE, Water swimming MEDIUM_WATER, and Earth climbing a LEDGE_FACE all move at
+  // 20% of full walking speed per armor level, so level 5 matches open ground and
+  // level 6 is a 120% sprint. See armorTerrainStepMs (elements.js).
+  //
+  // ICE IS THE EXCEPTION, and deliberately: its SNOW_DRIFT relief is a FLAT
+  // full-speed walk at every level. It was on the shared curve to begin with, and
+  // a curve that starts at 20% starts below the 50% an unarmored hero already
+  // trudges a drift at — so a freshly forged Ice armor made the drifts WORSE. Fire
+  // has the same shape on a DUNE and is left as it is, because Fire buys quicksand
+  // safety and half the heat fill alongside it; Ice's drift relief was the whole
+  // of what the armor did here, so there was nothing left to be worth the loss.
+  // What Ice's level buys instead is traction on the ICE sheets themselves
+  // (iceSlideMs, abilities.js).
+  //
+  // MUD and BOG have no armor answer at all and stay a flat halving.
   const standTile = map[player.y][player.x];
-  const fireWalk = typeof wearingElementalArmor === 'function' && wearingElementalArmor('fire');
-  const terrainMs = standTile === T.QUICKSAND    ? MOVE_MS * (fireWalk ? 1 : QUICKSAND_MOVE_MUL)
-                  : standTile === T.DUNE         ? MOVE_MS * (fireWalk ? 1 : 2)
-                  : standTile === T.SNOW_DRIFT   ? MOVE_MS * 2
+  const armorMs = (id) => (typeof armorTerrainStepMs === 'function')
+    ? armorTerrainStepMs(id, MOVE_MS) : null;
+  const iceWalk = typeof wearingElementalArmor === 'function' && wearingElementalArmor('ice');
+  const terrainMs = standTile === T.QUICKSAND    ? (armorMs('fire')  ?? MOVE_MS * QUICKSAND_MOVE_MUL)
+                  : standTile === T.DUNE         ? (armorMs('fire')  ?? MOVE_MS * 2)
+                  : standTile === T.SNOW_DRIFT   ? MOVE_MS * (iceWalk ? 1 : 2)
                   : standTile === T.MUD          ? MOVE_MS * 2
                   : standTile === T.BOG          ? MOVE_MS * 2
-                  : standTile === T.MEDIUM_WATER ? MOVE_MS * 2.5
+                  : standTile === T.MEDIUM_WATER ? (armorMs('water') ?? MOVE_MS * 2.5)
+                  : standTile === T.LEDGE_FACE   ? (armorMs('earth') ?? MOVE_MS)
                   : MOVE_MS;
   // The touch pad is analog: a half-pushed knob walks at half pace. joySpeedScale
   // (main.js) is 1 for the keyboard and for tap-to-travel, so this only stretches

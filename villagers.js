@@ -1477,6 +1477,14 @@ function drawVillager(v, ts) {
     }
   }
 
+  // Ashfall survivors retain exactly their roles, poses and interaction paths.
+  // Derive their dressing on load too, without introducing saved injury state.
+  if (!v.pgDead && !v.pgFallen && currentMap().type === 'homevillage' &&
+      (hasFlag('village_burning') || hasFlag('prologue_complete')) &&
+      PG_SHOP_SURVIVORS.includes(v.role) && villageSheetReady()) {
+    vBlit('injury_overlay', px, py, s, s);
+  }
+
   ctx.restore();
 }
 

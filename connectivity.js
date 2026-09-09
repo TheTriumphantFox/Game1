@@ -16,7 +16,10 @@ const MAP_CONNECTIVITY_DIRS8 = [
   [1, 0], [-1, 0], [0, 1], [0, -1],
   [1, 1], [1, -1], [-1, 1], [-1, -1]
 ];
-const MAP_CONNECTIVITY_ARMOR_STATES = ['none', 'water', 'earth', 'air', 'shadow'];
+// Shadow is absent because Shadow Step is: the armor grants the Umbral Veil now
+// (elements.js), which changes what enemies notice and nothing about what tiles
+// the hero can reach.
+const MAP_CONNECTIVITY_ARMOR_STATES = ['none', 'water', 'earth', 'air'];
 
 function connectivityCellIndex(c, r) { return r * MCOLS + c; }
 
@@ -160,8 +163,7 @@ function connectivityReachableWithArmor(m, starts) {
   const WATER = 1 << MAP_CONNECTIVITY_ARMOR_STATES.indexOf('water');
   const EARTH = 1 << MAP_CONNECTIVITY_ARMOR_STATES.indexOf('earth');
   const AIR = 1 << MAP_CONNECTIVITY_ARMOR_STATES.indexOf('air');
-  const SHADOW = 1 << MAP_CONNECTIVITY_ARMOR_STATES.indexOf('shadow');
-  const ALL = NONE | WATER | EARTH | AIR | SHADOW;
+  const ALL = NONE | WATER | EARTH | AIR;
   const masks = new Uint8Array(N);
   const reachable = new Uint8Array(N);
   const queue = [];
@@ -191,9 +193,18 @@ function connectivityReachableWithArmor(m, starts) {
 
   for (const [c, r] of (starts || [])) enqueue(c, r, ALL);
 
-  const airRange = (typeof GLIDE_ARMOR_RANGE === 'number') ? GLIDE_ARMOR_RANGE : 6;
-  const shadowRange = (typeof SHADOW_STEP_RANGE === 'number') ? SHADOW_STEP_RANGE : 3;
-  const shadowWalls = (typeof SHADOW_STEP_MAX_WALL === 'number') ? SHADOW_STEP_MAX_WALL : 2;
+  // The Air glide's range is a level curve now (2 tiles at armor level 1, 12 at
+  // level 6). This models the LEVEL-6 range, and that is the right end of the
+  // curve for what this flood is asked: it answers "can a fully equipped hero
+  // ever reach this", not "can a hero reach it right now". Nothing the player
+  // MUST reach depends on it — ensureConnectivity carves required routes against
+  // the armor-free flood — so the only thing keyed off this graph is optional
+  // content, and optional content behind an upgradeable armor is reachable.
+  //
+  // Modelling the level-1 range instead reports every glide islet the secret
+  // pass places as unreachable: those are laid within GLIDE_RANGE (3-4 tiles,
+  // abilities.js), which is level 2 and up.
+  const airRange = (typeof GLIDE_ARMOR_RANGE_MAX === 'number') ? GLIDE_ARMOR_RANGE_MAX : 12;
 
   for (let head = 0; head < queue.length; head++) {
     const cell = queue[head];
@@ -221,8 +232,8 @@ function connectivityReachableWithArmor(m, starts) {
       }
     }
 
-    // Air and Shadow are active abilities, and therefore only originate from
-    // ordinary ground where their armor can be equipped safely.
+    // Air's glide is an active ability, and therefore only originates from
+    // ordinary ground where its armor can be equipped safely.
     if (source !== T.MEDIUM_WATER && source !== T.LEDGE_FACE && (mask & AIR)) {
       for (const [dc, dr] of MAP_CONNECTIVITY_DIRS4) {
         let sawGap = false;
@@ -234,24 +245,6 @@ function connectivityReachableWithArmor(m, starts) {
           if (!sawGap) break;
           if (standingMask(nc, nr) !== ALL) break;
           enqueue(nc, nr, AIR);
-          break;
-        }
-      }
-    }
-
-    if (source !== T.MEDIUM_WATER && source !== T.LEDGE_FACE && (mask & SHADOW)) {
-      for (const [dc, dr] of MAP_CONNECTIVITY_DIRS4) {
-        let wall = 0;
-        for (let distance = 1; distance <= shadowRange; distance++) {
-          const nc = c + dc * distance, nr = r + dr * distance;
-          if (nc < 1 || nr < 1 || nc >= W - 1 || nr >= H - 1) break;
-          if (connectivityAbilitySolid(m, nc, nr)) {
-            wall++;
-            if (wall > shadowWalls) break;
-            continue;
-          }
-          if (!wall) break;
-          if (standingMask(nc, nr) === ALL) enqueue(nc, nr, SHADOW);
           break;
         }
       }

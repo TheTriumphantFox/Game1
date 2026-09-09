@@ -4598,6 +4598,7 @@ const EXTRUDE_FACE_BOT_SHADE = 0.62;   // and where it meets the ground
 // that is a level-design mistake rather than a code one, and it looks like the
 // mistake it is.
 const EXTRUDED_TILES = new Set([T.WALL, T.BURNT_WALL, T.LEDGE, T.LEDGE_FACE,
+  T.CLIFF, T.PLATEAU,
   T.TREE,
   T.DOOR, T.STORE_DOOR, T.INN_DOOR, T.SMITH_DOOR, T.HERB_DOOR, T.CASTLE_WINDOW]
   .filter(v => v !== undefined));
@@ -4680,6 +4681,8 @@ function drawTileExtrusion(map, col, row, ts) {
   // walks a memoized coordinate list, and this way the art can never disagree
   // with what is actually on the tile.
   const tile = map[row][col];
+  if (tile === T.WALL && villageSheetReady() && villageShrineArtAt(currentMap(), col, row)) return;
+  if ((tile === T.WALL || DOORWAY_TILES.has(tile)) && houseFrontCutaway(currentMap(), col, row)) return;
   const h = extrudedHeight(map, col, row);
   if (!(h > 0)) return;
 
@@ -4712,7 +4715,10 @@ function drawTileExtrusion(map, col, row, ts) {
 
   if (!southTall) {
     const faceTop = y + ts - lift;
-    if (!(villageTimber && drawVillageWallFace(x, faceTop, ts, lift)) &&
+    const rockFace = tile === T.CLIFF || tile === T.PLATEAU ||
+                     tile === T.LEDGE || tile === T.LEDGE_FACE;
+    if (!(rockFace && drawRockRelief('cliff_face', x, faceTop, ts, lift)) &&
+        !(villageTimber && drawVillageWallFace(x, faceTop, ts, lift)) &&
         !(umbralMasonry && drawUmbralWallFace(x, faceTop, ts, lift))) {
       // A ledge face takes the region's rock, like its cap, instead of the one
       // green TILE_COLORS entry that made a desert mesa read as a grass bank.
@@ -4758,7 +4764,8 @@ function drawTileExtrusion(map, col, row, ts) {
   // because that is what a wall top IS when you look straight down at it. It
   // does not go through drawTile either: this is a lifted transform, and the
   // sprite cache's contract is that art is a pure function of (type, size).
-  if (!(villageTimber && drawVillageWallCap(x, y - lift, ts)) &&
+  if (!(tile === T.CLIFF && drawRockRelief('cliff_cap', x, y - lift, ts, ts)) &&
+      !(villageTimber && drawVillageWallCap(x, y - lift, ts)) &&
       !(umbralMasonry && drawUmbralWallCap(x, y - lift, ts))) {
     tileOverlayPass = true;
     try { drawTileProcedural(col, row, faceTile, x, y - lift, ts); }

@@ -102,7 +102,7 @@ function heroPickAnim(moving) {
 
   // A positive player.z is the simulation's hop/fall height. groundZ is a ledge
   // surface, not an airborne state, so deliberately do not include it here.
-  if ((player.z || 0) > 0.035) {
+  if ((player.z || 0) > 0.035 || glideVisualLift() > 0.035) {
     return [bowing ? 'jump_bow' : (armed ? 'jump_armed' : 'jump'), null];
   }
 

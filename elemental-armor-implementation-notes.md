@@ -200,3 +200,90 @@ Each of the 12 elemental armors grants a region-linked traversal, survival, or c
 5. Add Ice and Earth dormant golems using one shared dormant-golem state machine with region-specific art and stats.
 6. Build Volcanic overheat before obsidian golems, so the region's survival loop can be tested independently.
 7. Design Mana barriers, Luminous darkness/reveal, and the Shadow boss only after the simpler regional mechanics establish conventions.
+
+## Level scaling and the shrine overhaul: BUILT 2026-09-08
+
+This closes cross-system decision 2 above ("Shrine overlap: DEFERRED"), and it turns
+every armor's power from an all-or-nothing switch into a curve over the same 0-6
+upgrade level that already drove physical defense and elemental block %.
+
+### The shared convention
+
+`armorAbilityStep(elemId)` (elements.js) is the one place that says what "level"
+means to an ability curve. It returns 0 when the armor is not worn and 1-6 when it
+is, with level 0 reading as step 1, a freshly forged armor whose power does
+nothing until the first ore upgrade reads as broken, and the design table says the
+same wherever it mentions level 0 ("3 seconds at level 0/1").
+
+### The twelve curves
+
+| Armor | Ability | Level 1 | Level 6 |
+| --- | --- | --- | --- |
+| Fire | quicksand + dune pace | 20% of walk speed | 120% |
+| Water | swim pace | 20% | 120% |
+| Ice | ice-sheet traction (drift pace is a flat 100% at every level) | slide cut 20% | slide gone |
+| Earth | ledge-face climb pace | 20% | 120% |
+| Volcanic | overheat fill | 50% | no meter at all |
+| Air | glide range | 2 tiles | 12 tiles, and never under a roof |
+| Lightning | storm-strike wait | x3 (18-42s) | never strikes |
+| Luminous | shots blocked per charge | 1, recharging in 3s | 6, recharging in 1s |
+| Necrotic | skeletons raised | 1 | 6 |
+| Poison | miasma/spore damage | halved, x2 rehit wait | immune |
+| Mana | regeneration | 1 HP / 12s | 1 HP / 2s |
+| Shadow | enemy detection range | -20% | -80% |
+
+Fire, Water and Earth share one formula (`armorTerrainStepMs`, elements.js):
+speed is 20% of full walking speed per level, so level 5 exactly matches open
+ground and level 6 is a genuine sprint. **This is a deliberate regression at low
+levels**, confirmed with the owner before it was built: all three armors used to
+grant flat "as if it were open ground" relief the moment they were worn, and
+levels 1-4 are now slower than that. On a DUNE, levels 1-2 are also slower than
+crossing it with no armor at all (765ms per step against 306ms bare). Fire is left
+that way deliberately, because it buys quicksand safety and half the heat fill at
+the same time. Water and Earth have no unarmored comparison at all, since their
+tiles are impassable without the armor.
+
+**Ice came off that curve after it was built**, on the owner's call. Snow-drift
+relief was the whole of what Ice armor did on that tile, so a curve starting at 20%
+(below the 50% an unarmored hero already trudges a drift at) left a freshly forged
+armor strictly worse than no armor with nothing to show for it. Ice now grants a
+flat full-speed drift walk at every level, and its LEVEL scales traction on the ICE
+sheets instead (`iceSlideMs`, abilities.js): the released-input slide window drops
+from 320ms unarmored to 256ms at level 1 and 0ms at level 6, which is the
+all-or-nothing Frost Grip the armor used to give the moment it was worn. Traction is
+the better thing for the level to buy anyway, since the slide is the ice region's
+signature and the player feels it on every step rather than only in the drifts.
+
+### What was removed, and why it had to be
+
+- **Radiant Pulse is gone**, boss-stagger variant included. Luminous is one
+  mechanic now, the shot-blocking shield, because a shield the player can read
+  the state of is a better ability than a shield plus an invisible crowd-control
+  aura that was quietly doing most of the armor's work.
+- **Shadow Step is gone from the game**, not moved. Shadow armor grants the Umbral
+  Veil instead (`shadowDetectionScale`, elements.js), which shrinks every distance
+  an enemy uses to decide it has seen you: a dormant golem's wake radius
+  (`stepGolems`, enemies.js) and a ranged enemy's engagement range, the dragon's
+  breath fan included (`stepEnemyRanged`, projectiles.js). Melee pursuit is
+  deliberately excluded: an enemy at arm's length has not detected you at a
+  distance, it has walked into you. Three things went with the ability: its shrine
+  reward, the shadow-alcove secret (`SECRET_KINDS`), and the tower's floor-12+
+  Shadow Vault. All three were content only Shadow Step could open.
+- **The shrine reward set is four-fifths retired.** Twelve of the thirteen shrines
+  give a Heart Container. Frost Grip, Updraft Glide and Shadow Step were already
+  supplied (or replaced) by their armor; Ember Lantern had been inert since fog of
+  war was removed. **Mana keeps Arcane Sight**. It is the only key to the hidden
+  rune-mark caches, and a thirteenth heart would strand that content permanently.
+  `ABILITY_IDS` is now one entry; the retired keys are left untouched in old saves
+  rather than stripped, since nothing reads them.
+
+### Connectivity
+
+`MAP_CONNECTIVITY_ARMOR_STATES` lost its `shadow` entry: the Umbral Veil changes
+what enemies notice, not what tiles the hero can stand on. The Air state now models
+the LEVEL-6 glide range, which is the right end of the curve for the question that
+flood is asked: "can a fully equipped hero ever reach this", not "can a hero reach
+it right now". Nothing mandatory depends on it (`ensureConnectivity` still carves
+required routes against the armor-free flood), and glide islets are laid within
+`GLIDE_RANGE` (3-4 tiles), which is Air level 2 and up. `tools/verify-connectivity.js`
+reports zero failures across 260 maps after the change.

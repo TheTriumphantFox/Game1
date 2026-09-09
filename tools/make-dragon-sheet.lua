@@ -11,9 +11,10 @@
 -- It is gold #ffd24a to match drawEmperorCrown.
 --
 -- Enemies have no facing -- drawEnemy draws one pose, never flipped -- so this
--- sheet has no directions, just two loops:
---   dormant 0-3   asleep on the hoard, slow breathing swell
---   awake   4-11  rearing, wings beating, tail lashing
+-- sheet has no directions. Combat keeps frames 0-35; the cinematic fire
+-- flyover occupies a new row, so existing animation indices never move.
+--   dormant 0-3, awake 4-11, fly 12-17, run 18-23,
+--   breathe 24-29, fight 30-35, flyfire 36-41
 --
 -- Soft additive FX are deliberately NOT baked in: the boss aura, chest furnace
 -- glow, rising embers and nostril smoke stay procedural in render-enemies.js so
@@ -35,7 +36,7 @@ local S       = 134.0        -- body box == ts * e.size (2.8 tiles at TILE_PX 48
 local OX, OY  = 17.0, 17.0
 local N_DORM, N_AWAKE = 4, 8
 local N_FLY, N_RUN, N_BREATH, N_FIGHT = 6, 6, 6, 6
-local SHEET_COLS = 6           -- 36 frames laid out 6x6, not one huge strip
+local SHEET_COLS = 6           -- 42 frames laid out 6x7, not one huge strip
 
 local lib = dofile("tools/aseprite-lib.lua")
 local hex = lib.hex
@@ -457,6 +458,11 @@ local function poseFor(kind, i, n)
     return { wf = 1 + math.sin(a)*0.55, fold = 0, tail = math.sin(a)*0.14,
              jaw = 0.35, legs = 'tuck', bodyY = -math.sin(a)*0.045 }
 
+  elseif kind == 'flyfire' then
+    return { wf = 1 + math.sin(a)*0.55, fold = 0, tail = math.sin(a)*0.14,
+             jaw = 1, legs = 'tuck', bodyY = -math.sin(a)*0.045,
+             fire = 0.8 + math.sin(a)*0.15 }
+
   elseif kind == 'run' then
     -- wings half-tucked, legs cycling, a two-beat bounce per stride
     return { wf = 1.05, fold = 0.72, tail = math.sin(a)*0.26, jaw = 0.45,
@@ -493,6 +499,7 @@ local SEQ = {
   { 'run',     N_RUN,   0.08 },
   { 'breathe', N_BREATH,0.09 },
   { 'fight',   N_FIGHT, 0.07 },
+  { 'flyfire', N_FLY,   0.09 },
 }
 
 local total = 0

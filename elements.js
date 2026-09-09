@@ -36,19 +36,22 @@ const REGION_ELEMENT_IDS = Object.keys(SWORD_ELEMENTS).filter(id => !SWORD_ELEME
 // defense and matching-element block. This registry is the UI/design authority;
 // the individual mechanics stay with the systems they affect (movement in
 // player.js, active traversal in abilities.js, and regional hazards in main.js).
+// Every description below is written against the armor's LEVEL, because every one
+// of these powers scales with it now (see armorAbilityStep at the foot of this
+// file, and the individual curves in abilities.js / player.js / enemies.js).
 const ELEMENTAL_ARMOR_ABILITIES = {
-  fire:      { label: 'Desert Walker', description: 'Cross quicksand safely and bake half as fast.', status: 'ready' },
-  water:     { label: 'Deep Swim', description: 'Swim through medium-depth water.', status: 'ready' },
-  ice:       { label: 'Ice Grip', description: 'Stop cleanly on ice and pacify dormant ice golems.', status: 'ready' },
-  earth:     { label: 'Cliff Climb', description: 'Climb raised cliff faces and pacify dormant stone golems.', status: 'ready' },
-  volcanic:  { label: 'Heat Vent', description: 'Immune to the caldera\'s overheat.', status: 'ready' },
-  air:       { label: 'Updraft Glide', description: 'Glide across wider gaps than the shrine reward.', status: 'ready' },
-  lightning: { label: 'Storm Grounding', description: 'Stop the region storm-strike timer.', status: 'ready' },
-  luminous:  { label: 'Radiant Aura', description: 'Burns enemy shots from the air and stuns what closes in.', status: 'ready' },
-  necrotic:  { label: 'Grave Command', description: 'Walk cursed ground unharmed and summon allied skeletons.', status: 'ready' },
-  poison:    { label: 'Miasma Ward', description: 'Immune to spore clouds and drifting miasma.', status: 'ready' },
-  mana:      { label: 'Arcane Mending', description: 'Slowly knits your wounds as you travel.', status: 'ready' },
-  shadow:    { label: 'Shadow Step', description: 'Teleport through thin walls.', status: 'ready' },
+  fire:      { label: 'Desert Walker', description: 'Cross quicksand safely, bake half as fast, and stride the dunes faster each level.', status: 'ready' },
+  water:     { label: 'Deep Swim', description: 'Swim through medium-depth water, faster each level.', status: 'ready' },
+  ice:       { label: 'Ice Grip', description: 'Walk the drifts at full pace, pacify dormant ice golems, and slide less on ice each level.', status: 'ready' },
+  earth:     { label: 'Cliff Climb', description: 'Climb raised cliff faces, pacify dormant stone golems, and climb faster each level.', status: 'ready' },
+  volcanic:  { label: 'Heat Vent', description: 'Halves the caldera\'s overheat again with every level; immune at level 6.', status: 'ready' },
+  air:       { label: 'Updraft Glide', description: 'Glide a gap 2 tiles wide per armor level, up to 12. Not under a roof.', status: 'ready' },
+  lightning: { label: 'Storm Grounding', description: 'Stretches the region storm-strike timer ×3 per level; silent at level 6.', status: 'ready' },
+  luminous:  { label: 'Radiant Aura', description: 'Burns enemy shots from the air — one per level, recharging faster each level.', status: 'ready' },
+  necrotic:  { label: 'Grave Command', description: 'Walk cursed ground unharmed and raise one allied skeleton per armor level.', status: 'ready' },
+  poison:    { label: 'Miasma Ward', description: 'Halves spore and miasma damage again with every level; immune at level 6.', status: 'ready' },
+  mana:      { label: 'Arcane Mending', description: 'Knits your wounds as you travel — 1 HP every 12s, down to every 2s at level 6.', status: 'ready' },
+  shadow:    { label: 'Umbral Veil', description: 'Enemies notice you 20% later per level, up to 80% at level 6.', status: 'ready' },
 };
 
 function wearingElementalArmor(elemId) {
@@ -279,4 +282,87 @@ function applyElementalArmor(rawDmg, hitElement) {
   const reduced = Math.max(1, Math.floor(rawDmg * elementalArmorThrough(active)));
   if (reduced >= rawDmg) return { dmg: rawDmg, resisted: null };
   return { dmg: reduced, resisted: hitElement };
+}
+
+// ─── Armor ability level-scaling ─────────────────────────────────────────────
+// Every regional armor's exploration power scales with the same 0–6 upgrade
+// level its defense and block % already use, instead of switching on all-or-
+// nothing the moment the armor is worn. The individual curves stay with the
+// systems they affect (movement in player.js, traversal in abilities.js,
+// hazards and enemy senses in abilities.js / enemies.js / projectiles.js); this
+// is the one place that says what "level" means to those curves.
+//
+// ONE step scale, 1–6, shared by all twelve. Level 0 — a freshly forged, never
+// upgraded armor — reads as step 1 rather than as step 0, because a step of 0
+// means "the ability does nothing", and an armor whose power only switches on
+// after the first ore upgrade is an armor that appears broken when you forge
+// it. The design table says the same thing where it bothers to mention level 0
+// (Luminous: "3 seconds at level 0/1").
+//
+// 0 means the armor is NOT worn, so every caller can gate on the same value it
+// scales by.
+function armorAbilityStep(elemId) {
+  if (!wearingElementalArmor(elemId)) return 0;
+  return Math.max(1, Math.min(6, armorUpgradeLevel(elemId)));
+}
+
+// The shared movement curve for Fire, Water and Earth: the armors whose power is
+// "cross this region's slow ground faster". Speed is a fraction of full walking
+// speed and climbs +20% of it per level, so level 5 exactly matches open ground
+// and level 6 is a genuine 120% sprint.
+//
+// This is DELIBERATELY a regression at low levels, confirmed with the owner:
+// levels 1–4 are slower than the flat relief these armors grant today, and on a
+// DUNE levels 1–2 are slower than crossing it with no armor at all. Fire is left
+// that way on purpose — it buys quicksand safety and half the heat fill at the
+// same time, so the slow start costs a player something they are still gaining
+// elsewhere. Water and Earth have no unarmored comparison at all, since their
+// tiles are impassable without the armor.
+//
+// ICE IS NOT ON THIS CURVE, and that is the one place the design moved after it
+// was built. Snow-drift relief was the whole of what Ice armor did on that tile,
+// so a curve starting below the unarmored trudge left a freshly forged armor
+// strictly worse than no armor with nothing to show for it. Ice grants a flat
+// full-speed drift walk instead, and its LEVEL scales the ice slide (iceSlideMs,
+// abilities.js) — traction is the ice region's real signature anyway, and the
+// player feels it on every step rather than only in the drifts.
+const ARMOR_SPEED_PER_LEVEL = 0.20;
+
+// Step interval for a tile this armor answers, or null when it does not apply
+// (armor not worn). `baseMs` is the hero's unencumbered MOVE_MS.
+function armorTerrainStepMs(elemId, baseMs) {
+  const step = armorAbilityStep(elemId);
+  if (!step) return null;
+  return baseMs / (ARMOR_SPEED_PER_LEVEL * step);
+}
+
+// ─── Shadow: the Umbral Veil ─────────────────────────────────────────────────
+// Shadow armor no longer teleports the hero through walls (Shadow Step is retired
+// outright — see abilities.js). What it does instead is make the hero harder to
+// notice: every distance an enemy uses to decide it has seen you shrinks by 20%
+// at level 1, down to 80% at level 6, in even steps.
+//
+// "Every distance" is currently two, which is every distance the game actually
+// has: the radius at which a dormant golem wakes (stepGolems, enemies.js) and the
+// range at which a ranged enemy will open fire, including the dragon's breath
+// fan (stepEnemyRanged, projectiles.js). Melee pursuit is deliberately NOT in the
+// set — a melee enemy that has already closed to arm's length has not detected
+// you at a distance, it has walked into you.
+const SHADOW_VEIL_MIN_PCT = 20;   // level 1
+const SHADOW_VEIL_MAX_PCT = 80;   // level 6
+
+// Multiplier to apply to a detection distance: 1 with no Shadow armor worn,
+// 0.8 at level 1, 0.2 at level 6.
+function shadowDetectionScale() {
+  const step = armorAbilityStep('shadow');
+  if (!step) return 1;
+  const pct = SHADOW_VEIL_MIN_PCT +
+              ((SHADOW_VEIL_MAX_PCT - SHADOW_VEIL_MIN_PCT) * (step - 1)) / 5;
+  return 1 - pct / 100;
+}
+
+// A detection distance with the veil applied. Safe to call from files that load
+// before this one; callers pass their own unveiled number.
+function veiledDetectionRange(base) {
+  return base * shadowDetectionScale();
 }

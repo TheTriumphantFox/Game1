@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
-<title>connectivity check</title>
+<title>armor tile census</title>
 <style>html,body{margin:0;background:#111;color:#ddd;font:13px monospace}iframe{border:0}</style>
 <pre id="log">booting…</pre>
 <iframe id="f" src="index.html" width="900" height="500"></iframe>
 <script>
-// Development harness. It boots the real game, then injects the connectivity
-// verifier so generated maps are tested without adding a production dependency.
+// Development harness, the same shape as connectivity-check.html: boot the real
+// game, then inject the census so it measures real generated maps without the
+// shipped build gaining a dependency on it.
 const f = document.getElementById('f'), log = document.getElementById('log');
 f.onload = () => setTimeout(() => {
   const w = f.contentWindow;
@@ -17,9 +18,6 @@ f.onload = () => setTimeout(() => {
     const input = w.document.querySelector('input[type=text]');
     if (input) input.value = 'Dev';
     btn('Begin Adventure').click();
-    // The controls loading screen sits between Begin Adventure and the world
-    // unfreezing (showLoadingScreen, main.js). Dismiss it or the harness drives a
-    // game that never started.
     if (typeof w.dismissLoadingScreen === 'function') w.dismissLoadingScreen();
   } catch (e) {
     log.textContent = 'boot failed: ' + e.message;
@@ -27,14 +25,13 @@ f.onload = () => setTimeout(() => {
   }
   setTimeout(() => {
     const script = w.document.createElement('script');
-    script.src = 'tools/verify-connectivity.js';
+    script.src = 'tools/armor-tile-census.js';
     script.onerror = () => { log.textContent = 'inject failed'; };
     w.document.body.appendChild(script);
     const timer = setInterval(() => {
-      if (!w.__connectivityCheck) return;
+      if (!w.__armorCensus) return;
       clearInterval(timer);
-      log.textContent = JSON.stringify(w.__connectivityCheck, null, 1);
-      document.title = w.document.title;
+      log.textContent = JSON.stringify(w.__armorCensus, null, 1);
     }, 300);
   }, 500);
 }, 1000);

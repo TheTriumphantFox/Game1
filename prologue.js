@@ -708,8 +708,14 @@ function playAshfallBeat() {
   playCutscene([
     { run: () => setFlag('village_burning') },
     { pan: C, ms: 900 },
+    // A low, visible strafing pass before the established landing/strike.
+    // Derive its span from the viewport so both desktop and touch see him cross.
+    // This is a cinematic actor only: no projectiles, damage or tile edits.
+    { emperor: { x: C.x - PW / TILE_PX / 2 - 6, y: C.y + 3,
+                 alt: 4, scale: 1.25, anim: 'flyfire' } },
+    { emperorFly: { x: C.x + PW / TILE_PX / 2 + 6, y: C.y + 5 }, ms: 4200 },
     // He comes in high and fast, then drops onto the square.
-    { emperor: { x: C.x, y: C.y - 40, alt: 30, scale: 0.5 } },
+    { emperor: { x: C.x, y: C.y - 40, alt: 30, scale: 0.5, anim: null } },
     { emperorFly: { x: C.x, y: C.y - 6, alt: 20, scale: 1.0 }, ms: 1600 },
     { shake: 4, ms: 900 },
     { emperorFly: { x: C.x, y: C.y - 2, alt: 5, scale: 1.5 }, ms: 1400 },

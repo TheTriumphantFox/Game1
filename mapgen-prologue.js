@@ -408,6 +408,8 @@ function buildHomeVillageMap() {
     }
   }
 
+  hvWaysideShrine(m);
+
   // South-only exit, exactly like the cabin this replaces: re-seal the border,
   // cut the south gate, and stamp the village's own gate post on it.
   for (let r = 0; r < MROWS; r++) { m[r][0] = T.TREE; m[r][MCOLS - 1] = T.TREE; }
@@ -415,6 +417,53 @@ function buildHomeVillageMap() {
   cutExits(m, false, false, false, true);
 
   return m;
+}
+
+// ─── The wayside shrine ───────────────────────────────────────────────────────
+// A healing shrine in a small glade off the south road, between the village and
+// the map's south gate.
+//
+// It exists to answer a real gap in the opening act. Ashfall leaves the hero on
+// 3 HP, and the ruin has no inn bed, no potion seller worth the name and nothing
+// else that restores health; the first thing the game then asks them to do is
+// walk out of the only safe map they know and into the forest at three hit
+// points. A T.SHRINE is reusable and heals to full on contact (handlePickup,
+// player.js), so this is a full heal on the way out and a place to come back to.
+//
+// WHERE it sits is the whole design. Row 128 is south of the clearing
+// (HV_R1..HV_R2 is 40..118) and south of the burn (charHomeVillage runs to row
+// 122), so the shrine and its glade are untouched greenery in among the black
+// spars — visibly outside the village and visibly not part of what burned. It is
+// also unmissable: the south road is two tiles wide and the only way out of map
+// 0, and this opens directly off it.
+//
+// Laid down BEFORE the border re-seal and cutExits below, like everything else in
+// this builder, so the glade cannot eat the border ring.
+const HV_SHRINE = { r: 128, c: 80 };
+
+function hvWaysideShrine(m) {
+  const { r, c } = HV_SHRINE;
+  // The glade: a small clearing east of the road, hollowed out of the treeline.
+  for (let rr = r - 3; rr <= r + 3; rr++) {
+    for (let cc = c - 4; cc <= c + 3; cc++) {
+      if (rr <= 0 || rr >= MROWS - 1 || cc <= 0 || cc >= MCOLS - 1) continue;
+      if (m[rr][cc] === T.PATH) continue;          // never pave over the road
+      m[rr][cc] = T.GRASS;
+    }
+  }
+  // A short spur joining the glade to the road's east edge, so the shrine reads
+  // as something the road passes rather than something hidden in the trees.
+  setRow(m, r, HOME.center.x + 1, c, T.PATH);
+  m[r][c] = T.SHRINE;
+  // A little dressing, on the same coordinate rule the village flowers use — no
+  // new unseeded randomness in a generation path.
+  for (let rr = r - 2; rr <= r + 2; rr++) {
+    for (let cc = c - 2; cc <= c + 2; cc++) {
+      if (m[rr][cc] !== T.GRASS) continue;
+      if ((rr * 5 + cc * 3) % 6 !== 0) continue;
+      m[rr][cc] = T.FLOWER;
+    }
+  }
 }
 
 // A neighbour's house: walls, floor, south door, torches and enough furniture to

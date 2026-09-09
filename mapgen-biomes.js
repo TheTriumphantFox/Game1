@@ -414,13 +414,12 @@ function addDesertPlateau(m) {
         const t = m[r][c];
         if (isProtectedFeature(t) || t === T.WATER || t === T.OASIS_WATER ||
             t === T.CLIMB) continue;
-        m[r][c] = T.LEDGE;
+        m[r][c] = T.PLATEAU;
       }
     // Fallback: a band no path happened to cross still needs a way through, or
     // ensureConnectivity would seal off the far side.
-    const cuts = thinMesaCrossings(cols, MCOLS);
-    for (const cc of cuts) carveClimbV(m, r0, thick, cc);
-    rampUpToMesa(m, true, r0, thick, cuts);
+    if (cols.size === 0) { cols.add(EXIT_COL); cols.add(rnd(10, MCOLS - 11)); }
+    for (const cc of cols) carveClimbV(m, r0, thick, cc);
   } else {
     // Vertical band: pick a column entirely left OR right of the N/S corridor.
     let c0 = 0;
@@ -443,79 +442,31 @@ function addDesertPlateau(m) {
         const t = m[r][c];
         if (isProtectedFeature(t) || t === T.WATER || t === T.OASIS_WATER ||
             t === T.CLIMB) continue;
-        m[r][c] = T.LEDGE;
+        m[r][c] = T.PLATEAU;
       }
-    const cutsV = thinMesaCrossings(rows, MROWS);
-    for (const rr of cutsV) carveClimbH(m, c0, thick, rr);
-    rampUpToMesa(m, false, c0, thick, cutsV);
+    if (rows.size === 0) { rows.add(EXIT_ROW); rows.add(rnd(10, MROWS - 11)); }
+    for (const rr of rows) carveClimbH(m, c0, thick, rr);
   }
 }
 
-// Cut the ways UP onto a mesa, and face everything else about it.
+// Mesa tops are SOLID again, deliberately, and this is the reverted half of the
+// "cliff faces" work.
 //
-// A mesa used to be solid T.PLATEAU: a wall you tunnelled through at the CLIMB
-// corridors, never something you stood on. Item B makes its top the shelf, so
-// the band is stamped T.LEDGE above and this turns it into a real shelf:
+// For a while the band was stamped T.LEDGE — a shelf whose top the hero could
+// walk along, reached by ramps cut one tile inside each face, with the crossings
+// through the band thinned to two (a shelf is not a wall, so a corridor through
+// it was a convenience rather than the only way past). The mesa stopped reading
+// as a mesa: from the ground you could not tell a rising wall from a different
+// patch of floor, and the top being walkable is what removed the reason to care.
 //
-//   1. Ramps first. Each crossing already has a 3-wide CLIMB corridor cut
-//      through the band; the tile just inside each face becomes CLIMB too, so
-//      the hero can turn off the corridor and walk UP instead of only through.
-//      Placed before the facing pass, because faceLedgeEdges leaves CLIMB alone
-//      and would otherwise wall the ramp off.
-//   2. Then face the perimeter. The band is not a rectangle (it flows around
-//      chests, shrines, water and the corridors), so the rim is discovered from
-//      the tiles rather than assumed, which is what faceLedgeEdges is for.
+// So the band is T.PLATEAU again, the ramps up are gone with it, and every column
+// (or row) a walking PATH crosses gets its own CLIMB corridor THROUGH the band
+// the way it always did — a solid wall needs every crossing it can get, and the
+// two-crossing cap only made sense while the top was an alternative route.
 //
-// `horiz` says whether the band runs east-west; `p0` is its first row or column
-// and `crossings` the columns or rows the corridors were cut at.
-// How many corridors to cut THROUGH a mesa, now that its top can be walked.
-//
-// The old pass cut one at every column a path happened to cross, which on a
-// real map is six or seven. That was right when the band was a solid wall and a
-// corridor was the only way past it: miss one and ensureConnectivity seals off
-// the far side. It is wrong now. Every corridor is a hole, every hole's north
-// rim draws its own full-height face band, and a quarter of the band ends up as
-// rim: the mesa reads as a comb rather than as a mesa.
-//
-// Two is enough, because the shelf is no longer a wall. A crossing is now a
-// convenience for someone who does not want to climb, and the climb itself goes
-// anywhere there is a ramp. Kept far apart so the two are genuinely different
-// routes rather than a double-width gap.
-const MESA_CROSSINGS_MAX = 2;
-const MESA_CROSSING_GAP = 30;
-
-function thinMesaCrossings(candidates, span) {
-  const sorted = Array.from(candidates).sort((a, b) => a - b);
-  const kept = [];
-  for (const v of sorted) {
-    if (kept.length >= MESA_CROSSINGS_MAX) break;
-    if (kept.some(k => Math.abs(k - v) < MESA_CROSSING_GAP)) continue;
-    kept.push(v);
-  }
-  // A band that no path crossed still needs at least one way through, and a
-  // second one far from it, or the only route is over the top.
-  if (kept.length === 0) kept.push(Math.floor(span / 2));
-  if (kept.length === 1 && span > MESA_CROSSING_GAP * 2) {
-    const alt = kept[0] < span / 2 ? span - 12 : 12;
-    if (Math.abs(alt - kept[0]) >= MESA_CROSSING_GAP) kept.push(alt);
-  }
-  return kept;
-}
-
-function rampUpToMesa(m, horiz, p0, thick, crossings) {
-  const inBounds = (c, r) => c > 0 && r > 0 && c < MCOLS - 1 && r < MROWS - 1;
-  for (const x of crossings) {
-    // One tile in from each face, on the corridor's own centre line.
-    const spots = horiz
-      ? [[x, p0], [x, p0 + thick - 1]]
-      : [[p0, x], [p0 + thick - 1, x]];
-    for (const [c, r] of spots) {
-      if (!inBounds(c, r)) continue;
-      if (m[r][c] === T.LEDGE) m[r][c] = T.CLIMB;
-    }
-  }
-  faceLedgeEdges(m);
-}
+// What did NOT come back: nothing else. faceLedgeEdges, stampLedgeShelf and
+// addLedgeCauseway below are a separate feature (the raised causeways, and the
+// Earth region's shelves) and are untouched by this.
 
 // A raised causeway: a narrow shelf running the width or height of the map, for
 // regions and maps that have no mesa to climb. Earth has no PLATEAU bands at
@@ -902,9 +853,13 @@ function buildDesertMap(seed, depth, openSides, placeDungeon) {
   // (next) re-links anything the plateau happened to wall off.
   const plateauCount = rnd(1, 4) - 1;
   for (let i = 0; i < plateauCount; i++) addDesertPlateau(m);
-  // A desert map that rolled no mesa still gets its shortcut (item B). Only
-  // when there is no mesa: two raised routes across one map is one too many.
-  if (plateauCount === 0) addLedgeCauseway(m);
+  // Item B's raised shortcut, on every desert map. This used to be gated on
+  // `plateauCount === 0`, because back when a mesa top was walkable the mesa WAS
+  // a raised route and a causeway beside it made two. Mesa tops are solid again
+  // (addDesertPlateau above), so without this the two maps in five that roll a
+  // mesa would have no walkable shelf at all and item B would quietly stop
+  // existing on them.
+  addLedgeCauseway(m);
 
   // Heat fields and quicksand. After the plateaus so a mesa is never paved over,
   // and before the demote/connectivity passes below so anything they need to
