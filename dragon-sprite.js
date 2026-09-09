@@ -16,7 +16,7 @@ const DRAGON_SHEET_SRC = 'dragon-sheet.png';
 const DRAGON_FRAME     = 168;   // frame box in the sheet, px
 const DRAGON_BODY      = 134;   // body box inside it == ts * e.size (2.8 tiles)
 const DRAGON_BODY_O    = 17;    // body box origin inside the frame
-const DRAGON_COLS      = 6;     // 36 frames laid out 6x6
+const DRAGON_COLS      = 6;     // 42 frames laid out 6x7
 
 // How long the breath animation plays once the flame fan spawns. Also used by
 // projectiles.js to set e.breathT — keep the two in step.
@@ -31,6 +31,7 @@ const DRAGON_ANIMS = {
   run:     [18, 6,  80],
   breathe: [24, 6,  90],   // 6 * 90 == DRAGON_BREATH_ANIM_MS
   fight:   [30, 6,  70],
+  flyfire: [36, 6,  90],  // cinematic only; combat animations keep their indices
 };
 
 // Distance thresholds (tiles) for picking a locomotion animation.
@@ -74,6 +75,7 @@ function dragonIsMoving(e) {
 // `breathe` come from real flags (e.dormant, e.breathT); the rest are derived
 // from distance and movement, because the game tracks no other enemy state.
 function dragonPickAnim(e) {
+  if (e.cutsceneActor && DRAGON_ANIMS[e.cutsceneAnim]) return e.cutsceneAnim;
   if (e.dormant) return 'dormant';
   if (e.breathT > 0) return 'breathe';
   if (typeof player !== 'undefined') {

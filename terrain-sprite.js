@@ -136,6 +136,95 @@ function terrainArtMap(mapObj) {
   return !!terrainRegionOf(mapObj) && !!terrainAtlas(terrainRegionOf(mapObj));
 }
 
+// Decorative spillways are derived from existing south-facing sky rims. No
+// tiles, cave links, random generation calls or save fields are introduced.
+const skyWaterfallCache = new WeakMap();
+
+function mapSkyWaterfalls(mapObj) {
+  if (!mapObj || mapObj.type !== mapObj.biome ||
+      (mapObj.biome !== 'air' && mapObj.biome !== 'lightning')) return [];
+  if (skyWaterfallCache.has(mapObj)) return skyWaterfallCache.get(mapObj);
+  const storm = mapObj.biome === 'lightning';
+  const edge = storm ? T.STORM_EDGE : T.CLOUD_EDGE;
+  const voidTile = storm ? T.STORM_CLOUD : T.SKY_GROUND;
+  const floor = storm ? T.STORM_GROUND : T.CLOUD;
+  const bank = storm ? T.STORM_BANK : T.CLOUDBANK;
+  const m = mapObj.map, candidates = [];
+  for (let r = 5; r < MROWS - 7; r++) for (let c = 3; c < MCOLS - 3; c++) {
+    if (m[r][c] !== edge || m[r + 1][c] !== voidTile) continue;
+    // A nearby cloud floor makes the fall discoverable from the walking side.
+    let nearFloor = false, clear = true;
+    for (let dy = 1; dy <= 5; dy++) {
+      if (m[r - dy][c] === floor || m[r - dy][c] === bank) nearFloor = true;
+      for (let dx = -1; dx <= 1; dx++) if (m[r + dy][c + dx] !== voidTile) clear = false;
+    }
+    if (!nearFloor || !clear) continue;
+    const score = (Math.imul(c + (mapObj.seed || 0), 73856093) ^ Math.imul(r, 19349663)) >>> 0;
+    candidates.push({ c, r, score });
+  }
+  candidates.sort((a, b) => a.score - b.score);
+  const falls = [];
+  for (const p of candidates) {
+    if (falls.every(q => Math.hypot(q.c - p.c, q.r - p.r) > 18)) falls.push(p);
+    if (falls.length === 3) break;
+  }
+  skyWaterfallCache.set(mapObj, falls);
+  return falls;
+}
+
+function drawSkyWaterfalls(mapObj, ts, startC, startR, endC, endR) {
+  if (!villageSheetReady()) return;
+  for (const p of mapSkyWaterfalls(mapObj)) {
+    if (p.c < startC - 2 || p.c > endC + 2 || p.r < startR - 7 || p.r > endR + 1) continue;
+    const x = worldX(p.c - 0.25), y = worldY(p.r + 0.6), width = ts * 1.5;
+    const frame = Math.floor(Date.now() / 100) % 4;
+    ctx.save();
+    for (let k = 0; k < 5; k++) {
+      ctx.globalAlpha *= 1 - k * 0.16;
+      vBlit('sky_fall_' + frame, x, y + ts * (0.7 + k), width, ts);
+    }
+    ctx.globalAlpha = 0.20;
+    vBlit('sky_fall_mist', x - ts * 0.25, y + ts * 4.6, ts * 2, ts);
+    ctx.globalAlpha = 1;
+    vBlit('sky_fall_lip', x, y - ts * 0.3, width, ts);
+    ctx.restore();
+  }
+}
+
+// The outer lanes of a wide waterfall are standing water, except its one-row
+// crest and splash foot. Neighbour-sensitive paint only; never rewrite the
+// solid waterfall IDs or the hidden doorway at the foot of the centre lane.
+function waterfallStillSideAt(map, c, r) {
+  const falling = (x, y) => map[y] &&
+    (map[y][x] === T.WATERFALL || map[y][x] === T.WATERFALL_DOOR);
+  const t = map[r] && map[r][c];
+  if (t === T.WATERFALL) {
+    if (!falling(c, r - 1) || !falling(c, r + 1)) return false;
+    const left = falling(c - 1, r), right = falling(c + 1, r);
+    return left !== right && falling(c + (left ? -2 : 2), r);
+  }
+  if (t !== T.WATER && t !== T.MEDIUM_WATER && t !== T.DEEP_WATER && t !== T.SHALLOW_WATER) return false;
+  return [-1, 1].some(dx => falling(c + dx, r) &&
+    falling(c + dx, r - 1) && falling(c + dx, r + 1));
+}
+
+function drawWaterfallStillSide(mapObj, c, r, x, y, ts) {
+  if (!waterfallStillSideAt(mapObj.map, c, r)) return false;
+  const region = terrainRegionOf(mapObj);
+  if (!terrainGroundReady(region)) return false;
+  const a = terrainAtlas(region).ground;
+  const name = ((c * 31 + r * 17) & 1) ? 'water_a' : 'water_b';
+  const frame = a.frames[name];
+  if (frame === undefined) return false;
+  const smooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(terrainSheets.get(region).groundImg,
+    (frame % a.cols) * a.tile, Math.floor(frame / a.cols) * a.tile, a.tile, a.tile,
+    x, y, ts, ts);
+  ctx.imageSmoothingEnabled = smooth;
+  return true;
+}
+
 // ─── Ground categories ────────────────────────────────────────────────────────
 // Which of the sheet's five ground materials a tile's FLOOR is made of. This is
 // the tile's ground, not the tile: T.TREE's ground is shaded turf and the tree

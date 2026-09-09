@@ -23,7 +23,9 @@
 //   • Buildings and the fountain only. Grass, cobble, marble, flowers and the
 //     tree border stay procedural, so a village still blends into the overworld
 //     around it instead of ending at a hard seam.
-//   • Elderbrook's family home is NOT touched. Its bespoke projected facade
+//   • Shared rock, sanctuary and sky-waterfall frames also live on this sheet.
+//     Their explicit hooks below work outside the forest building-skin gate.
+//   • Elderbrook's family home is NOT re-skinned. Its bespoke projected facade
 //     (the familyHome branch of drawForestHouseRoof) is the prologue's set
 //     piece and is tuned against beats this sheet knows nothing about.
 
@@ -223,6 +225,14 @@ function drawVillageWallFace(x, faceTop, ts, lift) {
   return true;
 }
 
+// Shared scenery frames live on the same small sheet. Geometry remains in the
+// extrusion owner; this hook supplies only authored pixels, on any region.
+function drawRockRelief(frame, x, y, w, h) {
+  if (!villageSheetReady() || VILLAGE_F[frame] === undefined) return false;
+  vBlit(frame, x, y, w, h);
+  return true;
+}
+
 // The door panel at the foot of an extruded wall face.
 function drawVillageDoorPanel(x, y, ts) {
   if (!villageSheetReady()) return false;
@@ -264,8 +274,65 @@ function drawVillageDoorPanelRect(x, y, w, h) {
 // drawTile returning early demands it: nothing else paints a base square.
 //
 // Returns true when it has drawn the tile and the caller should stop.
+const villageTallShrines = new WeakMap();
+
+function villageShrineArtBounds(mapObj) {
+  if (!mapObj || mapObj.type !== 'village') return null;
+  return mapForestHouseRoofs(mapObj).find(h => mapObj.map[h.r2][h.doorC] === T.SHRINE_DOOR) || null;
+}
+
+function villageShrineArtAt(mapObj, c, r) {
+  const h = villageShrineArtBounds(mapObj);
+  return h && c >= h.c1 && c <= h.c2 && r >= h.r1 && r <= h.r2;
+}
+
+function shrineFurnitureFrame(t) {
+  if (t === T.BED || t === T.FIREPLACE) return 'statue';
+  if (t === T.TABLE) return 'altar';
+  if (t === T.CHAIR || t === T.TORCH) return 'offerings';
+  return null;
+}
+
+function villageShrineTileArt(col, row, t, x, y, s) {
+  if (!villageSheetReady() || !villageShrineArtAt(currentMap(), col, row)) return false;
+  if (t === T.WALL) { vBlit('shrine_rail', x, y, s, s); return true; }
+  if (t === T.FLOOR || shrineFurnitureFrame(t) || t === T.SHRINE_DOOR) {
+    drawTile(col, row, T.MARBLE, x, y, s);
+    // The existing threshold rune still marks the exact interactable entrance.
+    if (t === T.SHRINE_DOOR) drawTileProcedural(col, row, T.SHRINE_RUNE, x, y, s);
+    return true;
+  }
+  return false;
+}
+
+function villagePropTile(mapObj, t, c, r) {
+  if (shrineFurnitureFrame(t) && villageShrineArtAt(mapObj, c, r)) {
+    // A two-tile bed becomes one guardian statue, not two stacked figures.
+    return t !== T.BED || mapObj.map[r + 1]?.[c] !== T.BED;
+  }
+  return !!mapObj && (mapObj.type === 'village' || mapObj.type === 'homevillage') &&
+    (t === T.PILLAR || t === T.FOUNTAIN_SPOUT);
+}
+
+function drawVillageProp(mapObj, c, r, t, ts) {
+  if (!villageSheetReady()) return;
+  const shrineFrame = shrineFurnitureFrame(t);
+  if (shrineFrame && villageShrineArtAt(mapObj, c, r)) {
+    const height = shrineFrame === 'statue' ? 2.2 : shrineFrame === 'altar' ? 1.35 : 0.8;
+    const width = shrineFrame === 'altar' ? 1.65 : 1;
+    vBlit(shrineFrame, worldX(c + (1 - width) / 2), worldY(r + 1 - height), ts * width, ts * height);
+    return;
+  }
+  const spout = t === T.FOUNTAIN_SPOUT;
+  vBlit(spout ? 'spout_upright' : 'pillar_upright', worldX(c),
+    worldY(r + 1) - ts * (spout ? 1.9 : 1.5), ts, ts * (spout ? 1.9 : 1.5));
+}
+
 function villageTileArt(col, row, t, sx, sy, s) {
-  if (!villageArtHere()) return false;
+  const mo = currentMap();
+  const fountain = mo && (mo.type === 'village' || mo.type === 'homevillage') &&
+    (t === T.PILLAR || t === T.FOUNTAIN_SPOUT || t === T.FOUNTAIN_WATER);
+  if (!(fountain ? villageSheetReady() : villageArtHere())) return false;
 
   const x = Math.floor(sx), y = Math.floor(sy);
 
@@ -279,12 +346,12 @@ function villageTileArt(col, row, t, sx, sy, s) {
   // T.MARBLE on the way back in.
   if (t === T.PILLAR) {
     drawTile(col, row, T.MARBLE, sx, sy, s);
-    vBlit('pillar_cap', x, y, s, s);
+    // The upright column is depth-sorted with actors, not stamped on the floor.
     return true;
   }
 
   if (t === T.FOUNTAIN_SPOUT || t === T.FOUNTAIN_WATER) {
-    vBlit(t === T.FOUNTAIN_SPOUT ? 'spout' : 'basin', x, y, s, s);
+    vBlit('basin', x, y, s, s);
     // Marble lip wherever the basin meets something that is not basin. Drawn as
     // a transparent overlay per side, so a corner tile correctly takes two.
     const m = typeof mapData === 'function' ? mapData() : null;
@@ -297,7 +364,7 @@ function villageTileArt(col, row, t, sx, sy, s) {
       };
       if (!wet(col, row - 1)) vBlitTurned('basin_edge', x, y, s, 0);
       if (!wet(col + 1, row)) vBlitTurned('basin_edge', x, y, s, 1);
-      if (!wet(col, row + 1)) vBlitTurned('basin_edge', x, y, s, 2);
+      if (!wet(col, row + 1)) vBlit('basin_front', x, y + s * 0.60, s, s * 0.40);
       if (!wet(col - 1, row)) vBlitTurned('basin_edge', x, y, s, 3);
     }
     // The sheet's water is a still texture. These two drifting highlights are

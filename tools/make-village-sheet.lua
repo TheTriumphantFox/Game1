@@ -10,15 +10,19 @@
 -- flat blue square inside a ring of grey pillars; the art shows a cream marble
 -- colonnade around a bright cyan basin.
 --
--- 48x48 frames, 3 columns, 8 rows = 24 frames (22 used, 2 reserved). 48 because
+-- 48x48 frames, 3 columns, 13 rows = 39 frames (38 used, 1 reserved). 48 because
 -- that is TILE_PX's default, so the sheet blits 1:1 at the standard zoom and
 -- scales cleanly to the 24 the phone check measured.
 --
 -- The frames are a NINE-SLICE for the roof plus a handful of standalone tiles,
--- not an animation, so nothing here is tagged. Rows 0-4 are the roof bands read
+-- with a four-frame sky-waterfall loop appended (selected by atlas name, not
+-- animation tags). Rows 0-4 are the roof bands read
 -- top to bottom (north eave, north slope, ridge, south slope, south fascia),
 -- each row being that band's west / centre / east piece. render.js tiles the
 -- centre pieces across a house and caps the run with the west/east ones.
+-- Shared scenery follows: rock relief, upright fountains, open-air shrine
+-- furniture, Ashfall injury dressing, and decorative sky spillways. The first
+-- 22 village frames remain unchanged for existing roofs and fallbacks.
 --
 -- Step 1 also writes village-atlas.js, the frame layout the game reads at
 -- runtime. Same reasoning as hero-atlas.js: a .js file assigning a global,
@@ -37,7 +41,7 @@
 
 local S    = 48          -- one tile
 local COLS = 3
-local ROWS = 8
+local ROWS = 13
 local N_FRAMES = COLS * ROWS
 
 local lib = dofile("tools/aseprite-lib.lua")
@@ -326,6 +330,44 @@ end
 -- left every column sitting on a visibly different, veinless tile. The renderer
 -- draws the real plaza tile underneath instead.
 
+local function framePillarUpright(img)
+  R.ellipsePx(img, 25, 43, 18, 4, MAR_DD)
+  rect(img, 10, 36, 28, 7, OUTLINE)
+  rect(img, 12, 36, 24, 5, MAR)
+  rect(img, 16, 9, 16, 28, MAR_D)
+  rect(img, 17, 9, 9, 28, MAR_L)
+  for x = 20, 29, 4 do rect(img, x, 11, 1, 23, MAR_DD) end
+  R.ellipsePx(img, 24, 10, 18, 6, OUTLINE)
+  R.ellipsePx(img, 24, 8, 17, 5, MAR)
+  R.ellipsePx(img, 23, 7, 14, 3, MAR_L)
+end
+
+local function frameSpoutUpright(img)
+  R.ellipsePx(img, 24, 43, 21, 4, WAT_L)
+  rect(img, 19, 20, 10, 22, MAR_D)
+  rect(img, 20, 20, 4, 21, MAR_L)
+  R.ellipsePx(img, 24, 28, 18, 7, MAR_DD)
+  R.ellipsePx(img, 24, 25, 19, 6, MAR_L)
+  R.ellipsePx(img, 24, 24, 15, 4, WAT)
+  rect(img, 22, 9, 4, 17, MAR_L)
+  R.ellipsePx(img, 24, 12, 12, 5, MAR_D)
+  R.ellipsePx(img, 24, 10, 13, 4, MAR_L)
+  R.ellipsePx(img, 24, 9, 10, 2, WAT_L)
+  rect(img, 23, 1, 2, 9, FOAM)
+  for _, x in ipairs({7,12,35,40}) do
+    rect(img, x, 26, 2, 13, WAT_H)
+    rect(img, x, 27, 1, 10, FOAM)
+  end
+end
+
+local function frameBasinFront(img)
+  fill(img, MAR_DD)
+  rect(img, 0, 0, 48, 9, MAR_L)
+  rect(img, 0, 9, 48, 5, MAR)
+  rect(img, 0, 43, 48, 5, OUTLINE)
+  for x = 0, 47, 16 do rect(img, x, 15, 1, 28, MAR_D) end
+end
+
 local function framePillarCap(img)
   -- Cast shadow to the lower-right, opposite the key light.
   R.ellipsePx(img, 26, 27, 18, 18, MAR_DD)
@@ -399,6 +441,137 @@ local function frameBasinEdge(img)
 end
 
 ----------------------------------------------------------------------
+-- Shared rock relief, using the existing cliff's sampled stone ramp.
+-- Vertical fissures and a shaded foot distinguish a face from a ground tile.
+local function frameCliffFace(img)
+  fill(img, hex('#655b50'))
+  for _, p in ipairs({{0,10},{14,12},{31,9},{43,5}}) do
+    rect(img, p[1], 0, p[2], 44, hex('#7e7363'))
+    rect(img, p[1]+p[2]-3, 2, 3, 44, hex('#463d33'))
+    for y = 0, 43 do
+      local x = p[1] + math.floor(y / 13) % 3
+      R.px(img, x, y, hex('#a89a84'))
+    end
+  end
+  for _, y in ipairs({13,29,39}) do
+    for x = 0, 47 do
+      R.px(img, x, y + math.floor(x / 12) % 2, hex('#463d33'))
+    end
+  end
+  rect(img, 0, 43, 48, 3, hex('#463d33'))
+  rect(img, 0, 46, 48, 2, hex('#2c261e'))
+end
+
+local function frameCliffCap(img)
+  fill(img, hex('#8a7e6a'))
+  for y = 2, 44, 7 do
+    for x = 2, 45, 9 do
+      rect(img, x, y, 4, 2, hex('#7e7363'))
+    end
+  end
+  rect(img, 0, 45, 48, 3, hex('#b2a68e'))
+end
+
+----------------------------------------------------------------------
+-- Open-air sanctuary furniture. Marble and brass reuse the concept palette.
+local function frameAltar(img)
+  rect(img, 5, 38, 38, 7, MAR_DD)
+  rect(img, 8, 25, 32, 15, MAR_D)
+  rect(img, 10, 26, 9, 12, MAR)
+  rect(img, 3, 20, 42, 7, OUTLINE)
+  rect(img, 4, 18, 40, 6, MAR_L)
+  rect(img, 19, 21, 11, 20, hex('#743a28'))
+  rect(img, 23, 25, 3, 9, BRASS)
+  rect(img, 21, 28, 7, 2, BRASS)
+  R.ellipsePx(img, 25, 16, 9, 3, BRASS)
+  R.ellipsePx(img, 25, 15, 7, 2, hex('#743a28'))
+  for _, x in ipairs({9,37}) do
+    rect(img, x, 8, 3, 11, MAR_L)
+    R.ellipsePx(img, x+1, 5, 2, 4, BRASS)
+    R.px(img, x+1, 4, FOAM)
+  end
+end
+local function frameStatue(img)
+  rect(img, 7, 40, 34, 7, MAR_DD)
+  rect(img, 10, 37, 28, 5, MAR_L)
+  R.polyPx(img, {{15,37},{18,16},{30,16},{35,37}}, MAR_D)
+  R.polyPx(img, {{17,35},{21,17},{24,18},{24,35}}, MAR_L)
+  R.ellipsePx(img, 24, 10, 7, 9, MAR_DD)
+  R.ellipsePx(img, 23, 9, 5, 7, MAR)
+  rect(img, 21, 10, 6, 2, MAR_DD)
+  R.linePx(img, 15,20,22,25,4,MAR)
+  R.linePx(img, 32,20,26,25,4,MAR_DD)
+  R.ellipsePx(img,24,26,6,3,BRASS)
+end
+local function frameOfferings(img)
+  R.ellipsePx(img, 24, 36, 19, 7, MAR_DD)
+  R.ellipsePx(img, 24, 32, 19, 6, BRASS)
+  R.ellipsePx(img, 24, 31, 16, 4, TIM_D)
+  for _, p in ipairs({{15,28},{22,25},{29,28},{34,26}}) do
+    R.ellipsePx(img,p[1],p[2],4,4,hex('#743a28'))
+    R.px(img,p[1]-1,p[2]-2,MAR_L)
+  end
+  rect(img, 6, 18, 4, 15, MAR_L)
+  R.ellipsePx(img,8,15,2,4,BRASS)
+end
+-- Overlay matches the existing shopkeeper body's tile-relative anchors.
+local function frameInjury(img)
+  local ash = hex('#463d33')
+  rect(img, 15, 9, 18, 4, MAR_L)
+  rect(img, 15, 12, 18, 1, MAR_DD)
+  rect(img, 16, 10, 4, 2, hex('#743a28'))
+  rect(img, 28, 17, 4, 3, ash)
+  rect(img, 17, 21, 3, 4, ash)
+  R.linePx(img, 16,23,32,34,4,MAR_L)
+  R.linePx(img, 16,25,31,35,1,MAR_DD)
+  rect(img, 7, 33, 5, 5, MAR_L)
+  rect(img, 7, 35, 5, 1, MAR_DD)
+  for _, p in ipairs({{27,27},{19,37},{31,39},{35,30}}) do
+    rect(img,p[1],p[2],3,3,ash)
+  end
+  for _, x in ipairs({14,21,29,34}) do
+    R.polyPx(img,{{x,43},{x+2,38},{x+4,43}},ash)
+  end
+end
+
+local function frameShrineRail(img)
+  fill(img, MAR)
+  rect(img, 0, 29, 48, 17, MAR_DD)
+  rect(img, 0, 27, 48, 7, MAR_L)
+  rect(img, 0, 46, 48, 2, OUTLINE)
+  for x = 6, 47, 16 do rect(img,x,36,5,6,BRASS) end
+end
+
+----------------------------------------------------------------------
+-- Sky spillways: transparent sides, falling strands and dissipating spray.
+local function frameSkyFall(img, phase)
+  for y = 0, 47 do
+    local inset = 8 + math.floor(y / 16) % 2
+    rect(img, inset, y, 48-inset*2, 1, WAT_D)
+    rect(img, inset+3, y, 26-inset, 1, WAT)
+    for k = 0, 5 do
+      local x = 11 + k*5
+      local f = (y - phase*12 + k*9) % 48
+      if f < 28 then rect(img,x,y,k%2+1,1,k%2==0 and FOAM or WAT_H) end
+    end
+  end
+end
+local function frameSkyLip(img)
+  for _, p in ipairs({{7,20,7,5},{15,17,10,6},{34,19,12,6},{42,23,5,5}}) do
+    R.ellipsePx(img,p[1],p[2],p[3],p[4],MAR_L)
+  end
+  R.ellipsePx(img,24,22,14,6,WAT)
+  R.ellipsePx(img,24,20,13,4,WAT_H)
+  rect(img,10,23,28,25,WAT)
+  for x = 11, 38, 5 do rect(img,x,24,2,24,FOAM) end
+end
+local function frameSkyMist(img)
+  for _, p in ipairs({{9,15,6,3},{22,22,12,5},{36,30,8,4},{15,36,7,3}}) do
+    R.ellipsePx(img,p[1],p[2],p[3],p[4],FOAM)
+  end
+end
+
+----------------------------------------------------------------------
 -- assembly
 ----------------------------------------------------------------------
 -- Frame order IS the atlas, and both are written from this one table so they
@@ -435,6 +608,22 @@ local FRAMES = {
   { 'basin',      frameBasin     },
 
   { 'basin_edge', frameBasinEdge },
+  { 'cliff_face', frameCliffFace },
+  { 'cliff_cap',  frameCliffCap },
+  { 'pillar_upright', framePillarUpright },
+  { 'spout_upright', frameSpoutUpright },
+  { 'basin_front', frameBasinFront },
+  { 'altar', frameAltar },
+  { 'statue', frameStatue },
+  { 'offerings', frameOfferings },
+  { 'shrine_rail', frameShrineRail },
+  { 'injury_overlay', frameInjury },
+  { 'sky_fall_0', function(i) frameSkyFall(i,0) end },
+  { 'sky_fall_1', function(i) frameSkyFall(i,1) end },
+  { 'sky_fall_2', function(i) frameSkyFall(i,2) end },
+  { 'sky_fall_3', function(i) frameSkyFall(i,3) end },
+  { 'sky_fall_lip', frameSkyLip },
+  { 'sky_fall_mist', frameSkyMist },
 }
 
 local spr = Sprite(S, S, ColorMode.RGB)

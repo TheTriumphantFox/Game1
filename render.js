@@ -145,6 +145,17 @@ function getTileSprite(t, s) {
 // Draw one map tile. Pure tiles (CACHEABLE_TILES) are painted once and blitted
 // from cache here; every other tile falls through to the procedural switch.
 function drawTile(col, row, t, sx, sy, s) {
+  // Keep falling streaks inside their lane so they cannot overpaint the still
+  // side water or escape above the crest when their animation wraps.
+  if (t === T.WATERFALL || t === T.WATERFALL_DOOR) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(sx, sy, s, s); ctx.clip();
+    drawTileProcedural(col, row, t, sx, sy, s);
+    ctx.restore();
+    return;
+  }
+  if (villageShrineTileArt(col, row, t, sx, sy, s)) return;
+  if ((t === T.WALL || DOORWAY_TILES.has(t)) && houseFrontCutaway(currentMap(), col, row)) t = T.FLOOR;
   // Forest-village building sheet, ahead of both caches on purpose. Those key
   // art on tile type alone, so a village-only look for T.WALL or T.PILLAR baked
   // into one would follow the tile onto every other map that uses it. See
@@ -255,7 +266,7 @@ function drawPlayer(ts) {
   // groundZ is the shelf he is standing on, z is the hop and any remaining drop
   // above it. The body is lifted by the sum; the shadow below is placed on the
   // shelf and shrinks only with z. See the field comments on `player`.
-  const jumpLift = ((player.z || 0) + (player.groundZ || 0)) * s;
+  const jumpLift = ((player.z || 0) + (player.groundZ || 0) + glideVisualLift()) * s;
   let climbLift = 0, climbSway = 0;
   if (onClimb) {
     const cph = Date.now() / 95;
@@ -284,7 +295,7 @@ function drawPlayer(ts) {
   if (lowHp) {
     dangerPulse = 0.5 + 0.5 * Math.sin(Date.now() / 140);
     ctx.shadowColor = `rgba(255,40,40,${(0.55 + 0.45 * dangerPulse).toFixed(3)})`;
-    ctx.shadowBlur = s * (0.30 + 0.40 * dangerPulse);
+    ctx.shadowBlur = s * (0.08 + 0.10 * dangerPulse);
   }
 
   // Shadow ellipse. Stays on the ground, tightening and fading as the player
@@ -300,7 +311,7 @@ function drawPlayer(ts) {
   //
   // The Elderbrook interior sun offset and the airborne shrink/fade live inside
   // groundShadow, so enemies and villagers get them too.
-  groundShadow(px, py, (player.z || 0) + (player.groundZ || 0), 0.28, 0.07, 0.40,
+  groundShadow(px, py, (player.z || 0) + (player.groundZ || 0) + glideVisualLift(), 0.28, 0.07, 0.40,
                climbSway / s, undefined, player.groundZ || 0);
   // Sway the body horizontally during a climb (shadow already placed above).
   if (climbSway) ctx.translate(climbSway, 0);
@@ -668,11 +679,8 @@ function finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming) {
     ctx.globalAlpha = 0.16 + 0.26 * dangerPulse;
     ctx.fillStyle = '#ff2020';
     ctx.beginPath();
-    // Centred on the FIGURE, not on the tile. The hero stands about 1.26 tiles
-    // tall (see hero-sprite.js), so a circle centred at 0.48 of the tile with a
-    // 0.46 radius reached her belt and stopped — at low HP her head and
-    // shoulders, the part being looked at, were the part left untinted.
-    ctx.arc(sx + s/2, sy + s*0.30 + bob, s*0.72, 0, Math.PI*2);
+    // A narrow figure-sized flash, not a danger disc covering nearby tiles.
+    ctx.ellipse(sx + s/2, sy + s*0.30 + bob, s*0.32, s*0.58, 0, 0, Math.PI*2);
     ctx.fill();
     ctx.globalAlpha = 1;
   }
@@ -1761,7 +1769,8 @@ function drawPrologueEmperor(ts) {
     name: 'The Red Dragon Emperor',
     element: 'fire',     // gives him the fire aura every fire-element enemy wears
     id: 9901,            // stable id → stable idle-bob phase
-    cutsceneActor: true
+    cutsceneActor: true,
+    cutsceneAnim: E.anim || (alt > 6 ? 'fly' : 'awake')
   }, ts);
   ctx.restore();
 }
@@ -2215,6 +2224,7 @@ const TALL_LANDMARK = 2;
 // standing south of the foot has to be drawn in front of it and one standing
 // north of the foot behind it.
 const TALL_TERRAIN   = 3;
+const TALL_VILLAGE   = 4;
 
 // Per-map, memoized, row-sorted list of every tall tile, as flat triples
 // (col, row, subKind). Flat because a forest is ~35% TREE and this list can run
@@ -2230,7 +2240,12 @@ const TALL_TERRAIN   = 3;
 // the moment to add the floor.
 function mapTallTiles(mapObj) {
   let list = mapObj._tallTiles;
-  if (list) return list;
+  const shrine = villageShrineArtBounds(mapObj);
+  const shrineKey = shrine ? `${shrine.doorC},${shrine.r2}` : '';
+  // Activation changes a house door into a shrine without rebuilding its map.
+  // Refresh the prop classification then, even if a roof list already exists.
+  if (list && villageTallShrines.get(mapObj) === shrineKey) return list;
+  villageTallShrines.set(mapObj, shrineKey);
   list = [];
   const g = mapObj.map;
   // A map can be on the depth merge without extruding anything (item A0: forest
@@ -2259,7 +2274,8 @@ function mapTallTiles(mapObj) {
     const row = g[r];
     for (let c = 0; c < MCOLS; c++) {
       const t = row[c];
-      if (terrainProps && terrainPropTile(mapObj, t)) list.push(c, r, TALL_TERRAIN);
+      if (villagePropTile(mapObj, t, c, r))              list.push(c, r, TALL_VILLAGE);
+      else if (terrainProps && terrainPropTile(mapObj, t)) list.push(c, r, TALL_TERRAIN);
       else if (t === T.COLOSSAL_TREE)               list.push(c, r, TALL_COLOSSAL);
       else if (BIG_LANDMARK_TILES.has(t))           list.push(c, r, TALL_LANDMARK);
       else if (t === T.LEDGE || t === T.LEDGE_FACE) list.push(c, r, TALL_EXTRUDE);
@@ -2313,6 +2329,7 @@ function invalidateTallTiles(mapObj) {
   mapObj._ledgeTiles = null;
   mapObj._colossalTrees = null;
   mapObj._bigLandmarks = null;
+  skyWaterfallCache.delete(mapObj);
   if (typeof terrainGroundReset === 'function') terrainGroundReset();
 }
 
@@ -2334,6 +2351,10 @@ function drawTallTile(mapObj, map, c, r, sub, ts, startC, startR, endC, endR) {
     case TALL_LANDMARK:
       if (c >= startC - 3 && c <= endC + 3 && r >= startR - 2 && r <= endR + 4)
         drawBigLandmark(map[r][c], c, r, ts);
+      break;
+    case TALL_VILLAGE:
+      if (c >= startC - 1 && c <= endC + 1 && r >= startR - 1 && r <= endR + 3)
+        drawVillageProp(mapObj, c, r, map[r][c], ts);
       break;
     case TALL_TERRAIN:
       // A prop frame is 2 tiles wide and 3 tall with its foot at the bottom, so
@@ -3024,7 +3045,7 @@ function drawElderbrookFamilyHomeDepth(mapObj, ts) {
 
   for (let c = H.c1; c <= c2; c++) {
     if (map[H.r1][c] === T.WALL || map[H.r1][c] === T.CASTLE_WINDOW) wallTile(c, H.r1);
-    if (map[r2][c] === T.WALL) wallTile(c, r2);
+    if (!inside && map[r2][c] === T.WALL) wallTile(c, r2);
   }
   for (let r = H.r1 + 1; r < r2; r++) {
     if (map[r][H.c1] === T.WALL) wallTile(H.c1, r);
@@ -3109,11 +3130,18 @@ function drawForestVillageRoofs(mapObj, ts, startC, startR, endC, endR) {
   }
 }
 
-// Is this house's roof drawn at all this frame? Off-screen, or the player is
-// inside it. Split out so the depth layer can ask the same question before
-// entering a roof into the merge.
+// Use the same entry boundary as roofs, but cut only the camera-facing row.
+// Tile identity and collision remain intact. Side and far walls retain context.
+function houseFrontCutaway(mapObj, c, r) {
+  if (!mapObj || (mapObj.type !== 'village' && mapObj.type !== 'homevillage')) return false;
+  return mapForestHouseRoofs(mapObj).some(h => r === h.r2 && c >= h.c1 && c <= h.c2 &&
+    player.x >= h.c1 && player.x <= h.c2 && player.y >= h.r1 && player.y <= h.r2);
+}
+
+// Roof visibility is shared by the depth merge and the flat fallback pass.
 function forestRoofVisible(h, ts, startC, startR, endC, endR) {
-  if (h.c2 < startC - 1 || h.c1 > endC + 1 || h.r2 < startR - 1 || h.r1 > endR + 1) return false;
+  if (currentMap().map[h.r2][h.doorC] === T.SHRINE_DOOR) return false;
+  if (h.c2 < startC - 1 || h.c1 > endC + 1 || h.r2 < startR - 1 || h.r1 > endR + 3) return false;
   // Crossing the doorway counts as entering: the whole roof vanishes at once
   // and exposes walls, floor, furniture, villagers, and the hero underneath.
   if (player.x >= h.c1 && player.x <= h.c2 && player.y >= h.r1 && player.y <= h.r2) return false;
@@ -3497,7 +3525,7 @@ function drawForestHouseRoof(h, mapObj, ts) {
   {
 
     const left = (h.c1 - camC - 0.28) * ts;
-    const top = (h.r1 - camR - 0.45) * ts;
+    const top = (h.r1 - camR - TILE_HEIGHT[T.WALL] - 0.20) * ts;
     const right = (h.c2 + 1 - camC + 0.28) * ts;
     const bottom = (h.r2 + 1 - camR + 0.20) * ts;
     const familyHome = isFamilyHomeRoof(h, mapObj);
@@ -3508,7 +3536,7 @@ function drawForestHouseRoof(h, mapObj, ts) {
     // nothing to stand up from outside.
     const facadeTiles = familyHome
       ? FACADE_TILES_FAMILY
-      : facadeDepthFor((bottom - top) / ts, FACADE_TILES_COTTAGE);
+      : facadeDepthFor(h.r2 - h.r1 + 1.65, FACADE_TILES_COTTAGE);
     const roofBottom = bottom - ts * facadeTiles;
     const width = right - left, height = bottom - top;
     const roofHeight = roofBottom - top;
@@ -3825,6 +3853,7 @@ function render() {
         continue;
       }
       const t = map[mr][mc];
+      if (drawWaterfallStillSide(mapObj, mc, mr, sx, sy, ts)) continue;
       if (bakedGround) {
         const cov = terrainGroundCovers(mapObj, t);
         // FULL: the bake owns the whole cell (and a tree's canopy comes later,
@@ -3837,6 +3866,8 @@ function render() {
       drawTile(mc, mr, t, sx, sy, ts);
     }
   }
+
+  drawSkyWaterfalls(mapObj, ts, startC, startR, endC, endR);
 
   // The blight, laid over the finished tile pass (corruption.js). Here rather
   // than inside drawTile because it is a property of the *place*, not of any
