@@ -59,6 +59,26 @@
   </div>
 </div>
 
+<!-- Loading screen — the controls, shown once between committing to a run and
+     the world unfreezing (New Game, skip-prologue, and a load from the title).
+     Contents are built from the live key bindings in main.js, not written here,
+     so a rebind is reflected the next time it is shown. -->
+<div id="loading-overlay">
+  <div id="loading-box">
+    <div id="loading-crest">🗺️</div>
+    <h2 id="loading-heading">Before you set out</h2>
+    <p id="loading-tagline">Your controls. Rebind them any time from the Menu ring.</p>
+    <div id="loading-cols"></div>
+    <label id="loading-again">
+      <input type="checkbox" id="loading-again-box">
+      <span>Don't show this again
+        <small>Menu ring › Controls brings it back</small></span>
+    </label>
+    <button class="title-btn" id="loading-go" onclick="dismissLoadingScreen()">▶ Begin</button>
+    <p id="loading-hint">Press any key to continue</p>
+  </div>
+</div>
+
 <!-- Inn modal -->
 <div id="inn-modal-overlay" class="shop-overlay">
   <div id="inn-modal" class="shop-modal"></div>

@@ -1195,6 +1195,31 @@ function setUiMode(mode) {
   if (typeof refreshControlHints === 'function') refreshControlHints();
 }
 
+// ─── Whether the controls card is shown on the way into a run ────────────────
+// A fourth per-device pref, stored for the same reason as the three above: a save
+// carried to another device should not drag a phone's decision about a UI card
+// with it.
+//
+// The card can hide itself ("Don't show this again"), and a screen that can hide
+// itself with no way back is a trap — so the Controls window is where it comes
+// back from (controlsToggleStartScreen, sysmenu.js). That matters most on the
+// touch build, where this card is the ONLY place the steering pad and the action
+// buttons are ever explained; a keyboard player at least has the weapon bar and
+// the hint strip telling them which key is which.
+const CONTROLS_SCREEN_KEY = 'stormdrift_controls_screen';
+
+let showControlsOnStart = true;
+try {
+  if (localStorage.getItem(CONTROLS_SCREEN_KEY) === 'off') showControlsOnStart = false;
+} catch (_) { /* private mode / storage blocked — keep showing it */ }
+
+function setShowControlsOnStart(on) {
+  showControlsOnStart = !!on;
+  try {
+    localStorage.setItem(CONTROLS_SCREEN_KEY, showControlsOnStart ? 'on' : 'off');
+  } catch (_) { /* ignore */ }
+}
+
 // Cycled by the 🎮 button on the title screen and the radial ring's Controls entry.
 function cycleUiMode() {
   setUiMode(uiModePref === 'auto' ? 'touch' : uiModePref === 'touch' ? 'desktop' : 'auto');

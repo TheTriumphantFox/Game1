@@ -297,18 +297,18 @@ const RADIAL_RINGS = [
   // its own panel and fires on Enter/click ONLY (navigating past one must not
   // trigger it), so they're flagged `launcher` and skipped by radialAutoPick.
   // Drop a settings or character launcher in here later with no other changes. ──
-  // ── Abilities: the five shrine rewards ───────────────────────────────────────
-  // The three passives are listed but not selectable — they are always on, and
-  // an entry that equips nothing has to say so rather than looking broken. The
-  // two actives share the [F] key and the touch ability button, so picking one
-  // here is what decides which of them that button is (abilities.js).
+  // ── Abilities ────────────────────────────────────────────────────────────────
+  // One shrine reward is left (Mana's Arcane Sight) and it is passive: listed but
+  // not selectable, because an entry that equips nothing has to say so rather
+  // than looking broken. The [F] key's active is supplied by worn Air armor and
+  // appears through the `supplied` branch below (abilities.js).
   { name: 'abilities', getItems: () => {
       const owned = player.abilities || {};
-      // Worn Air/Shadow armor takes [F] over for as long as it is worn
-      // (armorActiveAbility, abilities.js). The shrine selection underneath is
-      // not lost — it is what [F] returns to once the armor comes off — so this
-      // ring has to distinguish "chosen" from "currently firing" rather than
-      // reading player.equippedAbility and calling it Equipped.
+      // Worn Air armor holds [F] for as long as it is worn (armorActiveAbility,
+      // abilities.js). No shrine grants an active any more, so in practice the
+      // list below is passives and the ring's one live entry is the supplied
+      // one — but the "chosen" vs "currently firing" distinction is kept, since
+      // player.equippedAbility survives on older saves.
       const armorAbility = () =>
         (typeof armorActiveAbility === 'function') ? armorActiveAbility() : null;
       const items = SHRINE_REWARDS.filter(r => r.kind === 'ability' && owned[r.key]).map(r => {

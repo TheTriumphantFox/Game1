@@ -82,7 +82,6 @@ function pristineMapForSave(m) {
   const regionIdx = saveRegionIndex(m);
   const base = buildOverworldForRegion(regionIdx, m.mapSeed, m.depth,
                                        mapOpenSides(m), !!m.placeDungeon);
-  if (m.sealed && typeof upgradeDeadEndChests === 'function') upgradeDeadEndChests(base);
   pristineMapCache.set(m, base);
   return base;
 }
@@ -278,8 +277,7 @@ const DEFAULT_PLAYER = {
   // Version-2 village shrine quests; legacy sealed records upgrade on load.
   shrineQuests: {},
   // Permanent shrine abilities, keyed by ability id (see ABILITY_IDS, player.js).
-  abilities: { frostGrip:false, updraftGlide:false, emberLantern:false,
-               arcaneSight:false, shadowStep:false },
+  abilities: { arcaneSight:false },
   // The active ability on [F] / the touch ability button (abilities.js).
   equippedAbility: null,
   // Per-region Taxidermist quests + earned trophy-drop bonuses (shop-herbalist.js).
@@ -329,7 +327,6 @@ function rebuildSeededMapFromLite(lite, regionIdx) {
     throw new Error('Map delta has no seeded recipe');
   const map = buildOverworldForRegion(regionIdx, lite.mapSeed, lite.depth,
                                       lite.openSides, !!lite.placeDungeon);
-  if (lite.sealed && typeof upgradeDeadEndChests === 'function') upgradeDeadEndChests(map);
   return map;
 }
 
@@ -564,16 +561,10 @@ function applyLoadDataUnsafe(data) {
                              lite.depth, lite.openSides, region, lite.placeDungeon);
     }
 
-    // A rebuilt dead-end needs its Hero's Cache stamped back on — that upgrade
-    // happens after generation in createSealedNeighbor (world.js), so a map rebuilt
-    // from its builder comes back with the plain CHEST the builder placed. Only when
-    // we actually rebuilt: a decoded map already carries the large chest in its tiles,
-    // and re-running this on one would promote unrelated chests the player has since
-    // found. `openedChests` is keyed by "x,y" and both halves share the anchor's key,
-    // so an already-looted cache stays looted.
-    if (lite.sealed && !hasStoredTiles) {
-      if (typeof upgradeDeadEndChests === 'function') upgradeDeadEndChests(md);
-    }
+    // A rebuilt dead-end used to need its Hero's Cache stamped back on here. The
+    // dead-end reward is an ordinary chest again (see world.js), which the builder
+    // places itself, so a rebuilt map needs nothing extra. A save made before the
+    // downgrade keeps whatever its stored tiles hold.
 
     // Villages share type 'village' but each region's boss differs, so build a
     // `<region>_village` discriminator for makeEnemyDefs. Sky caves are stocked
@@ -914,6 +905,18 @@ function doSave(slotIdx) {
   }
 }
 
+// Leave the title screen after a successful load. A load launched from the
+// title shows the controls first (the world is frozen until it is dismissed);
+// a load made mid-run does nothing here at all, since the game is already going.
+function finishTitleLoad() {
+  const fromTitle = typeof gameStarted !== 'undefined' && !gameStarted;
+  if (fromTitle && typeof showLoadingScreen === 'function') {
+    showLoadingScreen(() => { if (typeof startGame === 'function') startGame(); });
+    return;
+  }
+  if (typeof startGame === 'function') startGame();
+}
+
 function doLoad(slotIdx) {
   const raw = localStorage.getItem(SAVE_KEY_PREFIX + slotIdx);
   if (!raw) return;
@@ -921,8 +924,11 @@ function doLoad(slotIdx) {
   try {
     applyLoadData(JSON.parse(raw));
     lastCheckpoint = raw;   // dying right after loading returns to this same save
-    // Dismiss the title screen if this load was launched from it (no-op mid-game).
-    if (typeof startGame === 'function') startGame();
+    // Dismiss the title screen if this load was launched from it (no-op mid-game),
+    // showing the controls on the way in. Only from the title: a mid-run load is
+    // a player who already knows the keys, and stopping them for a card they have
+    // read would be an interruption rather than a help.
+    finishTitleLoad();
     setSaveStatus(`✅ Loaded "${meta?.saveName || 'Save ' + (slotIdx+1)}"`, { toast: false });
     showMsg(`📂 Loaded: ${currentMap().name}`, 2500);
     closeModal();
@@ -937,7 +943,7 @@ function doLoadAuto() {
   try {
     applyLoadData(JSON.parse(raw));
     lastCheckpoint = raw;
-    if (typeof startGame === 'function') startGame();
+    finishTitleLoad();
     setSaveStatus('✅ Loaded auto-save', { toast: false });
     showMsg(`📂 Loaded: ${currentMap().name}`, 2500);
     closeModal();
@@ -1043,8 +1049,7 @@ function resetGame(heroName) {
     grimsilver: 0, emberbrass: 0, glimmerspar: 0, wyrmgold: 0, eclipsium: 0,
     regionPotions: {}, elixirs: {}, collectorQuests: {}, lostSonQuests: {}, guildQuests: {},
     shrineQuests: {},
-    abilities: { frostGrip:false, updraftGlide:false, emberLantern:false,
-                 arcaneSight:false, shadowStep:false },
+    abilities: { arcaneSight:false },
     equippedAbility: null,
     taxidermistQuests: {}, trophyDropBonus: {}, alchemistOrders: {},
     caravanQuests: {}, apprenticeQuests: {}, gathererQuests: {},

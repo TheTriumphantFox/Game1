@@ -23,6 +23,10 @@ f.onload = () => setTimeout(() => {
     const i = w.document.querySelector('input[type=text]');
     if (i) i.value = 'Dev';
     btn('Begin Adventure').click();
+    // The controls loading screen sits between Begin Adventure and the world
+    // unfreezing (showLoadingScreen, main.js). Dismiss it or the harness drives a
+    // game that never started.
+    if (typeof w.dismissLoadingScreen === 'function') w.dismissLoadingScreen();
   } catch (e) { log.textContent = 'boot failed: ' + e.message; return; }
   // The 500ms is load timing, not superstition: the sprite sheets have to be in
   // before anything asks them to draw.

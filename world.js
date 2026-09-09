@@ -558,43 +558,22 @@ function createWhirlpoolGrottoMap(returnMapId, returnX, returnY, sourceTier) {
   return newId;
 }
 
-// 1-exit dead-ends reward the detour with a Hero's Cache. The map builder already
-// placed a regular CHEST in a clearing and connectivity guarantees it's reachable
-// from the single exit — just upgrade that tile in place. The large chest is 2 tiles
-// wide, so also stamp the right-half extension on the tile to the east when it's
-// passable; if that tile is blocked, try the west side and swap anchor/extension. As
-// a last resort, leave it as a single LARGE_CHEST so the pickup still works.
+// 1-exit dead-ends used to reward the detour by upgrading their regular CHEST to
+// a 2-tile Large Chest ("Hero's Cache"): upgradeDeadEndChests lived here, was
+// called below and re-applied by all three of save.js's rebuild paths so a
+// reloaded dead-end did not silently lose the reward.
 //
-// Lifted out of createSealedNeighbor so the save/load rebuild can re-apply it. A
-// dead-end the player never entered isn't stored by tile (save.js), so it is rebuilt
-// from its builder on load — and that rebuild used to hand back a plain CHEST,
-// silently downgrading the reward for the detour.
-function upgradeDeadEndChests(mapTiles) {
-  const passable = (c, r) =>
-    c > 0 && c < MCOLS - 1 && r > 0 && r < MROWS - 1 &&
-    !(mapTiles[r][c] === T.TREE || mapTiles[r][c] === T.CACTUS ||
-      mapTiles[r][c] === T.WATER || mapTiles[r][c] === T.DEEP_WATER ||
-      mapTiles[r][c] === T.MEDIUM_WATER ||
-      mapTiles[r][c] === T.ROCK || mapTiles[r][c] === T.WALL ||
-      mapTiles[r][c] === T.CAVE_WALL ||
-      mapTiles[r][c] === T.CHEST || mapTiles[r][c] === T.LARGE_CHEST ||
-      mapTiles[r][c] === T.LARGE_CHEST_R || mapTiles[r][c] === T.SHRINE);
-  for (let r = 0; r < MROWS; r++) {
-    for (let c = 0; c < MCOLS; c++) {
-      if (mapTiles[r][c] !== T.CHEST) continue;
-      if (passable(c + 1, r)) {
-        mapTiles[r][c]     = T.LARGE_CHEST;
-        mapTiles[r][c + 1] = T.LARGE_CHEST_R;
-      } else if (passable(c - 1, r)) {
-        // Re-anchor one tile west so the chest still spans 2 tiles
-        mapTiles[r][c - 1] = T.LARGE_CHEST;
-        mapTiles[r][c]     = T.LARGE_CHEST_R;
-      } else {
-        mapTiles[r][c] = T.LARGE_CHEST;
-      }
-    }
-  }
-}
+// Downgraded back to a regular chest, deliberately. A large chest is the payoff
+// for the deepest room of a cave chain; handing out the same thing for noticing a
+// map with one exit made the rarer prize read as ordinary. The dead-end still has
+// a chest, and connectivity still guarantees it is reachable from the single exit
+// — it is just an ordinary one now.
+//
+// Nothing needs to migrate. A dead-end the player never entered regenerates from
+// its builder and comes back with the plain chest; one they already opened stays
+// looted (openedChests is keyed by the anchor tile, which has not moved); one
+// they visited but did not loot keeps its stored tiles, large chest and all, and
+// pays out the way it did when they first saw it.
 
 // Which of a map's four border gates are walkable, as the { left, right, up, down }
 // shape the map builders take as `openSides`. This is the *result* of generation, read
@@ -648,13 +627,10 @@ function makeDeadEndMapAt(id, gx, gy, regionIdx, depth, openSides) {
   const enemyDefs = makeEnemyDefs(depth, region.id, mapTiles);
   // Seeded like the overworld names above, off this cell's own seed.
   const name = region.names[hashSeed(mapSeed, 'name') % region.names.length] + ' (Dead End)';
-  upgradeDeadEndChests(mapTiles);
   return {
     id, gx, gy, name,
     type: region.id, biome: region.id, regionIdx,
     depth, mapSeed,
-    // Hashed AFTER upgradeDeadEndChests, so the Hero's Cache is part of the pristine
-    // state — the rebuild re-applies that upgrade too (save.js), so the two match.
     pristineHash: tileHash(mapTiles),
     map: mapTiles, enemyDefs, openedChests: new Set(),
     visited: false, sealed: true

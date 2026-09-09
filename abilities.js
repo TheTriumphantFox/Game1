@@ -1,40 +1,53 @@
 // ─── Shrine and elemental-armor abilities, in the world ───────────────────────
-// Stage 9's other half. shrines.js builds the puzzles and hands out the five
-// rewards; this file is what owning one actually does once the hero walks back
-// out of the shrine. Kept apart from shrines.js because the two have different
-// lifetimes: a shrine matters for the twenty minutes you are inside it, and an
-// ability matters for the rest of the game, in ice fields and the tower, neither
-// of which shrines.js should have to know about.
+// Stage 9's other half. shrines.js builds the puzzles and hands out the rewards;
+// this file is what owning one actually does once the hero walks back out of the
+// shrine. Kept apart from shrines.js because the two have different lifetimes: a
+// shrine matters for the twenty minutes you are inside it, and an ability matters
+// for the rest of the game, in ice fields and the tower, neither of which
+// shrines.js should have to know about.
 //
-//   Frost Grip    passive — boots that bite. Cancels the ice slide.
-//   Ember Lantern passive — INERT since fog of war was removed; its only effect
+// The reward set was five abilities and is now ONE. Twelve of the thirteen
+// regional shrines give a Heart Container instead, because four of the five
+// abilities had stopped earning their slot:
+//
+//   Frost Grip    RETIRED — Ice armor supplies the grip (frostGripHolds below).
+//   Ember Lantern RETIRED — inert since fog of war was removed; its only effect
 //                 was restoring the necrotic region's shortened sight.
-//   Arcane Sight  passive — reads what was written and hidden. Rune marks
-//                 (T.RUNE_MARK) are invisible ground without it.
-//   Updraft Glide ACTIVE  — rides a thermal across a gap. Equipped, then [F].
-//   Shadow Step   ACTIVE  — one step through one wall. Equipped, then [F].
+//   Updraft Glide RETIRED as a shrine reward — Air armor supplies it, and now
+//                 supplies a range that scales with the armor's level, which a
+//                 fixed shrine grant could never do.
+//   Shadow Step   RETIRED outright, from the armor and the shrine both. Shadow
+//                 armor's power is the Umbral Veil now (shadowDetectionScale,
+//                 elements.js), so nothing in the game steps through walls.
+//   Arcane Sight  KEPT, from the Mana region's shrine. Passive — reads what was
+//                 written and hidden. Rune marks (T.RUNE_MARK) are invisible
+//                 ground without it, and nothing else in the game grants it, so
+//                 converting this one to a heart would strand its caches.
 //
-// The two actives, whether supplied by a shrine or by worn Air/Shadow armor,
-// share one equipped slot and one button, because the alternative
-// is two more keys on a keyboard that already uses Z X C V P 1 2 3 and four
-// arrows, and a fourth touch button for something used twice an hour.
+// That leaves exactly one ACTIVE ability, Updraft Glide, and it arrives only by
+// wearing Air armor. It keeps the equipped slot and the [F] key it always had —
+// the slot is generic and costs nothing to keep, and it is what the touch
+// ability button reads.
 
 // ─── The equipped slot ────────────────────────────────────────────────────────
 // `player.equippedAbility` holds an id from ACTIVE_ABILITIES, or null. Declared
 // in all three of the places this codebase requires a save field to exist (the
 // player literal in player.js, DEFAULT_PLAYER in save.js, and the resetGame
 // assignment in save.js) so an older save defaults it rather than inheriting it.
-const ACTIVE_ABILITIES = ['updraftGlide', 'shadowStep'];
+// One entry, and it is armor-supplied rather than shrine-granted (see the header).
+// Kept as a list rather than collapsed to a constant because every consumer —
+// the radial ring, the touch button, the save field's validation — is written
+// against the set, and a second active is a plausible thing to add later.
+const ACTIVE_ABILITIES = ['updraftGlide'];
 
 function abilityIsActive(id) { return ACTIVE_ABILITIES.includes(id); }
 
-// Air and Shadow armor supply their traversal action while worn. They take over
-// the shared [F] slot temporarily without rewriting player.equippedAbility, so
-// taking the armor off restores the shrine ability the player had selected.
+// Air armor supplies its traversal action while worn, and is now the only source
+// of one. It fills the [F] slot without rewriting player.equippedAbility, which
+// is what makes taking the armor off leave the button empty rather than stuck.
 function armorActiveAbility() {
   if (typeof wearingElementalArmor !== 'function') return null;
   if (wearingElementalArmor('air')) return 'updraftGlide';
-  if (wearingElementalArmor('shadow')) return 'shadowStep';
   return null;
 }
 
@@ -69,11 +82,10 @@ function autoEquipAbility(id) {
 }
 
 const ABILITY_LABELS = {
-  frostGrip: 'Frost Grip', updraftGlide: 'Updraft Glide', emberLantern: 'Ember Lantern',
-  arcaneSight: 'Arcane Sight', shadowStep: 'Shadow Step',
+  updraftGlide: 'Updraft Glide', arcaneSight: 'Arcane Sight',
 };
 const ABILITY_ICONS = {
-  frostGrip: '❄', updraftGlide: '🜁', emberLantern: '🔥', arcaneSight: '✦', shadowStep: '◐',
+  updraftGlide: '🜁', arcaneSight: '✦',
 };
 
 // ─── [F] / the touch ability button ───────────────────────────────────────────
@@ -94,7 +106,7 @@ function useEquippedAbility() {
     if (owned.length) showMsg('No ability equipped. Open the menu ring and choose one.', 2000);
     return false;
   }
-  const ok = (id === 'updraftGlide') ? tryUpdraftGlide() : tryShadowStep();
+  const ok = tryUpdraftGlide();
   abilityCooldown = ok ? ABILITY_COOLDOWN_MS : 250;
   return ok;
 }
@@ -112,9 +124,20 @@ function abilityFacing() {
 // Crosses a GAP, not a wall. That distinction is the whole design: letting the
 // hero fly over trees and mountains would delete the shape of every map in the
 // game, while crossing water, lava and chasms opens shortcuts the terrain was
-// already inviting you to want. Range is four tiles, which clears the accent
-// pools and rift channels the region builders lay down and does not clear a
-// deep-water border.
+// already inviting you to want.
+//
+// GLIDE_RANGE, four tiles, is no longer a range anybody normally glides at: the
+// Air shrine that granted this ability is a Heart Container now, and the armor
+// has its own level curve below. It survives for two reasons, both real:
+//
+//   • It is a GENERATION CONTRACT. ensureAbilitySecret places its glide islets
+//     within it (hasShore, at the foot of this file), so every islet in every
+//     world already built sits 3 or 4 tiles off its shore. Changing this number
+//     moves islets that already exist.
+//   • It is what a save made before the shrine change still glides at. Such a
+//     hero has `updraftGlide` in their ability bag and no Air armor, which is a
+//     combination the code below still resolves rather than silently taking a
+//     power away that they earned under the old rules.
 const GLIDE_RANGE = 4;
 
 // The Air ARMOR's glide reaches further than the shrine reward's. This is the
@@ -128,15 +151,41 @@ const GLIDE_RANGE = 4;
 // generation contract: ensureAbilitySecret places its secret islets within it
 // (see hasShore below), and raising it would move islets that already exist.
 //
-// Six, and the number is measured rather than picked. Escaping the map is
-// structurally impossible at any range — a glide only lands on a non-gap
-// non-solid tile, and every map's border ring is solid, so the loop breaks
-// there — which means the only real question is shortcut shape. Six is the
-// LANDING step, so what this newly clears is gaps four and five tiles wide
-// (verified: a 3-wide gap crosses either way, 4 and 5 need the armor, 6 stops
-// both). The big inland water bodies that shape forest, water and mana maps run
-// 37, 65 and 50 tiles across and stay uncrossable.
-const GLIDE_ARMOR_RANGE = 6;
+// The range is a LEVEL curve, not one number: 2 tiles at armor level 1 up to 12
+// at level 6 (+2 per level). Level 0, a freshly forged armor, reads as level 1
+// like every other armor ability (armorAbilityStep, elements.js).
+//
+// Escaping the map is structurally impossible at any range — a glide only lands
+// on a non-gap non-solid tile, and every map's border ring is solid, so the loop
+// breaks there — which means the only question is shortcut shape. The range is
+// the LANDING step, so a level-6 glide clears gaps up to 11 tiles wide. The big
+// inland water bodies that shape the forest, water and mana maps run 37, 65 and
+// 50 tiles across and stay uncrossable at every level, which is the invariant
+// the old flat 6 was chosen to protect.
+//
+// GLIDE_ARMOR_RANGE_MIN is the level-1 range and is the number every generation
+// and connectivity contract must be written against: a route that only exists at
+// level 6 is a route a player can lose by forging a fresh armor.
+const GLIDE_ARMOR_RANGE_PER_LEVEL = 2;
+const GLIDE_ARMOR_RANGE_MIN = GLIDE_ARMOR_RANGE_PER_LEVEL;      // level 1
+const GLIDE_ARMOR_RANGE_MAX = GLIDE_ARMOR_RANGE_PER_LEVEL * 6;  // level 6
+
+function glideArmorRange() {
+  const step = (typeof armorAbilityStep === 'function') ? armorAbilityStep('air') : 0;
+  return step ? GLIDE_ARMOR_RANGE_PER_LEVEL * step : 0;
+}
+
+// The glide is a thermal, and there is no sky under a mountain. Caves, sky caves
+// and dungeons are all roofed interiors, so the armor's traversal is simply not
+// available in them — which also keeps the maze generators' loop connections
+// (mapgen-caves.js) the only thing that decides how a cave is crossed.
+const GLIDE_ROOFED_TYPES = new Set(['cave', 'cave_chain', 'sky_cave', 'dungeon',
+                                    'whirlpool_grotto', 'house', 'castle_tower']);
+
+function glideRoofedHere() {
+  const cm = (typeof currentMap === 'function') ? currentMap() : null;
+  return !!(cm && GLIDE_ROOFED_TYPES.has(cm.type));
+}
 
 function isGlideGap(t) {
   return t === T.WATER || t === T.DEEP_WATER || t === T.MEDIUM_WATER ||
@@ -145,10 +194,15 @@ function isGlideGap(t) {
 }
 
 function tryUpdraftGlide() {
+  if (glideRoofedHere()) {
+    showMsg('🜁 There is no updraft under a roof.', 1500);
+    return false;
+  }
   const map = mapData();
   const d = abilityFacing();
-  const range = (typeof wearingElementalArmor === 'function' && wearingElementalArmor('air'))
-    ? GLIDE_ARMOR_RANGE : GLIDE_RANGE;
+  // The armor's levelled range, or the old shrine reward's flat four for a save
+  // that earned Updraft Glide before that shrine became a Heart Container.
+  const range = glideArmorRange() || GLIDE_RANGE;
   let sawGap = false;
   for (let step = 1; step <= range; step++) {
     const x = player.x + d.x * step, y = player.y + d.y * step;
@@ -161,53 +215,52 @@ function tryUpdraftGlide() {
         shrineDynamicSolidAt(currentMap(), x, y))) break;
     if (!sawGap) break;            // nothing was crossed; that is just walking
     if (enemies.some(e => !e.dead && e.x === x && e.y === y)) break;
-    landAbilityStep(x, y, '🜁 You ride the updraft across.');
+    landAbilityStep(x, y, '🜁 You ride the updraft across.', true);
     return true;
   }
   showMsg('🜁 Nothing to glide across from here.', 1500);
   return false;
 }
 
-// ─── Shadow Step ──────────────────────────────────────────────────────────────
-// One step through one wall: up to two solid tiles thick, landing on the first
-// open tile beyond. Two is deliberate — every wall in this game that is meant to
-// be a boundary (region borders, tower curtain walls, the cave shell) is thicker
-// than that, and every wall that is meant to be an obstacle is thinner.
-const SHADOW_STEP_RANGE = 3;
-const SHADOW_STEP_MAX_WALL = 2;
+// Presentation only: logical arrival and its hooks still happen exactly once,
+// immediately, as before. No extra invulnerability, range or cooldown changes.
+// Not saved; snap-camera transitions discard it, including load and respawn.
+let glideVisual = null;
+const GLIDE_VISUAL_MS = 640;
 
-function tryShadowStep() {
-  const map = mapData();
-  const d = abilityFacing();
-  let wall = 0;
-  for (let step = 1; step <= SHADOW_STEP_RANGE; step++) {
-    const x = player.x + d.x * step, y = player.y + d.y * step;
-    // Never step off the map, and never through its outermost ring — that ring
-    // is what map transitions read, and phasing into it would fire one.
-    if (x < 1 || y < 1 || x >= MCOLS - 1 || y >= MROWS - 1) break;
-    const solid = isSolid(map, x, y) ||
-      (typeof shrineDynamicSolidAt === 'function' && shrineDynamicSolidAt(currentMap(), x, y));
-    if (solid) {
-      wall++;
-      if (wall > SHADOW_STEP_MAX_WALL) break;
-      continue;
-    }
-    if (!wall) break;              // no wall crossed; that is just walking
-    if (enemies.some(e => !e.dead && e.x === x && e.y === y)) break;
-    landAbilityStep(x, y, '◐ You step through the dark and out the other side.');
-    return true;
-  }
-  showMsg('◐ Too thick to step through.', 1500);
-  return false;
+function stepGlideVisual(dt) {
+  const g = glideVisual;
+  if (!g) return false;
+  if (g.mapId !== currentMapId || player.hp <= 0) { glideVisual = null; return false; }
+  g.t = Math.min(GLIDE_VISUAL_MS, g.t + dt);
+  const p = g.t / GLIDE_VISUAL_MS;
+  const travel = Math.max(0, Math.min(1, (p - 0.18) / 0.68));
+  const eased = travel * travel * (3 - 2 * travel);
+  player.renderX = g.fromX + (player.x - g.fromX) * eased;
+  player.renderY = g.fromY + (player.y - g.fromY) * eased;
+  g.lift = 1.65 * Math.sin(Math.PI * p);
+  if (p >= 1) glideVisual = null;
+  return true;
+}
+
+function glideVisualLift() {
+  return glideVisual && glideVisual.mapId === currentMapId ? glideVisual.lift : 0;
 }
 
 // Land a completed ability move. Shared so both abilities snap the camera and
 // run the arrival hooks the same way an ordinary step would.
-function landAbilityStep(x, y, message) {
+function landAbilityStep(x, y, message, glide = false) {
+  const fromX = player.renderX, fromY = player.renderY;
   player.x = x; player.y = y;
   player.renderX = x; player.renderY = y;
-  const sp = screenPX(x, y);
-  spawnParticle(sp.x, sp.y, '#c58ae8', 14, 3);
+  if (glide) {
+    glideVisual = { mapId: currentMapId, fromX, fromY, t: 0, lift: 0 };
+    player.renderX = fromX; player.renderY = fromY;
+  } else {
+    glideVisual = null;
+    const sp = screenPX(x, y);
+    spawnParticle(sp.x, sp.y, '#c58ae8', 14, 3);
+  }
   if (typeof clampCam === 'function') clampCam(false);
   if (typeof onShrinePlayerStep === 'function') onShrinePlayerStep();
   if (typeof buzz === 'function') buzz(14);
@@ -232,44 +285,68 @@ const STORM_STRIKE_VAR_MS = 8000;   // actual delay is MIN + rand * VAR → 6-14
 const STORM_STRIKE_DAMAGE = 6;
 const STORM_STRIKE_IFRAME_MS = 900; // matches every other damage source
 
-// Luminous: the radiant pulse that stuns what is standing beside the hero.
-// Bosses reel rather than stun, because a boss frozen every four seconds is not
-// a fight. FIRST_MS is the delay before the very first pulse after equipping,
-// short enough that the armor visibly does something when you put it on.
-const RADIANT_PULSE_MS = 4000;
-const RADIANT_PULSE_FIRST_MS = 800;
-const RADIANT_PULSE_RADIUS = 4;     // tiles, straight-line distance
-const RADIANT_STUN_MS = 1100;
-const RADIANT_BOSS_STAGGER_MS = 300;
+// Lightning armor used to stop the storm timer dead at any level. It now stretches
+// it instead: ×3 per level, so level 1 waits 18–42s between strikes and level 5
+// waits 90–210s, and only level 6 switches the storm off completely — which is the
+// flat behaviour the armor used to have from the moment it was forged.
+const STORM_ARMOR_DELAY_PER_LEVEL = 3;
+function stormStrikeDelayScale() {
+  const step = (typeof armorAbilityStep === 'function') ? armorAbilityStep('lightning') : 0;
+  if (!step) return 1;
+  return step >= 6 ? Infinity : STORM_ARMOR_DELAY_PER_LEVEL * step;
+}
 
-// The other half of the Radiant Aura: it burns enemy projectiles out of the air
-// before they reach the hero.
+// The Radiant Aura is now ONE mechanic: it burns enemy projectiles out of the
+// air before they reach the hero. The stun pulse it used to fire alongside this —
+// a 4-tile radius that froze ordinary enemies for 1.1s and staggered bosses — was
+// removed outright, boss variant included. A shield the player can read the state
+// of is a better ability than a shield plus an invisible crowd-control aura, and
+// the pulse was doing most of the armor's work without ever being visible as a
+// choice.
 //
-// This REPLACES the armor's original reveal power, which was fiction for as long
-// as it existed — fog of war was removed from the game, so there was nothing for
-// a light to uncover, and Luminous was the only armor whose stated ability did
-// not do anything. Blocking shots is a job an aura of light can plausibly have,
-// costs no new subsystem, and is worth something in a region full of ranged
-// enemies.
+// This shield REPLACED the armor's original reveal power, which was fiction for as
+// long as it existed — fog of war was removed from the game, so there was nothing
+// for a light to uncover, and Luminous was the only armor whose stated ability did
+// not do anything.
 //
-// A shot dies at the RIM of the aura, not on the hero, because that is what
-// makes it read as a shield rather than as invisible damage immunity: the player
-// sees the arrow stop short in the light.
+// A shot dies at the RIM of the aura, not on the hero, because that is what makes
+// it read as a shield rather than as invisible damage immunity: the player sees the
+// arrow stop short in the light.
 //
-// It recharges. One shot at a time is the difference between an aura and a
-// blanket immunity — Luminous is tier 8 of 13 and most of the rosters above it
-// are full of ranged enemies, so catching an entire volley for free would flatten
-// the last five regions. A short recharge still stops the single shots that make
-// ranged enemies dangerous while leaving a real volley genuinely threatening.
-// For an unconditional version, set LUMINOUS_BLOCK_RECHARGE_MS to 0.
+// It holds a CHARGE of shots and then recharges, and both halves scale with the
+// armor's level. One shot at a time is the difference between an aura and a
+// blanket immunity — Luminous is tier 8 of 13 and most of the rosters above it are
+// full of ranged enemies, so catching an entire volley for free would flatten the
+// last five regions. The level curve is what buys the volley back: level 1 eats one
+// shot every 3s, level 6 eats six and is ready again in one.
+//
+// Untuned, and deliberately so — like the rest of this system it wants playtesting
+// rather than argument, and both curves are one line each to change.
 const LUMINOUS_BLOCK_RADIUS = 2.2;
-const LUMINOUS_BLOCK_RECHARGE_MS = 1100;
+const LUMINOUS_RECHARGE_BASE_MS = 3000;   // level 0/1
+const LUMINOUS_RECHARGE_MIN_MS  = 1000;   // level 6
 let luminousBlockCdMs = 0;
+let luminousCharge = 0;      // shots left in the current charge; refilled on recharge
+
+// Shots one charge holds: +1 per level from 1 at level 0/1 up to 6 at level 6.
+function luminousBlockCapacity() {
+  return (typeof armorAbilityStep === 'function') ? armorAbilityStep('luminous') : 0;
+}
+
+// How long a spent charge takes to come back: 3s at level 0/1, easing to 1s at
+// level 6 in even steps.
+function luminousRechargeMs() {
+  const step = luminousBlockCapacity();
+  if (!step) return LUMINOUS_RECHARGE_BASE_MS;
+  const span = LUMINOUS_RECHARGE_BASE_MS - LUMINOUS_RECHARGE_MIN_MS;
+  return LUMINOUS_RECHARGE_BASE_MS - (span * (step - 1)) / 5;
+}
 
 // Called from the projectile step for each live enemy shot. Returns true when
 // the aura has eaten it.
 function luminousAuraBlocks(px, py) {
-  if (!(typeof wearingElementalArmor === 'function' && wearingElementalArmor('luminous'))) return false;
+  const cap = luminousBlockCapacity();
+  if (!cap) return false;
   if (luminousBlockCdMs > 0) return false;
   // Measured against the hero's tile CENTRE, not their tile index. Projectiles
   // carry centre coordinates (stepEnemyRanged spawns them at e.x + 0.5), so
@@ -278,7 +355,12 @@ function luminousAuraBlocks(px, py) {
   // the west measured 1.5 and was caught. A shield that works on one side is
   // worse than no shield, because the player learns to trust it.
   if (Math.hypot(px - (player.x + 0.5), py - (player.y + 0.5)) > LUMINOUS_BLOCK_RADIUS) return false;
-  luminousBlockCdMs = LUMINOUS_BLOCK_RECHARGE_MS;
+  // Charges are counted down, not tracked as a stored pool: the aura is full
+  // whenever it is off cooldown, so equipping the armor or levelling it up never
+  // leaves the player holding a stale, smaller charge.
+  if (luminousCharge <= 0) luminousCharge = cap;
+  luminousCharge--;
+  if (luminousCharge <= 0) luminousBlockCdMs = luminousRechargeMs();
   const sp = screenPX(px, py);
   spawnParticle(sp.x, sp.y, '#ffe89a', 12, 4);
   spawnParticle(sp.x, sp.y, '#fff7d0', 8, 3);
@@ -290,8 +372,7 @@ function luminousAuraBlocks(px, py) {
 // a shield the player cannot see the state of is a shield they cannot plan
 // around.
 function luminousAuraReady() {
-  return !!(typeof wearingElementalArmor === 'function' && wearingElementalArmor('luminous')) &&
-         luminousBlockCdMs <= 0;
+  return luminousBlockCapacity() > 0 && luminousBlockCdMs <= 0;
 }
 
 // Necrotic: cursed ground is PASSABLE and drains instead of blocking. That is
@@ -302,6 +383,31 @@ function luminousAuraReady() {
 // roads stay clean and only the fields either side bite.
 const CURSED_DRAIN_MS = 1200;
 const CURSED_DRAIN_DAMAGE = 1;
+
+// ─── The Miasma Ward, by level ───────────────────────────────────────────────
+// Poison armor used to be flat immunity to both poison sources — the drifting
+// miasma here and the toxic blooms' spore bursts (enemies.js). It is a level
+// curve now: each level halves the damage a hit does AND doubles the interval
+// between hits, and only level 6 is the free crossing the armor used to be from
+// the moment it was forged.
+//
+// Damage floors at 1 rather than rounding away, so every level below 6 still
+// costs something real; the interval doubling is what actually carries the curve
+// (level 5 is one point of damage every 32 seconds).
+//
+// Both helpers pass their input straight through when the armor is not worn, so
+// callers can wrap the unwarded numbers unconditionally.
+function poisonWardDamage(base) {
+  const step = (typeof armorAbilityStep === 'function') ? armorAbilityStep('poison') : 0;
+  if (!step) return base;
+  if (step >= 6) return 0;
+  return Math.max(1, Math.round(base * Math.pow(0.5, step)));
+}
+function poisonWardIntervalMs(baseMs) {
+  const step = (typeof armorAbilityStep === 'function') ? armorAbilityStep('poison') : 0;
+  if (!step) return baseMs;
+  return baseMs * Math.pow(2, step);
+}
 
 // ─── Miasma ──────────────────────────────────────────────────────────────────
 // The poison wastes breathe. Fixed vents in the ground emit gas, which drifts
@@ -458,20 +564,21 @@ function diffuseMiasma(mapObj, g) {
 }
 
 function hurtInMiasma(mapObj, dt) {
-  if (typeof wearingElementalArmor === 'function' && wearingElementalArmor('poison')) {
-    miasmaHurtMs = 0;
-    return;                       // the armor is the answer, same as the blooms
-  }
+  // The Miasma Ward is a level curve now (poisonWardDamage / poisonWardIntervalMs
+  // above): less damage, far less often, and nothing at all at level 6.
+  const damage = poisonWardDamage(MIASMA_DAMAGE);
+  if (!damage) { miasmaHurtMs = 0; return; }
+  const interval = poisonWardIntervalMs(MIASMA_DAMAGE_MS);
   const d = miasmaAt(mapObj, player.x, player.y);
   if (d < MIASMA_HURT_AT) { miasmaHurtMs = 0; return; }
   miasmaHurtMs += dt;
-  if (miasmaHurtMs < MIASMA_DAMAGE_MS) return;
-  miasmaHurtMs -= MIASMA_DAMAGE_MS;
+  if (miasmaHurtMs < interval) return;
+  miasmaHurtMs -= interval;
   const sp = screenPX(player.x, player.y);
   spawnParticle(sp.x, sp.y, '#8ab83a', 6, 3);
-  player.hp -= MIASMA_DAMAGE;
+  player.hp -= damage;
   if (typeof damageNumbers !== 'undefined') {
-    damageNumbers.push({ entity: 'player', val: `\u2620${MIASMA_DAMAGE}`,
+    damageNumbers.push({ entity: 'player', val: `\u2620${damage}`,
       color: '#a8d84a', life: 900, rise: -4 });
   }
   if (typeof buzz === 'function') buzz(16);
@@ -482,8 +589,8 @@ function hurtInMiasma(mapObj, dt) {
 // The Arcane armor knits the hero back together as they walk. Unlike every other
 // regional armor power this is not tied to a hazard or a tile — it is simply on,
 // everywhere, which matches how the other POWERS behave even though the hazards
-// they answer are regional (Deep Swim swims any medium water, Shadow Step
-// crosses any thin wall).
+// they answer are regional (Deep Swim swims any medium water, the Umbral Veil
+// dims the hero to every roster in the game).
 //
 // It ticks through combat rather than pausing after a hit. That was a deliberate
 // choice and it is safe at this rate: 1 HP every 4s is 0.25 HP/s against enemy
@@ -496,6 +603,20 @@ function hurtInMiasma(mapObj, dt) {
 // (main.js). Idling in the pause screen to heal is not a strategy.
 const MANA_REGEN_MS = 4000;
 const MANA_REGEN_HP = 1;
+
+// The rate is a level curve: 1 HP every 12s at level 0/1, easing in even steps to
+// 1 HP every 2s at level 6. The old flat 4000ms is now what level 5 gives.
+//
+// The safety argument above still holds at the fast end: 1 HP every 2s is 0.5
+// HP/s against enemy hits of 6 to 19, so even a maxed Arcane armor cannot
+// out-heal anything shooting at you.
+const MANA_REGEN_SLOW_MS = 12000;   // level 0/1
+const MANA_REGEN_FAST_MS = 2000;    // level 6
+function manaRegenIntervalMs() {
+  const step = (typeof armorAbilityStep === 'function') ? armorAbilityStep('mana') : 0;
+  if (!step) return MANA_REGEN_MS;
+  return MANA_REGEN_SLOW_MS - ((MANA_REGEN_SLOW_MS - MANA_REGEN_FAST_MS) * (step - 1)) / 5;
+}
 
 // ─── Regional heat ───────────────────────────────────────────────────────────
 // ONE meter, two regions. Desert heatstroke and Volcanic overheat are the same
@@ -521,6 +642,22 @@ const MANA_REGEN_HP = 1;
 // reached tier 5 yet. Desert heatstroke has only the slow role, deliberately:
 // Fire armor is relief there, not immunity.
 const HEAT_ARMOR_FILL_SCALE = 0.5;
+
+// The region's OWN armor is a level curve rather than a flat switch-off: each
+// level halves the fill again (level 1 → 50%, level 2 → 25%, … level 5 → 3%) and
+// level 6 removes the meter entirely, which is the immunity this armor used to
+// grant at every level. Only Volcanic has an `immuneArmor`; desert heatstroke is
+// unchanged, since Fire armor is its `slowArmor` and was never immunity there.
+//
+// Returns null when the region's own armor is not being worn, so the caller can
+// still fall through to the `slowArmor` half-rate.
+const HEAT_LEVEL_HALVING = 0.5;
+function heatOwnArmorFillScale(spec) {
+  const own = spec && spec.immuneArmor;
+  const step = (own && typeof armorAbilityStep === 'function') ? armorAbilityStep(own) : 0;
+  if (!step) return null;
+  return step >= 6 ? 0 : Math.pow(HEAT_LEVEL_HALVING, step);
+}
 const HEAT_REGIONS = {
   fire: {
     slowArmor: 'fire',
@@ -608,11 +745,13 @@ function stepRegionalHeat(dt) {
   // stages, no bar. Checked before anything else so an immune hero never carries
   // a stale reading from before they equipped it.
   const worn = (id) => id && typeof wearingElementalArmor === 'function' && wearingElementalArmor(id);
-  if (worn(spec.immuneArmor)) { player.heat = 0; heatTickMs = 0; return; }
+  const ownScale = heatOwnArmorFillScale(spec);
+  if (ownScale === 0) { player.heat = 0; heatTickMs = 0; return; }
 
   const onHot = spec.hot().includes(map[player.y][player.x]);
   const sec = dt / 1000;
-  const scale = worn(spec.slowArmor) ? HEAT_ARMOR_FILL_SCALE : 1;
+  const scale = ownScale !== null ? ownScale
+              : worn(spec.slowArmor) ? HEAT_ARMOR_FILL_SCALE : 1;
   // A molten obsidian golem is a heat source in its own right (moltenHeatAt,
   // enemies.js), so a fight beside one cooks the hero even on cool ground. Added
   // to the tile's own contribution rather than replacing it: standing on a
@@ -698,13 +837,12 @@ function stepQuicksand(dt) {
 
 let stormExposed = false;
 let lightningStrikeMs = 0;
-let luminousPulseMs = RADIANT_PULSE_FIRST_MS;
 let cursedDrainMs = 0;
 let heatTickMs = 0;
 let manaRegenMs = 0;
 
 function randomLightningDelay() {
-  return STORM_STRIKE_MIN_MS + Math.random() * STORM_STRIKE_VAR_MS;
+  return (STORM_STRIKE_MIN_MS + Math.random() * STORM_STRIKE_VAR_MS) * stormStrikeDelayScale();
 }
 
 function stepElementalArmorEffects(dt) {
@@ -720,29 +858,20 @@ function stepElementalArmorEffects(dt) {
   if (exposedLightning && !stormExposed) lightningStrikeMs = randomLightningDelay();
   stormExposed = exposedLightning;
 
-  // Wearing Lightning armor pauses the timer exactly where it is, so no strike
-  // can queue behind a menu or land immediately when the armor is removed.
-  if (exposedLightning) {
-    if (!(typeof wearingElementalArmor === 'function' && wearingElementalArmor('lightning'))) {
-      lightningStrikeMs -= dt;
-      if (lightningStrikeMs <= 0) {
-        lightningStrikeMs = randomLightningDelay();
-        strikePlayerWithRegionalLightning();
-      }
+  // A level-6 Lightning armor pauses the timer exactly where it is, so no strike
+  // can queue behind a menu or land immediately when the armor is taken off. Every
+  // level below 6 runs the clock, just far more slowly (stormStrikeDelayScale).
+  // The stretch is applied when a wait is ROLLED, not continuously, so a level-up
+  // or an armor swap only takes effect from the next strike onward.
+  if (exposedLightning && stormStrikeDelayScale() !== Infinity) {
+    // A wait rolled while a level-6 armor was on is Infinity; re-roll it rather
+    // than subtracting dt from infinity forever once the armor comes off.
+    if (!isFinite(lightningStrikeMs)) lightningStrikeMs = randomLightningDelay();
+    lightningStrikeMs -= dt;
+    if (lightningStrikeMs <= 0) {
+      lightningStrikeMs = randomLightningDelay();
+      strikePlayerWithRegionalLightning();
     }
-  }
-
-  // Radiant armor releases a short-range pulse rather than permanently freezing
-  // everything beside the hero. Bosses reel only briefly; ordinary enemies take
-  // the full stun.
-  if (typeof wearingElementalArmor === 'function' && wearingElementalArmor('luminous')) {
-    luminousPulseMs -= dt;
-    if (luminousPulseMs <= 0) {
-      luminousPulseMs = RADIANT_PULSE_MS;
-      pulseLuminousArmor();
-    }
-  } else {
-    luminousPulseMs = RADIANT_PULSE_FIRST_MS;
   }
 
   stepCursedGround(dt);
@@ -750,7 +879,10 @@ function stepElementalArmorEffects(dt) {
   stepQuicksand(dt);
   stepManaRegen(dt);
   stepMiasma(dt);
-  if (luminousBlockCdMs > 0) luminousBlockCdMs -= dt;
+  if (luminousBlockCdMs > 0) {
+    luminousBlockCdMs -= dt;
+    if (luminousBlockCdMs <= 0) luminousCharge = luminousBlockCapacity();
+  }
 }
 
 function stepManaRegen(dt) {
@@ -762,9 +894,10 @@ function stepManaRegen(dt) {
   // allowed to run — so the first tick after taking a hit is a full interval
   // away instead of landing instantly off banked time.
   if (player.hp >= player.maxHp || player.hp <= 0) { manaRegenMs = 0; return; }
+  const interval = manaRegenIntervalMs();
   manaRegenMs += dt;
-  if (manaRegenMs < MANA_REGEN_MS) return;
-  manaRegenMs -= MANA_REGEN_MS;
+  if (manaRegenMs < interval) return;
+  manaRegenMs -= interval;
   player.hp = Math.min(player.maxHp, player.hp + MANA_REGEN_HP);
   // Real HP only. The green temp-HP pool is granted by items and is deliberately
   // not something the armor tops back up.
@@ -825,42 +958,46 @@ function strikePlayerWithRegionalLightning() {
   if (player.hp <= 0) respawn();
 }
 
-function pulseLuminousArmor() {
-  const radius = RADIANT_PULSE_RADIUS;
-  let stunned = 0;
-  for (const e of enemies) {
-    if (e.dead || e.dormant) continue;
-    if (Math.hypot(e.x - player.x, e.y - player.y) > radius) continue;
-    e.staggerT = Math.max(e.staggerT || 0,
-      e.boss ? RADIANT_BOSS_STAGGER_MS : RADIANT_STUN_MS);
-    const esp = screenPX(e.x, e.y);
-    spawnParticle(esp.x, esp.y, '#fff4a8', 5, 2);
-    stunned++;
-  }
-  const sp = screenPX(player.x, player.y);
-  spawnParticle(sp.x, sp.y, '#fff7c2', 20, 5);
-  if (stunned && typeof buzz === 'function') buzz(10);
-}
-
 // ─── Frost Grip ───────────────────────────────────────────────────────────────
-// Ice armor now supplies the regional grip. The older shrine reward remains a
-// compatibility fallback so existing saves do not lose a permanent power they
-// already earned while the shrine reward set is redesigned.
-function frostGripHolds() {
-  const armorGrip = typeof wearingElementalArmor === 'function' && wearingElementalArmor('ice');
-  const shrineGrip = typeof hasAbility === 'function' && hasAbility('frostGrip');
-  return armorGrip || shrineGrip;
+// Ice armor supplies the regional grip, and is now the only thing that does. The
+// shrine reward that used to grant it as a permanent power was a compatibility
+// fallback pending exactly this redesign; the Ice shrine gives a Heart Container
+// now, so the fallback is gone and this reads from the armor alone.
+//
+// The GRIP is what scales with the armor's level, not the hero's pace. The first
+// version of this scaled snow-drift walking speed instead, on the same +20%/level
+// curve as Fire, Water and Earth — and that curve starts below the unarmored
+// speed, so a level-1 Ice armor crossed a SNOW_DRIFT more slowly than crossing it
+// with no armor at all. An armor that is worse than bare feet at the level you
+// forge it at is not a curve with a slow start, it is a bug the player will read
+// as one. Ice's drift relief is a flat full-speed walk at every level now (see
+// terrainMs, player.js), and the level buys traction instead.
+//
+// Traction is the better thing for it to buy anyway: the ice slide is the ice
+// region's actual signature, and "I stop where I meant to" is something the player
+// feels every single step rather than only in the drifts.
+//
+// Level 1 cuts a fifth of the slide; level 6 cancels it outright, which is exactly
+// the flat behaviour this armor used to give the moment it was worn.
+const FROST_GRIP_MIN_PCT = 20;    // level 1
+const FROST_GRIP_MAX_PCT = 100;   // level 6 — no slide at all
+
+// How long a released walk input keeps carrying the hero across an ICE sheet.
+// `baseMs` is the unarmored ICE_SLIDE_MS; 0 means they stop dead.
+function iceSlideMs(baseMs) {
+  const step = (typeof armorAbilityStep === 'function') ? armorAbilityStep('ice') : 0;
+  if (!step) return baseMs;
+  const cut = FROST_GRIP_MIN_PCT +
+              ((FROST_GRIP_MAX_PCT - FROST_GRIP_MIN_PCT) * (step - 1)) / 5;
+  return baseMs * (1 - cut / 100);
 }
 
-// ─── Ember Lantern ────────────────────────────────────────────────────────────
-// CURRENTLY INERT. The lantern's whole mechanic was the fog of war: the necrotic
-// region's pall cut the walking reveal radius from 12 tiles to 8, and carrying
-// the lantern gave that sight back. Fog of war has been removed from the game,
-// so there is no sight to take away and nothing left for the lantern to restore.
-//
-// The ability is still awarded by the necrotic shrine and still shows in the
-// ability list (see ABILITY_IDS in player.js, SHRINE_REWARDS in shrines.js) —
-// it just has no effect until it is given a new one.
+// Does the hero stop dead on ice? Only a level-6 armor does, now that the slide is
+// graded. Kept as its own predicate rather than folded into the caller because it
+// is the question anything OTHER than the movement step would want to ask.
+function frostGripHolds() {
+  return iceSlideMs(1) <= 0;
+}
 
 // ─── Arcane Sight and the rune marks ──────────────────────────────────────────
 // A hidden rune path: a short trail of T.RUNE_MARK tiles ending at a cache. The
@@ -924,7 +1061,7 @@ function grantRuneCache(cm) {
   showMapMsg(`✦ A rune cache opens! ${parts.join(' · ')}`);
 }
 
-// ─── The three secrets, stamped onto a map ────────────────────────────────────
+// ─── The secrets, stamped onto a map ──────────────────────────────────────────
 // One per qualifying overworld map, chosen by map id so a given world always
 // puts the same secret in the same place, and so the three stay evenly mixed
 // rather than clustering. Called on map entry (spawnEnemiesForMap's caller in
@@ -935,7 +1072,11 @@ function grantRuneCache(cm) {
 // terrain, an islet in the middle of water, a trail of passable marks. None of
 // them can cut a route, so none of them can strand a map's connectivity — which
 // is why they are safe to stamp after generation rather than during it.
-const SECRET_KINDS = ['glide', 'shadow', 'rune'];
+// There were three. The shadow alcove — a chest walled into a two-tile-thick
+// pocket, reachable only by Shadow Step — went with the ability: nothing in the
+// game steps through walls any more, so an alcove would be a chest the player can
+// see for the rest of the run and never open.
+const SECRET_KINDS = ['glide', 'rune'];
 
 function ensureAbilitySecret(mapObj) {
   if (!mapObj || mapObj.abilitySecret !== undefined) return;
@@ -946,9 +1087,7 @@ function ensureAbilitySecret(mapObj) {
                         'cave', 'cave_chain', 'sky_cave', 'dungeon', 'whirlpool_grotto']);
   if (skip.has(mapObj.type) || mapObj.sealed) { mapObj.abilitySecret = null; return; }
   const kind = SECRET_KINDS[Math.abs(mapObj.id) % SECRET_KINDS.length];
-  const placed = kind === 'glide'  ? placeGlideIslet(mapObj)
-               : kind === 'shadow' ? placeShadowAlcove(mapObj)
-               :                     placeRuneTrail(mapObj);
+  const placed = kind === 'glide' ? placeGlideIslet(mapObj) : placeRuneTrail(mapObj);
   mapObj.abilitySecret = placed ? kind : null;
   if (placed && typeof minimapDirty !== 'undefined') minimapDirty = true;
 }
@@ -987,6 +1126,10 @@ function placeGlideIslet(mapObj) {
   // away in one straight line, with nothing but water in between. The glide
   // lands on the first non-gap tile it meets, so the islet's standing tile is
   // exactly where they arrive.
+  //
+  // Three to four tiles, which an Air armor clears from level 2 up
+  // (glideArmorRange). Level 1's two-tile glide is short of it — deliberately:
+  // the islet is a secret, and one upgrade is a fair price for it.
   const hasShore = (mm, c, r) => {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       for (let d = 3; d <= GLIDE_RANGE; d++) {
@@ -1005,32 +1148,6 @@ function placeGlideIslet(mapObj) {
   // The islet itself: one standing tile with the chest beside it, so the hero
   // lands somewhere rather than onto the chest.
   m[spot.y][spot.x] = mapObj.biome === 'ice' ? T.SNOW : T.SAND;
-  m[spot.y][spot.x + 1] = T.CHEST;
-  return true;
-}
-
-// A pocket hollowed inside a run of solid terrain: a chest walled in on all four
-// sides, two tiles deep from open ground — visible from the outside, and
-// unreachable without stepping through the wall. The pocket keeps one plain
-// standing tile beside the chest: Shadow Step lands there after crossing the two
-// wall tiles, while ordinary movement still cannot enter it.
-function placeShadowAlcove(mapObj) {
-  const m = mapObj.map;
-  const solidAt = (mm, c, r) => {
-    const t = mm[r] && mm[r][c];
-    return t !== undefined && SOLID_TILES.has(t);
-  };
-  const spot = scanForSecretSpot(mapObj, (mm, c, r) => {
-    // A 3×3 of solid with open ground exactly two tiles to its west, so the
-    // wall between the hero and the pocket is two thick — the deepest a Shadow
-    // Step reaches, and one more than an ordinary map's scenery.
-    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
-      if (!solidAt(mm, c + dc, r + dr)) return false;
-    }
-    return !solidAt(mm, c - 3, r) && !isSolid(mm, c - 3, r);
-  });
-  if (!spot) return false;
-  m[spot.y][spot.x] = T.PATH;
   m[spot.y][spot.x + 1] = T.CHEST;
   return true;
 }

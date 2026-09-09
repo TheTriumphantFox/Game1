@@ -684,3 +684,175 @@
   animation: dlg-blink 1s steps(2, start) infinite;
 }
 @keyframes dlg-blink { to { opacity: 0.15; } }
+
+/* ─── Loading screen (the controls) ─── */
+/* Shown once, between committing to a run and the world unfreezing. Sits at the
+   title screen's tier (z 90) and reuses its ground, because it is the same
+   moment of the game and should not look like a different application. */
+#loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(6, 10, 6, 0.72) 0%, rgba(6, 10, 6, 0.5) 62%, rgba(6, 10, 6, 0.38) 82%),
+    linear-gradient(rgba(6, 10, 6, 0.3), rgba(6, 10, 6, 0.5)),
+    url("title-bg.svg") center / cover no-repeat,
+    #070d07;
+  font-family: monospace;
+  overflow-y: auto;
+}
+#loading-overlay.open { display: flex; }
+/* `margin: auto` rather than relying on align-items alone: a centred flex item
+   taller than the overlay has its top clipped and cannot be scrolled to, and on
+   a short window this card is exactly that. An explicit width, too — a flex item
+   with only a max-width shrinks to its content, which collapsed the grid below
+   to one column. */
+#loading-box {
+  margin: auto;
+  text-align: center;
+  padding: 22px 26px;
+  width: min(820px, 94vw);
+}
+#loading-crest { font-size: 40px; margin-bottom: 4px; }
+#loading-heading {
+  font-size: clamp(20px, 4vw, 30px);
+  color: #aefa;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 10px #000;
+  margin-bottom: 4px;
+}
+#loading-tagline {
+  font-size: 12px;
+  color: #9dbd9d;
+  text-shadow: 0 1px 4px #000;
+  margin-bottom: 18px;
+}
+/* Two columns on anything wide enough, one on a phone. The groups are short, so
+   the columns stay balanced without any measuring. */
+#loading-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px 22px;
+  text-align: left;
+  margin-bottom: 18px;
+}
+.lc-group {
+  background: rgba(9, 16, 9, 0.82);
+  border: 1px solid #24521f;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.lc-title {
+  color: #8fc98f;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.lc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: #cec;
+  padding: 2px 0;
+}
+.lc-row .lc-label { flex: 1; color: #b6ccb6; }
+.lc-keys { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.lc-key {
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 6px;
+  background: #12240f;
+  border: 1px solid #2a6a2a;
+  border-radius: 4px;
+  color: #dfe;
+  /* Slightly larger than the row label: the arrow glyphs are the smallest thing
+     on the card and the four movement keys are the first thing anyone reads. */
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+/* An action whose key was cleared by rebinding something else onto it. Says so
+   rather than rendering an empty box the player cannot interpret. */
+.lc-key-unbound {
+  border-style: dashed;
+  border-color: #4a4a2a;
+  color: #8a8a6a;
+}
+/* Brighter than the title screen's own hint (#557): that one sits on the dark
+   centre scrim, and this one sits below the card, out over the bright strips of
+   the panorama, where #557 disappears entirely. */
+#loading-hint {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #9dbd9d;
+  text-shadow: 0 1px 4px #000, 0 0 10px rgba(6, 10, 6, 0.95);
+}
+
+/* "Don't show this again" on the controls card. A <label> wrapping the box, so
+   the words are part of the hit target — this has to be comfortable to tap with a
+   thumb on the touch build, where it sits between the card and the Begin button. */
+#loading-again {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 2px;
+  padding: 6px 12px;
+  color: #b6ccb6;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+/* The recovery note. Deliberately attached to the box rather than to the hint
+   line at the foot of the card: it explains what ticking this costs you, and on a
+   phone the hint line is the first thing to scroll off. */
+#loading-again small {
+  display: block;
+  color: #7f9a7f;
+  font-size: 10px;
+}
+#loading-again input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2a6a2a;
+  cursor: pointer;
+}
+#loading-again:hover { color: #dfe; }
+
+/* The controls card on a short viewport. Measured: at 390x760, which is an
+   ordinary phone, the default spacing pushed the Begin button's bottom edge two
+   pixels past the fold. The card scrolls, so nothing was unreachable, but a
+   primary button you have to scroll to find on first paint is a button that looks
+   missing. This reclaims the space from padding rather than from content, so the
+   card still lists every control. */
+@media (max-height: 860px) {
+  #loading-box { padding: 14px 18px; }
+  #loading-crest { font-size: 30px; margin-bottom: 2px; }
+  #loading-heading { font-size: clamp(18px, 4vw, 26px); }
+  #loading-tagline { margin-bottom: 12px; }
+  #loading-cols { gap: 8px 18px; margin-bottom: 12px; }
+  .lc-group { padding: 8px 10px; }
+  .lc-row { padding: 1px 0; }
+  #loading-box .title-btn { margin: 6px auto; padding: 10px 18px; }
+  #loading-hint { margin-top: 8px; }
+}
+
+/* Shorter still. Measured at 375x667 (an iPhone SE, and the smallest screen this
+   card has to fit on): the card came out 711px tall against a 667px viewport, so
+   the Begin button sat just past the fold even after the trim above. The crest and
+   the tagline go first because they are the only two things on the card that carry
+   no information the player needs — the heading and the groups say all of it. */
+@media (max-height: 700px) {
+  #loading-crest { display: none; }
+  #loading-tagline { display: none; }
+  #loading-heading { margin-bottom: 10px; }
+  #loading-cols { gap: 6px 18px; margin-bottom: 10px; }
+  .lc-group { padding: 6px 10px; }
+}

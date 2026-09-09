@@ -6,8 +6,10 @@
 //   * combined armor: every generated feature, armor-traversable terrain tile,
 //     and ordinary standing tile that survived generation must be reachable.
 //
-// The combined graph models changing between owned Water, Earth, Air, and Shadow
-// armor on ordinary ground. It does not pretend that multiple armors can be
+// The combined graph models changing between owned Water, Earth and Air armor on
+// ordinary ground. (Shadow was in this set until Shadow Step was retired; the
+// Umbral Veil that replaced it changes what enemies notice, not what tiles the
+// hero can stand on.) It does not pretend that multiple armors can be
 // active simultaneously. Deep water, walls, and other intentionally solid
 // scenery are not reported as failures because no current armor can stand on
 // them; a feature beside such scenery still has to be usable.
@@ -30,7 +32,7 @@
     const region = REGIONS[regionIdx];
     const map = buildOverworldForRegion(regionIdx, seed, 10, OPEN, true);
     // Exercise the post-generation ability-secret pass too. It adds the real
-    // Air/Shadow chest features that are intentionally armor-gated.
+    // Air chest features that are intentionally armor-gated.
     const mapObj = {
       id: regionIdx * 1000 + seed,
       gx: 0, gy: 0, type: region.id, biome: region.id, map

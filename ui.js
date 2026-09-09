@@ -262,11 +262,9 @@ function updateHUD() {
         el.taPotion.dataset.count = potions;
         el.taPotion.classList.toggle('empty', potions <= 0);
       }
-      // The ability button exists once an active shrine reward is owned or worn
-      // Air/Shadow armor supplies one, and wears whichever is currently active.
-      // Nothing equipped but one owned
-      // still shows it — tapping then says how to equip, which is more useful
-      // than a button that quietly isn't there.
+      // The ability button exists while worn Air armor supplies the [F] active
+      // (or, on an older save, while an active shrine reward is still owned) and
+      // wears whichever is currently firing.
       if (el.taAbility) {
         const owned = (typeof ACTIVE_ABILITIES !== 'undefined')
           ? ACTIVE_ABILITIES.filter(a => typeof hasAbility === 'function' && hasAbility(a)) : [];

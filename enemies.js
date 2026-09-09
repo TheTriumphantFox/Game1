@@ -429,8 +429,14 @@ function stepGolems() {
     // subtract it — the same reasoning the Emperor's thresholds are watched by,
     // and it cannot be forgotten by a new damage source added later.
     const hurt = e.hp < e.maxHp;
+    // Shadow armor's Umbral Veil shrinks the wake radius by 20-80% depending on
+    // its level (veiledDetectionRange, elements.js). It stacks with, rather than
+    // replaces, the region's own armor: wearing the shadow region's own armor in
+    // the shadow region still pacifies its golem outright via `armored` above.
+    const wake = (typeof veiledDetectionRange === 'function')
+      ? veiledDetectionRange(GOLEM_WAKE_RADIUS) : GOLEM_WAKE_RADIUS;
     const near = !armored &&
-      Math.hypot(e.x - player.x, e.y - player.y) <= GOLEM_WAKE_RADIUS;
+      Math.hypot(e.x - player.x, e.y - player.y) <= wake;
     if (!hurt && !near) continue;
     wakeGolem(e);
   }
@@ -684,11 +690,23 @@ function sovereignIsBlind() { return !!(sovereign && sovereign.blind); }
 // Their kills go through killEnemy (player.js), so XP and drops land exactly as
 // if the hero had swung. An armor that quietly cost you progression is an armor
 // nobody wears.
-const SKELETON_MAX = 3;
+// How many stand at once is the armor's level: one at level 0/1, +1 per level, up
+// to six at level 6 (armorAbilityStep, elements.js). SKELETON_MAX is the ceiling
+// the rest of this file is written against — the muster radius and the raise
+// search are both sized for a crowd this big and no bigger.
+const SKELETON_MAX = 6;
+function skeletonCap() {
+  const step = (typeof armorAbilityStep === 'function') ? armorAbilityStep('necrotic') : 0;
+  return Math.min(SKELETON_MAX, step);
+}
 const SKELETON_MUSTER_RADIUS = 8;    // a live enemy this close counts as a fight
 const SKELETON_SUMMON_MS = 1500;     // they rise one at a time
 const SKELETON_LINGER_MS = 4000;     // quiet for this long and they crumble
-const SKELETON_DEATH_COOLDOWN_MS = 6000;  // a fallen one is not replaced at once
+// A fallen skeleton waits out a fixed 10 seconds before the next one rises, at
+// every armor level. Deliberately NOT scaled: the count is what levelling buys,
+// and a shrinking replacement timer on top of a growing crowd would compound into
+// an unkillable wall at the top of the curve.
+const SKELETON_DEATH_COOLDOWN_MS = 10000;
 const SKELETON_HP = 24;
 const SKELETON_DAMAGE = 6;
 const SKELETON_ATTACK_MS = 900;
@@ -731,7 +749,7 @@ function stepSkeletons(dt) {
   if (fighting) {
     skeletonQuietMs = 0;
     skeletonSummonMs += dt;
-    if (allies.length < SKELETON_MAX && skeletonSummonMs >= SKELETON_SUMMON_MS &&
+    if (allies.length < skeletonCap() && skeletonSummonMs >= SKELETON_SUMMON_MS &&
         skeletonDeathCooldownMs <= 0) {
       skeletonSummonMs = 0;
       raiseSkeleton();
@@ -900,29 +918,42 @@ function bloomSwell(e) {
   return (t - (BLOOM_PULSE_MS - BLOOM_SWELL_MS)) / BLOOM_SWELL_MS;
 }
 
+// Poison armor's ward is a LEVEL curve (poisonWardDamage / poisonWardIntervalMs,
+// abilities.js), so a warded hero is not simply skipped by a burst any more: the
+// burst does reduced damage on a stretched rehit clock, and only a level-6 ward
+// is the flat immunity this used to be. The rehit clock lives here rather than in
+// the bloom, because a bloom's own 3.2s cadence belongs to the plant and the ward
+// belongs to the hero — three blooms overlapping must not each get a free hit.
+let bloomWardCdMs = 0;
+
 function stepToxicBlooms(dt) {
   if (typeof enemies === 'undefined' || typeof player === 'undefined') return;
-  const immune = typeof wearingElementalArmor === 'function' &&
-                 wearingElementalArmor('poison');
+  if (bloomWardCdMs > 0) bloomWardCdMs -= dt;
   for (const e of enemies) {
     if (!isBloom(e)) continue;
     e.bloomT = (e.bloomT || 0) + dt;
     if (e.bloomT < BLOOM_PULSE_MS) continue;
     e.bloomT = 0;
-    burstBloom(e, immune);
+    burstBloom(e);
   }
 }
 
-function burstBloom(e, immune) {
+function burstBloom(e) {
   const sp = (typeof screenPX === 'function') ? screenPX(e.x, e.y) : null;
   if (sp && typeof spawnParticle === 'function') {
     spawnParticle(sp.x, sp.y, '#8ab83a', 16, 5);
     spawnParticle(sp.x, sp.y, '#c8e08a', 10, 3);
   }
-  if (immune) return;                       // the armor is the answer to this
+  const warded = typeof poisonWardDamage === 'function' &&
+                 typeof wearingElementalArmor === 'function' &&
+                 wearingElementalArmor('poison');
+  const damage = warded ? poisonWardDamage(BLOOM_DAMAGE) : BLOOM_DAMAGE;
+  if (!damage) return;                      // level 6 — the armor answers it outright
+  if (warded && bloomWardCdMs > 0) return;
   if (Math.hypot(e.x - player.x, e.y - player.y) > BLOOM_RADIUS) return;
   if (player.invincible > 0) return;
-  if (typeof damagePlayer === 'function') damagePlayer(BLOOM_DAMAGE, 'poison');
+  if (typeof damagePlayer === 'function') damagePlayer(damage, 'poison');
+  if (warded) bloomWardCdMs = poisonWardIntervalMs(BLOOM_PULSE_MS);
   player.invincible = 900;
   if (typeof buzz === 'function') buzz([0, 30, 20, 40]);
   if (typeof showMsg === 'function') showMsg('\u2620 Spores burst around you!', 1400);

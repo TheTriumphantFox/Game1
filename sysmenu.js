@@ -185,6 +185,17 @@ function controlsToggleSide() {
   renderControlsWindow();
 }
 
+// The way back from "Don't show this again" on the controls card (main.js). This
+// window is the right home for it: it is the one place in the game that already
+// owns the answer to "how do I play this", and it is reachable from the Menu ring
+// on both control schemes.
+function controlsToggleStartScreen() {
+  if (typeof setShowControlsOnStart === 'function') {
+    setShowControlsOnStart(!showControlsOnStart);
+  }
+  renderControlsWindow();
+}
+
 function renderControlsWindow() {
   const el = document.getElementById('controls-modal');
   if (!el) return;
@@ -208,6 +219,8 @@ function renderControlsWindow() {
   const schemeLabel = (typeof uiModeLabel === 'function') ? uiModeLabel() : '—';
   const changed = (typeof controlsChangedFromDefault === 'function')
     ? controlsChangedFromDefault() : false;
+  const startCardLabel = (typeof showControlsOnStart === 'undefined' || showControlsOnStart)
+    ? 'Shown' : 'Hidden';
 
   el.innerHTML = `
     <h2>🎮 Controls</h2>
@@ -224,6 +237,13 @@ function renderControlsWindow() {
         <div class="shop-item-meta">Which side the steering pad and action buttons sit on.</div>
       </div>
       <button class="ssbtn" style="min-width:118px" onclick="controlsToggleSide()">${sideLabel}</button>
+    </div>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🗺️ Controls card on start</div>
+        <div class="shop-item-meta">The summary shown when a run begins. Turn it back on here if you ticked "Don't show this again".</div>
+      </div>
+      <button class="ssbtn" style="min-width:118px" onclick="controlsToggleStartScreen()">${startCardLabel}</button>
     </div>
     <div style="margin:10px 0 4px;color:#8a93b8;font-size:13px">
       Keyboard — click a key, then press the one you want.

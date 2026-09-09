@@ -671,7 +671,16 @@ function stepEnemies(dt, map) {
 }
 
 // ─── Enemy ranged fire ────────────────────────────────────────────────────────
+// How far a ranged enemy will open fire from. This is the game's only engagement
+// distance, so it is where Shadow armor's Umbral Veil applies (elements.js): at
+// level 6 a stock shooter has to be inside 3.6 tiles before it takes a shot.
+const ENEMY_FIRE_RANGE = 18;
+const DRAGON_BREATH_RANGE = 26;
+
 function stepEnemyRanged(dt) {
+  const veil = (typeof shadowDetectionScale === 'function') ? shadowDetectionScale() : 1;
+  const fireRange = ENEMY_FIRE_RANGE * veil;
+  const breathRange = DRAGON_BREATH_RANGE * veil;
   for (const e of enemies) {
     if (e.dead || !e.ranged || e.dormant) continue;
     // Purely cosmetic: how long the breath animation has left to play. Set when
@@ -690,7 +699,7 @@ function stepEnemyRanged(dt) {
     // hall (and anything hiding behind a pillar) from anywhere.
     if (e.breath === 'fire') {
       e.shootTimer = 2400 + Math.random() * 900;
-      if (dist >= 26 || dist === 0) continue;
+      if (dist >= breathRange || dist === 0) continue;
       e.breathT = DRAGON_BREATH_ANIM_MS;      // cosmetic; see dragon-sprite.js
       const base = Math.atan2(dy, dx);
       for (let k = -2; k <= 2; k++) {
@@ -705,7 +714,7 @@ function stepEnemyRanged(dt) {
       continue;
     }
 
-    if (dist >= 18) continue;  // out of range
+    if (dist >= fireRange) continue;  // out of range, or lost in the Umbral Veil
 
     projectiles.push({
       tx: e.x + 0.5, ty: e.y + 0.5,

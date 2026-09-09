@@ -24,13 +24,19 @@ function titleNewGame() {
   openNamePrompt(name => {
     initializeNewRunCheckpoint();
     player.heroName = name;
-    startGame();
-    // Straight into the opening beat — no "you awaken" banner, because the
-    // prologue's first scene does the establishing itself. Note this path does
-    // NOT call resetGame: boot already built a fresh world with the home village
-    // at map 0. The in-game 🆕 New button does reset, and hooks the prologue at
-    // the end of resetGame instead.
-    if (typeof startPrologue === 'function') startPrologue();
+    // The controls first, and the world stays frozen behind them — the prologue
+    // opens on a scripted scene the player is meant to walk through, so being
+    // dropped into it without knowing which key talks is the worst moment in the
+    // game to be learning them.
+    showLoadingScreen(() => {
+      startGame();
+      // Straight into the opening beat — no "you awaken" banner, because the
+      // prologue's first scene does the establishing itself. Note this path does
+      // NOT call resetGame: boot already built a fresh world with the home village
+      // at map 0. The in-game 🆕 New button does reset, and hooks the prologue at
+      // the end of resetGame instead.
+      if (typeof startPrologue === 'function') startPrologue();
+    });
   });
 }
 
@@ -41,9 +47,196 @@ function titleNewGameSkip() {
   openNamePrompt(name => {
     initializeNewRunCheckpoint();
     player.heroName = name;
-    startGame();
-    if (typeof skipPrologue === 'function') skipPrologue();
+    showLoadingScreen(() => {
+      startGame();
+      if (typeof skipPrologue === 'function') skipPrologue();
+    });
   });
+}
+
+// ─── Loading screen: the controls ─────────────────────────────────────────────
+// Shown once between committing to a run and the world unfreezing — after the
+// name prompt on a new game, and after a save is applied on a load. The world is
+// still frozen underneath it (gameStarted is set by dismissLoadingScreen, not by
+// the caller), so nothing ticks while it is up.
+//
+// WHAT IT LISTS was a real question, because the design note that asked for this
+// screen described "movement, jump, attack, items, menu/inventory, interact" and
+// three of those six do not exist. There is no jump — this is not a platformer,
+// and the nearest thing, Air armor's Updraft Glide, is the Ability key. "Attack"
+// is three separate weapons on three keys plus three more to equip them, and
+// "items" is one key for the one consumable worth a key in a fight.
+//
+// So the list is built from the actual bindings instead of from that sketch:
+// every action in KEY_ACTIONS (config.js), in groups, plus the two keys that are
+// real but NOT in that table because they are not rebindable — Space to interact
+// and Shift to strafe. Reading KEY_ACTIONS rather than hardcoding the letters is
+// what makes the screen tell the truth after a player rebinds something.
+//
+// Nothing here is a second source of truth for what a key does. If an action is
+// added to KEY_ACTIONS and not named in a group below it still appears, in the
+// catch-all "Other" group, so the screen cannot silently omit a control.
+const LOADING_GROUPS = [
+  { title: 'Move',      ids: ['up', 'down', 'left', 'right'] },
+  { title: 'Fight',     ids: ['melee', 'bow', 'bomb'] },
+  { title: 'Equip',     ids: ['weapon1', 'weapon2', 'weapon3'] },
+  { title: 'Use',       ids: ['ability', 'potion'] },
+  { title: 'Interface', ids: ['menu', 'minimap'] },
+];
+
+// The keys the game reads directly rather than through keyBinds, so they are not
+// in KEY_ACTIONS and cannot be rebound. Listed anyway: a player who cannot find
+// the interact key has no way to open a chest or talk to anyone.
+const LOADING_FIXED = [
+  { group: 'Use',  label: 'Interact / talk / open', keys: ['Space'] },
+  { group: 'Move', label: 'Strafe (hold to lock facing)', keys: ['Shift'] },
+];
+
+// What the touch build shows instead. The key list is meaningless on a phone,
+// where the same actions are the on-screen pad and buttons.
+const LOADING_TOUCH_GROUPS = [
+  { title: 'Move', rows: [
+    ['Walk', 'Drag the pad'],
+    ['Travel to a spot', 'Tap the ground'],
+  ] },
+  { title: 'Fight', rows: [
+    ['Sword', 'Tap ⚔️'],
+    ['Bow', 'Tap 🏹'],
+    ['Bomb', 'Menu ring'],
+  ] },
+  { title: 'Use', rows: [
+    ['Drink a potion', 'Tap 🧪'],
+    ['Armor ability', 'Tap 🜁'],
+    ['Interact / talk / open', 'Tap what you want'],
+  ] },
+  { title: 'Interface', rows: [
+    ['Menu ring', 'Tap the hero'],
+    ['Minimap', 'Double-tap the bar'],
+  ] },
+];
+
+// A key name as the player should read it. keyBinds stores the raw KeyboardEvent
+// key, so a single character arrives lower case and the named keys arrive with
+// their DOM spelling.
+const LOADING_KEY_GLYPHS = {
+  ArrowUp: '\u2191', ArrowDown: '\u2193', ArrowLeft: '\u2190', ArrowRight: '\u2192',
+};
+function loadingKeyLabel(k) {
+  if (!k) return null;                       // rebound away and left unbound
+  if (LOADING_KEY_GLYPHS[k]) return LOADING_KEY_GLYPHS[k];
+  return k.length === 1 ? k.toUpperCase() : k;
+}
+
+function loadingKeyHTML(k) {
+  const label = loadingKeyLabel(k);
+  return label
+    ? `<span class="lc-key">${escapeHTML(label)}</span>`
+    : `<span class="lc-key lc-key-unbound">unbound</span>`;
+}
+
+// Build the panel from the live bindings. Rebuilt on every show rather than once
+// at boot, so a run started after a rebind lists the new keys.
+function renderLoadingControls() {
+  const host = document.getElementById('loading-cols');
+  if (!host) return;
+  const touch = (typeof uiModeIsTouch === 'function') && uiModeIsTouch();
+  // The two lines around the card say different things on the two schemes: there
+  // is nothing to rebind on a touch build, and "press any key" is advice a phone
+  // cannot take.
+  const tagline = document.getElementById('loading-tagline');
+  const hint = document.getElementById('loading-hint');
+  if (tagline) {
+    tagline.textContent = touch
+      ? 'How to play. The pad sits in one bottom corner, the buttons in the other.'
+      : 'Your controls. Rebind them any time from the Menu ring.';
+  }
+  // The "how do I get this back" note lives on the checkbox itself (index.html),
+  // not here: it is the consequence of ticking the box, so it belongs beside the
+  // box, and on a phone this hint line is the first thing to fall below the fold.
+  if (hint) hint.textContent = touch ? 'Tap Begin to continue' : 'Press any key to continue';
+  if (touch) {
+    host.innerHTML = LOADING_TOUCH_GROUPS.map(g => `
+      <div class="lc-group"><div class="lc-title">${escapeHTML(g.title)}</div>
+      ${g.rows.map(([label, how]) =>
+        `<div class="lc-row"><span class="lc-label">${escapeHTML(label)}</span>
+         <span class="lc-keys"><span class="lc-key">${escapeHTML(how)}</span></span></div>`).join('')}
+      </div>`).join('');
+    return;
+  }
+  const byId = {};
+  for (const a of KEY_ACTIONS) byId[a.id] = a;
+  const placed = new Set();
+  const groups = LOADING_GROUPS.map(g => ({ title: g.title, rows: [] }));
+  const groupByTitle = {};
+  for (const g of groups) groupByTitle[g.title] = g;
+  for (let i = 0; i < LOADING_GROUPS.length; i++) {
+    for (const id of LOADING_GROUPS[i].ids) {
+      const a = byId[id];
+      if (!a) continue;                       // an id this build no longer has
+      placed.add(id);
+      groups[i].rows.push({ label: a.label, keys: [keyBinding(id)] });
+    }
+  }
+  for (const f of LOADING_FIXED) {
+    const g = groupByTitle[f.group];
+    if (g) g.rows.push({ label: f.label, keys: f.keys, fixed: true });
+  }
+  // Anything in KEY_ACTIONS the groups above forgot. Better an ugly extra group
+  // than a control the player is never told about.
+  const missed = KEY_ACTIONS.filter(a => !placed.has(a.id));
+  if (missed.length) {
+    groups.push({ title: 'Other', rows: missed.map(a => ({ label: a.label, keys: [keyBinding(a.id)] })) });
+  }
+  host.innerHTML = groups.filter(g => g.rows.length).map(g => `
+    <div class="lc-group"><div class="lc-title">${escapeHTML(g.title)}</div>
+    ${g.rows.map(r => `<div class="lc-row"><span class="lc-label">${escapeHTML(r.label)}</span>
+      <span class="lc-keys">${r.fixed
+        ? r.keys.map(k => `<span class="lc-key">${escapeHTML(k)}</span>`).join('')
+        : r.keys.map(loadingKeyHTML).join('')}</span></div>`).join('')}
+    </div>`).join('');
+}
+
+let loadingScreenOpen = false;
+let loadingScreenThen = null;
+
+// Show the controls, then run `then` once the player dismisses it. The world
+// stays frozen until then: callers hand over their startGame() rather than
+// calling it themselves.
+//
+// A player who has ticked "Don't show this again" (showControlsOnStart, config.js)
+// skips straight to `then`. Handled HERE rather than at the three call sites so a
+// suppressed card can never leave the world frozen behind an overlay nobody
+// opened — every caller hands over the thing that starts the game, and this
+// function always runs it exactly once either way.
+function showLoadingScreen(then) {
+  if (typeof showControlsOnStart !== 'undefined' && !showControlsOnStart) {
+    if (then) then();
+    return;
+  }
+  loadingScreenThen = then || null;
+  renderLoadingControls();
+  // Unticked every time it opens. The box is a request ("stop showing me this"),
+  // not a saved field being edited — leaving it ticked from last time would make
+  // a card that is being shown look like a card that is switched off.
+  const box = document.getElementById('loading-again-box');
+  if (box) box.checked = false;
+  loadingScreenOpen = true;
+  document.getElementById('loading-overlay').classList.add('open');
+  const go = document.getElementById('loading-go');
+  if (go) go.focus();
+}
+
+function dismissLoadingScreen() {
+  if (!loadingScreenOpen) return;
+  loadingScreenOpen = false;
+  const box = document.getElementById('loading-again-box');
+  if (box && box.checked && typeof setShowControlsOnStart === 'function') {
+    setShowControlsOnStart(false);
+  }
+  document.getElementById('loading-overlay').classList.remove('open');
+  const then = loadingScreenThen;
+  loadingScreenThen = null;
+  if (then) then();
 }
 
 // ─── Hero name prompt ─────────────────────────────────────────────────────────
@@ -121,6 +314,7 @@ function update(dt) {
       (typeof victoryOpen       !== 'undefined' && victoryOpen)       ||
       (typeof dialogueOpen      !== 'undefined' && dialogueOpen)      ||
       namePromptOpen                                                 ||
+      loadingScreenOpen                                              ||
       (typeof cutsceneBlocking  !== 'undefined' && cutsceneBlocking)) {
     updateHUD();
     return;
@@ -273,6 +467,19 @@ document.addEventListener('keydown', e => {
   // SPACE looted the map-0 chest, V opened the radial menu, P drank a potion,
   // Tab toggled the minimap. The name prompt runs before the game starts and
   // owns its own input (it's on the input element, which stops propagation).
+  // The loading screen is up: any key dismisses it, which is what its own hint
+  // promises. Checked before the gameStarted gate, because the whole point of
+  // this screen is that it sits in front of a world that has not started yet.
+  if (loadingScreenOpen) {
+    if (e.key === 'Tab') return;    // leave Tab to the browser's focus ring
+    // …and leave the "Don't show this again" box alone while it has focus, or a
+    // keyboard player cannot tick it: Space is how a checkbox is toggled, and
+    // "any key dismisses" would eat the press and close the card instead.
+    if (e.target && e.target.id === 'loading-again-box') return;
+    e.preventDefault();
+    dismissLoadingScreen();
+    return;
+  }
   if (!gameStarted && !namePromptOpen) return;
   if (namePromptOpen) {
     if (e.key === 'Escape') closeNamePrompt();
@@ -427,9 +634,9 @@ document.addEventListener('keydown', e => {
   if (ck === 'Tab') { e.preventDefault(); if (!e.repeat) showMinimap = !showMinimap; }
   // 'P' drinks one Health Potion (fires on the press itself, not while held)
   if (ck === 'p' || ck === 'P') { e.preventDefault(); if (!e.repeat) usePotion(); }
-  // 'F' uses the active shrine/armor ability: Updraft Glide or Shadow Step.
-  // (abilities.js). On the press, never on the repeat: both of them move the
-  // hero, and holding the key should not walk them across a lake.
+  // 'F' uses the active armor ability — Air's Updraft Glide, the only one left
+  // (abilities.js). On the press, never on the repeat: it moves the hero, and
+  // holding the key should not walk them across a lake.
   if (ck === 'f' || ck === 'F') {
     e.preventDefault();
     if (!e.repeat && typeof useEquippedAbility === 'function') useEquippedAbility();
