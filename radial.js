@@ -367,7 +367,7 @@ const RADIAL_RINGS = [
         // one launcher now (see sysmenu.js) instead of taking four slots in the
         // ring. The bottom save row that used to duplicate them is gone on every
         // device, so this is the only in-game route to those commands.
-        { type: 'sysmenu', icon: '⚙️', label: 'Game Menu', launcher: true,
+        { type: 'sysmenu', icon: '💾', label: 'Game Menu', launcher: true,
           val: () => '—',
           action: () => { if (typeof openSysMenu === 'function') openSysMenu(); } },
         { type: 'fullscreen', icon: '⛶', label: 'Fullscreen', launcher: true,
@@ -378,16 +378,16 @@ const RADIAL_RINGS = [
           } },
         // The escape hatch if auto-detection picks the wrong scheme. Also on the
         // title screen; this is the only in-game route once the row is hidden.
-        // Opens the Controls window (sysmenu.js): key rebinding and the touch
-        // handedness setting together. Replaced a pair of cycle-in-place
-        // buttons — a scheme override that cycled three ways and a handedness
-        // toggle — because rebinding needs a panel and splitting "where are my
-        // controls" across a panel and two ring entries would be worse.
-        { type: 'controls', icon: '🎮', label: 'Controls', launcher: true,
+        // Opens the Settings window (sysmenu.js): sound, display, and the
+        // Controls section (scheme, handedness, key rebinding). It began as a
+        // Controls window that replaced a pair of cycle-in-place buttons, and
+        // grew to hold every per-device setting so there is one place to look.
+        // Still shows the scheme, since this is where a wrong guess gets fixed.
+        { type: 'settings', icon: '⚙️', label: 'Settings', launcher: true,
           val: () => (typeof uiModeLabel === 'function') ? uiModeLabel() : '—',
           action: () => {
             closeRadialMenu();
-            if (typeof openControlsWindow === 'function') openControlsWindow();
+            if (typeof openSettingsWindow === 'function') openSettingsWindow();
           } },
       ];
     }},

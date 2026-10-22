@@ -1060,13 +1060,63 @@ window.addEventListener('resize', resizeCanvas);
 window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
 if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas);
 
+// ─── Device preferences (the Settings window, sysmenu.js) ────────────────────
+// Sound effects, vibration, motion and flashing, message time, zoom and screen
+// wake. Per-device like the UI mode and key bindings below, so they live in
+// localStorage and never in a save slot: a save carried to a phone should not
+// bring the desktop's choice of shake or volume with it. Music keeps its own key
+// (music.js) because it shipped first and already has players' settings in it.
+//
+// Every field is checked on load, so a missing or corrupted value falls back to
+// its default rather than switching something off. The defaults are what the
+// game did before any of this was configurable.
+const DEVICE_PREFS_KEY = 'stormdrift_prefs';
+const DEVICE_PREF_DEFAULTS = {
+  sfxVolume: 100,         // 0..100; 100 is the loudness the effects always had
+  sfxMuted: false,
+  haptics: true,
+  reduceFlashing: false,
+  screenShake: true,
+  toastTime: 1,           // multiplier on every timed message: 1, 1.5 or 2
+  zoomedOut: false,       // the view mode the game opens in (render.js)
+  keepAwake: true,
+};
+const TOAST_TIME_STEPS = [1, 1.5, 2];
+const devicePrefs = Object.assign({}, DEVICE_PREF_DEFAULTS);
+try {
+  const raw = localStorage.getItem(DEVICE_PREFS_KEY);
+  const p = raw ? JSON.parse(raw) : null;
+  if (p && typeof p === 'object') {
+    for (const k in DEVICE_PREF_DEFAULTS) {
+      if (typeof p[k] === typeof DEVICE_PREF_DEFAULTS[k]) devicePrefs[k] = p[k];
+    }
+    devicePrefs.sfxVolume = Math.max(0, Math.min(100, Math.round(devicePrefs.sfxVolume) || 0));
+    if (!TOAST_TIME_STEPS.includes(devicePrefs.toastTime)) devicePrefs.toastTime = 1;
+  }
+} catch (_) { /* private mode or malformed; the defaults stand */ }
+
+function setDevicePref(k, v) {
+  if (!(k in DEVICE_PREF_DEFAULTS)) return;
+  devicePrefs[k] = v;
+  try { localStorage.setItem(DEVICE_PREFS_KEY, JSON.stringify(devicePrefs)); } catch (_) { /* ignore */ }
+}
+
+// Gain for a one-shot effect whose untouched volume is `base`. Same squared
+// curve as musicLevel (music.js), so the two sliders feel alike.
+function sfxGain(base) {
+  if (devicePrefs.sfxMuted) return 0;
+  const v = devicePrefs.sfxVolume / 100;
+  return base * v * v;
+}
+
+function toastTimeScale() { return devicePrefs.toastTime; }
+
 // ─── Haptics ────────────────────────────────────────────────────────────────
 // Best-effort vibration feedback for touch play. A silent no-op where the API
-// is missing (notably iOS Safari) or when muted via hapticsEnabled. `pattern`
+// is missing (notably iOS Safari) or when switched off in Settings. `pattern`
 // is a duration in ms or a [vibrate, pause, …] array (navigator.vibrate).
-let hapticsEnabled = true;
 function buzz(pattern) {
-  if (!hapticsEnabled) return;
+  if (!devicePrefs.haptics) return;
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) { /* ignore */ }
 }
 
@@ -1130,7 +1180,7 @@ const STORAGE_PREFIX = 'stormdrift_';
 
 // ─── UI mode: touch pad vs keyboard weapon bar ──────────────────────────────
 // Single source of truth for which control scheme is showing. Everything else
-// (game.css, the title hint, the radial ring's Controls entry) keys off the `data-ui`
+// (game.css, the title hint, the radial ring's Settings entry) keys off the `data-ui`
 // attribute this section writes onto <html> — never off a media query, so a
 // player who forces a mode gets it applied consistently.
 //
@@ -1201,7 +1251,7 @@ function setUiMode(mode) {
 // with it.
 //
 // The card can hide itself ("Don't show this again"), and a screen that can hide
-// itself with no way back is a trap — so the Controls window is where it comes
+// itself with no way back is a trap — so the Settings window is where it comes
 // back from (controlsToggleStartScreen, sysmenu.js). That matters most on the
 // touch build, where this card is the ONLY place the steering pad and the action
 // buttons are ever explained; a keyboard player at least has the weapon bar and
@@ -1220,7 +1270,7 @@ function setShowControlsOnStart(on) {
   } catch (_) { /* ignore */ }
 }
 
-// Cycled by the 🎮 button on the title screen and the radial ring's Controls entry.
+// Cycled by the 🎮 button on the title screen and the Settings window.
 function cycleUiMode() {
   setUiMode(uiModePref === 'auto' ? 'touch' : uiModePref === 'touch' ? 'desktop' : 'auto');
   if (typeof buzz === 'function') buzz(8);
@@ -1367,7 +1417,7 @@ function canonicalKey(evKey) {
   return evKey;
 }
 
-// Human-readable, for the Controls window.
+// Human-readable, for the Settings window.
 function keyLabel(k) {
   if (!k) return '—';
   const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',

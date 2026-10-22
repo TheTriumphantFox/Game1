@@ -218,7 +218,10 @@ function drawPlayer(ts) {
   // instead of an offset invented inside the renderer.
   const pfb = footBox(px, py, 0, s);
   const sx = pfb.x, sy = pfb.y;
-  const blink = player.invincible > 0 && Math.floor(Date.now() / 80) % 2 === 0;
+  // Reduce flashing slows the hit blink from 6 Hz to 2 Hz, under the 3-flashes-a-
+  // second line photosensitivity guidance draws, without losing the tell.
+  const blinkMs = devicePrefs.reduceFlashing ? 250 : 80;
+  const blink = player.invincible > 0 && Math.floor(Date.now() / blinkMs) % 2 === 0;
   if (blink) return;
 
   const sd = player.swordDir;
@@ -293,7 +296,8 @@ function drawPlayer(ts) {
   const lowHp = player.hp > 0 && player.hp <= 3;
   let dangerPulse = 0;
   if (lowHp) {
-    dangerPulse = 0.5 + 0.5 * Math.sin(Date.now() / 140);
+    // Reduce flashing holds the warning steady at mid strength instead of pulsing.
+    dangerPulse = devicePrefs.reduceFlashing ? 0.5 : 0.5 + 0.5 * Math.sin(Date.now() / 140);
     ctx.shadowColor = `rgba(255,40,40,${(0.55 + 0.45 * dangerPulse).toFixed(3)})`;
     ctx.shadowBlur = s * (0.08 + 0.10 * dangerPulse);
   }
@@ -1454,15 +1458,24 @@ let showMinimap = false;
 // the sprite cache re-bakes when it changes — see ensureSpriteCacheSize).
 const VIEW_BASE_PX     = 48;   // matches TILE_PX's config.js default
 const VIEW_ZOOM_OUT_PX = 24;   // half-scale: twice the tiles on screen
-let viewMode = 0;
+let viewMode = devicePrefs.zoomedOut ? 1 : 0;
+if (viewMode === 1) TILE_PX = VIEW_ZOOM_OUT_PX;
 
-function cycleViewMode() {
-  viewMode = (viewMode + 1) % 3;
+// Leaving mode 0 or 1 remembers it as the zoom to open in next time. Mode 2 is a
+// look at the map, not a zoom, and it blocks play, so it is never restored: the
+// remembered zoom stays whatever the player last walked around in.
+function setViewMode(mode) {
+  viewMode = mode;
   // Mode 1 zooms the world out; every other mode uses the base tile size (mode 2
   // draws the full minimap over the top, so the world size under it doesn't matter).
   TILE_PX = (viewMode === 1) ? VIEW_ZOOM_OUT_PX : VIEW_BASE_PX;
+  if (viewMode !== 2) setDevicePref('zoomedOut', viewMode === 1);
   if (typeof clampCam === 'function') clampCam(true);   // snap: no scroll on a zoom jump
   if (typeof updateHUD === 'function') updateHUD();
+}
+
+function cycleViewMode() {
+  setViewMode((viewMode + 1) % 3);
   const label = viewMode === 0 ? '🔍 Normal view'
               : viewMode === 1 ? '🗺️ Zoomed out'
               :                   '🗺️ Full map';
@@ -1535,6 +1548,8 @@ function drawFullMinimap() {
 // render(); `stormFlashLevel` (0..1) is the current brightness, read both here
 // for the overlay and by drawTile's STORM_CLOUD case for the border crackle.
 let stormFlashLevel = 0;
+const STORM_CALM_K = 260;   // decay time-constant (ms) of a strike under Reduce flashing
+const STORM_CALM_END = 1000; // ...and how long it runs: by then it is ~2%, so it ends unseen
 const stormFlash = { pulses: null, end: 0, next: 0, bolts: [] };
 
 // ─── Cinematic layer (cutscene.js drives these) ───────────────────────────────
@@ -1564,7 +1579,7 @@ function updateCinematics(now) {
     shakeMs -= dt;
     if (shakeMs <= 0) { shakeMs = 0; shakeMag = 0; }
   }
-  if (shakeMag > 0) {
+  if (shakeMag > 0 && devicePrefs.screenShake) {
     // Random per frame rather than a sine — a rumble, not a wobble.
     _shakeX = (Math.random() * 2 - 1) * shakeMag;
     _shakeY = (Math.random() * 2 - 1) * shakeMag;
@@ -1891,11 +1906,10 @@ function triggerPlayerStormStrike() {
       y: targetY * t,
     });
   }
-  stormFlash.pulses = [
-    { t: now, amp: 1, k: 95 },
-    { t: now + 90, amp: 0.75, k: 75 },
-  ];
-  stormFlash.end = now + 320;
+  stormFlash.pulses = devicePrefs.reduceFlashing
+    ? [{ t: now, amp: 1, k: STORM_CALM_K }]
+    : [{ t: now, amp: 1, k: 95 }, { t: now + 90, amp: 0.75, k: 75 }];
+  stormFlash.end = now + (devicePrefs.reduceFlashing ? STORM_CALM_END : 320);
   stormFlash.bolts = [{ main: points, branch: [] }];
   stormFlash.next = now + 2600 + Math.random() * 4200;
 }
@@ -1986,15 +2000,19 @@ function updateStormFlash(now, isStorm) {
     return;
   }
   if (now >= stormFlash.next && !stormFlash.pulses) {
-    const n = 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < 0.3 ? 1 : 0);
+    // Reduce flashing: one strike that fades over about a second, never the
+    // stutter (two or three pulses 45-140 ms apart is well past 3 flashes a second).
+    const n = devicePrefs.reduceFlashing ? 1
+            : 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < 0.3 ? 1 : 0);
     const pulses = [];
     let t = now;
     for (let i = 0; i < n; i++) {
-      pulses.push({ t, amp: 0.7 + Math.random() * 0.3, k: 85 + Math.random() * 80 });
+      pulses.push({ t, amp: 0.7 + Math.random() * 0.3,
+                    k: devicePrefs.reduceFlashing ? STORM_CALM_K : 85 + Math.random() * 80 });
       t += 45 + Math.random() * 95;
     }
     stormFlash.pulses = pulses;
-    stormFlash.end = t + 220;
+    stormFlash.end = t + (devicePrefs.reduceFlashing ? STORM_CALM_END : 220);
     stormFlash.bolts = buildStormBolts();
     stormFlash.next = stormFlash.end + 2200 + Math.random() * 6000;   // 2.2–8.4s between strikes
   }
@@ -2013,7 +2031,11 @@ function drawStormFlash() {
   const a = stormFlashLevel;
   if (a <= 0.001) return;
   ctx.save();
-  ctx.fillStyle = 'rgba(150,180,236,' + (0.42 * a).toFixed(3) + ')';   // pale blue-white illumination
+  // Pale blue-white illumination. Reduce flashing keeps the bolts (they are a
+  // small part of the screen and the hit on the hero needs to read) but takes
+  // the whole-screen wash down to a faint glow.
+  const wash = devicePrefs.reduceFlashing ? 0.12 : 0.42;
+  ctx.fillStyle = 'rgba(150,180,236,' + (wash * a).toFixed(3) + ')';
   ctx.fillRect(0, 0, PW, PH);
   if (a > 0.35 && stormFlash.bolts && stormFlash.bolts.length) {
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';

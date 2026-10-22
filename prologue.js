@@ -575,6 +575,9 @@ const ROAR_AUDIO = new Audio('dragon-roar.wav');
 ROAR_AUDIO.preload = 'auto';
 ROAR_AUDIO.volume = 0.55;
 function playDragonRoar() {
+  const vol = sfxGain(0.55);   // see playKillSound (player.js)
+  if (vol <= 0) return;
+  ROAR_AUDIO.volume = vol;
   try { ROAR_AUDIO.currentTime = 0; } catch (_) {}
   // Rejects if the player hasn't clicked yet; the beat plays on regardless.
   ROAR_AUDIO.play().catch(() => {});

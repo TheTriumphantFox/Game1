@@ -307,7 +307,7 @@ function update(dt) {
       (typeof statsPageOpen     !== 'undefined' && statsPageOpen)     ||
       (typeof worldMapOpen      !== 'undefined' && worldMapOpen)      ||
       (typeof sysMenuOpen       !== 'undefined' && sysMenuOpen)       ||
-      (typeof controlsOpen      !== 'undefined' && controlsOpen)      ||
+      (typeof settingsOpen      !== 'undefined' && settingsOpen)      ||
       (typeof modalMode         !== 'undefined' && modalMode)         ||
       (typeof shopOpen          !== 'undefined' && shopOpen)          ||
       (typeof portalOpen        !== 'undefined' && portalOpen)        ||
@@ -485,18 +485,18 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeNamePrompt();
     return;   // name prompt swallows gameplay input
   }
-  // The Controls window is capturing a key for rebinding: it takes this press
+  // The Settings window is capturing a key for rebinding: it takes this press
   // and nothing else sees it. Before every other branch, because a player
   // rebinding "menu" must not also open the menu with the key they are assigning.
-  // controlsCaptureKey returns false (instead of its usual true) for Tab/Enter/
-  // Space when the window is open but idle, so the browser's native focus-move
-  // and button-activate behavior still works inside it — the check right after
+  // settingsCaptureKey returns false (instead of its usual true) for Tab/Enter/
+  // Space, and arrows on a focused slider, when the window is open but idle, so
+  // the browser's native behavior still works inside it — the check right after
   // still stops those keys from reaching the gameplay chain below.
-  if (typeof controlsCaptureKey === 'function' && controlsCaptureKey(e)) {
+  if (typeof settingsCaptureKey === 'function' && settingsCaptureKey(e)) {
     e.preventDefault();
     return;
   }
-  if (typeof controlsOpen !== 'undefined' && controlsOpen) return;
+  if (typeof settingsOpen !== 'undefined' && settingsOpen) return;
   // Everything below reads `ck`, not e.key: the pressed key translated into the
   // key this code was written against (canonicalKey, config.js). One translation
   // at the boundary, so no reader downstream knows rebinding exists.
@@ -791,7 +791,7 @@ function gameplayTouchBlocked() {
          (typeof statsPageOpen !== 'undefined' && statsPageOpen) ||
          (typeof worldMapOpen !== 'undefined' && worldMapOpen) ||
          (typeof sysMenuOpen !== 'undefined' && sysMenuOpen) ||
-         (typeof controlsOpen !== 'undefined' && controlsOpen) ||
+         (typeof settingsOpen !== 'undefined' && settingsOpen) ||
          (typeof dialogueOpen !== 'undefined' && dialogueOpen) ||
          (typeof cutsceneInputLocked !== 'undefined' && cutsceneInputLocked) ||
          (typeof viewMode !== 'undefined' && viewMode === 2);
@@ -1213,7 +1213,7 @@ function refreshControlHints() {
     sideBtn.textContent = '🤚 Control side: ' + touchSideLabel();
   }
   // The in-game copy of this button lived in the save row, which is gone — the
-  // radial MENU ring's Controls entry reads uiModeLabel() itself, so there's
+  // radial MENU ring's Settings entry reads uiModeLabel() itself, so there's
   // nothing else to repaint here.
 }
 // config.js set data-ui before this file loaded, so the initial apply was a
@@ -1240,6 +1240,7 @@ refreshControlHints();
 // (browsers drop the lock on visibility change). All best-effort / feature-gated.
 let wakeLock = null;
 async function ensureWakeLock() {
+  if (!devicePrefs.keepAwake) return;
   try {
     if ('wakeLock' in navigator && !wakeLock) {
       wakeLock = await navigator.wakeLock.request('screen');
@@ -1250,6 +1251,14 @@ async function ensureWakeLock() {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) ensureWakeLock();
 });
+// Settings toggle. Turning it off lets go of a lock already held, so the screen
+// can dim on its normal timer straight away rather than after the next restart.
+function setKeepAwake(on) {
+  setDevicePref('keepAwake', !!on);
+  if (on) ensureWakeLock();
+  else if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+
 function toggleFullscreen() {
   const el = document.documentElement;
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {

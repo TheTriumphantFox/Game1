@@ -317,6 +317,9 @@ function _toastStack() {
 // Raise a toast. `kind` is 'msg' (default) or 'banner'; `dur` is ms, or 0 for a
 // sticky toast that only an input removes.
 function showToast(text, { kind = 'msg', dur = TOAST_DEFAULT_MS } = {}) {
+  // Message time (Settings) stretches every timed toast, including the short
+  // ones callers pass explicitly. A sticky toast stays sticky.
+  if (dur > 0) dur = Math.round(dur * toastTimeScale());
   const stack = _toastStack();
   if (!stack) return null;   // no host element (e.g. a tools/ harness page)
 

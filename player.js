@@ -825,8 +825,13 @@ for (let i = 0; i < 8; i++) {          // 8 voices — enough overlap for a crow
   SCREAM_POOL.push(a);
 }
 function playKillSound() {
+  // Volume is read per shot so the Settings slider takes effect on the next kill.
+  // Muted means silent and no duck: a music dip with nothing under it is a glitch.
+  const vol = sfxGain(0.5);
+  if (vol <= 0) return;
   const a = SCREAM_POOL[_screamVoice];
   _screamVoice = (_screamVoice + 1) % SCREAM_POOL.length;
+  a.volume = vol;
   // Rewinding throws if this voice hasn't loaded metadata yet; it just plays
   // from wherever it is in that case, which is the start anyway.
   try { a.currentTime = 0; } catch (_) {}

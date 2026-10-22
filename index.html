@@ -72,7 +72,7 @@
     <label id="loading-again">
       <input type="checkbox" id="loading-again-box">
       <span>Don't show this again
-        <small>Menu ring › Controls brings it back</small></span>
+        <small>Menu ring › Settings brings it back</small></span>
     </label>
     <button class="title-btn" id="loading-go" onclick="dismissLoadingScreen()">▶ Begin</button>
     <p id="loading-hint">Press any key to continue</p>
@@ -125,10 +125,10 @@
     <button class="shop-close" onclick="closeWorldMap()">✕ Close</button>
   </div>
 </div>
-<!-- Controls window — key rebinding and the touch handedness setting, together
-     because they are the same question asked of two devices. -->
-<div id="controls-modal-overlay" class="shop-overlay">
-  <div id="controls-modal" class="shop-modal"></div>
+<!-- Settings window — sound, display, and controls (scheme, handedness, key
+     rebinding). Every per-device preference in one place; see sysmenu.js. -->
+<div id="settings-modal-overlay" class="shop-overlay">
+  <div id="settings-modal" class="shop-modal"></div>
 </div>
 <!-- Game menu — Save / Load / New Game / God Mode behind one radial launcher.
      Sits BEFORE the save modal in the DOM so that modal (same z-index) paints on
@@ -217,8 +217,8 @@
   </div>
   <!-- The save row that used to sit here (Save / Load / New / Fullscreen /
        Controls) is gone — every one of those lives in the radial menu's MENU
-       ring now (V, or tap the hero on touch): the first three behind the ⚙️ Game
-       Menu launcher, Fullscreen and Controls as their own entries. Its status
+       ring now (V, or tap the hero on touch): the first three behind the 💾 Game
+       Menu launcher, Fullscreen and Settings as their own entries. Its status
        span went with it, so save/load feedback is a toast on every device (see
        setSaveStatus in save.js). -->
   <div id="ctrl-bar">
