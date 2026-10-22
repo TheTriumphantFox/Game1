@@ -43,6 +43,16 @@ COORD_LITERAL_ALLOWED = [
     "connectivity",
 ]
 
+# Story flags that are set on purpose with nothing reading them yet. Each needs a
+# reason; a flag listed here is skipped by the "set but never checked" note, so a
+# genuinely forgotten flag still shows up.
+PLANNED_FLAGS = {
+    # The two ways Beat 2's dog encounter can end are both recorded, for symmetry
+    # with dog_fled and for any later line that wants to remember how it went.
+    # Documented in story.js's flag list and main-quest-implementation-todo.md.
+    "dog_outrun": "Beat 2 outcome, kept for symmetry with dog_fled",
+}
+
 # Every enemy definition should carry these keys — the real DND_ENEMIES shape
 # in enemies.js. Note: this project tracks no "ac" (armor class) or to-hit —
 # combat is real-time/contact-based, not dice-roll based, so those tabletop
@@ -203,7 +213,7 @@ def collect_flags(root):
         if flag not in set_flags:
             report(ERROR, name, i, f"story flag '{flag}' is checked but never set")
     for flag, (name, i) in set_flags.items():
-        if flag not in read_flags:
+        if flag not in read_flags and flag not in PLANNED_FLAGS:
             report(INFO, name, i, f"story flag '{flag}' is set but never checked (may be planned)")
 
 

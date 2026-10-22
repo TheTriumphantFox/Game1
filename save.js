@@ -483,7 +483,7 @@ function applyLoadDataUnsafe(data) {
   // reproducible — the maps it already has keep their own stored mapSeed, or fall
   // back to regenerating freshly if they predate that too.
   worldSeed = (typeof data.worldSeed === 'number')
-    ? data.worldSeed : (Math.random() * 0x100000000) >>> 0;
+    ? data.worldSeed : rollWorldSeed();
 
   // Reset transient state so the player isn't stuck mid-animation
   attackCooldown = 0; bowCooldown = 0; bombCooldown = 0;

@@ -114,7 +114,7 @@ function initWorld() {
   worldGrid = {};
   // A fresh world rolls a fresh seed. Everything generated from here on is
   // reproducible from it plus the map's grid cell.
-  worldSeed = (Math.random() * 0x100000000) >>> 0;
+  worldSeed = rollWorldSeed();
   mapsVisited = 1;
   desertsVisited = 0;
   currentRegionIdx = 0;
@@ -759,7 +759,12 @@ function seedRegionShrine(regionIdx) {
     }
     const ids = (typeof REGION_ELEMENT_IDS !== 'undefined')
       ? REGION_ELEMENT_IDS : Object.keys(SWORD_ELEMENTS);   // never the capstone Dragonbane
-    const requiredElement = ids[Math.floor(Math.random() * ids.length)];
+    // From the world seed and the region, so the same world asks for the same
+    // element however the player got here. Seeded per region rather than drawn from
+    // a running stream: which region seeds first depends on the route taken. A save
+    // that already has its shrine keeps the element it stored.
+    const pick = mulberry32(hashSeed(worldSeed, 'shrine', rid));
+    const requiredElement = ids[Math.floor(pick() * ids.length)];
     target.shrineElement = requiredElement;
     player.shrineQuests[rid] = { mapId: target.id, requiredElement, status: 'sealed', x: spot.x, y: spot.y };
     return;
