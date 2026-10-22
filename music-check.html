@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>music check</title>
+<style>
+html,body{margin:0;background:#111;color:#ddd;font:13px monospace}
+main{padding:12px 16px;max-width:980px}
+h1{font-size:15px;margin:0 0 8px}
+h2{font-size:13px;margin:14px 0 6px;color:#9cf}
+button{font:inherit;background:#222;color:#ddd;border:1px solid #444;padding:4px 8px;margin:2px;cursor:pointer}
+button.on{background:#2a5;color:#fff;border-color:#3c6}
+#now{white-space:pre;background:#000;border:1px solid #333;padding:8px;margin:8px 0;min-height:3.6em}
+#log{white-space:pre;background:#000;border:1px solid #333;padding:8px;margin-top:8px;max-height:420px;overflow:auto}
+label{margin-right:14px}
+.row{margin:4px 0}
+</style>
+<main>
+<h1>🎵 Hero of Stormdrift — jukebox</h1>
+<div class="row">Not part of the game. Click once anywhere to let the browser make sound, then pick a track.
+Mood buttons switch on the next bar line, the way the game does.</div>
+<div class="row" id="moods"></div>
+<div class="row">
+  <label>region key <select id="region"></select></label>
+  <label>tower floor <input id="level" type="range" min="0" max="14" value="0"> <span id="levelv">0</span></label>
+  <label>volume <input id="vol" type="range" min="0" max="100"></label>
+  <button id="stop">■ stop</button>
+  <button id="check">check all (offline render)</button>
+</div>
+<div id="now">silent</div>
+<h2>Regions</h2><div id="regions"></div>
+<h2>Places</h2><div id="places"></div>
+<div id="log"></div>
+</main>
+<script src="music-songs.js"></script>
+<script src="music.js"></script>
+<script>
+// Dev harness, same family as golem-check.html: loads only the two music files,
+// not the game. musicForce() takes the wheel from stepMusic().
+const REGION_ORDER = ['forest','fire','water','ice','earth','volcanic','air','lightning',
+                      'luminous','necrotic','poison','mana','shadow'];
+const REGIONAL = { cave:1, dungeon:1, sky_cave:1, grotto:1, shrine:1 };
+let curTrack = null, curMood = 'normal';
+const $ = id => document.getElementById(id);
+
+function transposeFor(track) {
+  if (!REGIONAL[track]) return track === 'tower' ? Math.floor(+$('level').value / 4) : 0;
+  const reg = MUSIC_SONGS[$('region').value];
+  if (!reg) return 0;
+  let d = (parsePitchClass(reg.key) - parsePitchClass(MUSIC_SONGS[track].key) + 12) % 12;
+  return d > 6 ? d - 12 : d;
+}
+function play(track) {
+  unlockMusic();
+  curTrack = track;
+  musicForce(track, curMood, { transpose: transposeFor(track), level: track === 'tower' ? +$('level').value : 0 });
+  paint();
+}
+function paint() {
+  document.querySelectorAll('[data-track]').forEach(b => b.classList.toggle('on', b.dataset.track === curTrack));
+  document.querySelectorAll('[data-mood]').forEach(b => b.classList.toggle('on', b.dataset.mood === curMood));
+}
+function btn(parent, label, attrs, fn) {
+  const b = document.createElement('button');
+  b.textContent = label;
+  for (const k in attrs) b.dataset[k] = attrs[k];
+  b.onclick = fn;
+  parent.appendChild(b);
+}
+for (const m of ['calm', 'normal', 'intense'])
+  btn($('moods'), m, { mood: m }, () => { curMood = m; if (curTrack) play(curTrack); paint(); });
+for (const id of Object.keys(MUSIC_SONGS)) {
+  const isRegion = REGION_ORDER.includes(id);
+  btn(isRegion ? $('regions') : $('places'), `${id} — ${MUSIC_SONGS[id].title}`, { track: id }, () => play(id));
+}
+for (const id of REGION_ORDER) {
+  const o = document.createElement('option');
+  o.value = id; o.textContent = MUSIC_SONGS[id] ? `${id} (${MUSIC_SONGS[id].key})` : `${id} (no song yet)`;
+  $('region').appendChild(o);
+}
+$('region').onchange = () => { if (curTrack && REGIONAL[curTrack]) play(curTrack); };
+$('level').oninput = () => { $('levelv').textContent = $('level').value; if (curTrack === 'tower') play('tower'); };
+$('vol').value = musicPref.volume;
+$('vol').oninput = () => musicSetVolume($('vol').value);
+$('stop').onclick = () => { musicStop(); curTrack = null; paint(); };
+
+setInterval(() => {
+  const n = musicNowPlaying();
+  $('now').textContent = n
+    ? `${n.track} · ${n.mood}${n.pendingMood ? ' → ' + n.pendingMood + ' at next bar' : ''}\n` +
+      `section ${n.section}  bar ${n.bar}/${n.bars}  transpose ${n.opts.transpose || 0}  level ${n.opts.level || 0}` +
+      `\naudio ${musicCtx ? musicCtx.state : 'locked (click anywhere)'}`
+    : `silent\naudio ${musicCtx ? musicCtx.state : 'locked (click anywhere)'}`;
+}, 100);
+
+// Render every track × mood offline for one loop (capped) and measure it.
+// Results also land on window.__musicCheck for automated runs.
+async function checkAll() {
+  const out = [], rows = [];
+  const problems = musicValidateSongs();
+  for (const id of Object.keys(MUSIC_SONGS)) {
+    const bars = {};
+    for (const mood of ['calm', 'normal', 'intense']) {
+      const arr = renderArrangement(id, mood, {});
+      const loop = arr.sections.reduce((n, s) => n + s.len, 0) * arr.stepDur;
+      bars[mood] = arr.sections.map(s => s.name + s.len / arr.bar).join('');
+      const secs = Math.min(loop, 24);
+      const buf = await musicRenderOffline(id, mood, {}, secs);
+      const d = buf.getChannelData(0);
+      let sum = 0, peak = 0, silentRun = 0, maxSilent = 0;
+      for (let i = 0; i < d.length; i++) {
+        const a = Math.abs(d[i]);
+        sum += d[i] * d[i];
+        if (a > peak) peak = a;
+        if (a < 1e-4) { silentRun++; if (silentRun > maxSilent) maxSilent = silentRun; } else silentRun = 0;
+      }
+      const rms = Math.sqrt(sum / d.length);
+      const r = { id, mood, loop: +loop.toFixed(2), rms: +rms.toFixed(4), peak: +peak.toFixed(3),
+                  longestSilence: +(maxSilent / buf.sampleRate).toFixed(2) };
+      if (rms < 0.01) problems.push(`${id}/${mood}: near-silent (rms ${r.rms})`);
+      if (peak >= 1) problems.push(`${id}/${mood}: clips (peak ${r.peak})`);
+      out.push(r);
+      rows.push(`${id.padEnd(11)} ${mood.padEnd(8)} loop ${String(r.loop).padStart(6)}s  rms ${r.rms.toFixed(4)}  peak ${r.peak.toFixed(3)}  longest silence ${r.longestSilence}s`);
+    }
+    // Same section names must have the same bar count in every mood they appear in.
+    const lens = {};
+    for (const mood of ['calm', 'normal', 'intense'])
+      for (const m of bars[mood].matchAll(/([A-Z])(\d+)/g))
+        if (lens[m[1]] && lens[m[1]] !== m[2]) problems.push(`${id}: section ${m[1]} is ${lens[m[1]]} bars in one mood, ${m[2]} in another`);
+        else lens[m[1]] = m[2];
+  }
+  window.__musicCheck = { results: out, problems };
+  $('log').textContent = rows.join('\n') + `\n\n${problems.length ? problems.join('\n') : 'no problems'}`;
+  document.title = problems.length ? `music check: ${problems.length} problem(s)` : 'music check: ok';
+}
+$('check').onclick = () => { $('log').textContent = 'rendering…'; checkAll(); };
+paint();
+</script>

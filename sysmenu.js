@@ -80,15 +80,33 @@ function renderSysMenuContents() {
       </div>
       <button class="ssbtn" onclick="sysMenuSelect(${i})">${it.btn}</button>
     </div>`).join('');
+  // Music (music.js): a device setting like the key bindings, so it lives here
+  // and in localStorage rather than in a save slot.
+  const music = (typeof musicPref === 'undefined') ? '' : `
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">🎵 Music</div>
+        <div class="shop-item-meta">Each region has its own theme. It rises when a boss is near and settles in a restored village.</div>
+      </div>
+      <input type="range" min="0" max="100" value="${musicPref.volume}" aria-label="Music volume"
+             style="width:96px;accent-color:#e8c870" oninput="musicSetVolume(this.value)">
+      <button class="ssbtn" onclick="toggleSysMenuMusic()">${musicPref.muted ? 'Unmute' : 'Mute'}</button>
+    </div>`;
   document.getElementById('sysmenu-modal').innerHTML = `
     <h2>⚙️ Game Menu</h2>
     <div class="shop-greeting">Saving, loading, and starting over.</div>
-    ${rows}
+    ${rows}${music}
     <button class="shop-close" onclick="closeSysMenu()">✕ Close</button>
   `;
 }
 
 // Dispatch a row click by index. Closes first — see the header note.
+function toggleSysMenuMusic() {
+  if (typeof musicSetMuted !== 'function') return;
+  musicSetMuted(!musicPref.muted);
+  renderSysMenuContents();
+}
+
 function sysMenuSelect(i) {
   const it = SYSMENU_ITEMS[i];
   if (!it) return;

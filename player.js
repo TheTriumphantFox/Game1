@@ -832,6 +832,8 @@ function playKillSound() {
   try { a.currentTime = 0; } catch (_) {}
   // play() rejects before the first user gesture — swallow that quietly.
   a.play().catch(() => {});
+  // Dip the music under the scream (music.js) so it lands.
+  if (typeof musicDuck === 'function') musicDuck(450, 0.5);
 }
 
 // ─── Kill enemy ───────────────────────────────────────────────────────────────

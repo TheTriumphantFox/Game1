@@ -78,6 +78,18 @@ GRANDMOTHER: [line]
              [line]
 ```
 
+## Music
+
+`music.js` owns the music, and the songs are data in `music-songs.js`. It is an NES-style chiptune engine: two pulse channels, a stepped triangle and LFSR noise, all synthesized in code with Web Audio. There are no audio files and nothing is fetched, so it stays `file://`-safe. Don't add audio files for music.
+
+**What plays is derived, never hooked.** `stepMusic()` runs every frame from `loop()` in `main.js` and works out `{ track, mood }` from `currentMapId`, `enemies` and the story flags, then acts only when that answer changes. Don't add music calls at map-transition sites; there are about twenty, and the poll already covers them all.
+
+- **Track:** the region's song (keyed by `REGIONS[i].id`), or the map type's own song: title, elderbrook / ruins, house, cave, dungeon, sky_cave, grotto, shrine, tower, finale. Cave, dungeon, sky-cave, grotto and shrine songs are transposed into the region's key.
+- **Mood:** `intense` while any live, awake enemy has `boss: true`; `calm` in a `village` with `activated`; `normal` otherwise. The awake `finalBoss` switches to `finale`. Elderbrook is never calm.
+- **Mood changes** wait for the next bar line and continue from the same section and bar. Track changes fade out and start the new song at bar 1.
+
+To add a song or a region, add an entry to `MUSIC_SONGS` (the format is documented at the top of `music-songs.js`) and run `node tools/verify-music.js`. Every section's melody must span its chords in whole bars, and every song must render in all three moods. `music-check.html` is the jukebox: it plays any track × mood by hand, and its "check all" button renders everything offline and flags silence or clipping. The volume/mute preference is the `stormdrift_music` localStorage key. It is a device setting, not save data.
+
 ## Verifying a change
 
 There is no test runner and adding one would violate the constraints above. Verify like this:

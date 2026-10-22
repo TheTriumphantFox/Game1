@@ -1264,6 +1264,9 @@ let lastTime = 0;
 function loop(ts) {
   const dt = Math.min(ts - lastTime, 80);   // clamp huge dt (tab refocus)
   lastTime = ts;
+  // Before update(): update() returns early on the title screen, and the title
+  // has music too. stepMusic only acts when the wanted track or mood changes.
+  if (typeof stepMusic === 'function') stepMusic();
   update(dt);
   render();
   requestAnimationFrame(loop);

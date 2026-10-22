@@ -578,6 +578,7 @@ function playDragonRoar() {
   try { ROAR_AUDIO.currentTime = 0; } catch (_) {}
   // Rejects if the player hasn't clicked yet; the beat plays on regardless.
   ROAR_AUDIO.play().catch(() => {});
+  if (typeof musicDuck === 'function') musicDuck(2600, 0.2);
 }
 
 // Birds off the rooftops. Not enemies and not villagers — they exist for about
