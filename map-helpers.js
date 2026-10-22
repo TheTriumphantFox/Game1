@@ -52,6 +52,14 @@ function mulberry32(a) {
   };
 }
 
+// A brand-new world seed. This is the one place generation is meant to be random:
+// everything else is derived from the seed it returns (hashSeed below), so a world
+// rolled here regenerates identically from its save. Both callers (initWorld for a
+// new world, applyLoadDataUnsafe for a save that predates seeding) come here.
+function rollWorldSeed() {
+  return (Math.random() * 0x100000000) >>> 0;
+}
+
 // FNV-1a over the string form of every part, so a seed can be built from whatever
 // identifies a map (world seed, grid coords, depth) without caring about types.
 function hashSeed(...parts) {

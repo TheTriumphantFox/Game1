@@ -61,7 +61,9 @@ if (PERF_ON) (function () {
     ctx.textBaseline = 'top';
     let w = 0;
     for (const l of lines) w = Math.max(w, ctx.measureText(l).width);
-    const pad = 8, x = 10, y = 10, lh = 17;
+    // Screen pixels in from the top-left corner, not a world position.
+    const pad = 8, margin = 10, lh = 17;
+    const x = margin, y = margin;
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(x, y, w + pad * 2, lines.length * lh + pad * 2);
     // Green under half the budget, amber past it, red past the whole thing.

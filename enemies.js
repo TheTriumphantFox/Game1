@@ -496,7 +496,7 @@ function wakeGolem(e) {
 //
 // It RE-LEARNS. Left alone on a stable layout it re-snapshots after
 // SOVEREIGN_RELEARN_MS and starts reading correctly again, so one trip to the
-// Controls window is a reprieve rather than a win and the fight is a rhythm of
+// Settings window is a reprieve rather than a win and the fight is a rhythm of
 // changing the board under it. Set the constant to Infinity for a one-change
 // fight; this was a judgement call and it is a one-line change.
 const SOVEREIGN_TYPE = 'eclipse_sovereign';
