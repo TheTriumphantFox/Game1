@@ -105,6 +105,12 @@ function mapTilePayload(m) {
 // their recipe on load. New payloads are versioned so the complete-map codec is
 // unambiguous; the loader still recognizes the old raw Base64 field when present.
 function buildSaveData() {
+  // Journaled foliage cuts are never stored: the maps serialize with the
+  // foliage standing, then the cuts go back on the live map (world.js).
+  return withCutFoliageRegrown(composeSaveData);
+}
+
+function composeSaveData() {
   saveEnemyStateToMap(currentMapId);   // capture live enemies before serializing
   return {
     saveVersion: SAVE_FORMAT_VERSION,
@@ -330,6 +336,22 @@ function rebuildSeededMapFromLite(lite, regionIdx) {
   return map;
 }
 
+// Saves from before foliage regrew stored every cut as a delta entry: cell, ground
+// tile. Dropping those entries lets the seeded recipe's foliage stand again. Anything
+// malformed is left in place so applyMapDelta still rejects it.
+function withoutRememberedCuts(delta, base, ground) {
+  if (!Array.isArray(delta) || delta.length % 2) return delta;
+  const kept = [];
+  for (let i = 0; i < delta.length; i += 2) {
+    const cell = delta[i], tile = delta[i + 1];
+    const row = Number.isInteger(cell) ? base[Math.floor(cell / MCOLS)] : null;
+    const under = row ? row[cell % MCOLS] : undefined;
+    if (tile === ground && CUTTABLE_FOLIAGE.has(under)) continue;
+    kept.push(cell, tile);
+  }
+  return kept;
+}
+
 // Applies a parsed save payload to the live game, restoring everything it
 // touches if anything throws partway through — a malformed or truncated save
 // (corrupted localStorage, a hand-edited slot, a future format this build
@@ -515,7 +537,8 @@ function applyLoadDataUnsafe(data) {
       (lite.mapDelta !== undefined || !!lite.mapTiles);
     let md;
     if (!migrateHomeLayout && lite.mapDelta !== undefined) {
-      md = applyMapDelta(rebuildSeededMapFromLite(lite, regionIdx), lite.mapDelta);
+      const base = rebuildSeededMapFromLite(lite, regionIdx);
+      md = applyMapDelta(base, withoutRememberedCuts(lite.mapDelta, base, REGIONS[regionIdx].ground));
     } else if (!migrateHomeLayout && lite.mapTiles) {
       // v2 mapTiles carry a codec tag; an unversioned payload is the old raw
       // Base64 form and remains readable even though new saves no longer emit it.
@@ -699,6 +722,9 @@ function applyLoadDataUnsafe(data) {
 
   spawnEnemiesForMap(currentMapId);
   spawnVillagersForMap(currentMapId);
+  // A load is not an arrival: forget the cut journal the old session left in the
+  // world and the pending flag spawnEnemiesForMap just set (see world.js).
+  resetMapArrivalTracking();
   // Cancel any cutscene the load interrupted and restore the ambient state that
   // isn't in the flag bag (how hard the ruin is still burning). Without this, a
   // load from inside a scripted beat leaves the world frozen forever.
@@ -1073,6 +1099,7 @@ function resetGame(heroName) {
   initWorld();
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
+  resetMapArrivalTracking();
   clampCam(true);
   updateHUD();
   setSaveStatus('', { toast: false });

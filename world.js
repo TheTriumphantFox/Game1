@@ -106,6 +106,71 @@ function mapGroundTile() {
   return regionById(cm.biome).ground;
 }
 
+let foliageCuts = { mapObj: null, cells: [] };   // cells: [row, col, foliageTile, groundTile]
+let arrivalMapId = null;
+let arrivalAutosavePending = false;
+
+function recordFoliageCut(r, c, tile, ground) {
+  const cm = currentMap();
+  if (foliageCuts.mapObj !== cm) regrowCutFoliage();
+  foliageCuts.mapObj = cm;
+  foliageCuts.cells.push([r, c, tile, ground]);
+}
+
+// Puts every journaled cut back and empties the journal. A cell is only restored if it
+// still holds the ground the cut wrote, because something else may have changed it since
+// (the prologue burning the village, a chest being raised).
+function regrowCutFoliage() {
+  const { mapObj, cells } = foliageCuts;
+  foliageCuts = { mapObj: null, cells: [] };
+  if (!mapObj || !cells.length) return;
+  for (const [r, c, tile, ground] of cells) {
+    if (mapObj.map[r][c] === ground) mapObj.map[r][c] = tile;
+  }
+  if (typeof invalidateTallTiles === 'function') invalidateTallTiles(mapObj);
+}
+
+// Runs fn with the journaled foliage standing, then puts the cuts back. Saves go through
+// this so a cut is never stored: the map stays clean and a reload brings the foliage back.
+function withCutFoliageRegrown(fn) {
+  const { mapObj, cells } = foliageCuts;
+  if (!mapObj || !cells.length) return fn();
+  const undo = [];
+  for (const [r, c, tile, ground] of cells) {
+    if (mapObj.map[r][c] === ground) { mapObj.map[r][c] = tile; undo.push([r, c, ground]); }
+  }
+  try { return fn(); }
+  finally { for (const [r, c, ground] of undo) mapObj.map[r][c] = ground; }
+}
+
+// Called from spawnEnemiesForMap, which every walked map change goes through. A
+// cutscene's jump cut (cutscene.js) skips it and is picked up at the next arrival.
+function noteMapArrival(mid) {
+  const m = worldMaps[mid];
+  if (foliageCuts.mapObj && foliageCuts.mapObj !== m) regrowCutFoliage();
+  if (mid !== arrivalMapId) { arrivalMapId = mid; arrivalAutosavePending = true; }
+}
+
+// A load or a new game is not an arrival. Forget any journal from the old world.
+function resetMapArrivalTracking() {
+  foliageCuts = { mapObj: null, cells: [] };
+  arrivalMapId = currentMapId;
+  arrivalAutosavePending = false;
+}
+
+// The autosave cannot be written at the moment of arrival: transitions call
+// spawnEnemiesForMap BEFORE they place the hero, so the checkpoint would hold the old
+// coordinates on the new map. update() calls this on the next unfrozen frame instead.
+function flushArrivalAutosave() {
+  if (!arrivalAutosavePending || player.hp <= 0) return;
+  arrivalAutosavePending = false;
+  if (player.flags && !hasFlag('prologue_complete')) return;
+  const cm = currentMap();
+  // Tower floors already write their own labelled autosave (tower.js, player.js).
+  if (!cm || cm.type === 'castle_tower') return;
+  if (typeof autoSave === 'function') autoSave(cm.name || 'new area');
+}
+
 // Initialise a fresh world with the home village at (0, 0). Walking south out
 // of the village creates forest [1] as a southern neighbor — same topology the
 // lone starter cabin had before the prologue replaced it.

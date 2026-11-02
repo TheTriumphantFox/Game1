@@ -319,6 +319,10 @@ function update(dt) {
     updateHUD();
     return;
   }
+  // An arrival autosave waits for the first unfrozen frame after a map change:
+  // the transition has placed the hero by then, and a modal can hold the world
+  // still (see flushArrivalAutosave in world.js).
+  flushArrivalAutosave();
   // Cooldowns
   if (player.invincible    > 0) player.invincible    -= dt;
   if (attackCooldown       > 0) attackCooldown       -= dt;
@@ -1301,6 +1305,9 @@ function boot() {
   initWorld();
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
+  // Boot is not an arrival: drop the pending flag spawnEnemiesForMap(0) just
+  // set so the title screen does not trigger an autosave (see world.js).
+  resetMapArrivalTracking();
   clampCam(true);
   updateHUD();
   showTitleScreen();   // freeze on the title until New Game / Load Game is picked

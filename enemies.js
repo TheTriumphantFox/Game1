@@ -1331,6 +1331,7 @@ function saveEnemyStateToMap(mapId) {
 }
 
 function spawnEnemiesForMap(mid) {
+  noteMapArrival(mid);
   const rm = worldMaps[mid];
   if (rm.savedEnemies) {
     // An arena that remembers being cleared, or the mid-fight roster a save
