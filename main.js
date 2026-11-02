@@ -244,12 +244,31 @@ function dismissLoadingScreen() {
 // player.heroName (persisted in saves) and labels save slots in save.js.
 let namePromptOpen = false;
 let namePromptConfirm = null;   // callback invoked with the chosen name
+let namePromptDifficulty = 'normal';   // committed to the player only on confirm
+
+// The three buttons in the prompt. Picking one only moves the selection: nothing
+// reaches `player` until Begin Adventure, so Back still means "nothing happened".
+function pickNamePromptDifficulty(id) {
+  namePromptDifficulty = id;
+  renderNamePromptDifficulty();
+  // Back to the name box, so Enter still means "begin" rather than re-pressing this.
+  document.getElementById('name-input').focus();
+}
+function renderNamePromptDifficulty() {
+  document.querySelectorAll('#name-difficulty [data-difficulty]').forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.difficulty === namePromptDifficulty));
+  });
+  document.getElementById('name-difficulty-note').textContent =
+    `${DIFFICULTIES[namePromptDifficulty].note} You can change this in Settings.`;
+}
 
 function openNamePrompt(onConfirm) {
   namePromptOpen = true;
   namePromptConfirm = onConfirm;
   const input = document.getElementById('name-input');
   input.value = '';
+  namePromptDifficulty = 'normal';
+  renderNamePromptDifficulty();
   document.getElementById('name-overlay').classList.add('open');
   input.focus();
 }
@@ -264,6 +283,9 @@ function confirmNamePrompt() {
   const input = document.getElementById('name-input');
   const name = input.value.trim();
   if (!name) { input.focus(); return; }   // a name is required
+  // Commit the difficulty before anything can use it: boot already spawned map 0
+  // at Normal, and setDifficulty is what moves those enemies.
+  setDifficulty(namePromptDifficulty);
   const cb = namePromptConfirm;
   closeNamePrompt();
   if (cb) cb(name);

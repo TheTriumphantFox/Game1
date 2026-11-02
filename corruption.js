@@ -168,7 +168,8 @@ function corruptedStatsFor(e, on) {
   const xpMul  = g * (c ? CORRUPTION_XP_MUL  : 1);
   const greaterName = e.tier15 ? `Greater ${base.name}` : base.name;
   return {
-    maxHp: Math.round(base.hp * hpMul),
+    baseHp: Math.round(base.hp * hpMul),
+    maxHp: scaledEnemyHp(Math.round(base.hp * hpMul)),
     dmg:   Math.round(base.dmg * dmgMul),
     // The global half-XP rebalance is applied last here for the same reason it
     // is in spawnEnemiesForMap: so both paths floor the same product.
@@ -190,6 +191,7 @@ function setEnemyCorrupted(e, on) {
   if (!stats) return false;
   const pct = (e.maxHp > 0) ? (e.hp / e.maxHp) : 1;
   e.corrupted = on;
+  e.baseHp = stats.baseHp;
   e.maxHp = stats.maxHp;
   e.hp = Math.max(1, Math.min(stats.maxHp, Math.round(pct * stats.maxHp)));
   e.dmg = stats.dmg;

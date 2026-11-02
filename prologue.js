@@ -252,7 +252,7 @@ function spawnPrologueDog() {
     id: enemies.reduce((mx, e) => Math.max(mx, e.id || 0), -1) + 1,
     type: DOG_TYPE, x: spot.x, y: spot.y,
     renderX: spot.x, renderY: spot.y,
-    hp: base.hp, maxHp: base.hp,
+    baseHp: base.hp, hp: scaledEnemyHp(base.hp), maxHp: scaledEnemyHp(base.hp),
     spd: base.spd, dmg: base.dmg, xp: 0,
     color: base.color, size: base.size || 1,
     name: base.name,

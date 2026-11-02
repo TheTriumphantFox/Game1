@@ -3439,7 +3439,7 @@ function drawEnemy(e, ts) {
   }
 
   // Boss / elite name tag
-  if (e.boss || e.hp > 80) {
+  if (e.boss || e.hp / difficultyHpMul() > 80) {
     ctx.font = 'bold 10px monospace';
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
