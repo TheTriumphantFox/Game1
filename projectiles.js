@@ -375,6 +375,48 @@ function placePlayerBomb() {
 }
 
 // ─── Sword swing (instant, AoE in front of player) ────────────────────────────
+// Drop type and drop chance per cuttable tile (all revert to the map ground).
+// One table where the old if-chain lived, so adding a foliage tile is one row.
+const CUTTABLE_FOLIAGE = new Map([
+  [T.FLOWER,            { type: 'herbal',      chance: 0.50 }],
+  [T.MUSHROOM,          { type: 'mushroom',    chance: 0.50 }],
+  [T.FERN,              { type: 'fiddlehead',  chance: 0.50 }],
+  [T.FLOWERING_CACTUS,  { type: 'herbal',      chance: 0.50 }],
+  [T.DESERT_SUCCULENT,  { type: 'aloe',        chance: 0.50 }],
+  [T.BONES,             { type: 'bonemeal',    chance: 0.50 }],
+  [T.BONE_PILE,         { type: 'bonemeal',    chance: 0.50 }],
+  [T.WITHERED_SHRUB,    { type: 'witherwood',  chance: 0.45 }],
+  [T.CORPSE_FLOWER,     { type: 'gravebloom',  chance: 0.45 }],
+  [T.WINTER_BERRY_BUSH, { type: 'winterberry', chance: 0.60 }],
+  [T.FROST_LILY,        { type: 'frostpetal',  chance: 0.50 }],
+  [T.FROST_FERN,        { type: 'frostfern',   chance: 0.50 }],
+  [T.STONES,            { type: 'stone',       chance: 0.50 }],
+  [T.SEASHELL,          { type: 'seashell',    chance: 0.50 }],
+  [T.CORAL,             { type: 'coral',       chance: 0.50 }],
+  [T.MOUNTAIN_SAGE,     { type: 'sage',        chance: 0.50 }],
+  [T.MOSS_CLUMP,        { type: 'moss',        chance: 0.50 }],
+  [T.CRYSTAL_CLUSTER,   { type: 'crystal',     chance: 0.45 }],
+  [T.SKY_BLOOM,         { type: 'skypetal',    chance: 0.50 }],
+  [T.WIND_REED,         { type: 'windseed',    chance: 0.50 }],
+  [T.STORM_THISTLE,     { type: 'thistledown', chance: 0.45 }],
+  [T.VOLT_BLOOM,        { type: 'voltpetal',   chance: 0.50 }],
+  [T.SPARK_REED,        { type: 'sparkseed',   chance: 0.50 }],
+  [T.FULGURITE,         { type: 'fulgurite',   chance: 0.45 }],
+  [T.RADIANT_BLOOM,     { type: 'mote',        chance: 0.50 }],
+  [T.GLOW_REED,         { type: 'sunseed',     chance: 0.50 }],
+  [T.LUMEN_SHARD,       { type: 'prism',       chance: 0.45 }],
+  [T.CATTAIL,           { type: 'reedpith',    chance: 0.50 }],
+  [T.SWAMP_FERN,        { type: 'herbal',      chance: 0.50 }],
+  [T.SWAMP_MUSHROOM,    { type: 'mushroom',    chance: 0.50 }],
+  [T.GIANT_BLOOM,       { type: 'manapetal',   chance: 0.55 }],
+  [T.VERDANT_FERN,      { type: 'heartfrond',  chance: 0.55 }],
+  [T.GIANT_MUSHROOM,    { type: 'glowcap',     chance: 0.55 }],
+  [T.EMBER_FLOWER,      { type: 'emberbloom',  chance: 0.50 }],
+  [T.SULFUR_SHRUB,      { type: 'sulfurmoss',  chance: 0.50 }],
+  [T.GLOOM_BLOOM,       { type: 'duskcap',     chance: 0.55 }],
+  [T.VOID_FROND,        { type: 'voidpetal',   chance: 0.55 }],
+]);
+
 function doSwordSwing() {
   if (typeof buzz === 'function') buzz(15);
   player.swordTimer = 180;
@@ -436,6 +478,7 @@ function doSwordSwing() {
   const forageRid = (typeof currentMap === 'function' && currentMap()) ? regionIdForMap(currentMap()) : null;
   const forageBonus = (forageRid && player.forageBonus && player.forageBonus[forageRid]) || 0;
   const ctc = Math.round(tx), ctr = Math.round(ty);
+  let cutAny = false;
   for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
     const tr = ctr + dr, tc = ctc + dc;
     if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
@@ -448,55 +491,25 @@ function doSwordSwing() {
       if (typeof tryUnsealShrine === 'function') tryUnsealShrine(tc, tr, player.activeSwordElement || null);
       continue;
     }
-    // drop type and drop chance per cuttable tile (all revert to the map ground)
-    let dropType = null, dropChance = 0;
-    if      (tile === T.FLOWER)           { dropType = 'herbal';   dropChance = 0.50; }
-    else if (tile === T.MUSHROOM)         { dropType = 'mushroom'; dropChance = 0.50; }
-    else if (tile === T.FERN)             { dropType = 'fiddlehead'; dropChance = 0.50; }
-    else if (tile === T.FLOWERING_CACTUS) { dropType = 'herbal';   dropChance = 0.50; }
-    else if (tile === T.DESERT_SUCCULENT) { dropType = 'aloe';     dropChance = 0.50; }
-    else if (tile === T.BONES)            { dropType = 'bonemeal'; dropChance = 0.50; }
-    else if (tile === T.BONE_PILE)        { dropType = 'bonemeal';   dropChance = 0.50; }
-    else if (tile === T.WITHERED_SHRUB)   { dropType = 'witherwood'; dropChance = 0.45; }
-    else if (tile === T.CORPSE_FLOWER)    { dropType = 'gravebloom'; dropChance = 0.45; }
-    else if (tile === T.WINTER_BERRY_BUSH){ dropType = 'winterberry'; dropChance = 0.60; }
-    else if (tile === T.FROST_LILY)       { dropType = 'frostpetal';  dropChance = 0.50; }
-    else if (tile === T.FROST_FERN)       { dropType = 'frostfern';   dropChance = 0.50; }
-    else if (tile === T.STONES)           { dropType = 'stone';     dropChance = 0.50; }
-    else if (tile === T.SEASHELL)         { dropType = 'seashell';  dropChance = 0.50; }
-    else if (tile === T.CORAL)            { dropType = 'coral';     dropChance = 0.50; }
-    else if (tile === T.MOUNTAIN_SAGE)    { dropType = 'sage';      dropChance = 0.50; }
-    else if (tile === T.MOSS_CLUMP)       { dropType = 'moss';      dropChance = 0.50; }
-    else if (tile === T.CRYSTAL_CLUSTER)  { dropType = 'crystal';   dropChance = 0.45; }
-    else if (tile === T.SKY_BLOOM)        { dropType = 'skypetal';  dropChance = 0.50; }
-    else if (tile === T.WIND_REED)        { dropType = 'windseed';  dropChance = 0.50; }
-    else if (tile === T.STORM_THISTLE)    { dropType = 'thistledown'; dropChance = 0.45; }
-    else if (tile === T.VOLT_BLOOM)       { dropType = 'voltpetal';  dropChance = 0.50; }
-    else if (tile === T.SPARK_REED)       { dropType = 'sparkseed';  dropChance = 0.50; }
-    else if (tile === T.FULGURITE)        { dropType = 'fulgurite';  dropChance = 0.45; }
-    else if (tile === T.RADIANT_BLOOM)    { dropType = 'mote';       dropChance = 0.50; }
-    else if (tile === T.GLOW_REED)        { dropType = 'sunseed';    dropChance = 0.50; }
-    else if (tile === T.LUMEN_SHARD)      { dropType = 'prism';      dropChance = 0.45; }
-    else if (tile === T.CATTAIL)          { dropType = 'reedpith';   dropChance = 0.50; }
-    else if (tile === T.SWAMP_FERN)       { dropType = 'herbal';     dropChance = 0.50; }
-    else if (tile === T.SWAMP_MUSHROOM)   { dropType = 'mushroom';   dropChance = 0.50; }
-    else if (tile === T.GIANT_BLOOM)      { dropType = 'manapetal';  dropChance = 0.55; }
-    else if (tile === T.VERDANT_FERN)     { dropType = 'heartfrond'; dropChance = 0.55; }
-    else if (tile === T.GIANT_MUSHROOM)   { dropType = 'glowcap';    dropChance = 0.55; }
-    else if (tile === T.EMBER_FLOWER)     { dropType = 'emberbloom'; dropChance = 0.50; }
-    else if (tile === T.SULFUR_SHRUB)     { dropType = 'sulfurmoss'; dropChance = 0.50; }
-    else if (tile === T.GLOOM_BLOOM)      { dropType = 'duskcap';    dropChance = 0.55; }
-    else if (tile === T.VOID_FROND)       { dropType = 'voidpetal';  dropChance = 0.55; }
-    else continue;
+    const drop = CUTTABLE_FOLIAGE.get(tile);
+    if (!drop) continue;
+    recordFoliageCut(tr, tc, tile, ground);
     map[tr][tc] = ground;
-    if (dropType && Math.random() < dropChance) {
+    cutAny = true;
+    if (Math.random() < drop.chance) {
       drops.push({
-        type: dropType, val: 1 + forageBonus,
+        type: drop.type, val: 1 + forageBonus,
         x: tc, y: tr,
         life: 10000, bob: 0, collected: false
       });
     }
   }
+  // The cut rewrote tiles, so the renderer's memoized per-map tile scans are
+  // stale. The depth list and the baked ground are both built from the tiles:
+  // without this a cut prop falls back to a flat procedural tile drawn over the
+  // bake, and a tile the bake left transparent stays a hole. The bomb blast in
+  // updateProjectiles does the same for the tiles it flattens.
+  if (cutAny && typeof invalidateTallTiles === 'function') invalidateTallTiles(currentMap());
 }
 
 // ─── Punch (the pre-weapon action) ────────────────────────────────────────────
