@@ -112,7 +112,7 @@ let player = {
   // Easy, normal or hard (DIFFICULTIES, enemies.js). Set by the name prompt and by
   // Settings; it lives here because it describes this playthrough, not the device.
   difficulty: 'normal',
-  // Lifetime death count — bumped in respawn(), shown on the stats page.
+  // Lifetime death count — bumped in respawn(kind, killerName), shown on the stats page.
   deaths: 0,
   x: EXIT_COL, y: EXIT_ROW,
   // Smoothed sub-tile position used for rendering only. Game logic still
@@ -593,7 +593,8 @@ function gainXP(amt) {
 }
 
 // ─── Death / respawn ──────────────────────────────────────────────────────────
-function respawn() {
+function respawn(kind, killerName) {
+  const deathLine = deathMessage(kind, killerName);
   // Lifetime death count, read before reloadLastSave() can overwrite `player`
   // wholesale from the checkpoint's own (older) `deaths` field. Adding 1 to the
   // post-reload value instead counted from the checkpoint's death count every
@@ -611,7 +612,7 @@ function respawn() {
     setDifficulty(difficulty);
     player.deaths = lifetimeDeaths;
     player.invincible = 1500;
-    showMsg('💀 Defeated! Restored to your last save.', 3000);
+    showMapMsg(`💀 ${deathLine} Restored to your last save.`, 6000);
     return;
   }
   // Fallback — no checkpoint reached yet: the original return-to-start behavior.
@@ -626,7 +627,7 @@ function respawn() {
   clampCam(true);
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
-  showMsg('💀 Defeated! Returned to start (-10 rubies)', 3000);
+  showMapMsg(`💀 ${deathLine} Returned to start (-10 rubies).`, 6000);
 }
 
 // ─── Per-enemy-type loot table ────────────────────────────────────────────────
@@ -2181,7 +2182,7 @@ function stepWhirlpoolPull(dt) {
   if (!swimmer && player.invincible <= 0) {
     damagePlayer(2, null);
     player.invincible = 900;
-    if (player.hp <= 0) { whirlpoolChurnMs = 0; respawn(); }
+    if (player.hp <= 0) { whirlpoolChurnMs = 0; respawn('whirlpool'); }
   }
 }
 

@@ -853,11 +853,9 @@ function stepOneSkeleton(a, dt) {
   if (!target) return;
 
   const dx = target.x - a.x, dy = target.y - a.y;
-  a.dir = Math.abs(dx) >= Math.abs(dy)
-    ? { x: Math.sign(dx) || 0, y: 0 } : { x: 0, y: Math.sign(dy) || 0 };
 
-  // Adjacent: swing.
-  if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+  // In the arc of the way it is facing: swing.
+  if (inMeleeArc(a.x, a.y, a.dir.x, a.dir.y, target.x, target.y)) {
     if (a.attackT > 0) return;
     a.attackT = SKELETON_ATTACK_MS;
     target.hp -= SKELETON_DAMAGE;
@@ -873,9 +871,21 @@ function stepOneSkeleton(a, dt) {
     return;
   }
 
-  // Otherwise close the distance, on its own cadence.
+  // Otherwise close the distance, on its own cadence. Same rule as the enemies in
+  // stepEnemies: turning takes a whole step, and a heading that still closes the gap
+  // is kept unless the last step bumped into something.
   if (a.stepT < SKELETON_STEP_MS) return;
   a.stepT = 0;
+  const keep = !a.bumped && ((a.dir.x && a.dir.x === Math.sign(dx)) ||
+                             (a.dir.y && a.dir.y === Math.sign(dy)));
+  const want = keep ? a.dir : meleeHeading(dx, dy);
+  if (want.x !== a.dir.x || want.y !== a.dir.y) {
+    a.dir = want;
+    a.bumped = false;
+    // Paid for: without this it could swing on the very next frame.
+    a.attackT = Math.max(a.attackT, SKELETON_STEP_MS);
+    return;
+  }
   const map = (typeof mapData === 'function') ? mapData() : null;
   if (!map) return;
   const tryStep = (mx, my) => {
@@ -889,11 +899,7 @@ function stepOneSkeleton(a, dt) {
     a.x = nx; a.y = ny;
     return true;
   };
-  if (!tryStep(a.dir.x, a.dir.y)) {
-    // Slide along the other axis rather than grinding against a wall.
-    tryStep(Math.sign(dx) && !a.dir.x ? Math.sign(dx) : 0,
-            Math.sign(dy) && !a.dir.y ? Math.sign(dy) : 0);
-  }
+  a.bumped = !tryStep(a.dir.x, a.dir.y);
 }
 
 // Damage from an enemy. Returns true if the hit was taken by a skeleton, so the
@@ -1002,7 +1008,7 @@ function burstBloom(e) {
   player.invincible = 900;
   if (typeof buzz === 'function') buzz([0, 30, 20, 40]);
   if (typeof showMsg === 'function') showMsg('\u2620 Spores burst around you!', 1400);
-  if (player.hp <= 0 && typeof respawn === 'function') respawn();
+  if (player.hp <= 0 && typeof respawn === 'function') respawn('spores', e.name);
 }
 
 // Blooms are placed like the golems and for the same reason: they are rooted, so

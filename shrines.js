@@ -449,7 +449,7 @@ function shrineDamage(amount, minimumOne) {
   } else if (player.invincible <= 0 && typeof damagePlayer === 'function') {
     damagePlayer(amount, null);
     player.invincible = 900;
-    if (player.hp <= 0 && typeof respawn === 'function') respawn();
+    if (player.hp <= 0 && typeof respawn === 'function') respawn('shrine');
   }
 }
 function shrineFallReset(message, damage) {
