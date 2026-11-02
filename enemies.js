@@ -192,6 +192,51 @@ const DND_ENEMIES = {
   adult_red_dragon: { name: 'ADULT RED DRAGON',  hp:2200,  spd: 450, dmg: 40, xp:250000, color: '#aa1100', size: 2.8, ranged: true, boss: true, cr: 'Boss', element: 'fire', flies: true, breath: 'fire', finalBoss: true },
 };
 
+// ─── Difficulty ───────────────────────────────────────────────────────────────
+
+// Difficulty scales enemy HP and nothing else. The choice lives on the player, so
+// it travels with the save (a playthrough's setting, not a device's).
+const DIFFICULTIES = {
+  easy:   { label: 'Easy',   hpMul: 0.5, note: 'Enemies have half their usual health.' },
+  normal: { label: 'Normal', hpMul: 1,   note: 'Enemies have their usual health.' },
+  hard:   { label: 'Hard',   hpMul: 1.5, note: 'Enemies have half again their usual health.' },
+};
+const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
+
+// Anything unrecognised (a hand-edited slot) plays as Normal.
+function currentDifficulty() {
+  return DIFFICULTY_ORDER.includes(player.difficulty) ? player.difficulty : 'normal';
+}
+function difficultyHpMul() { return DIFFICULTIES[currentDifficulty()].hpMul; }
+
+// `baseHp` is the max HP at Normal. Always scale from it, never from a live value.
+function scaledEnemyHp(baseHp) { return Math.max(1, Math.round(baseHp * difficultyHpMul())); }
+
+// Bring one enemy into line with the current difficulty. Current HP carries across
+// as a share of max, as it does for the blight (setEnemyCorrupted, corruption.js).
+// No baseHp means a save from before this setting existed, which was all Normal.
+function syncEnemyDifficulty(e) {
+  if (!e) return;
+  const base = (e.baseHp > 0) ? e.baseHp : e.maxHp;
+  if (!(base > 0)) return;
+  e.baseHp = base;
+  const want = scaledEnemyHp(base);
+  if (e.maxHp === want) return;
+  const share = (e.maxHp > 0) ? (e.hp / e.maxHp) : 1;
+  e.maxHp = want;
+  if (!e.dead) e.hp = Math.max(1, Math.min(want, Math.round(share * want)));
+}
+
+// Change the difficulty and move every enemy that exists right now: the live list
+// and each map's stored roster.
+function setDifficulty(id) {
+  player.difficulty = DIFFICULTY_ORDER.includes(id) ? id : 'normal';
+  for (const e of enemies) syncEnemyDifficulty(e);
+  for (const m of worldMaps) {
+    if (m && Array.isArray(m.savedEnemies)) m.savedEnemies.forEach(syncEnemyDifficulty);
+  }
+}
+
 // ─── Airborne altitude ────────────────────────────────────────────────────────
 
 // How fast altitude closes on its target, as the fraction of the remaining gap
@@ -1358,10 +1403,11 @@ function spawnEnemiesForMap(mid) {
       const dmgMul = def.tier15 ? 2   : 1;
       const xpMul  = def.tier15 ? 2   : 1;
       const sizeMul = def.tier15 ? 1.5 : 1;
-      const hp = base.hp * hpMul;
+      const baseHp = base.hp * hpMul;
+      const hp = scaledEnemyHp(baseHp);
       return {
         id: i, type: def.type, x: def.x, y: def.y,
-        hp, maxHp: hp,
+        baseHp, hp, maxHp: hp,
         // Global XP rebalance: all enemies award half their D&D-derived value.
         spd: base.spd, dmg: base.dmg * dmgMul, xp: Math.floor(base.xp * xpMul * 0.5),
         color: base.color, size: (base.size || 1) * sizeMul,
@@ -1403,6 +1449,9 @@ function spawnEnemiesForMap(mid) {
   if (typeof syncEnemyListCorruption === 'function') {
     syncEnemyListCorruption(enemies, isMapCorrupted(rm));
   }
+  // A restored roster carries the numbers it was saved with, and the difficulty
+  // may have changed since. Same reasoning as the blight above.
+  for (const e of enemies) syncEnemyDifficulty(e);
   // Same reasoning, for altitude. The savedEnemies branch above spreads its
   // records verbatim, so a roster saved before `hover` existed carries neither
   // field and no Object.assign anywhere covers it. Normalising both here, after

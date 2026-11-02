@@ -54,6 +54,12 @@
     <h2 id="name-heading">Name Your Hero</h2>
     <p id="name-tagline">Your saves will carry this name.</p>
     <input id="name-input" type="text" placeholder="Enter a name…" maxlength="20" autocomplete="off">
+    <div id="name-difficulty" role="group" aria-label="Difficulty">
+      <button type="button" class="name-diff-btn" data-difficulty="easy" onclick="pickNamePromptDifficulty('easy')">Easy</button>
+      <button type="button" class="name-diff-btn" data-difficulty="normal" onclick="pickNamePromptDifficulty('normal')">Normal</button>
+      <button type="button" class="name-diff-btn" data-difficulty="hard" onclick="pickNamePromptDifficulty('hard')">Hard</button>
+    </div>
+    <p id="name-difficulty-note"></p>
     <button class="title-btn" onclick="confirmNamePrompt()">⚔️ Begin Adventure</button>
     <button class="title-btn" onclick="closeNamePrompt()">← Back</button>
   </div>

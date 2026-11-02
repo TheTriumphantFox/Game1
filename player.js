@@ -109,6 +109,9 @@ function grantGodMode() {
 let player = {
   // Hero name — chosen in the New Game name prompt; labels save slots.
   heroName: '',
+  // Easy, normal or hard (DIFFICULTIES, enemies.js). Set by the name prompt and by
+  // Settings; it lives here because it describes this playthrough, not the device.
+  difficulty: 'normal',
   // Lifetime death count — bumped in respawn(), shown on the stats page.
   deaths: 0,
   x: EXIT_COL, y: EXIT_ROW,
@@ -597,11 +600,15 @@ function respawn() {
   // time, so dying repeatedly against the same checkpoint always landed on
   // "checkpoint deaths + 1" instead of accumulating.
   const lifetimeDeaths = (player.deaths || 0) + 1;
+  // Same reasoning for the difficulty: the checkpoint may predate a change made in
+  // Settings, and reloading it must not quietly put the run back on the old setting.
+  const difficulty = player.difficulty;
   // On death, restore the most recent checkpoint (manual save, auto-save, or the
   // save just loaded) instead of the old return-to-start penalty. The death is
   // counted on the restored state, and a brief grace window keeps any stale
   // contact damage from the frame we died on from immediately re-killing us.
   if (typeof reloadLastSave === 'function' && reloadLastSave()) {
+    setDifficulty(difficulty);
     player.deaths = lifetimeDeaths;
     player.invincible = 1500;
     showMsg('💀 Defeated! Restored to your last save.', 3000);

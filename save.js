@@ -221,6 +221,9 @@ function composeSaveData() {
 const DEFAULT_PLAYER = {
   // Hero name — chosen on New Game (name prompt, main.js); labels save slots.
   heroName: '',
+  // Easy, normal or hard (DIFFICULTIES, enemies.js). Missing from an older save, so
+  // it falls back to normal, which is what that save was played on.
+  difficulty: 'normal',
   // Lifetime death count — bumped in respawn() (player.js), shown on stats page.
   deaths: 0,
   x: EXIT_COL, y: EXIT_ROW,

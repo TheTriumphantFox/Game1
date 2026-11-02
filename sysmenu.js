@@ -123,8 +123,10 @@ if (_sysMenuOverlay) {
 // (controlsChangedFromDefault, config.js). Reset only touches that section, so
 // clearing a bad key binding never undoes someone's volume or flashing choice.
 //
-// Nothing here is saved in a slot. Music keeps its key (music.js); everything
-// else new is in devicePrefs (config.js).
+// Nothing here is saved in a slot, with one exception: Difficulty (see
+// setDifficulty, enemies.js) lives on the player and travels with the game, since
+// it describes this playthrough rather than the device it is played on. Music keeps
+// its key (music.js); everything else new is in devicePrefs (config.js).
 let settingsOpen = false;
 let settingsCapturing = null;      // action id awaiting a key, or null
 
@@ -259,6 +261,14 @@ function settingsCycleToastTime() {
   renderSettingsWindow();
 }
 
+// Unlike everything else in this window, difficulty is saved with the game, since
+// it describes this playthrough. setDifficulty moves the enemies already spawned.
+function settingsCycleDifficulty() {
+  const i = DIFFICULTY_ORDER.indexOf(currentDifficulty());
+  setDifficulty(DIFFICULTY_ORDER[(i + 1) % DIFFICULTY_ORDER.length]);
+  renderSettingsWindow();
+}
+
 const TOAST_TIME_LABELS = { 1: 'Normal', 1.5: 'Long', 2: 'Longer' };
 
 // One labelled row with a single button. `extra` slots a control (a slider)
@@ -288,6 +298,11 @@ function renderSettingsWindow() {
   const el = document.getElementById('settings-modal');
   if (!el) return;
   const onOff = on => on ? 'On' : 'Off';
+
+  // ── Game ──
+  const difficulty = settingsRow('⚔️', 'Difficulty',
+    `${DIFFICULTIES[currentDifficulty()].note} Hurt enemies keep their share of health. Saved with this game.`,
+    DIFFICULTIES[currentDifficulty()].label, 'settingsCycleDifficulty()');
 
   // ── Sound ──
   const music = (typeof musicPref === 'undefined') ? '' : settingsRow('🎵', 'Music',
@@ -342,7 +357,9 @@ function renderSettingsWindow() {
 
   el.innerHTML = `
     <h2>⚙️ Settings</h2>
-    <div class="shop-greeting">Saved on this device only. Your save slots are not affected.</div>
+    <div class="shop-greeting">Difficulty is saved with your game. Everything else is saved on this device only.</div>
+    ${settingsHeading('Game')}
+    ${difficulty}
     ${settingsHeading('Sound')}
     ${music}${sfx}
     ${settingsHeading('Display')}

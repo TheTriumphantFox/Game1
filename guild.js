@@ -86,10 +86,11 @@ function ensureGuildRecruiter(mapObj) {
 function makeGuildBossEnemy(creature, x, y, regionId, id) {
   const base = DND_ENEMIES[creature] || DND_ENEMIES.goblin;
   // A proper mini-boss: 3× the base creature's HP and hits 40% harder.
-  const hp = Math.round(base.hp * 3);
+  const baseHp = Math.round(base.hp * 3);
+  const hp = scaledEnemyHp(baseHp);
   return {
     id: id != null ? id : 9000,
-    type: creature, x, y, hp, maxHp: hp,
+    type: creature, x, y, baseHp, hp, maxHp: hp,
     spd: base.spd, dmg: Math.round(base.dmg * 1.4), xp: Math.floor(base.xp * 0.5),
     color: base.color, size: (base.size || 1) * 1.3,
     name: `${base.name}, Guild Quarry`,
@@ -312,11 +313,12 @@ function makeBountyEnemy(creature, x, y, regionId, kind, id) {
   const base = DND_ENEMIES[creature] || DND_ENEMIES.goblin;
   const hpMul  = kind === 'maneater' ? 5 : 3;
   const dmgMul = kind === 'maneater' ? 1.7 : 1.4;
-  const hp = Math.round(base.hp * hpMul);
+  const baseHp = Math.round(base.hp * hpMul);
+  const hp = scaledEnemyHp(baseHp);
   const title = kind === 'maneater' ? 'the Man-Eater' : 'Guild Bounty';
   return {
     id: id != null ? id : 9500,
-    type: creature, x, y, hp, maxHp: hp,
+    type: creature, x, y, baseHp, hp, maxHp: hp,
     // 0.75x, not the global 0.5x every other spawn path applies (see spawnEnemiesForMap,
     // makeGuildBossEnemy) — intentional: Guild contracts pay above the normal rate.
     spd: base.spd, dmg: Math.round(base.dmg * dmgMul), xp: Math.floor(base.xp * 0.75),
