@@ -582,7 +582,7 @@ function hurtInMiasma(mapObj, dt) {
       color: '#a8d84a', life: 900, rise: -4 });
   }
   if (typeof buzz === 'function') buzz(16);
-  if (player.hp <= 0) respawn();
+  if (player.hp <= 0) respawn('miasma');
 }
 
 // ─── Mana regeneration ───────────────────────────────────────────────────────
@@ -780,7 +780,7 @@ function stepRegionalHeat(dt) {
       color: '#ffb066', life: 900, rise: -4 });
   }
   if (typeof buzz === 'function') buzz(18);
-  if (player.hp <= 0) respawn();
+  if (player.hp <= 0) respawn('heat');
 }
 
 // ─── Quicksand ───────────────────────────────────────────────────────────────
@@ -831,8 +831,7 @@ function stepQuicksand(dt) {
   if (player.sink < 1) return;
   player.sink = 0;
   player.hp = 0;
-  showMsg('🏜️ The sand closes over you.', 2200);
-  respawn();
+  respawn('quicksand');
 }
 
 let stormExposed = false;
@@ -943,7 +942,7 @@ function stepCursedGround(dt) {
       color: '#a86ad8', life: 900, rise: -4 });
   }
   if (typeof buzz === 'function') buzz(18);
-  if (player.hp <= 0) respawn();
+  if (player.hp <= 0) respawn('cursed');
 }
 
 function strikePlayerWithRegionalLightning() {
@@ -955,7 +954,7 @@ function strikePlayerWithRegionalLightning() {
   damagePlayer(STORM_STRIKE_DAMAGE, 'lightning');
   player.invincible = STORM_STRIKE_IFRAME_MS;
   showMsg('⚡ The storm strikes you!', 1500);
-  if (player.hp <= 0) respawn();
+  if (player.hp <= 0) respawn('lightning');
 }
 
 // ─── Frost Grip ───────────────────────────────────────────────────────────────

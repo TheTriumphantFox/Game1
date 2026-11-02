@@ -93,6 +93,29 @@ function rollOppositeVuln(e, level, force) {
   spawnParticle(esp.x, esp.y, oppElem.color, 4, 2);
 }
 
+// The game's one hit rule for projectiles: a shot is only ever on the tile it is
+// flying over, and it can only hit what stands on that same tile.
+function projectileOnTile(p, c, r) {
+  return Math.floor(p.tx) === c && Math.floor(p.ty) === r;
+}
+
+// Melee reach: the tile the attacker faces and the two diagonals beside it. Facing
+// is orthogonal. A target on the attacker's own tile also counts, so nothing can
+// stand inside a creature and be out of reach.
+function inMeleeArc(ax, ay, fx, fy, tx, ty) {
+  const dx = tx - ax, dy = ty - ay;
+  if (dx === 0 && dy === 0) return true;
+  const forward = dx * fx + dy * fy;
+  const side = dx * fy - dy * fx;
+  return forward === 1 && Math.abs(side) <= 1;
+}
+
+// The orthogonal direction that most directly faces (dx, dy). Ties go horizontal.
+function meleeHeading(dx, dy) {
+  if (Math.abs(dy) > Math.abs(dx)) return { x: 0, y: Math.sign(dy) };
+  return { x: Math.sign(dx) || 1, y: 0 };
+}
+
 // Resolve an incoming hit against the player's defenses and apply the HP loss.
 // Two layers, in order:
 //   1. Elemental armor — blocks 50–80% of matching-element damage, scaling with
@@ -374,7 +397,7 @@ function placePlayerBomb() {
   });
 }
 
-// ─── Sword swing (instant, AoE in front of player) ────────────────────────────
+// ─── Sword swing (instant, the three tiles in front) ──────────────────────────
 // Drop type and drop chance per cuttable tile (all revert to the map ground).
 // One table where the old if-chain lived, so adding a foliage tile is one row.
 const CUTTABLE_FOLIAGE = new Map([
@@ -426,7 +449,7 @@ function doSwordSwing() {
   const sp = screenPX(tx, ty);
   spawnParticle(sp.x, sp.y, '#ffee88', 4, 3);
   enemies.filter(e => !e.dead && !e.dormant).forEach(e => {
-    if (Math.abs(e.x - tx) <= 1 && Math.abs(e.y - ty) <= 1) {
+    if (inMeleeArc(player.x, player.y, player.swordDir.x, player.swordDir.y, e.x, e.y)) {
       // Base physical damage
       const baseDmg = player.swordLevel + Math.floor(Math.random() * 3);
       e.hp -= baseDmg;
@@ -468,7 +491,7 @@ function doSwordSwing() {
   });
 
   // Cut down soft foliage in the swing. Flowers, mushrooms, flowering cacti, and
-  // bones all have 1 HP, so a single swing clears them. Same 3x3 zone as the
+  // bones all have 1 HP, so a single swing clears them. Same three tiles as the
   // enemy hit. Each cut tile reverts to the map's natural ground (grass in
   // forest, sand in desert/water, snow in ice, …) and may leave a pickup behind.
   const map = mapData();
@@ -481,6 +504,10 @@ function doSwordSwing() {
   let cutAny = false;
   for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
     const tr = ctr + dr, tc = ctc + dc;
+    // The terrain obeys the same three tiles as the enemy hit. The tile the hero
+    // stands on is left alone: a swing does not cut what it is standing in.
+    if (!inMeleeArc(player.x, player.y, player.swordDir.x, player.swordDir.y, tc, tr) ||
+        (tc === player.x && tr === player.y)) continue;
     if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
     const tile = map[tr][tc];
     if (typeof tryShrineStrike === 'function' && tryShrineStrike(tc, tr, player.activeSwordElement || null)) continue;
@@ -537,11 +564,11 @@ function doPunch() {
   const sp = screenPX(tx, ty);
   spawnParticle(sp.x, sp.y, '#e8c8a8', 3, 2);
 
-  // A single tile in front, not the sword's 3x3 — a fist has no reach.
+  // The fist reaches the same three tiles as the sword. What it lacks is damage.
   let connected = false;
   for (const e of enemies) {
     if (e.dead || e.dormant) continue;
-    if (Math.round(e.x) !== Math.round(tx) || Math.round(e.y) !== Math.round(ty)) continue;
+    if (!inMeleeArc(player.x, player.y, player.swordDir.x, player.swordDir.y, e.x, e.y)) continue;
     connected = true;
     if (e.type !== PUNCHABLE_ENEMY) {
       // Everything else shrugs it off. Said out loud rather than silently doing
@@ -616,14 +643,34 @@ function stepEnemies(dt, map) {
         emx = d.x; emy = d.y;
       }
     } else {
-      // Melee — pursue if within aggro range
-      if (dist < 8) {
-        emx = Math.sign(dx); emy = 0;
-        if (Math.abs(dy) > Math.abs(dx)) { emx = 0; emy = Math.sign(dy); }
-      } else {
-        const d = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}][Math.floor(Math.random() * 4)];
-        emx = d.x; emy = d.y;
+      // Melee. A creature has a facing, and changing it costs a whole step: it turns
+      // in place, and can only swing at the new side on its next step. That is what
+      // lets the hero get round behind one. `face` is absent on a fresh spawn and on
+      // an older save, and starts out pointing at the hero, so nothing loses a step
+      // to a turn it never chose.
+      if (!e.face) e.face = meleeHeading(dx, dy);
+      if (!inMeleeArc(e.x, e.y, e.face.x, e.face.y, player.x, player.y)) {
+        if (dist < 8) {
+          // Keep the current heading while it still closes the gap, or a diagonal
+          // approach would alternate axes and pay for a turn on every other step.
+          // A step that bumped something gives the heading up.
+          const keep = !e.bumped && ((e.face.x && e.face.x === Math.sign(dx)) ||
+                                     (e.face.y && e.face.y === Math.sign(dy)));
+          const want = keep ? e.face : meleeHeading(dx, dy);
+          if (want.x !== e.face.x || want.y !== e.face.y) {
+            e.face = want;
+            e.bumped = false;
+            continue;              // the turn was the whole step
+          }
+        } else {
+          // Wandering, with the hero nowhere near: no one to punish a turn, so a free
+          // change of direction keeps idle creatures moving at the pace they always did.
+          e.face = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}][Math.floor(Math.random() * 4)];
+        }
+        emx = e.face.x; emy = e.face.y;
       }
+      // Otherwise the hero is already in the arc: stay put (emx, emy stay 0) and the
+      // contact check below lands the swing.
     }
 
     const nx = e.x + emx, ny = e.y + emy;
@@ -666,19 +713,21 @@ function stepEnemies(dt, map) {
         if (typeof damageSkeletonAt === 'function') damageSkeletonAt(nx, ny, e.dmg);
       }
     }
-    if (!blocked && !otherEnemy && !onPlayer && !onVillager && !onSkeleton) {
+    const moved = !blocked && !otherEnemy && !onPlayer && !onVillager && !onSkeleton;
+    if (moved) {
       const okey = tkey(e.x, e.y);
       occ.set(okey, (occ.get(okey) || 0) - 1);
       e.x = nx; e.y = ny;
       occ.set(nkey, (occ.get(nkey) || 0) + 1);
     }
+    if (!e.ranged && (emx || emy)) e.bumped = !moved;
 
-    // Melee contact damage (re-check distance after move)
-    const mdx = player.x - e.x, mdy = player.y - e.y;
-    if (Math.abs(mdx) <= 1 && Math.abs(mdy) <= 1 && player.invincible <= 0 && !e.ranged) {
+    // Melee contact damage (checked after the move, from where it now stands).
+    if (!e.ranged && player.invincible <= 0 &&
+        inMeleeArc(e.x, e.y, e.face.x, e.face.y, player.x, player.y)) {
       damagePlayer(e.dmg, e.element);
       player.invincible = 900;
-      if (player.hp <= 0) respawn();
+      if (player.hp <= 0) respawn('melee', e.name);
     }
   }
 }
@@ -721,7 +770,8 @@ function stepEnemyRanged(dt) {
           tx: e.x + 0.5, ty: e.y + 0.5,
           vx: Math.cos(a) * 0.30, vy: Math.sin(a) * 0.30,
           dmg: e.dmg, type: 'enemy', life: 110, color: '#ff6622',
-          element: 'fire', overWalls: true
+          element: 'fire', overWalls: true,
+          killer: e.name, breath: true
         });
       }
       continue;
@@ -733,7 +783,8 @@ function stepEnemyRanged(dt) {
       tx: e.x + 0.5, ty: e.y + 0.5,
       vx: (dx / dist) * 0.25, vy: (dy / dist) * 0.25,
       dmg: e.dmg, type: 'enemy', life: 130, color: e.color,
-      element: e.element || null
+      element: e.element || null,
+      killer: e.name
     });
   }
 }
@@ -768,6 +819,90 @@ function projectileBlockedAt(map, c, r, z) {
   if (r < 0 || c < 0 || r >= MROWS || c >= MCOLS) return true;
   if (!(z > 0)) return true;
   return TILE_HEIGHT[map[r][c]] >= z;
+}
+
+// A tile-exact hit test only works if a shot cannot cross a whole tile in one
+// tick. dt is clamped to 80 ms in the main loop, so `step` can reach 4.8 and the
+// fastest flight in the game (0.30 tiles per frame) covers 1.68 tiles at once.
+// Splitting the tick into hops of at most this many tiles keeps every tile along
+// the path tested, for a target and for the wall in front of it.
+const PROJECTILE_MAX_HOP = 0.5;
+
+// One hop of a projectile that is not a bomb: move it, then run every test that
+// belongs to a position on its path (the shrine strike, the terrain, the arrow's
+// target scan, the enemy shot's hit on the hero). Each test that kills the shot
+// returns, which is also how the caller's hop loop learns to stop.
+function stepFlyingProjectile(p, step, map) {
+  p.tx += p.vx * step; p.ty += p.vy * step;
+  const pc = Math.floor(p.tx), pr = Math.floor(p.ty);
+  if (p.type === 'arrow' && typeof tryShrineStrike === 'function' &&
+      tryShrineStrike(pc, pr, p.element || null)) { p.life = -999; return; }
+  // Arrows and spells fly over the medium-water shelf even though it's
+  // solid to walkers; everything else solid (incl. deep water) stops them.
+  // Dragon breath (`overWalls`) crosses every solid tile, so it needs its
+  // own off-map kill (isSolid no longer stops it at the border).
+  if (p.overWalls) {
+    if (pc < 0 || pr < 0 || pc >= MCOLS || pr >= MROWS) { p.life = -999; return; }
+  } else if (projectileBlockedAt(map, pc, pr, p.z || 0)) { p.life = -999; return; }
+
+  if (p.type === 'arrow') {
+    // An arrow passing over a sealed shrine strikes it — try to break the seal
+    // with the arrow's element (see tryUnsealShrine in world.js).
+    if (map[pr] && map[pr][pc] === T.SEALED_SHRINE && typeof tryUnsealShrine === 'function') {
+      tryUnsealShrine(pc, pr, p.element || null);
+      p.life = -999;
+      return;
+    }
+    for (const e of enemies) {
+      if (e.dead || e.dormant) continue;   // arrows pass over the sleeping dragon
+      if (projectileOnTile(p, e.x, e.y)) {
+        e.hp -= p.dmg;
+        const esp = screenPX(e.x, e.y);
+        damageNumbers.push({ entity: e, val: p.dmg, color: '#ff4444', life: 1000, rise: 0 });
+        spawnParticle(esp.x, esp.y, p.color || '#ddaa44', 4, 2);
+        // Elemental enemies: 50% chance per arrow hit to take an extra 1d4
+        // of their opposite element (always at least 1d4 from Lv1, plus
+        // another die every 5 bow levels).
+        rollOppositeVuln(e, player.bowLevel);
+        // Elemental arrow: extra 1d4 of its element
+        if (p.element) {
+          const elem = SWORD_ELEMENTS[p.element];
+          if (elem) {
+            const elemDmg = 1 + Math.floor(Math.random() * 4);
+            e.hp -= elemDmg;
+            damageNumbers.push({
+              entity: e,
+              val: `${elem.icon}${elemDmg}`,
+              color: elem.color,
+              life: 1100, rise: -8
+            });
+            spawnParticle(esp.x, esp.y, elem.color, 6, 2);
+          }
+        }
+        if (e.hp <= 0) killEnemy(e);
+        p.life = -999;
+        // One arrow, one target: stop scanning so a single shot can't damage
+        // multiple enemies sharing (or crowded onto) the same tile.
+        break;
+      }
+    }
+  } else if (p.type === 'enemy') {
+    // Luminous armor's aura burns the shot out of the air at the rim of the
+    // light, before it reaches the hero (luminousAuraBlocks, abilities.js).
+    // Checked ahead of the hit test so a blocked shot never touches the
+    // damage path at all — no i-frames spent, no damage number, nothing to
+    // explain away.
+    if (typeof luminousAuraBlocks === 'function' && luminousAuraBlocks(p.tx, p.ty)) {
+      p.life = -999;
+      return;
+    }
+    if (projectileOnTile(p, player.x, player.y) && player.invincible <= 0) {
+      damagePlayer(p.dmg, p.element);
+      player.invincible = 800;
+      p.life = -999;
+      if (player.hp <= 0) respawn(p.breath ? 'breath' : 'shot', p.killer);
+    }
+  }
 }
 
 function stepProjectiles(dt, map) {
@@ -821,29 +956,29 @@ function stepProjectiles(dt, map) {
       const bsp = screenPX(p.tx, p.ty);
       spawnParticle(bsp.x, bsp.y, '#ff8800', 20, 6);
       const BLAST = 2;
+      // The blast is measured from the tile it landed on. Use floor (not round)
+      // so the tile-centered bomb position (bx + 0.5) maps to its actual tile bx.
+      const btc = Math.floor(p.tx), btr = Math.floor(p.ty);
       // Enemies (the dormant dragon is untargetable until it wakes)
       for (const e of enemies) {
         if (e.dead || e.dormant) continue;
-        const dx = e.x - p.tx, dy = e.y - p.ty;
-        if (Math.abs(dx) <= BLAST && Math.abs(dy) <= BLAST) {
+        if (Math.abs(e.x - btc) <= BLAST && Math.abs(e.y - btr) <= BLAST) {
           e.hp -= p.dmg;
           damageNumbers.push({ entity: e, val: p.dmg, color: '#ff4444', life: 1000, rise: 0 });
           if (e.hp <= 0) killEnemy(e);
         }
       }
       // The player — bombs are risky! Same radius, respects i-frames.
-      const pdx = player.x - p.tx, pdy = player.y - p.ty;
-      if (Math.abs(pdx) <= BLAST && Math.abs(pdy) <= BLAST && player.invincible <= 0) {
+      if (Math.abs(player.x - btc) <= BLAST && Math.abs(player.y - btr) <= BLAST
+          && player.invincible <= 0) {
         // Bombs are mundane explosions — no element tag, no armor reduction.
         damagePlayer(p.dmg, null);
         player.invincible = 900;
-        if (player.hp <= 0) respawn();
+        if (player.hp <= 0) respawn('bomb');
       }
       // Destroy rocks and snow drifts in blast radius. Each broken rock has a
       // 40% chance to drop 1–20 rubies on its tile; each flattened drift has a
-      // 50% chance to leave a sellable snowball. Use floor (not round) so the
-      // tile-centered bomb position (bx + 0.5) maps to its actual tile bx.
-      const btc = Math.floor(p.tx), btr = Math.floor(p.ty);
+      // 50% chance to leave a sellable snowball.
       for (let dr = -BLAST; dr <= BLAST; dr++) for (let dc = -BLAST; dc <= BLAST; dc++) {
         const tr = btr + dr, tc = btc + dc;
         if (tr <= 0 || tr >= MROWS - 1 || tc <= 0 || tc >= MCOLS - 1) continue;
@@ -884,78 +1019,8 @@ function stepProjectiles(dt, map) {
       return;
     }
 
-    p.tx += p.vx * step; p.ty += p.vy * step;
-    const pc = Math.floor(p.tx), pr = Math.floor(p.ty);
-    if (p.type === 'arrow' && typeof tryShrineStrike === 'function' &&
-        tryShrineStrike(pc, pr, p.element || null)) { p.life = -999; return; }
-    // Arrows and spells fly over the medium-water shelf even though it's
-    // solid to walkers; everything else solid (incl. deep water) stops them.
-    // Dragon breath (`overWalls`) crosses every solid tile, so it needs its
-    // own off-map kill (isSolid no longer stops it at the border).
-    if (p.overWalls) {
-      if (pc < 0 || pr < 0 || pc >= MCOLS || pr >= MROWS) { p.life = -999; return; }
-    } else if (projectileBlockedAt(map, pc, pr, p.z || 0)) { p.life = -999; return; }
-
-    if (p.type === 'arrow') {
-      // An arrow passing over a sealed shrine strikes it — try to break the seal
-      // with the arrow's element (see tryUnsealShrine in world.js).
-      if (map[pr] && map[pr][pc] === T.SEALED_SHRINE && typeof tryUnsealShrine === 'function') {
-        tryUnsealShrine(pc, pr, p.element || null);
-        p.life = -999;
-        return;
-      }
-      for (const e of enemies) {
-        if (e.dead || e.dormant) continue;   // arrows pass over the sleeping dragon
-        const dx = e.x - p.tx, dy = e.y - p.ty;
-        if (Math.abs(dx) < 0.9 && Math.abs(dy) < 0.9) {
-          e.hp -= p.dmg;
-          const esp = screenPX(e.x, e.y);
-          damageNumbers.push({ entity: e, val: p.dmg, color: '#ff4444', life: 1000, rise: 0 });
-          spawnParticle(esp.x, esp.y, p.color || '#ddaa44', 4, 2);
-          // Elemental enemies: 50% chance per arrow hit to take an extra 1d4
-          // of their opposite element (always at least 1d4 from Lv1, plus
-          // another die every 5 bow levels).
-          rollOppositeVuln(e, player.bowLevel);
-          // Elemental arrow: extra 1d4 of its element
-          if (p.element) {
-            const elem = SWORD_ELEMENTS[p.element];
-            if (elem) {
-              const elemDmg = 1 + Math.floor(Math.random() * 4);
-              e.hp -= elemDmg;
-              damageNumbers.push({
-                entity: e,
-                val: `${elem.icon}${elemDmg}`,
-                color: elem.color,
-                life: 1100, rise: -8
-              });
-              spawnParticle(esp.x, esp.y, elem.color, 6, 2);
-            }
-          }
-          if (e.hp <= 0) killEnemy(e);
-          p.life = -999;
-          // One arrow, one target: stop scanning so a single shot can't damage
-          // multiple enemies sharing (or crowded onto) the same tile.
-          break;
-        }
-      }
-    } else if (p.type === 'enemy') {
-      // Luminous armor's aura burns the shot out of the air at the rim of the
-      // light, before it reaches the hero (luminousAuraBlocks, abilities.js).
-      // Checked ahead of the hit test so a blocked shot never touches the
-      // damage path at all — no i-frames spent, no damage number, nothing to
-      // explain away.
-      if (typeof luminousAuraBlocks === 'function' && luminousAuraBlocks(p.tx, p.ty)) {
-        p.life = -999;
-        return;
-      }
-      const dx = player.x - p.tx, dy = player.y - p.ty;
-      if (Math.abs(dx) < 0.8 && Math.abs(dy) < 0.8 && player.invincible <= 0) {
-        damagePlayer(p.dmg, p.element);
-        player.invincible = 800;
-        p.life = -999;
-        if (player.hp <= 0) respawn();
-      }
-    }
+    const hops = Math.max(1, Math.ceil(Math.hypot(p.vx, p.vy) * step / PROJECTILE_MAX_HOP));
+    for (let h = 0; h < hops && p.life !== -999; h++) stepFlyingProjectile(p, step / hops, map);
   });
   projectiles = projectiles.filter(p => p.life > 0);
 }
