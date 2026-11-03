@@ -193,6 +193,64 @@ function drawForestCreature(e, ts, s, px, py, cx, cy, flap, phase, fb, bob, boxT
       break;
     }
     case 'dryad': {
+      const facing = creatureFacing(e);
+      if (facing === 'up') {
+        // Back: bark, a leaf cloak over the shoulders and leaf-hair down the back. No face.
+        ctx.fillStyle = '#3a6a2a'; ctx.fillRect(px + s*0.22, py + s*0.42, s*0.56, s*0.46);
+        ctx.fillStyle = '#4a8a3a';
+        ctx.beginPath(); ctx.ellipse(cx, py + s*0.50, s*0.30, s*0.13, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(px + s*0.24, py + s*0.62, s*0.13, s*0.09, 0.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(px + s*0.76, py + s*0.62, s*0.13, s*0.09, -0.5, 0, Math.PI*2); ctx.fill();
+        [
+          [0.5, 0.18], [0.32, 0.22], [0.68, 0.22], [0.40, 0.10], [0.60, 0.10]
+        ].forEach(([fx, fy]) => {
+          ctx.beginPath();
+          ctx.ellipse(px + s*fx, py + s*fy, s*0.12, s*0.08, 0, 0, Math.PI*2);
+          ctx.fill();
+        });
+        ctx.fillStyle = '#4a8a3a';
+        ctx.beginPath(); ctx.arc(cx, py + s*0.36, s*0.18, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#3a6a2a';
+        ctx.fillRect(cx - s*0.04, py + s*0.22, s*0.08, s*0.34);
+        ctx.strokeStyle = '#1a3a14';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - s*0.10, py + s*0.30); ctx.lineTo(cx - s*0.14, py + s*0.54);
+        ctx.moveTo(cx + s*0.10, py + s*0.30); ctx.lineTo(cx + s*0.14, py + s*0.54);
+        ctx.stroke();
+        break;
+      }
+      if (facing !== 'down') {
+        // Side, drawn facing right: narrow trunk, profile face, hair trailing left.
+        ctx.save();
+        mirrorIfLeft(facing, cx);
+        ctx.fillStyle = '#3a6a2a'; ctx.fillRect(px + s*0.32, py + s*0.42, s*0.36, s*0.46);
+        ctx.fillStyle = '#4a8a3a';
+        ctx.beginPath(); ctx.ellipse(px + s*0.50, py + s*0.52, s*0.17, s*0.10, 0, 0, Math.PI*2); ctx.fill();
+        // hair trailing back to the left
+        ctx.beginPath();
+        ctx.moveTo(px + s*0.44, py + s*0.24); ctx.lineTo(px + s*0.16, py + s*0.40); ctx.lineTo(px + s*0.44, py + s*0.44);
+        ctx.closePath(); ctx.fill();
+        [
+          [0.58, 0.18], [0.42, 0.20], [0.66, 0.10]
+        ].forEach(([fx, fy]) => {
+          ctx.beginPath();
+          ctx.ellipse(px + s*fx, py + s*fy, s*0.12, s*0.08, 0, 0, Math.PI*2);
+          ctx.fill();
+        });
+        ctx.fillStyle = '#d7a868';
+        ctx.beginPath(); ctx.arc(px + s*0.56, py + s*0.36, s*0.17, 0, Math.PI*2); ctx.fill();
+        ctx.fillRect(px + s*0.70, py + s*0.34, s*0.04, s*0.05);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(px + s*0.62, py + s*0.33, s*0.05, s*0.05);
+        ctx.strokeStyle = '#1a3a14';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(px + s*0.42, py + s*0.52); ctx.lineTo(px + s*0.46, py + s*0.80);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
       // Body — leafy bark
       ctx.fillStyle = '#3a6a2a'; ctx.fillRect(px + s*0.22, py + s*0.42, s*0.56, s*0.46);
       ctx.fillStyle = '#4a8a3a';
@@ -220,6 +278,60 @@ function drawForestCreature(e, ts, s, px, py, cx, cy, flap, phase, fb, bob, boxT
       break;
     }
     case 'pixie': {
+      const facing = creatureFacing(e);
+      if (facing === 'up') {
+        // Back: the same glow and wings, a darker body and a pale spine, no face.
+        for (let i = 0; i < 4; i++) {
+          const a = Date.now()/300 + i + phase;
+          ctx.fillStyle = `rgba(180,220,255,${0.4 + 0.4 * Math.sin(a)})`;
+          ctx.beginPath();
+          ctx.arc(cx + Math.cos(a) * s*0.32, cy + Math.sin(a) * s*0.32, s*0.04, 0, Math.PI*2);
+          ctx.fill();
+        }
+        const wingB = 1 + Math.sin(Date.now()/60 + phase) * 0.4;
+        ctx.fillStyle = `rgba(200,220,255,${0.4 + flap * 0.2})`;
+        ctx.beginPath();
+        ctx.ellipse(cx - s*0.22, cy - s*0.04, s*0.20 * wingB, s*0.14, -0.3, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx + s*0.22, cy - s*0.04, s*0.20 * wingB, s*0.14, 0.3, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#5566aa';
+        ctx.beginPath(); ctx.arc(cx, cy, s*0.20, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#88aaff';
+        ctx.beginPath(); ctx.arc(cx, cy + s*0.02, s*0.12, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#c0d8ff';
+        ctx.fillRect(cx - s*0.02, cy - s*0.14, s*0.04, s*0.24);
+        break;
+      }
+      if (facing !== 'down') {
+        // Side, drawn facing right: a narrower swarm, wings edge-on, one eye.
+        ctx.save();
+        mirrorIfLeft(facing, cx);
+        for (let i = 0; i < 4; i++) {
+          const a = Date.now()/300 + i + phase;
+          ctx.fillStyle = `rgba(180,220,255,${0.4 + 0.4 * Math.sin(a)})`;
+          ctx.beginPath();
+          ctx.arc(cx + Math.cos(a) * s*0.32, cy + Math.sin(a) * s*0.32, s*0.04, 0, Math.PI*2);
+          ctx.fill();
+        }
+        const wingS = 1 + Math.sin(Date.now()/60 + phase) * 0.4;
+        ctx.fillStyle = `rgba(200,220,255,${0.4 + flap * 0.2})`;
+        ctx.beginPath();
+        ctx.ellipse(cx - s*0.10, cy - s*0.06, s*0.06 * wingS, s*0.22, -0.2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx - s*0.04, cy - s*0.06, s*0.05 * wingS, s*0.20, 0.2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#88aaff';
+        ctx.beginPath(); ctx.ellipse(cx + s*0.02, cy, s*0.14, s*0.20, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#c0d8ff';
+        ctx.beginPath(); ctx.ellipse(cx + s*0.05, cy - s*0.04, s*0.09, s*0.13, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.fillRect(cx + s*0.07, cy - s*0.04, s*0.03, s*0.03);
+        ctx.restore();
+        break;
+      }
       // Trailing sparkles
       for (let i = 0; i < 4; i++) {
         const a = Date.now()/300 + i + phase;
@@ -346,6 +458,51 @@ function drawForestCreature(e, ts, s, px, py, cx, cy, flap, phase, fb, bob, boxT
       break;
     }
     case 'giant_spider': {
+      const facing = creatureFacing(e);
+      if (facing === 'up') {
+        // Back: the abdomen toward the viewer with spinnerets, the head hidden, no eyes.
+        ctx.strokeStyle = '#241c2e'; ctx.lineWidth = Math.max(2, s*0.05); ctx.lineCap = 'round';
+        for (let i = 0; i < 4; i++) {
+          const ly = py + s*0.40 + i * s*0.10;
+          const k = Math.sin(Date.now()/160 + phase + i) * s*0.04;
+          ctx.beginPath();
+          ctx.moveTo(cx - s*0.10, py + s*0.54); ctx.lineTo(px + s*0.02, ly + k);
+          ctx.moveTo(cx + s*0.10, py + s*0.54); ctx.lineTo(px + s*0.98, ly - k);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#4a3a55';
+        ctx.beginPath(); ctx.arc(cx, py + s*0.32, s*0.13, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#352841';
+        ctx.beginPath(); ctx.ellipse(cx, py + s*0.56, s*0.30, s*0.28, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#4a3a55';
+        ctx.beginPath(); ctx.ellipse(cx - s*0.05, py + s*0.80, s*0.05, s*0.04, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + s*0.05, py + s*0.80, s*0.05, s*0.04, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#aa3344';
+        ctx.beginPath(); ctx.moveTo(cx, py + s*0.42); ctx.lineTo(cx - s*0.07, py + s*0.56); ctx.lineTo(cx, py + s*0.70); ctx.lineTo(cx + s*0.07, py + s*0.56); ctx.closePath(); ctx.fill();
+        break;
+      }
+      if (facing !== 'down') {
+        // Side, drawn facing right: head and eyes to the right, abdomen to the left.
+        ctx.save();
+        mirrorIfLeft(facing, cx);
+        ctx.strokeStyle = '#241c2e'; ctx.lineWidth = Math.max(2, s*0.05); ctx.lineCap = 'round';
+        for (let i = 0; i < 4; i++) {
+          const k = Math.sin(Date.now()/160 + phase + i) * s*0.04;
+          ctx.beginPath();
+          ctx.moveTo(cx, py + s*0.56); ctx.lineTo(px + s*0.20 + i*s*0.16, py + s*0.86 + k);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#352841';
+        ctx.beginPath(); ctx.ellipse(px + s*0.30, py + s*0.52, s*0.26, s*0.22, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#4a3a55';
+        ctx.beginPath(); ctx.arc(px + s*0.72, py + s*0.52, s*0.15, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ff3344';
+        [[0.78,0.46],[0.84,0.50],[0.78,0.54]].forEach(([ex,ey]) => ctx.fillRect(px + s*ex, py + s*ey, s*0.03, s*0.03));
+        ctx.fillStyle = '#e8e0d0';
+        ctx.fillRect(px + s*0.80, py + s*0.62, s*0.03, s*0.05);
+        ctx.restore();
+        break;
+      }
       // Legs — 4 per side, skittering
       ctx.strokeStyle = '#241c2e'; ctx.lineWidth = Math.max(2, s*0.05); ctx.lineCap = 'round';
       for (let i = 0; i < 4; i++) {

@@ -13,11 +13,122 @@ function drawSharedCreature(e, ts, s, px, py, cx, cy, flap, phase, fb, bob, boxT
       // The pose carries its state, because the two phases of the encounter want
       // opposite body language: planted and growling while it blocks the gate
       // (dormant), running flat out once it is chasing.
+      // Dormant, it is the prologue's growling dog in the gap the player walks up to:
+      // it keeps its side pose and looks at the hero. Awake, it shows its real facing.
+      const facing = e.dormant ? (player.x < e.x ? 'left' : 'right') : creatureFacing(e);
+      if (facing === 'down') {
+        ctx.save();
+        // Front: chest-on. The barrel seen end-on and narrower, the head over it,
+        // both floppy ears framing the face, the collar across the throat.
+        const fGrowl = !!e.dormant;
+        const fCrouch = fGrowl ? s*0.04 : 0;
+        const fStep = fGrowl ? 0 : Math.sin(Date.now()/110 + phase) * s*0.03;
+        const fHX = px + s*0.44, fHY = py + s*0.36 + fCrouch*1.6;
+        // Hind feet, showing just below the barrel at either side of the stance.
+        ctx.fillStyle = '#6d5430';
+        ctx.fillRect(px + s*0.20 + fStep, py + s*0.74, s*0.11, s*0.18);
+        ctx.fillRect(px + s*0.57 - fStep, py + s*0.74, s*0.11, s*0.18);
+        ctx.fillStyle = '#e2cda6';
+        ctx.fillRect(px + s*0.20 + fStep, py + s*0.86, s*0.11, s*0.06);
+        ctx.fillRect(px + s*0.57 - fStep, py + s*0.86, s*0.11, s*0.06);
+        // Barrel, end-on: narrower than the side view, and deeper.
+        ctx.fillStyle = '#9a7b46';
+        ctx.beginPath(); ctx.ellipse(px + s*0.44, py + s*0.62 + fCrouch, s*0.24, s*0.20, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#b8955e';
+        ctx.beginPath(); ctx.ellipse(px + s*0.44, py + s*0.55 + fCrouch, s*0.14, s*0.09, 0, 0, Math.PI*2); ctx.fill();
+        // The front pair, straight down under the chest, stride alternating.
+        ctx.fillStyle = '#9a7b46';
+        ctx.fillRect(px + s*0.31 + fStep, py + s*0.68 + fCrouch, s*0.11, s*0.24 - fCrouch);
+        ctx.fillRect(px + s*0.46 - fStep, py + s*0.68 + fCrouch, s*0.11, s*0.24 - fCrouch);
+        ctx.fillStyle = '#e2cda6';
+        ctx.fillRect(px + s*0.31 + fStep, py + s*0.86, s*0.11, s*0.06);
+        ctx.fillRect(px + s*0.46 - fStep, py + s*0.86, s*0.11, s*0.06);
+        // Hendricks' collar across the throat, brass tag centred on the chest.
+        ctx.strokeStyle = '#a33a2e'; ctx.lineWidth = Math.max(2, s*0.07);
+        ctx.beginPath(); ctx.moveTo(px + s*0.29, py + s*0.47 + fCrouch); ctx.lineTo(px + s*0.59, py + s*0.47 + fCrouch); ctx.stroke();
+        ctx.fillStyle = '#e8c24a';
+        ctx.beginPath(); ctx.arc(px + s*0.44, py + s*0.54 + fCrouch, s*0.035, 0, Math.PI*2); ctx.fill();
+        // Head, ears hanging down either side of the face.
+        ctx.fillStyle = '#6d5430';
+        ctx.beginPath(); ctx.ellipse(fHX - s*0.16, fHY + s*0.03, s*0.075, s*0.15, 0.25, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(fHX + s*0.16, fHY + s*0.03, s*0.075, s*0.15, -0.25, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#9a7b46';
+        ctx.beginPath(); ctx.arc(fHX, fHY, s*0.19, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#b8955e';
+        ctx.beginPath(); ctx.arc(fHX, fHY - s*0.03, s*0.14, 0, Math.PI*2); ctx.fill();
+        // Muzzle, nose, both eyes, raised brows. No tail: it is behind the dog.
+        ctx.fillStyle = '#e2cda6';
+        ctx.beginPath(); ctx.ellipse(fHX, fHY + s*0.09, s*0.10, s*0.07, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#241a12';
+        ctx.beginPath(); ctx.arc(fHX, fHY + s*0.06, s*0.035, 0, Math.PI*2); ctx.fill();
+        if (fGrowl) {
+          ctx.fillStyle = '#fffaf0';
+          ctx.fillRect(fHX - s*0.05, fHY + s*0.13, s*0.10, s*0.035);
+          ctx.fillStyle = '#241a12';
+          ctx.fillRect(fHX - s*0.006, fHY + s*0.13, s*0.012, s*0.035);
+        }
+        ctx.fillStyle = '#241a12';
+        ctx.beginPath(); ctx.arc(fHX - s*0.07, fHY - s*0.04, s*0.04, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(fHX + s*0.07, fHY - s*0.04, s*0.04, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#6d5430'; ctx.lineWidth = Math.max(1, s*0.025);
+        ctx.beginPath();
+        ctx.moveTo(fHX - s*0.11, fHY - s*0.11); ctx.lineTo(fHX - s*0.02, fHY - s*0.13);
+        ctx.moveTo(fHX + s*0.02, fHY - s*0.13); ctx.lineTo(fHX + s*0.11, fHY - s*0.11);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      if (facing === 'up') {
+        ctx.save();
+        // Back: no face anywhere. The barrel from behind, the spine down the
+        // middle, the tail, the backs of the ears and the collar band.
+        const bGrowl = !!e.dormant;
+        const bCrouch = bGrowl ? s*0.04 : 0;
+        const bStep = bGrowl ? 0 : Math.sin(Date.now()/110 + phase) * s*0.03;
+        const bHX = px + s*0.44, bHY = py + s*0.36 + bCrouch*1.6;
+        // The rear pair and its socks: the legs a viewer behind the dog sees.
+        ctx.fillStyle = '#6d5430';
+        ctx.fillRect(px + s*0.28 + bStep, py + s*0.70, s*0.11, s*0.22);
+        ctx.fillRect(px + s*0.49 - bStep, py + s*0.70, s*0.11, s*0.22);
+        ctx.fillStyle = '#e2cda6';
+        ctx.fillRect(px + s*0.28 + bStep, py + s*0.86, s*0.11, s*0.06);
+        ctx.fillRect(px + s*0.49 - bStep, py + s*0.86, s*0.11, s*0.06);
+        // Barrel from behind, lit along the spine instead of across the back.
+        ctx.fillStyle = '#9a7b46';
+        ctx.beginPath(); ctx.ellipse(px + s*0.44, py + s*0.60 + bCrouch, s*0.26, s*0.20, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#b8955e';
+        ctx.beginPath(); ctx.ellipse(px + s*0.44, py + s*0.55 + bCrouch, s*0.09, s*0.12, 0, 0, Math.PI*2); ctx.fill();
+        // Spine down the back, and the tail below it: stiff and hanging while it
+        // growls, up and wagging while it runs. Same clock as the side view.
+        ctx.strokeStyle = '#6d5430'; ctx.lineWidth = Math.max(2, s*0.05); ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(px + s*0.44, py + s*0.46 + bCrouch); ctx.lineTo(px + s*0.44, py + s*0.72 + bCrouch); ctx.stroke();
+        const bWag = bGrowl ? 0 : Math.sin(Date.now()/110 + phase) * s*0.08;
+        ctx.beginPath();
+        ctx.moveTo(px + s*0.44, py + s*0.72);
+        if (bGrowl) ctx.quadraticCurveTo(px + s*0.46, py + s*0.82, px + s*0.44, py + s*0.90);
+        else        ctx.quadraticCurveTo(px + s*0.56 + bWag, py + s*0.62, px + s*0.58 + bWag, py + s*0.44);
+        ctx.stroke();
+        // Collar band around the throat; the brass tag hangs on the far side.
+        ctx.strokeStyle = '#a33a2e'; ctx.lineWidth = Math.max(2, s*0.07);
+        ctx.beginPath(); ctx.moveTo(px + s*0.29, py + s*0.49 + bCrouch); ctx.lineTo(px + s*0.59, py + s*0.49 + bCrouch); ctx.stroke();
+        // Back of the head: ears hanging on the sides, a seam down the skull.
+        ctx.fillStyle = '#6d5430';
+        ctx.beginPath(); ctx.ellipse(bHX - s*0.16, bHY + s*0.04, s*0.075, s*0.15, 0.25, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(bHX + s*0.16, bHY + s*0.04, s*0.075, s*0.15, -0.25, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#9a7b46';
+        ctx.beginPath(); ctx.arc(bHX, bHY, s*0.19, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#b8955e';
+        ctx.beginPath(); ctx.arc(bHX, bHY - s*0.04, s*0.13, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#6d5430'; ctx.lineWidth = Math.max(1, s*0.03);
+        ctx.beginPath(); ctx.moveTo(bHX, bHY - s*0.16); ctx.lineTo(bHX, bHY - s*0.02); ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      // Side. This was always the dog's only view, drawn facing right.
       const dGrowl = !!e.dormant;
-      // Face the player. Everything below is drawn right-facing and mirrored about
-      // the sprite's centre line when it needs to look the other way — the dog sits
-      // in a gap the player walks up to, so having its back turned looked wrong.
-      const dFaceLeft = (typeof player !== 'undefined') && player.x < e.x;
+      // Everything below is drawn right-facing and mirrored about the sprite's
+      // centre line when it faces left.
+      const dFaceLeft = facing === 'left';
       ctx.save();
       if (dFaceLeft) { ctx.translate(cx * 2, 0); ctx.scale(-1, 1); }
 
@@ -483,6 +594,127 @@ function drawSharedCreature(e, ts, s, px, py, cx, cy, flap, phase, fb, bob, boxT
       // the slab's width is already right, and stretching it sideways would make
       // a golem look inflated rather than tall.
       const GOLEM_FILL = 1 / 0.84;
+      const facing = creatureFacing(e);
+      if (facing === 'up') {
+        // Back: the same slabs seen from behind, and no face anywhere on them.
+        // The lit shoulder swaps to the other side, because the body has turned
+        // round, and a spine of vertebrae runs down the middle of the torso.
+        ctx.save();
+        ctx.translate(0, top + s * 0.96);
+        ctx.scale(1, GOLEM_FILL);
+        ctx.translate(0, -(top + s * 0.96));
+        ctx.fillStyle = GP.dark;
+        ctx.fillRect(px + s*0.28, top + s*0.66, s*0.16, s*0.30);
+        ctx.fillRect(px + s*0.56, top + s*0.66, s*0.16, s*0.30);
+        ctx.fillStyle = GP.mid;
+        ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.36);
+        ctx.fillStyle = GP.lite;                                // lit shoulder, other side
+        ctx.fillRect(px + s*0.50, top + s*0.34, s*0.26, s*0.36);
+        ctx.fillStyle = GP.dark;
+        const bArmY = top + s*0.36;
+        ctx.fillRect(px + s*0.12, bArmY, s*0.14, s*0.34);
+        ctx.fillRect(px + s*0.74, bArmY, s*0.14, s*0.34);
+        // Back of the skull: a slab with a seam down the middle, no eyes.
+        ctx.fillStyle = GP.mid;
+        ctx.fillRect(px + s*0.34, top + s*0.12, s*0.32, s*0.24);
+        // The back detail: spine and vertebrae, the one thing the front lacks.
+        ctx.fillStyle = GP.dark;
+        ctx.fillRect(px + s*0.46, top + s*0.13, s*0.08, s*0.21);
+        ctx.fillRect(px + s*0.45, top + s*0.36, s*0.10, s*0.32);
+        ctx.fillStyle = GP.lite;
+        for (const vy of [0.40, 0.50, 0.60]) ctx.fillRect(px + s*0.43, top + s*vy, s*0.14, s*0.05);
+        // Lit veins, running out from the spine to the shoulders.
+        ctx.strokeStyle = `rgba(255,220,150,${0.35 + 0.4*glow})`;
+        ctx.lineWidth = Math.max(1, s*0.035);
+        ctx.beginPath();
+        ctx.moveTo(px + s*0.45, top + s*0.46); ctx.lineTo(px + s*0.30, top + s*0.42);
+        ctx.moveTo(px + s*0.55, top + s*0.46); ctx.lineTo(px + s*0.70, top + s*0.42);
+        ctx.moveTo(px + s*0.45, top + s*0.58); ctx.lineTo(px + s*0.32, top + s*0.64);
+        ctx.moveTo(px + s*0.55, top + s*0.58); ctx.lineTo(px + s*0.68, top + s*0.64);
+        ctx.stroke();
+        if (e.type === 'obsidian_golem') {
+          // Molten from behind too: the shell glows and runs the same way.
+          const bFlow = Date.now() / 380 + phase;
+          ctx.fillStyle = `rgba(255,106,34,${0.45 + 0.30 * Math.sin(bFlow)})`;
+          ctx.fillRect(px + s*0.24, top + s*0.34, s*0.52, s*0.36);   // core glow
+          ctx.fillStyle = `rgba(255,196,90,${0.30 + 0.25 * Math.sin(bFlow * 1.4)})`;
+          ctx.fillRect(px + s*0.34, top + s*0.12, s*0.32, s*0.24);   // head glow
+          ctx.strokeStyle = 'rgba(255,140,40,0.75)'; ctx.lineWidth = Math.max(1, s*0.04);
+          for (let i = 0; i < 3; i++) {
+            const bx = px + s * (0.32 + i * 0.16);
+            const run = (Math.sin(bFlow + i * 1.9) * 0.5 + 0.5) * s * 0.24;
+            ctx.beginPath(); ctx.moveTo(bx, top + s*0.40); ctx.lineTo(bx, top + s*0.40 + run); ctx.stroke();
+          }
+          ctx.fillStyle = 'rgba(255,220,150,0.55)';
+          for (let i = 0; i < 2; i++) {
+            const a = bFlow * 1.6 + i * 3.1;
+            // Embers rise clear of the skull: a lit dot on the back of the head
+            // would read as an eye, and there is no eye back here.
+            ctx.fillRect(px + s * (0.50 + (i ? 0.30 : -0.30) + 0.04 * Math.sin(a)),
+                         top + s * (0.44 - 0.30 * ((a * 0.3) % 1)), s*0.05, s*0.05);
+          }
+        }
+        ctx.restore();
+        break;
+      }
+      if (facing !== 'down') {
+        // Side, drawn facing right: the slab edge-on. One arm hangs over the
+        // body, the head sits forward off the neck, and there is ONE eye, set
+        // at the front edge of the skull under a lit brow.
+        ctx.save();
+        mirrorIfLeft(facing, cx);
+        ctx.translate(0, top + s * 0.96);
+        ctx.scale(1, GOLEM_FILL);
+        ctx.translate(0, -(top + s * 0.96));
+        ctx.fillStyle = GP.dark;
+        ctx.fillRect(px + s*0.36, top + s*0.66, s*0.14, s*0.30);     // far leg
+        ctx.fillRect(px + s*0.52, top + s*0.66, s*0.16, s*0.30);     // near leg
+        ctx.fillStyle = GP.mid;
+        ctx.fillRect(px + s*0.32, top + s*0.34, s*0.34, s*0.36);     // torso, edge-on
+        ctx.fillStyle = GP.lite;
+        ctx.fillRect(px + s*0.56, top + s*0.34, s*0.10, s*0.36);     // lit chest edge
+        ctx.fillStyle = GP.dark;
+        ctx.fillRect(px + s*0.24, top + s*0.38, s*0.12, s*0.32);     // far arm, behind
+        ctx.fillStyle = GP.mid;
+        ctx.fillRect(px + s*0.42, top + s*0.12, s*0.24, s*0.24);     // head, forward
+        ctx.fillStyle = GP.dark;
+        ctx.fillRect(px + s*0.48, top + s*0.36, s*0.14, s*0.34);     // near arm, over
+        // Seam along the flank, on the strip of torso the arm leaves free.
+        ctx.strokeStyle = `rgba(255,220,150,${0.35 + 0.4*glow})`;
+        ctx.lineWidth = Math.max(1, s*0.035);
+        ctx.beginPath();
+        ctx.moveTo(px + s*0.38, top + s*0.44); ctx.lineTo(px + s*0.46, top + s*0.52);
+        ctx.lineTo(px + s*0.38, top + s*0.64);
+        ctx.stroke();
+        if (e.type === 'obsidian_golem') {
+          // The molten shell, narrowed with the body it is drawn on.
+          const gFlow = Date.now() / 380 + phase;
+          ctx.fillStyle = `rgba(255,106,34,${0.45 + 0.30 * Math.sin(gFlow)})`;
+          ctx.fillRect(px + s*0.32, top + s*0.34, s*0.34, s*0.36);   // core glow
+          ctx.fillStyle = `rgba(255,196,90,${0.30 + 0.25 * Math.sin(gFlow * 1.4)})`;
+          ctx.fillRect(px + s*0.42, top + s*0.12, s*0.24, s*0.24);   // head glow
+          ctx.strokeStyle = 'rgba(255,140,40,0.75)'; ctx.lineWidth = Math.max(1, s*0.04);
+          for (let i = 0; i < 2; i++) {
+            const gx = px + s * (0.40 + i * 0.16);
+            const run = (Math.sin(gFlow + i * 1.9) * 0.5 + 0.5) * s * 0.24;
+            ctx.beginPath(); ctx.moveTo(gx, top + s*0.40); ctx.lineTo(gx, top + s*0.40 + run); ctx.stroke();
+          }
+          ctx.fillStyle = 'rgba(255,220,150,0.55)';
+          for (let i = 0; i < 2; i++) {
+            const a = gFlow * 1.6 + i * 3.1;
+            // Clear of the skull, so an ember never reads as a second eye.
+            ctx.fillRect(px + s * (0.50 + (i ? 0.26 : -0.26) + 0.04 * Math.sin(a)),
+                         top + s * (0.44 - 0.30 * ((a * 0.3) % 1)), s*0.05, s*0.05);
+          }
+        }
+        // One eye, forward on the skull, lit brow above it.
+        ctx.fillStyle = GP.eye;
+        ctx.fillRect(px + s*0.57, top + s*0.20, s*0.07, s*0.05);
+        ctx.fillStyle = GP.lite;
+        ctx.fillRect(px + s*0.55, top + s*0.16, s*0.10, s*0.03);
+        ctx.restore();
+        break;
+      }
       ctx.save();
       ctx.translate(0, top + s * 0.96);
       ctx.scale(1, GOLEM_FILL);
