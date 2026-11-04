@@ -511,10 +511,14 @@ function hvMill(m, r1, c1, w, h) {
 }
 
 // ─── The village, burning ─────────────────────────────────────────────────────
-// Char the map in place, out to `radius` tiles from the village centre. Beat 4
-// calls this repeatedly with a growing radius so the fire visibly spreads rather
-// than cutting to a finished ruin — the script's "tiles beginning to char/corrupt
-// in real time".
+// Char the map in place, out to `radius` tiles from the village centre.
+//
+// Beat 4 no longer uses this to spread the fire: the wall of flame burns the
+// village tile by tile as it crosses it (hvBurnOrder / hvBurnFrontTile below),
+// and the beat calls this once, after the front has finished, to guarantee the
+// ruin ends exactly as this pass has always left it. It is still the whole of
+// the burn for a rebuilt ruin (buildRuinedHomeVillage) and for a skipped
+// prologue, neither of which ever sees a front.
 //
 // Mutating mapObj.map[r][c] directly is the established idiom here (see
 // activateVillage in mapgen-village.js and tryUnsealShrine in world.js). Callers
@@ -585,6 +589,99 @@ function hvCharTile(t) {
     // case is ever added for them, it has to be a deliberate one.
     default:             return t;
   }
+}
+
+// ─── The same burn, one tile at a time ────────────────────────────────────────
+// Beat 4's wall of flame crosses the village tile by tile, and each tile has to
+// change at the moment the wall reaches it. That is this: the front radius at
+// which a tile burns, the list of tiles in the order they burn, and the burn of
+// one tile to its FINAL state — so the closing charHomeVillage(52) pass has
+// nothing visible left to do and the ruin is tile-for-tile the one that pass has
+// always produced.
+//
+// HV_BURN_RADIUS is the radius the closing charHomeVillage pass runs with, so
+// the two cover the same ground. HV_BURN_JITTER is the most the ragged edge can
+// push a tile outwards, so a caller knows the fire is finished once its front
+// passes HV_BURN_RADIUS + HV_BURN_JITTER.
+const HV_BURN_RADIUS = 52;
+const HV_BURN_JITTER = 1.9;
+
+// The front radius at which this tile burns. The wobble in the angle term and
+// the per-tile hash both push outwards only — the range is d to d + 1.9, never
+// below d — so the edge reads ragged instead of like a drawn circle, and no tile
+// can ever burn ahead of its own distance. Deterministic, no Math.random: the
+// same village burns the same way every time (see the reproducibility note in
+// SKILL.md and the embers above).
+function hvBurnKey(c, r) {
+  const dx = c - HOME.center.x, dy = r - HOME.center.y;
+  const d = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+  const hash = ((Math.imul(c, 0x27d4eb2d) ^ Math.imul(r, 0x165667b1)) >>> 0) % 1024 / 1024;
+  return d + 0.7 * (1 + Math.sin(a * 5 + 0.7) * 0.6 + Math.sin(a * 11 + 2.1) * 0.4) + 0.5 * hash;
+}
+
+// Every tile charHomeVillage(52) would touch, in the order it burns: the same
+// row and column bounds and the same radius, so the two paths cover exactly the
+// same ground. `key[r * MCOLS + c]` is that tile's burn radius, Infinity for a
+// tile the fire never reaches; `order` is those tiles' indices, cheapest first.
+function hvBurnOrder() {
+  const key = new Float32Array(MROWS * MCOLS).fill(Infinity);
+  const idx = [];
+  for (let r = HV_R1 - 4; r <= HV_R2 + 4; r++) {
+    if (r < 0 || r >= MROWS) continue;
+    for (let c = HV_C1 - 4; c <= HV_C2 + 4; c++) {
+      if (c < 0 || c >= MCOLS) continue;
+      // The same distance test charHomeVillage makes — the ragged edge moves the
+      // moment a tile burns, never which tiles burn, so the two paths cover
+      // exactly the same ground. A tile's key can therefore sit up to
+      // HV_BURN_JITTER past HV_BURN_RADIUS, which is why the front has to run to
+      // HV_BURN_RADIUS + HV_BURN_JITTER before the fire is called finished.
+      const dx = c - HOME.center.x, dy = r - HOME.center.y;
+      if (dx * dx + dy * dy > HV_BURN_RADIUS * HV_BURN_RADIUS) continue;
+      key[r * MCOLS + c] = hvBurnKey(c, r);
+      idx.push(r * MCOLS + c);
+    }
+  }
+  idx.sort((a, b) => key[a] - key[b]);
+  return { key, order: Int32Array.from(idx) };
+}
+
+// Burn one tile the way the finished ruin has it. The order of the rules below
+// is the order charHomeVillage applies its own, and copying it is the whole
+// point: the route home is re-opened after the charring, the collapse is dropped
+// back on top of that, and the embers are keyed off the wall that is standing
+// afterwards. Getting this sequence wrong changes the ruin, which the acceptance
+// pass compares tile for tile against charHomeVillage(52).
+function hvBurnFrontTile(m, r, c) {
+  let t = hvCharTile(m[r][c]);
+  // Embers where the buildings were — the same deterministic positions, and the
+  // same village-bounds test, as the ember pass in charHomeVillage.
+  if (t === T.BURNT_WALL && r >= HV_R1 && r <= HV_R2 && c >= HV_C1 && c <= HV_C2 &&
+      (r * 7 + c * 13) % 11 === 0) t = T.EMBER;
+  // The way home, cleared before the collapse gets to put anything back.
+  if (r >= HOME.door.y && r < MROWS - 1 && Math.abs(c - HOME.center.x) <= 1 &&
+      (t === T.RUBBLE || t === T.BURNT_WALL)) t = T.CHARRED_GRASS;
+  if (r === HOME.door.y && c === HOME.door.x) t = T.CHARRED_GRASS;
+  if (r === HOME.door.y - 1 && c === HOME.door.x) t = T.SCORCHED_FLOOR;
+  for (const choke of HOME_COLLAPSE) {
+    if (choke.row <= HOME.door.y) continue;
+    if (r === choke.row && choke.blocked.some(dc => c === HOME.center.x + dc)) t = T.RUBBLE;
+  }
+  m[r][c] = t;
+}
+
+// May this tile carry flames? Anything the fire has taken, plus the burnt state
+// it ends in. That leaves the fountain water, the chests, the torches and the
+// three surviving shop doors bare, which is the point: the fire has to stop at
+// the things the village keeps.
+//
+// The plaza's marble is the one exception on the other side. hvCharTile leaves
+// stone as stone, correctly — the ruin's plaza is marble today — but the wall of
+// flame still has to cross it, or the fire starts nine tiles out from the
+// Emperor with a bare stone circle around him. Flames on it, tiles unchanged.
+function hvFlameTile(t) {
+  if (hvCharTile(t) !== t) return true;
+  return t === T.CHARRED_GRASS || t === T.SCORCHED_FLOOR || t === T.BURNT_WALL ||
+         t === T.RUBBLE || t === T.EMBER || t === T.MARBLE;
 }
 
 // Re-open the way home. Runs after every char pass, because T.DOOR chars to solid

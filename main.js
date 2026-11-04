@@ -355,6 +355,16 @@ function update(dt) {
       namePromptOpen                                                 ||
       loadingScreenOpen                                              ||
       (typeof cutsceneBlocking  !== 'undefined' && cutsceneBlocking)) {
+    // Beat 4's fire is the one thing that has to keep running inside a frozen
+    // world: the wall of flame, its embers and Beat 3's birds and wind are all
+    // stepped below this return, so with the cutscene holding the world they sat
+    // still for the whole strike and only moved once the dragon had gone. The
+    // two calls at their normal positions below stay — a frozen frame never
+    // reaches them, so nothing on a live frame ever steps twice.
+    if (typeof cutsceneBlocking !== 'undefined' && cutsceneBlocking) {
+      if (typeof stepPrologueAmbience === 'function') stepPrologueAmbience(dt);
+      stepParticles(dt);
+    }
     updateHUD();
     return;
   }

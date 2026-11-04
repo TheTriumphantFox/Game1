@@ -648,7 +648,9 @@ function pgVillagersLookUp() {
   }
 }
 
-// Per-frame driver for the three of them. Called from update() in main.js.
+// Per-frame driver for the three of them. Called from update() in main.js, and
+// from that function's freeze branch as well, so the fire (and Beat 3's weather)
+// keeps moving while a cutscene step holds the rest of the world still.
 function stepPrologueAmbience(dt) {
   stepPrologueBirds(dt);
   stepPrologueWind(dt);
@@ -658,12 +660,14 @@ function stepPrologueAmbience(dt) {
 // Put the weather away. The birds are gone by now on their own, but the wind and
 // the upturned faces are held states: the three survivors of Ashfall would
 // otherwise still be staring at a sky that has been empty for the rest of the
-// game. Called when the prologue closes, and on load for a save written after it.
+// game. The fire goes with them — a wall of flame crossing a village that has
+// already burned down is the same kind of leftover. Called when the prologue
+// closes, and on load for a save written after it.
 function pgClearAmbience() {
   prologueBirds = [];
   prologueWind = 0;
   prologueWindTarget = 0;
-  prologueBreath = null;
+  pgStopVillageFire();
   for (const v of villagers) delete v.lookUp;
 }
 
@@ -710,7 +714,10 @@ function playWarningBeat() {
 function playAshfallBeat() {
   const C = HOME.center;
   playCutscene([
-    { run: () => setFlag('village_burning') },
+    // The flag is what a post-prologue save is read by, but the roofs must stay
+    // up for the nine seconds between here and the strike, so pgRoofsStanding
+    // holds them (render.js asks it instead of the flag) until the front is done.
+    { run: () => { setFlag('village_burning'); pgRoofsStanding = true; } },
     { pan: C, ms: 900 },
     // A low, visible strafing pass before the established landing/strike.
     // Derive its span from the viewport so both desktop and touch see him cross.
@@ -726,13 +733,16 @@ function playAshfallBeat() {
     { shake: 12, ms: 1200 },
     { say: [{ text: "He lands in the square he has never had any reason to know the name of." }] },
 
-    // The strike. Fire crosses the screen and the tiles start to char — the
-    // charring is staged in three passes so it visibly spreads outward rather
-    // than cutting to a finished ruin.
-    //
-    // The breath goes first and the charring follows it, so the fire is visibly
-    // the cause rather than the two being simultaneous. pgBreathe sweeps a wall
-    // of flame out of the Emperor and across the screen (drawPrologueBreath).
+    // The strike. One wall of flame leaves the Emperor and crosses the village,
+    // and each tile changes from village to ruin at the moment the wall reaches
+    // it — the charring is no longer a set of passes that happen next to the
+    // fire, it is the fire arriving. pgBreathe starts the front and
+    // stepPrologueBreath burns the tiles under it (drawPrologueBreath in
+    // render.js paints it); the `until` step holds the beat open until the front
+    // has crossed the last tile, and the closing `tiles` pass is then left with
+    // nothing visible to do — it only guarantees the ruin is exactly what
+    // charHomeVillage(52) has always produced, and refreshes the depth list for
+    // the tiles the front changed.
     { run: () => pgBreathe(C) },
     { wait: 500 },
     { run: () => {
@@ -749,13 +759,12 @@ function playAshfallBeat() {
         if (typeof updateHUD === 'function') updateHUD();
       } },
     { shake: 16, ms: 1600 },
-    { tiles: m => charHomeVillage(m, 14) },
     { wait: 700 },
     { run: () => { burnLevel = 0.7; pgEmberBurst(C, 30); } },
-    { tiles: m => charHomeVillage(m, 30) },
     { wait: 700 },
     { run: () => { burnLevel = 1; } },
-    { tiles: m => charHomeVillage(m, 52) },
+    { until: () => !prologueBreath },
+    { tiles: (m, mapObj) => { charHomeVillage(m, HV_BURN_RADIUS); invalidateTallTiles(mapObj); } },
     { wait: 600 },
 
     // He lifts off again, unhurried. Nothing here can hurt him and he knows it.
@@ -793,24 +802,135 @@ function playAshfallBeat() {
 
 // ─── The dragon's breath ──────────────────────────────────────────────────────
 // The flame sweep of Beat 4's opening strike: a wall of fire that leaves the
-// Emperor and crosses the whole screen. State only — drawPrologueBreath in
-// render.js paints it, and stepPrologueBreath advances it.
+// Emperor and crosses the whole village, and burns each tile as it arrives. State
+// only — drawPrologueBreath in render.js paints it, stepPrologueBreath advances
+// it, and hvBurnFrontTile in mapgen-prologue.js is what changes the tile.
 //
-// A timed sweep rather than a cutscene step so the charring passes can run over
-// the top of it: the fire is still crossing while the tiles behind it blacken,
-// which is what makes the flame read as the cause of the ruin instead of a
-// flourish that happens next to it.
+// A live object stepped per frame rather than a cutscene step, because the wall
+// has to keep moving while the beat holds the world frozen: the tile change and
+// the fire reaching it are the same event, not two passes lined up next to each
+// other.
 let prologueBreath = null;
-const BREATH_MS = 1900;
+
+// Tiles per second. The wall leaves the Emperor fast and settles to a cruise.
+// Once the whole ring is off screen it runs at BREATH_OFFSCREEN, which exists
+// only to finish the far side of the village quickly — nobody is watching it.
+// BREATH_FLAME_LEAD and BREATH_FLAME_BAND are in tiles: a tile lights a little
+// before the front reaches it, then takes the length of the band to burn down
+// behind the front, and the band is what the off-screen test has to clear.
+const BREATH_CRUISE = 5;
+const BREATH_RUSH = 16;
+const BREATH_RUSH_MS = 500;
+const BREATH_OFFSCREEN = 30;
+const BREATH_FLAME_LEAD = 1.2;
+const BREATH_FLAME_BAND = 5.5;
+
+// True from the moment Beat 4 sets `village_burning` until the front has
+// finished. It is the one thing that keeps Elderbrook's roofs standing after that
+// flag is set — render.js asks this where it used to ask the flag — and each
+// roof then goes on its own, when pgRoofBurnt says the fire has reached it.
+let pgRoofsStanding = false;
 
 function pgBreathe(from) {
-  prologueBreath = { x: from.x, y: from.y, t: 0, ms: BREATH_MS };
+  const burn = hvBurnOrder();
+  prologueBreath = {
+    x: from.x, y: from.y, t: 0, r: 0,
+    mapObj: currentMap(),
+    key: burn.key, order: burn.order,
+    next: 0, dirtyMs: 0, emberMs: 0, emberSeq: 0,
+    flares: [], roofsDone: new Set(),
+  };
 }
 
 function stepPrologueBreath(dt) {
   if (!prologueBreath) return;
-  prologueBreath.t += dt;
-  if (prologueBreath.t >= prologueBreath.ms) prologueBreath = null;
+  const B = prologueBreath;
+  // A load, a skip or a map change mid-strike. The fire belongs to the village it
+  // started in and to nothing else, so it stops rather than following the player.
+  if (currentMap() !== B.mapObj) { pgStopVillageFire(); return; }
+
+  B.t += dt;
+  // Fully off screen: half the viewport diagonal, plus 4 tiles of slack, plus the
+  // flame band still burning behind the front. Past that the wall is finished at
+  // a sprint, because there is nothing left of it on the screen.
+  const offscreen = B.r > Math.hypot(PW, PH) / TILE_PX / 2 + 4 + BREATH_FLAME_BAND;
+  const speed = offscreen ? BREATH_OFFSCREEN
+    : BREATH_CRUISE + (BREATH_RUSH - BREATH_CRUISE) * Math.exp(-B.t / BREATH_RUSH_MS);
+  B.r += speed * dt / 1000;
+
+  // Everything the front has reached changes this frame, in burn order.
+  let changed = false;
+  while (B.next < B.order.length && B.key[B.order[B.next]] <= B.r) {
+    const i = B.order[B.next];
+    hvBurnFrontTile(B.mapObj.map, Math.floor(i / MCOLS), i % MCOLS);
+    B.next++;
+    changed = true;
+  }
+  // The renderer memoizes a per-map scan of the tall tiles, so burnt trees have
+  // to join the depth list or they draw flat. Only that scan is dropped, and only
+  // every 120 ms: invalidateTallTiles would also drop every baked ground chunk,
+  // and at this many edits per frame that is a re-bake per frame.
+  if (changed) {
+    B.dirtyMs += dt;
+    if (B.dirtyMs >= 120) {
+      minimapDirty = true;
+      B.mapObj._tallTiles = null;
+      B.dirtyMs = 0;
+    }
+  }
+
+  // Roofs catch one house at a time, and each one throws a flare of flame and a
+  // burst of embers as it goes. The roof list is the renderer's own scan of the
+  // intact shells, cached on the map, so it is still the village's houses after
+  // the walls under them have blackened.
+  for (const h of mapForestHouseRoofs(B.mapObj)) {
+    if (B.roofsDone.has(h) || !pgRoofBurnt(h)) continue;
+    B.roofsDone.add(h);
+    B.flares.push({ c1: h.c1, r1: h.r1, c2: h.c2, r2: h.r2, t: 0 });
+    pgEmberBurst({ x: (h.c1 + h.c2) / 2, y: (h.r1 + h.r2) / 2 }, 24);
+  }
+  for (const f of B.flares) f.t += dt;
+  B.flares = B.flares.filter(f => f.t < 800);
+
+  // The wall throws sparks as it goes. Golden-angle spacing rather than a roll,
+  // so successive bursts walk round the ring instead of clustering, and a burst
+  // is only spawned where it can be seen.
+  B.emberMs += dt;
+  while (B.emberMs >= 90) {
+    B.emberMs -= 90;
+    const a = ++B.emberSeq * 2.399963;
+    const x = B.x + 0.5 + Math.cos(a) * B.r, y = B.y + 0.5 + Math.sin(a) * B.r;
+    if (x >= camC && x <= camC + PW / TILE_PX && y >= camR && y <= camR + PH / TILE_PX)
+      pgEmberBurst({ x, y }, 5);
+  }
+
+  // Done: every tile the fire reaches has burned, and the front is past the
+  // ragged edge of the last one. The roofs go back to the flag.
+  if (B.next >= B.order.length && B.r >= HV_BURN_RADIUS + HV_BURN_JITTER) {
+    prologueBreath = null;
+    pgRoofsStanding = false;
+  }
+}
+
+// Has the front reached this roof? Measured to the nearest point of the roof's
+// own rectangle — 0 from inside it — so a house the wall passes through catches
+// on first contact. Deliberately a plain function of the roof and the current
+// radius, with no side effects: both roof passes in render.js ask it per frame.
+function pgRoofBurnt(h) {
+  const B = prologueBreath;
+  if (!B) return false;
+  const dx = Math.max(h.c1 - B.x, 0, B.x - h.c2);
+  const dy = Math.max(h.r1 - B.y, 0, B.y - h.r2);
+  return B.r >= Math.hypot(dx, dy) + 1.5;
+}
+
+// Stop the fire dead, on a load, a skip or a map change. The wall is transient
+// and never saved, so anything that leaves the strike early has to take the flame
+// and the held-up roofs with it — otherwise a village that has already burned
+// keeps burning, and a ruin keeps its roofs.
+function pgStopVillageFire() {
+  prologueBreath = null;
+  pgRoofsStanding = false;
 }
 
 // A burst of embers at a village tile. Wraps the coordinate conversion, because
@@ -1073,6 +1193,7 @@ function checkPrologueTriggers() {
 // Everything it sets must match what the beats set, or a skipped run diverges.
 function skipPrologue() {
   if (typeof cancelCutscene === 'function') cancelCutscene();
+  pgStopVillageFire();
   setFlag('prologue_started');
   setFlag('fetch_quest_active');
   setFlag('fetch_quest_complete');
@@ -1150,6 +1271,9 @@ function skipPrologue() {
 // the ambient state that lives outside the flag bag.
 function restorePrologueAmbience() {
   if (typeof cancelCutscene === 'function') cancelCutscene();
+  // A save written mid-strike is loaded as the ruin it was written in (or as the
+  // village before it, from its flags), never as a wall of flame still crossing.
+  pgStopVillageFire();
   burnLevel = hasFlag('prologue_complete') ? 0.25
             : hasFlag('village_burning')   ? 1
             : 0;

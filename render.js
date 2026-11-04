@@ -1784,62 +1784,126 @@ function drawPrologueWind(ts) {
 }
 
 // ─── Beat 4: the dragon's breath ──────────────────────────────────────────────
-// A wall of flame that leaves the Emperor and crosses the whole screen. Drawn as
-// an expanding ring clipped to a forward arc rather than as a fixed-width beam,
-// because it has to read as coming FROM him from wherever the camera happens to
-// be sitting — the player is somewhere in the village, not on a fixed mark.
+// The wall of flame of the opening strike. It is fire on the ground, not a ring
+// sweeping over the village: each tile lights as the front nears it and burns
+// down again behind the front, so the tile changing and the fire reaching it are
+// one event, and the wall reads as tall because every tile inside its band is
+// throwing a tongue of its own.
 //
-// Three layers: an outer body of deep orange, a hotter core inside it, and a
-// leading edge of near-white where the fire is actually eating the ground. The
-// whole thing fades out over the last third of its life so it thins into smoke
-// rather than snapping off.
+// Three layers per tongue — a deep orange outer body, a mid layer and a hot core
+// on the same foot — over a wash of heat centred on the Emperor. Rows are drawn
+// back to front, one fill per layer per row, so a flame in the south stands in
+// front of one north of it and the whole wall costs a handful of fills rather
+// than one per tongue.
+//
+// All of it is world-locked and driven by B.t: no Date.now and no Math.random,
+// so the fire churns on its own schedule instead of flickering with the frame rate.
 function drawPrologueBreath(ts) {
   if (typeof prologueBreath === 'undefined' || !prologueBreath) return;
   const B = prologueBreath;
-  const t = Math.max(0, Math.min(1, B.t / B.ms));
-  // Ease out: it leaves him fast and slows as it spreads.
-  const eased = 1 - Math.pow(1 - t, 2.2);
-  const ox = (B.x - camC) * ts, oy = (B.y - camR) * ts;
-  // Far enough to clear the diagonal of any viewport.
-  const maxR = Math.hypot(PW, PH) * 1.15;
-  const r = eased * maxR;
-  const fade = t < 0.66 ? 1 : 1 - (t - 0.66) / 0.34;
-  if (r <= 1 || fade <= 0) return;
+  const ox = (B.x + 0.5 - camC) * ts, oy = (B.y + 0.5 - camR) * ts;
+  const c1 = Math.floor(camC), r1 = Math.floor(camR);
+  const c2 = c1 + Math.ceil(PW / TILE_PX), r2 = r1 + Math.ceil(PH / TILE_PX);
+  const map = B.mapObj.map;
+
+  // One helper for all three layers, and one array of tongues per row: a tongue
+  // is a foot, a height, a width and a lean, and each layer draws the same
+  // tongue scaled about its own foot.
+  function tongue(p, x, y, w, h, lean) {
+    p.moveTo(x - w / 2, y);
+    p.quadraticCurveTo(x - w * 0.55 + lean * 0.3, y - h * 0.45, x + lean, y - h);
+    p.quadraticCurveTo(x + w * 0.55 + lean * 0.3, y - h * 0.45, x + w / 2, y);
+    p.closePath();
+  }
+  function fillLayer(tongues, scale, color) {
+    const p = new Path2D();
+    for (const t of tongues) tongue(p, t.x, t.y, t.w * scale, t.h * scale, t.lean * scale);
+    ctx.fillStyle = color;
+    ctx.fill(p);
+  }
+  // Per-tongue hash: two values from different multipliers, one for where the
+  // tongue sits and how tall it stands, one for where it leans and how fast it
+  // churns. Deterministic, so the same tile throws the same flame every frame.
+  function hash2(c, r, i) {
+    return [((c * 73 + r * 41 + i * 197) * 2654435761 >>> 0) / 4294967296,
+            ((c * 131 + r * 53 + i * 271) * 2246822519 >>> 0) / 4294967296];
+  }
 
   ctx.save();
-  const band = Math.max(ts * 1.4, maxR * 0.16);
-  // Outer body.
-  const grad = ctx.createRadialGradient(ox, oy, Math.max(0, r - band), ox, oy, r);
-  grad.addColorStop(0.00, `rgba(150,30,0,0)`);
-  grad.addColorStop(0.45, `rgba(214,74,12,${(0.42 * fade).toFixed(3)})`);
-  grad.addColorStop(0.80, `rgba(255,140,36,${(0.62 * fade).toFixed(3)})`);
-  grad.addColorStop(0.97, `rgba(255,226,150,${(0.80 * fade).toFixed(3)})`);
-  grad.addColorStop(1.00, `rgba(255,255,230,0)`);
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(ox, oy, r, 0, Math.PI * 2);
-  ctx.arc(ox, oy, Math.max(0, r - band), 0, Math.PI * 2, true);
-  ctx.fill();
 
-  // Leading edge — a bright, ragged rim. The wobble is a function of angle and
-  // elapsed time, so it churns without any per-frame randomness.
-  ctx.strokeStyle = `rgba(255,244,214,${(0.55 * fade).toFixed(3)})`;
-  ctx.lineWidth = Math.max(2, ts * 0.14);
-  ctx.beginPath();
-  for (let a = 0; a <= Math.PI * 2 + 0.001; a += Math.PI / 48) {
-    const wob = 1 + Math.sin(a * 7 + B.t / 90) * 0.020 + Math.sin(a * 13 - B.t / 140) * 0.012;
-    const rx = ox + Math.cos(a) * r * wob;
-    const ry = oy + Math.sin(a) * r * wob;
-    if (a === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+  // Heat first, under everything: the ground the front has passed is lit, and the
+  // air just ahead of it glows. Additive, so it lifts the scene instead of
+  // dimming it, and it is centred on the Emperor because that is where it came
+  // from. The alphas are kept low because the plaza is T.MARBLE (#e8e4d8): at the
+  // plan's first values the wash drove it past white and the whole square went to
+  // a blank bloom, which hid the flames standing in it.
+  ctx.globalCompositeOperation = 'lighter';
+  const heat = ctx.createRadialGradient(ox, oy, Math.max(0, B.r - 5) * ts, ox, oy, (B.r + 1.2) * ts);
+  heat.addColorStop(0.00, 'rgba(120,30,0,0)');
+  heat.addColorStop(0.65, 'rgba(255,90,20,0.18)');
+  heat.addColorStop(0.88, 'rgba(255,150,50,0.26)');
+  heat.addColorStop(1.00, 'rgba(255,170,60,0)');
+  ctx.fillStyle = heat;
+  ctx.fillRect(0, 0, PW, PH);
+  ctx.globalCompositeOperation = 'source-over';
+
+  // The wall itself. Four rows past the bottom edge, because a flame whose foot
+  // is below the screen still has its tip in view.
+  const rowLo = Math.max(0, r1), rowHi = Math.min(MROWS - 1, r2 + 4);
+  const colLo = Math.max(0, c1 - 1), colHi = Math.min(MCOLS - 1, c2 + 1);
+  for (let r = rowLo; r <= rowHi; r++) {
+    let tongues = null;
+    for (let c = colLo; c <= colHi; c++) {
+      const k = B.key[r * MCOLS + c];
+      if (!isFinite(k)) continue;                 // a tile the fire never reaches
+      const age = B.r + BREATH_FLAME_LEAD - k;    // tiles since this one caught
+      if (age < 0 || age > BREATH_FLAME_BAND) continue;
+      if (!hvFlameTile(map[r][c])) continue;      // water, chests, doors stay bare
+      // Up in under a tile of front, full through the middle of the band, then
+      // down over the rest of it, so a tile flares as the wall arrives and dies
+      // back to burnt ground behind it.
+      const env = Math.min(1, age / 0.8) *
+                  (age < 2.5 ? 1 : Math.pow(1 - (age - 2.5) / (BREATH_FLAME_BAND - 2.5), 1.3));
+      if (env <= 0) continue;
+      for (let i = 0; i < 2; i++) {
+        const [h, h2] = hash2(c, r, i);
+        const x = (c + 0.2 + 0.6 * h - camC) * ts;
+        const y = (r + 0.35 + 0.65 * h2 - camR) * ts;
+        const height = ts * 2.6 * env * (0.7 + 0.5 * h) *
+                       (0.84 + 0.16 * Math.sin(B.t / (55 + 45 * h2) + h * 40));
+        const width = ts * 0.95 * (0.55 + 0.45 * env);
+        const lean = ts * 0.22 * Math.sin(B.t / 130 + h * 25) * (height / (ts * 2.6));
+        (tongues || (tongues = [])).push({ x, y, w: width, h: height, lean });
+      }
+    }
+    if (!tongues) continue;
+    fillLayer(tongues, 1.00, 'rgba(205,52,8,0.85)');
+    fillLayer(tongues, 0.68, 'rgba(255,132,26,0.92)');
+    fillLayer(tongues, 0.38, 'rgba(255,228,140,0.96)');
   }
-  ctx.stroke();
 
-  // A wash of heat over everything the front has already passed, so the ground
-  // behind the fire is lit rather than untouched.
-  ctx.fillStyle = `rgba(190,60,10,${(0.16 * fade).toFixed(3)})`;
-  ctx.beginPath();
-  ctx.arc(ox, oy, Math.max(0, r - band * 0.9), 0, Math.PI * 2);
-  ctx.fill();
+  // Roof flares, after the wall: the house the front has just reached goes up in
+  // one sheet of flame, tall enough to stand over the wall art that replaces it.
+  for (const f of B.flares) {
+    const env = Math.min(1, f.t / 120) * (1 - f.t / 800);
+    if (env <= 0) continue;
+    for (let r = f.r1; r <= f.r2; r++) {
+      let tongues = null;
+      for (let c = f.c1; c <= f.c2; c++) {
+        const [h, h2] = hash2(c, r, 0);
+        const x = (c + 0.2 + 0.6 * h - camC) * ts;
+        const y = (r + 0.35 + 0.65 * h2 - camR) * ts;
+        const height = ts * 3.2 * env * (0.7 + 0.5 * h);
+        const lean = ts * 0.22 * Math.sin(B.t / 130 + h * 25) * (height / (ts * 2.6));
+        (tongues || (tongues = [])).push({ x, y, w: ts * 1.1, h: height, lean });
+      }
+      if (!tongues) continue;
+      fillLayer(tongues, 1.00, 'rgba(205,52,8,0.85)');
+      fillLayer(tongues, 0.68, 'rgba(255,132,26,0.92)');
+      fillLayer(tongues, 0.38, 'rgba(255,228,140,0.96)');
+    }
+  }
+
   ctx.restore();
 }
 
@@ -3171,8 +3235,15 @@ function roofsApply(mapObj) {
   // wall and rubble tiles beneath become the visible ruined architecture. This
   // is why the roof layer is dead on the pilot map in every post-prologue save:
   // it only ever draws during the prologue.
+  //
+  // During the strike itself the flag is set nine seconds before the fire
+  // arrives, so the roofs are held up by pgRoofsStanding instead — that is true
+  // from the moment the beat sets the flag until the wall of flame has crossed
+  // the village, and each individual roof then goes on its own through
+  // forestRoofVisible as the front reaches it.
   if (mapObj.type === 'homevillage' && typeof hasFlag === 'function' &&
-      (hasFlag('village_burning') || hasFlag('prologue_complete'))) return false;
+      (hasFlag('village_burning') || hasFlag('prologue_complete')))
+    return typeof pgRoofsStanding !== 'undefined' && pgRoofsStanding;
   return true;
 }
 
@@ -3199,6 +3270,8 @@ function houseFrontCutaway(mapObj, c, r) {
 
 // Roof visibility is shared by the depth merge and the flat fallback pass.
 function forestRoofVisible(h, ts, startC, startR, endC, endR) {
+  // A roof the wall of flame has reached is gone, house by house, as it arrives.
+  if (typeof pgRoofBurnt === 'function' && pgRoofBurnt(h)) return false;
   if (currentMap().map[h.r2][h.doorC] === T.SHRINE_DOOR) return false;
   if (h.c2 < startC - 1 || h.c1 > endC + 1 || h.r2 < startR - 1 || h.r1 > endR + 3) return false;
   // Crossing the doorway counts as entering: the whole roof vanishes at once
