@@ -4781,9 +4781,18 @@ function drawTileExtrusion(map, col, row, ts) {
   // reads as a solid panel set into the masonry rather than a translucent
   // sketch with the wall showing through.
   if (doorway) {
-    if (!(villageTimber && drawVillageDoorPanel(x, y, ts)) &&
-        !(umbralMasonry && drawUmbralDoorPanel(x, y, ts)))
+    // A castle window set in village timber is a window, not a doorway. The
+    // panel below would stand at the foot of the wall and read as a second
+    // door, so this hangs the cottage window on the face instead, and only when
+    // that face is being drawn at all. Castle towers are not village timber at
+    // all, and the same window in the burnt ruin wears BURNT_WALL rather than
+    // WALL, so their windows keep the path below unchanged.
+    if (tile === T.CASTLE_WINDOW && villageTimber) {
+      if (!southTall) drawVillageHouseWindow(x, y + ts - lift, ts, lift);
+    } else if (!(villageTimber && drawVillageDoorPanel(x, y, ts)) &&
+               !(umbralMasonry && drawUmbralDoorPanel(x, y, ts))) {
       drawTileProcedural(col, row, tile, x, y, ts);
+    }
   }
 }
 

@@ -2741,9 +2741,9 @@ function drawForestShopSign(doorTile, centreX, hangY, ts, scale = 1) {
 }
 
 // The enlarged Elderbrook family home is the 2.5D art-direction pilot. It keeps
-// the ordinary tile map and collision underneath, then replaces only this one
-// shell with timber, plaster, depth shadows and local light inspired by the
-// forest-village concept art. The ruin deliberately keeps its established
+// the ordinary tile map and collision underneath, then adds depth shadows and
+// local light to this one room, inspired by the forest-village concept art. The
+// ruin deliberately keeps its established
 // scorched rendering so Ashfall still destroys the warm home shown in Beat 1.
 // Does this map render in 2.5D? Elderbrook is the art pilot and the only map
 // that does, so every other map keeps today's flat renderer exactly.
@@ -2832,13 +2832,6 @@ function isIntactElderbrookHome(mapObj) {
   if (!mapObj || mapObj.type !== 'homevillage' || typeof HOME === 'undefined') return false;
   return !(typeof hasFlag === 'function' &&
     (hasFlag('village_burning') || hasFlag('prologue_complete')));
-}
-
-function isFamilyHomeRoof(h, mapObj) {
-  if (!isIntactElderbrookHome(mapObj)) return false;
-  const H = HOME.house;
-  return h.c1 === H.c1 && h.r1 === H.r1 &&
-         h.c2 === H.c1 + H.w && h.r2 === H.r1 + H.h;
 }
 
 function isInsideIntactElderbrookHomePosition(x, y) {
@@ -3075,6 +3068,10 @@ function drawElderbrookInteriorFurnishingLight(mapObj, ts) {
   ctx.restore();
 }
 
+// Interior-only depth dressing for the intact family home. The roof lifts while
+// the hero stands in the room, so this puts the floorboard seams, the room's
+// sun and firelight and the inner wall lips over the shared tile art. The
+// outside needs nothing here: the house draws as a cottage now.
 function drawElderbrookFamilyHomeDepth(mapObj, ts) {
   if (!isIntactElderbrookHome(mapObj)) return;
   const H = HOME.house;
@@ -3086,12 +3083,6 @@ function drawElderbrookFamilyHomeDepth(mapObj, ts) {
   const map = mapObj.map;
 
   ctx.save();
-
-  // A south-east cast shadow anchors the building to the ground. It remains
-  // visible around the roof outside and around the exposed shell inside.
-  ctx.fillStyle = 'rgba(37,24,13,0.34)';
-  ctx.fillRect(right, top + ts * 0.34, ts * 0.30, bottom - top);
-  ctx.fillRect(left + ts * 0.34, bottom, right - left, ts * 0.30);
 
   if (inside) {
     const innerLeft = left + ts, innerTop = top + ts;
@@ -3147,60 +3138,6 @@ function drawElderbrookFamilyHomeDepth(mapObj, ts) {
     firelight.addColorStop(1, 'rgba(255,112,28,0)');
     ctx.fillStyle = firelight; ctx.fillRect(hx - ts * 3.1, hy - ts * 3.1, ts * 6.2, ts * 6.2);
     ctx.restore();
-  }
-
-  // Repaint the one-tile shell as warm lime plaster held by dark oak framing.
-  // The lower and right bevels turn the wall band into a raised volume.
-  const plaster = ctx.createLinearGradient(left, top, right, bottom);
-  plaster.addColorStop(0, '#c7a879'); plaster.addColorStop(1, '#8c6847');
-  const wallTile = (c, r) => {
-    const x = (c - camC) * ts, y = (r - camR) * ts;
-    ctx.fillStyle = plaster; ctx.fillRect(x, y, ts + 0.5, ts + 0.5);
-    ctx.fillStyle = '#d9bd88'; ctx.fillRect(x + ts * 0.08, y + ts * 0.08, ts * 0.84, ts * 0.10);
-    ctx.fillStyle = '#4a2b19';
-    ctx.fillRect(x, y, ts * 0.11, ts);
-    ctx.fillRect(x + ts * 0.89, y, ts * 0.11, ts);
-    ctx.fillRect(x, y, ts, ts * 0.10);
-    ctx.fillStyle = '#5b351f'; ctx.fillRect(x, y + ts * 0.82, ts, ts * 0.18);
-    ctx.fillStyle = 'rgba(35,19,11,0.44)'; ctx.fillRect(x + ts * 0.90, y + ts * 0.10, ts * 0.10, ts * 0.72);
-  };
-
-  for (let c = H.c1; c <= c2; c++) {
-    if (map[H.r1][c] === T.WALL || map[H.r1][c] === T.CASTLE_WINDOW) wallTile(c, H.r1);
-    if (!inside && map[r2][c] === T.WALL) wallTile(c, r2);
-  }
-  for (let r = H.r1 + 1; r < r2; r++) {
-    if (map[r][H.c1] === T.WALL) wallTile(H.c1, r);
-    if (map[r][c2] === T.WALL) wallTile(c2, r);
-  }
-
-  // Deep inset leaded window, with a bright upper-left glint.
-  {
-    const x = (HOME.window.x - camC) * ts, y = (HOME.window.y - camR) * ts;
-    ctx.fillStyle = '#3c2418'; ctx.fillRect(x + ts * 0.16, y + ts * 0.12, ts * 0.68, ts * 0.82);
-    ctx.fillStyle = '#203b38'; ctx.fillRect(x + ts * 0.25, y + ts * 0.20, ts * 0.50, ts * 0.62);
-    const glass = ctx.createLinearGradient(x + ts * 0.25, y + ts * 0.20, x + ts * 0.75, y + ts * 0.82);
-    glass.addColorStop(0, '#9fd48f'); glass.addColorStop(0.5, '#4e8f69'); glass.addColorStop(1, '#244d43');
-    ctx.fillStyle = glass; ctx.fillRect(x + ts * 0.29, y + ts * 0.24, ts * 0.42, ts * 0.54);
-    ctx.strokeStyle = '#d6b46c'; ctx.lineWidth = Math.max(1, ts * 0.035);
-    ctx.beginPath();
-    ctx.moveTo(x + ts * 0.50, y + ts * 0.24); ctx.lineTo(x + ts * 0.50, y + ts * 0.78);
-    ctx.moveTo(x + ts * 0.29, y + ts * 0.50); ctx.lineTo(x + ts * 0.71, y + ts * 0.50); ctx.stroke();
-    ctx.fillStyle = 'rgba(236,255,210,0.60)'; ctx.fillRect(x + ts * 0.31, y + ts * 0.27, ts * 0.13, ts * 0.05);
-  }
-
-  // A timber threshold replaces the purple placeholder door for this home only.
-  {
-    const x = (HOME.door.x - camC) * ts, y = (HOME.door.y - camR) * ts;
-    ctx.fillStyle = '#2a190f'; ctx.fillRect(x + ts * 0.06, y, ts * 0.88, ts);
-    const threshold = ctx.createLinearGradient(x, y, x, y + ts);
-    threshold.addColorStop(0, '#b47a3e'); threshold.addColorStop(1, '#6b3b20');
-    ctx.fillStyle = threshold; ctx.fillRect(x + ts * 0.15, y, ts * 0.70, ts);
-    ctx.strokeStyle = 'rgba(55,27,13,0.60)'; ctx.lineWidth = Math.max(1, ts * 0.035);
-    for (const f of [0.26, 0.52, 0.78]) {
-      ctx.beginPath(); ctx.moveTo(x + ts * 0.17, y + ts * f); ctx.lineTo(x + ts * 0.83, y + ts * f); ctx.stroke();
-    }
-    ctx.fillStyle = '#d39a55'; ctx.fillRect(x + ts * 0.15, y, ts * 0.70, ts * 0.08);
   }
 
   if (inside) {
@@ -3272,14 +3209,11 @@ function forestRoofVisible(h, ts, startC, startR, endC, endR) {
 
 // ─── Projected front elevation ────────────────────────────────────────────────
 // How far the roof stops short of the house's south edge, in tiles, which is
-// also how tall the facade beneath it is. The family home's 2.08 is the tuned
-// prologue value and must not move.
+// also how tall the facade beneath it is.
 //
-// Cottages get less, because they are smaller: every house in Village of the
-// Lost is 9x7, giving a roof rect 7.65 tiles high, and 2.08 of that is a
-// quarter of the building. Chosen by rendering at both zooms, not by
-// arithmetic.
-const FACADE_TILES_FAMILY  = 2.08;
+// Every house in Village of the Lost is 9x7, giving a roof rect 7.65 tiles
+// high, and 2.08 of that is a quarter of the building. Chosen by rendering at
+// both zooms, not by arithmetic.
 const FACADE_TILES_COTTAGE = 1.75;
 
 // The sheet roof refuses anything under VILLAGE_ROOF_MIN_H tiles tall, because
@@ -3293,30 +3227,22 @@ function facadeDepthFor(roofRectTiles, want) {
   return Math.max(0, Math.min(want, roofRectTiles - floor));
 }
 
-// Which elements a facade carries. The family home's entry reproduces what its
-// bespoke branch drew, element for element; the cottage entry is the same body
-// with less on it, because a 9-wide front cannot hold two lanterns and four
-// braces without turning to mush at TILE_PX 24.
-const FACADE_FAMILY = {
-  skin: 'plaster', windowsAt: [-0.25, 0.25], braces: 'full',
-  lanterns: true, plasterMarks: 28, mullions: true, flowerBox: true,
-};
+// Which elements a facade carries. One entry, because one body now serves every
+// house in the game: a 9-wide front cannot hold four braces without turning to
+// mush at TILE_PX 24, so the braces are the outer pair only.
 const FACADE_COTTAGE = {
   skin: 'sheet', windowsAt: [-0.26, 0.26], braces: 'outer',
-  lanterns: false, plasterMarks: 12, mullions: false, flowerBox: true,
-  // A door is door-height whatever the wall behind it is. The family home has
-  // no entry here and keeps its full-height opening, which is right for a hall
-  // door under a 2.08-tile front; a cottage opening stretched to match left
-  // half a tile of empty jamb above the panel, reading as a gap rather than a
-  // transom.
+  plasterMarks: 12, flowerBox: true,
+  // A door is door-height whatever the wall behind it is. An opening stretched
+  // to the full height of the front left half a tile of empty jamb above the
+  // panel, reading as a gap rather than a transom.
   doorTiles: 1.30,
 };
 
 // Braces run between the bays the windows and the door cut the frontage into,
 // alternating up and down so the frame reads as trussed rather than combed.
-// The two-window layout is the family home's own, kept exactly so its frame
-// does not move; 'outer' drops the two that flank the door, which is what stops
-// a cottage's narrower bays filling with timber.
+// 'outer' drops the two that flank the door, which is what stops a cottage's
+// narrower bays filling with timber.
 function facadeBraces(winXs, centreX, facadeLeft, facadeRight, braceTop, braceBottom, ts, mode) {
   if (winXs.length !== 2) return [];
   const [lw, rw] = winXs;
@@ -3335,10 +3261,8 @@ function facadeBraces(winXs, centreX, facadeLeft, facadeRight, braceTop, braceBo
 // This is deliberately taller than one tile, so the player sees a house FRONT
 // as well as its top-down roof plane, which is the whole of item A.
 //
-// Was the body of drawForestHouseRoof's familyHome branch. It is a function now
-// so one body serves every cottage in the game rather than being copied, and
-// every literal in it is the tuned prologue value: the family home passes
-// FACADE_FAMILY and gets a byte-identical frame out.
+// One body serves every house in the game. It began as the family home's own
+// front, so every literal in it is still the tuned prologue value.
 function drawForestHouseFacade(o, d) {
   const { left, right, bottom, roofBottom, width, centreX, ts, seed } = o;
   const facadeTop = roofBottom - ts * 0.03;
@@ -3377,11 +3301,10 @@ function drawForestHouseFacade(o, d) {
   ctx.lineTo(facadeRight, facadeBottom);
   ctx.stroke();
 
-  // The wall material. Cottages take the village sheet's own boards, which are
+  // The wall material. Houses take the village sheet's own boards, which are
   // the same boards an extruded wall shows on Elderbrook and were until now
-  // reachable only through that path. The plaster gradient is the fallback and
-  // is what the family home always uses: its front is tuned against prologue
-  // beats the sheet knows nothing about.
+  // reachable only through that path. The plaster gradient is the fallback for
+  // a sheet that has not loaded.
   const sheetSkin = d.skin === 'sheet' &&
     typeof drawVillageFacadeWall === 'function' &&
     drawVillageFacadeWall(facadeLeft, facadeTop, facadeRight, facadeBottom, ts);
@@ -3447,11 +3370,6 @@ function drawForestHouseFacade(o, d) {
   ctx.fillRect(facadeLeft, facadeBottom - ts * 0.31, facadeRight - facadeLeft, ts * 0.14);
   ctx.fillRect(facadeLeft, facadeTop, ts * 0.16, facadeH);
   ctx.fillRect(facadeRight - ts * 0.16, facadeTop, ts * 0.16, facadeH);
-  if (d.mullions) {
-    for (const x of [centreX - width * 0.30, centreX + width * 0.30]) {
-      ctx.fillRect(x - ts * 0.06, facadeTop + ts * 0.08, ts * 0.12, facadeH - ts * 0.34);
-    }
-  }
 
   const winXs = d.windowsAt.map(f => centreX + width * f);
   const braceTop = facadeTop + ts * 0.24;
@@ -3518,8 +3436,7 @@ function drawForestHouseFacade(o, d) {
   const doorX = centreX - doorW / 2;
   const doorTop = facadeTop + ts * 0.23;
   const doorFoot = facadeBottom - ts * 0.23;
-  // Without doorTiles the opening runs the full height of the front, which is
-  // what the family home has always done and must keep doing.
+  // Without doorTiles the opening runs the full height of the front.
   const doorY = d.doorTiles ? Math.max(doorTop, doorFoot - ts * d.doorTiles) : doorTop;
   const doorH = doorFoot - doorY;
   // Deep jamb and header reveal put the door behind the facade plane.
@@ -3573,22 +3490,6 @@ function drawForestHouseFacade(o, d) {
   ctx.fillStyle = '#4f4438';
   ctx.fillRect(doorX - ts * 0.30, doorY + doorH + ts * 0.14,
     doorW + ts * 0.60, ts * 0.11);
-
-  if (d.lanterns) {
-    const drawEntryLantern = (lx) => {
-      const ly = facadeTop + ts * 0.83;
-      const glow = ctx.createRadialGradient(lx, ly, ts * 0.04, lx, ly, ts * 0.72);
-      glow.addColorStop(0, 'rgba(255,205,99,0.32)'); glow.addColorStop(1, 'rgba(255,164,55,0)');
-      ctx.fillStyle = glow; ctx.fillRect(lx - ts * 0.72, ly - ts * 0.72, ts * 1.44, ts * 1.44);
-      ctx.strokeStyle = '#2d261f'; ctx.lineWidth = Math.max(1.2, ts * 0.045);
-      ctx.beginPath(); ctx.moveTo(lx, ly - ts * 0.32); ctx.lineTo(lx, ly - ts * 0.16); ctx.stroke();
-      ctx.fillStyle = '#342b22'; ctx.fillRect(lx - ts * 0.12, ly - ts * 0.16, ts * 0.24, ts * 0.38);
-      ctx.fillStyle = '#ffc45f'; ctx.fillRect(lx - ts * 0.065, ly - ts * 0.09, ts * 0.13, ts * 0.20);
-      ctx.fillStyle = '#1f1b17'; ctx.fillRect(lx - ts * 0.16, ly + ts * 0.20, ts * 0.32, ts * 0.07);
-    };
-    drawEntryLantern(centreX - ts * 0.82);
-    drawEntryLantern(centreX + ts * 0.82);
-  }
 
   // A visible soffit, exposed rafter tails, and fascia turn the roof edge into
   // a thick overhang rather than a single line at the top of the wall.
@@ -3650,53 +3551,46 @@ function drawForestHouseRoof(h, mapObj, ts) {
     const top = (h.r1 - camR - TILE_HEIGHT[T.WALL] - 0.20) * ts;
     const right = (h.c2 + 1 - camC + 0.28) * ts;
     const bottom = (h.r2 + 1 - camR + 0.20) * ts;
-    const familyHome = isFamilyHomeRoof(h, mapObj);
     // Every roof stops short of its south edge so a projected front wall can
     // stand beneath it. Until item A that was the family home alone, which is
     // why exactly one building in the game read as a building: a top-down house
     // hides its own height under its own roof, and the extrusion pass has
     // nothing to stand up from outside.
-    const facadeTiles = familyHome
-      ? FACADE_TILES_FAMILY
-      : facadeDepthFor(h.r2 - h.r1 + 1.65, FACADE_TILES_COTTAGE);
+    const facadeTiles = facadeDepthFor(h.r2 - h.r1 + 1.65, FACADE_TILES_COTTAGE);
     const roofBottom = bottom - ts * facadeTiles;
     const width = right - left, height = bottom - top;
     const roofHeight = roofBottom - top;
     const ridgeY = top + roofHeight * 0.43;
     const centreX = (h.doorC + 0.5 - camC) * ts;
     const seed = (h.c1 * 37 + h.r1 * 61) >>> 0;
-    const northRoof = familyHome ? '#6f4728' : (seed % 3 === 0 ? '#6f3525' : '#743a28');
-    const southRoof = familyHome ? '#98623a' : (seed % 2 ? '#914d31' : '#88452e');
-    const roofEdge = familyHome ? '#342015' : '#3a1d17';
-    const ridge = familyHome ? '#d39a58' : '#c27a4a';
+    const northRoof = seed % 3 === 0 ? '#6f3525' : '#743a28';
+    const southRoof = seed % 2 ? '#914d31' : '#88452e';
+    const roofEdge = '#3a1d17';
+    const ridge = '#c27a4a';
 
     ctx.save();
     // Deep eave shadow makes the roof read as a raised structure rather than a
     // recoloured patch of ground.
-    ctx.fillStyle = familyHome ? 'rgba(26,17,9,0.58)' : 'rgba(18,10,5,0.48)';
+    ctx.fillStyle = 'rgba(18,10,5,0.48)';
     ctx.fillRect(left + ts * 0.14, top + ts * 0.28, width, height);
 
     // Concept-art roof for the generic cottages: staggered shingle courses
     // inside a heavy dark timber frame with a pale ridge beam, tiled from
     // village-sheet.png (see village-sprite.js).
     //
-    // Declined in two cases, and the procedural planes below then draw exactly
-    // as they always did. The family home is one: its planes are the base layer
-    // its bespoke projected facade is built on, and that facade is tuned
-    // against prologue beats this sheet knows nothing about. A sheet that has
-    // not loaded is the other.
+    // Declined in one case, and the procedural planes below then draw exactly
+    // as they always did: a sheet that has not loaded.
     // The shadow region's own skin gets first refusal. Same contract as the
     // sheet path below it: true means it painted the planes and the procedural
     // ones are skipped, false means nothing was drawn and the fall-through
-    // still happens. `umbral` also suppresses the forest dressing further down
-    // — chimney smoke, a timber stoop and a patch of moss belong to Elderbrook,
-    // not to a lightless waste.
-    const umbral = !familyHome &&
-      typeof drawUmbralRoofPlanes === 'function' &&
+    // still happens. `umbral` also suppresses the forest dressing further down:
+    // a warm brick stack and green lichen belong to the forest villages, not to
+    // a lightless waste.
+    const umbral = typeof drawUmbralRoofPlanes === 'function' &&
       drawUmbralRoofPlanes(left, top, right, roofBottom, ridgeY, ts);
-    const sheetRoof = umbral || (!familyHome &&
-      typeof drawVillageRoofPlanes === 'function' &&
-      drawVillageRoofPlanes(left, top, right, roofBottom, ridgeY, ts));
+    const sheetRoof = umbral ||
+      (typeof drawVillageRoofPlanes === 'function' &&
+       drawVillageRoofPlanes(left, top, right, roofBottom, ridgeY, ts));
 
     if (!sheetRoof) {
     // North and south roof planes, with clipped corners and a bright ridge.
@@ -3707,8 +3601,8 @@ function drawForestHouseRoof(h, mapObj, ts) {
     ctx.lineTo(left, ridgeY);
     ctx.closePath();
     const northRoofLight = ctx.createLinearGradient(0, top, 0, ridgeY);
-    northRoofLight.addColorStop(0, familyHome ? '#4a2d1c' : northRoof);
-    northRoofLight.addColorStop(1, familyHome ? '#865936' : northRoof);
+    northRoofLight.addColorStop(0, northRoof);
+    northRoofLight.addColorStop(1, northRoof);
     ctx.fillStyle = northRoofLight; ctx.fill();
     ctx.strokeStyle = roofEdge; ctx.lineWidth = Math.max(1.5, ts * 0.07); ctx.stroke();
 
@@ -3719,9 +3613,9 @@ function drawForestHouseRoof(h, mapObj, ts) {
     ctx.lineTo(left + ts * 0.18, roofBottom);
     ctx.closePath();
     const southRoofLight = ctx.createLinearGradient(0, ridgeY, 0, roofBottom);
-    southRoofLight.addColorStop(0, familyHome ? '#b57a48' : southRoof);
+    southRoofLight.addColorStop(0, southRoof);
     southRoofLight.addColorStop(0.58, southRoof);
-    southRoofLight.addColorStop(1, familyHome ? '#633c25' : southRoof);
+    southRoofLight.addColorStop(1, southRoof);
     ctx.fillStyle = southRoofLight; ctx.fill(); ctx.stroke();
     ctx.strokeStyle = ridge; ctx.lineWidth = Math.max(1, ts * 0.08);
     ctx.beginPath(); ctx.moveTo(left + ts * 0.05, ridgeY); ctx.lineTo(right - ts * 0.05, ridgeY); ctx.stroke();
@@ -3737,25 +3631,10 @@ function drawForestHouseRoof(h, mapObj, ts) {
     }
     }   // end of the procedural roof planes
 
-    if (familyHome) {
-      // Staggered shingle joints and a thick south fascia make the larger pilot
-      // roof feel built from overlapping material instead of a flat polygon.
-      ctx.strokeStyle = 'rgba(49,29,17,0.38)';
-      ctx.lineWidth = Math.max(0.8, ts * 0.025);
-      let course = 0;
-      for (let y = top + ts * 0.38; y < roofBottom - ts * 0.20; y += ts * 0.52, course++) {
-        const offset = (course % 2) * ts * 0.46;
-        for (let x = left + ts * 0.42 + offset; x < right - ts * 0.24; x += ts * 0.92) {
-          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, Math.min(y + ts * 0.42, roofBottom - ts * 0.18)); ctx.stroke();
-        }
-      }
-    }
-
-    // Generic cottages retain their small front gable. The larger family house
-    // uses a clean, uninterrupted eave above the door, and the shadow skin
-    // supplies its own ridge treatment instead — the procedural gable below is
-    // forest shingle brown and would be the one warm shape on a black roof.
-    if (!familyHome && !umbral) {
+    // Cottages keep their small front gable, and the shadow skin supplies its
+    // own ridge treatment instead: the procedural gable below is forest shingle
+    // brown and would be the one warm shape on a black roof.
+    if (!umbral) {
       const gableHalf = Math.min(ts * 1.45, width * 0.22);
       // Sits on the roof's own south edge, not on the house's south edge. Those
       // were the same line until item A gave cottages a facade; leaving it at
@@ -3794,124 +3673,24 @@ function drawForestHouseRoof(h, mapObj, ts) {
     // else. Drawn after the gable so the soffit tucks the gable's base behind
     // the eave instead of leaving it hanging over the wall.
     const facadeOpts = { left, right, bottom, roofBottom, width, centreX, ts, seed };
-    const facadeDesc = familyHome ? FACADE_FAMILY : FACADE_COTTAGE;
+    const facadeDesc = FACADE_COTTAGE;
     const facadeGeom = facadeTiles <= 0.01 ? null
       : (umbral && typeof drawUmbralFacade === 'function'
           ? drawUmbralFacade(facadeOpts, facadeDesc)
           : drawForestHouseFacade(facadeOpts, facadeDesc));
 
     // Chimney and a restrained patch of moss tie the cottages to the forest.
-    // All of it is skipped under the shadow skin: warm smoke, an oak stoop and
-    // green lichen are Elderbrook's, and each one would be the only saturated
-    // thing in an Umbral Sanctum frame.
+    // All of it is skipped under the shadow skin: a warm brick stack and green
+    // lichen would each be the only saturated thing in an Umbral Sanctum frame.
     const chimneyX = right - ts * (1.35 + (seed % 3) * 0.18);
     if (!umbral) {
-    if (familyHome) {
-      // Anchor the stack to the visible south slope. The enlarged family roof's
-      // north edge can sit above the camera while the player approaches.
-      const chimneyY = roofBottom - ts * 1.65;
-      const chimneyW = ts * 0.72;
-      const chimneyH = ts * 1.08;
-      const sideW = ts * 0.22;
-
-      // Long roof shadow anchors the stack and establishes its height above the
-      // shingles before any masonry is drawn.
-      ctx.fillStyle = 'rgba(27,17,11,0.34)';
-      ctx.beginPath();
-      ctx.moveTo(chimneyX + ts * 0.10, chimneyY + chimneyH * 0.72);
-      ctx.lineTo(chimneyX + chimneyW + sideW, chimneyY + chimneyH * 0.58);
-      ctx.lineTo(chimneyX + chimneyW + ts * 1.12, chimneyY + chimneyH + ts * 0.38);
-      ctx.lineTo(chimneyX + ts * 0.48, chimneyY + chimneyH + ts * 0.44);
-      ctx.closePath(); ctx.fill();
-
-      // Warm front face with a darker east side creates a compact masonry block.
-      const chimneyFace = ctx.createLinearGradient(chimneyX, chimneyY,
-        chimneyX + chimneyW, chimneyY + chimneyH);
-      chimneyFace.addColorStop(0, '#927765');
-      chimneyFace.addColorStop(1, '#5d493d');
-      ctx.fillStyle = chimneyFace;
-      ctx.fillRect(chimneyX, chimneyY, chimneyW, chimneyH);
-      ctx.fillStyle = '#44352e';
-      ctx.beginPath();
-      ctx.moveTo(chimneyX + chimneyW, chimneyY);
-      ctx.lineTo(chimneyX + chimneyW + sideW, chimneyY - ts * 0.10);
-      ctx.lineTo(chimneyX + chimneyW + sideW, chimneyY + chimneyH - ts * 0.10);
-      ctx.lineTo(chimneyX + chimneyW, chimneyY + chimneyH);
-      ctx.closePath(); ctx.fill();
-
-      // Offset mortar courses wrap from the lit face onto the side plane.
-      ctx.strokeStyle = 'rgba(49,37,31,0.68)';
-      ctx.lineWidth = Math.max(0.8, ts * 0.025);
-      for (const f of [0.27, 0.56, 0.84]) {
-        const mortarY = chimneyY + chimneyH * f;
-        ctx.beginPath();
-        ctx.moveTo(chimneyX, mortarY);
-        ctx.lineTo(chimneyX + chimneyW, mortarY);
-        ctx.lineTo(chimneyX + chimneyW + sideW, mortarY - ts * 0.10);
-        ctx.stroke();
-      }
-      ctx.beginPath();
-      ctx.moveTo(chimneyX + chimneyW * 0.48, chimneyY);
-      ctx.lineTo(chimneyX + chimneyW * 0.48, chimneyY + chimneyH * 0.27);
-      ctx.moveTo(chimneyX + chimneyW * 0.24, chimneyY + chimneyH * 0.27);
-      ctx.lineTo(chimneyX + chimneyW * 0.24, chimneyY + chimneyH * 0.56);
-      ctx.moveTo(chimneyX + chimneyW * 0.68, chimneyY + chimneyH * 0.56);
-      ctx.lineTo(chimneyX + chimneyW * 0.68, chimneyY + chimneyH * 0.84);
-      ctx.stroke();
-
-      // The cap has separate top and front planes plus a dark flue opening.
-      const capLeft = chimneyX - ts * 0.10;
-      const capRight = chimneyX + chimneyW + ts * 0.11;
-      const capY = chimneyY - ts * 0.09;
-      ctx.fillStyle = '#332821';
-      ctx.fillRect(capLeft, capY + ts * 0.10, capRight - capLeft, ts * 0.16);
-      ctx.fillStyle = '#806a59';
-      ctx.beginPath();
-      ctx.moveTo(capLeft, capY + ts * 0.10);
-      ctx.lineTo(capRight, capY + ts * 0.10);
-      ctx.lineTo(capRight + sideW, capY);
-      ctx.lineTo(capLeft + sideW, capY);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#211b17';
-      ctx.beginPath();
-      ctx.ellipse(chimneyX + chimneyW * 0.58 + sideW * 0.35,
-        capY + ts * 0.055, ts * 0.20, ts * 0.075, -0.12, 0, Math.PI * 2);
-      ctx.fill();
-      // Two soft smoke wisps lift away from the opening and reinforce the
-      // chimney's vertical silhouette without becoming a large particle effect.
-      ctx.fillStyle = 'rgba(207,205,193,0.22)';
-      ctx.beginPath();
-      ctx.ellipse(chimneyX + chimneyW * 0.48, capY - ts * 0.20,
-        ts * 0.15, ts * 0.10, -0.18, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(207,205,193,0.12)';
-      ctx.beginPath();
-      ctx.ellipse(chimneyX + chimneyW * 0.35, capY - ts * 0.43,
-        ts * 0.22, ts * 0.13, -0.28, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(210,179,145,0.48)';
-      ctx.lineWidth = Math.max(0.8, ts * 0.025);
-      ctx.beginPath();
-      ctx.moveTo(chimneyX + ts * 0.02, chimneyY + ts * 0.02);
-      ctx.lineTo(chimneyX + ts * 0.02, chimneyY + chimneyH - ts * 0.03);
-      ctx.stroke();
-
-      // Small timber stoop beneath the entrance, like the concept cottages.
-      ctx.fillStyle = 'rgba(31,18,10,0.45)';
-      ctx.fillRect(centreX - ts * 0.72 + ts * 0.08, bottom + ts * 0.04, ts * 1.44, ts * 0.36);
-      ctx.fillStyle = '#8b5a32'; ctx.fillRect(centreX - ts * 0.72, bottom, ts * 1.44, ts * 0.18);
-      ctx.fillStyle = '#6b4025'; ctx.fillRect(centreX - ts * 0.58, bottom + ts * 0.18, ts * 1.16, ts * 0.17);
-      ctx.strokeStyle = '#d19a5c'; ctx.lineWidth = Math.max(1, ts * 0.035);
-      ctx.beginPath(); ctx.moveTo(centreX - ts * 0.68, bottom + ts * 0.04); ctx.lineTo(centreX + ts * 0.68, bottom + ts * 0.04); ctx.stroke();
-    } else {
       ctx.fillStyle = '#59473f';
       ctx.fillRect(chimneyX, top + ts * 0.55, ts * 0.55, ts * 0.82);
       ctx.fillStyle = '#2f2522';
       ctx.fillRect(chimneyX - ts * 0.08, top + ts * 0.48, ts * 0.71, ts * 0.18);
-    }
-    ctx.fillStyle = 'rgba(73,105,49,0.64)';
-    ctx.beginPath(); ctx.ellipse(left + width * 0.24, ridgeY - ts * 0.18,
-      ts * 0.72, ts * 0.26, -0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(73,105,49,0.64)';
+      ctx.beginPath(); ctx.ellipse(left + width * 0.24, ridgeY - ts * 0.18,
+        ts * 0.72, ts * 0.26, -0.15, 0, Math.PI * 2); ctx.fill();
     }   // end of the forest dressing
 
     // Read the live door tile instead of caching it with the footprint. Forest
