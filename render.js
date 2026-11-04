@@ -190,20 +190,21 @@ function drawTile(col, row, t, sx, sy, s) {
 }
 
 
-// Where the swim clip cuts the hero, as a fraction of the TILE. What it has to
-// look right against is the FIGURE, though, and the hero sheet's figure grew
-// from 0.94 to 1.26 tiles tall (see hero-sprite.js). At the old 0.55 the cut
-// still landed where it always had on the tile, but that is now only two thirds
-// of the way down her — she stood in the water from the thigh down and read as
-// wading, not swimming. 0.42 puts her under at just past the waist again, and
-// leaves the procedural fallback hero cut at the chest, which is also a swimmer.
+// Where the swim clip cuts the hero, as a fraction of the TILE. On this
+// one-tile body her head runs from y 0.09 to 0.47 and the chest sits at about
+// 0.50, so 0.55 puts the surface just under her armpits: chest up, everything
+// below it under. Anything higher cuts through her chin and reads as drowning
+// rather than swimming.
 //
 // File scope, not inside drawPlayer: finishPlayerDraw draws the waterline ripple
 // outside the clip and needs the same number, and a const local to drawPlayer is
 // not in scope there. It wasn't, and every frame spent swimming threw a
 // ReferenceError out of the render loop, which froze the game on entering
 // medium water.
-const WATERLINE = 0.42;
+const WATERLINE = 0.55;
+
+// Bow draw window in ms; matches the value set on player.bowTimer in projectiles.js:319.
+const PLAYER_BOW_MS = 280;
 
 // ─── Player sprite ────────────────────────────────────────────────────────────
 // Layered: shadow → boots → tunic → arms → shield (when idle) → head → hair →
@@ -327,29 +328,70 @@ function drawPlayer(ts) {
     drawElementFX(sx + s / 2, sy + s * 0.5 + bob, s * 0.62, player.activeArmorElement, 0.6, 0);
   }
 
-  // ── Sprite-sheet path (hero-sheet.png, see hero-sprite.js) ────────────
-  // One blit stands in for the entire procedural body below — cape through
-  // swinging sword. Everything around it (shadow, auras, low-HP tint, swim
-  // clip and ripple) is shared, so the two paths stay visually consistent.
-  //
-  // walkBob is already baked into the walk frames, so only the jump/climb lift
-  // is applied here; climbSway is in the transform above. Falls through to the
-  // procedural sprite until the sheet loads, and permanently if it fails.
-  if (heroSheetReady()) {
-    const spriteY = sy + (bob - walkBob);
-    drawHeroSprite(sx, spriteY, s, facing, moving);
-
-    // Elemental sword FX still bursts from the blade tip. The sheet is one flat
-    // image, so unlike the procedural blade it can't take the element's tint.
-    if (player.swordTimer > 0 && player.activeSwordElement) {
-      const tip = heroSwordTip(sx, spriteY, s);
-      drawElementFX(tip.x, tip.y, s * 0.55, player.activeSwordElement,
-                    0.85 + 0.15 * (1 - player.swordTimer / 180), 0);
+  // ── Carried gear: the bow and the sword she is not swinging ──────────
+  // The sprite sheet had these, the procedural body has to draw them too or a
+  // hero who owns a bow shows up empty-handed. bowOut covers an equipped bow
+  // and the draw/release window right after a shot (bowTimer is what the sheet
+  // used to key its bow frames off). swordOut covers an equipped sword at rest:
+  // while a swing or a jab is running, the arm is already drawn by the blocks
+  // below, and a second blade on top of either reads as two weapons.
+  const bowOut = player.bowTimer > 0 || (!!player.hasBow && player.weapon === 'bow');
+  const swordOut = !bowOut && !!player.hasSword && player.swordTimer <= 0 && player.punchTimer <= 0;
+  function drawCarried() {
+    if (swordOut) {
+      // Held blade, point up, on the side away from the shield. Grip, blade,
+      // crossguard, then the tip squared off above the blade.
+      const hx = facing === 'left' ? sx + s*0.20 : sx + s*0.80;
+      ctx.fillStyle = P_LEATHER_D;
+      ctx.fillRect(hx - s*0.025, sy + s*0.69 + bob, s*0.05, s*0.09);
+      ctx.fillStyle = P_STEEL_L;
+      ctx.fillRect(hx - s*0.025, sy + s*0.24 + bob, s*0.05, s*0.44);
+      ctx.fillStyle = P_GOLD;
+      ctx.fillRect(hx - s*0.08, sy + s*0.66 + bob, s*0.16, s*0.03);
+      ctx.beginPath();
+      ctx.moveTo(hx - s*0.025, sy + s*0.24 + bob);
+      ctx.lineTo(hx + s*0.025, sy + s*0.24 + bob);
+      ctx.lineTo(hx, sy + s*0.19 + bob);
+      ctx.closePath(); ctx.fill();
     }
-
-    finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming);
-    return;
+    if (bowOut) {
+      // The bow is held out in the facing direction: an arc of stave centred
+      // ahead of her, and the string pulled back off it while a shot is live.
+      // Where she holds it depends on the facing: out to the side for a profile,
+      // across her midriff when she faces us, and at her side from behind, where
+      // her body hides all but the part that clears it.
+      const up = facing === 'up';
+      const bang = up ? 0 : Math.atan2(sd.y, sd.x);
+      const bcx = up ? sx + s*0.68 : sx + s/2 + sd.x*s*0.30;
+      const bcy = up ? sy + s*0.55 + bob
+                     : (sd.y > 0 ? sy + s*0.42 + bob : sy + s*0.55 + bob + sd.y*s*0.22);
+      const br  = s*0.26;
+      const a0 = bang - 1.05, a1 = bang + 1.05;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#7a4a1e';
+      ctx.lineWidth = Math.max(2, s*0.055);
+      ctx.beginPath(); ctx.arc(bcx, bcy, br, a0, a1); ctx.stroke();
+      ctx.strokeStyle = '#b07a3a';
+      ctx.lineWidth = Math.max(1, s*0.02);
+      ctx.beginPath(); ctx.arc(bcx, bcy, br, a0, a1); ctx.stroke();
+      // String: end to end through a nock pulled back along the facing.
+      const e0x = bcx + Math.cos(a0)*br, e0y = bcy + Math.sin(a0)*br;
+      const e1x = bcx + Math.cos(a1)*br, e1y = bcy + Math.sin(a1)*br;
+      const pull = player.bowTimer > 0
+        ? Math.sin((1 - Math.min(1, player.bowTimer / PLAYER_BOW_MS)) * Math.PI) * s * 0.14 : 0;
+      ctx.strokeStyle = '#e8e0c8';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(e0x, e0y);
+      ctx.lineTo((e0x + e1x)/2 - Math.cos(bang)*pull, (e0y + e1y)/2 - Math.sin(bang)*pull);
+      ctx.lineTo(e1x, e1y);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
   }
+  // From behind, the gear has to be behind her: the cape and the back cape
+  // below paint over it. Every other facing draws it after the body instead.
+  if (facing === 'up') drawCarried();
 
   // ── Flowing green cape (behind the whole body) ────────
   const capeSway = walkBob * s * 0.05;
@@ -357,8 +399,8 @@ function drawPlayer(ts) {
   ctx.beginPath();
   ctx.moveTo(sx + s*0.30, sy + s*0.34 + bob);
   ctx.lineTo(sx + s*0.70, sy + s*0.34 + bob);
-  ctx.lineTo(sx + s*0.84 + capeSway, sy + s*0.92 + bob);
-  ctx.lineTo(sx + s*0.16 + capeSway, sy + s*0.92 + bob);
+  ctx.lineTo(sx + s*0.82 + capeSway, sy + s*0.90 + bob);
+  ctx.lineTo(sx + s*0.18 + capeSway, sy + s*0.90 + bob);
   ctx.closePath();
   ctx.fill();
   // Lit left fold of the cape
@@ -366,53 +408,61 @@ function drawPlayer(ts) {
   ctx.beginPath();
   ctx.moveTo(sx + s*0.30, sy + s*0.34 + bob);
   ctx.lineTo(sx + s*0.50, sy + s*0.34 + bob);
-  ctx.lineTo(sx + s*0.50 + capeSway, sy + s*0.92 + bob);
-  ctx.lineTo(sx + s*0.16 + capeSway, sy + s*0.92 + bob);
+  ctx.lineTo(sx + s*0.50 + capeSway, sy + s*0.90 + bob);
+  ctx.lineTo(sx + s*0.18 + capeSway, sy + s*0.90 + bob);
   ctx.closePath();
   ctx.fill();
 
   // ── Boots (dark leather) ──────────────────────────────
+  // Villager footing: x .32 and .56, y .86, .12 by .12. The side views keep the
+  // stagger, so a profile still reads as two feet planted apart.
+  const bootW = isSide ? 0.14 : 0.12;
+  const frontX = flipX ? sx + s*0.30 : sx + s*0.56;
+  const backX  = flipX ? sx + s*0.56 : sx + s*0.30;
   ctx.fillStyle = P_LEATHER_D;
   if (isSide) {
-    // staggered footing
-    const frontX = flipX ? sx + s*0.30 : sx + s*0.52;
-    const backX  = flipX ? sx + s*0.52 : sx + s*0.30;
-    ctx.fillRect(backX,  sy + s*0.84 + bob, s*0.18, s*0.10);
-    ctx.fillRect(frontX, sy + s*0.86 + bob, s*0.18, s*0.10);
+    ctx.fillRect(backX,  sy + s*0.86 + bob, s*bootW, s*0.12);
+    ctx.fillRect(frontX, sy + s*0.86 + bob, s*bootW, s*0.12);
   } else {
-    ctx.fillRect(sx + s*0.28, sy + s*0.84 + bob, s*0.18, s*0.10);
-    ctx.fillRect(sx + s*0.54, sy + s*0.84 + bob, s*0.18, s*0.10);
+    ctx.fillRect(sx + s*0.32, sy + s*0.86 + bob, s*0.12, s*0.12);
+    ctx.fillRect(sx + s*0.56, sy + s*0.86 + bob, s*0.12, s*0.12);
   }
-  // Boot soles
+  // Boot soles, one under each boot
   ctx.fillStyle = '#160c04';
-  ctx.fillRect(sx + s*0.28, sy + s*0.91 + bob, s*0.44, s*0.03);
+  if (isSide) {
+    ctx.fillRect(backX,  sy + s*0.95 + bob, s*bootW, s*0.03);
+    ctx.fillRect(frontX, sy + s*0.95 + bob, s*bootW, s*0.03);
+  } else {
+    ctx.fillRect(sx + s*0.32, sy + s*0.95 + bob, s*0.12, s*0.03);
+    ctx.fillRect(sx + s*0.56, sy + s*0.95 + bob, s*0.12, s*0.03);
+  }
 
   // ── Leather faulds (skirt) under the breastplate ──────
   ctx.fillStyle = P_LEATHER;
   ctx.beginPath();
-  ctx.moveTo(sx + s*0.26, sy + s*0.63 + bob);
-  ctx.lineTo(sx + s*0.74, sy + s*0.63 + bob);
-  ctx.lineTo(sx + s*0.78, sy + s*0.85 + bob);
-  ctx.lineTo(sx + s*0.22, sy + s*0.85 + bob);
+  ctx.moveTo(sx + s*0.24, sy + s*0.63 + bob);
+  ctx.lineTo(sx + s*0.76, sy + s*0.63 + bob);
+  ctx.lineTo(sx + s*0.76, sy + s*0.90 + bob);
+  ctx.lineTo(sx + s*0.24, sy + s*0.90 + bob);
   ctx.closePath();
   ctx.fill();
 
   // ── Steel breastplate (torso) ─────────────────────────
   ctx.fillStyle = P_STEEL;
   ctx.beginPath();
-  ctx.moveTo(sx + s*0.28, sy + s*0.42 + bob);
-  ctx.lineTo(sx + s*0.72, sy + s*0.42 + bob);
-  ctx.lineTo(sx + s*0.74, sy + s*0.66 + bob);
+  ctx.moveTo(sx + s*0.24, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.76, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.76, sy + s*0.66 + bob);
   ctx.lineTo(sx + s*0.50, sy + s*0.72 + bob);
-  ctx.lineTo(sx + s*0.26, sy + s*0.66 + bob);
+  ctx.lineTo(sx + s*0.24, sy + s*0.66 + bob);
   ctx.closePath();
   ctx.fill();
   // Right-side core shadow
   ctx.fillStyle = P_STEEL_D;
   ctx.beginPath();
   ctx.moveTo(sx + s*0.50, sy + s*0.42 + bob);
-  ctx.lineTo(sx + s*0.72, sy + s*0.42 + bob);
-  ctx.lineTo(sx + s*0.74, sy + s*0.66 + bob);
+  ctx.lineTo(sx + s*0.76, sy + s*0.42 + bob);
+  ctx.lineTo(sx + s*0.76, sy + s*0.66 + bob);
   ctx.lineTo(sx + s*0.50, sy + s*0.72 + bob);
   ctx.closePath();
   ctx.fill();
@@ -438,28 +488,57 @@ function drawPlayer(ts) {
   ctx.fillStyle = P_LEATHER_D;
   ctx.fillRect(sx + s*0.24, sy + s*0.62 + bob, s*0.52, s*0.05);
   ctx.fillStyle = P_GOLD;
-  ctx.fillRect(sx + s*0.47, sy + s*0.61 + bob, s*0.06, s*0.07);
+  ctx.fillRect(sx + s*0.46, sy + s*0.62 + bob, s*0.08, s*0.05);
 
-  // ── Arms (leather sleeves + steel pauldrons) ──────────
+  // ── Arms (leather sleeves, hands, steel pauldrons) ────
+  // Villager arms: sleeves at x .14 and .74, y .46, .12 by .30, hands the same
+  // x and width at y .74, .08 tall. A profile shows only the near arm, at the
+  // middle of the body; the far one is behind it.
   ctx.fillStyle = P_LEATHER;
   if (isSide) {
-    ctx.fillRect(sx + s*0.40, sy + s*0.50 + bob, s*0.10, s*0.18);
-    ctx.fillRect(sx + s*0.52, sy + s*0.50 + bob, s*0.10, s*0.18);
+    ctx.fillRect(sx + s*0.44, sy + s*0.46 + bob, s*0.12, s*0.30);
   } else {
-    ctx.fillRect(sx + s*0.16, sy + s*0.50 + bob, s*0.11, s*0.18);
-    ctx.fillRect(sx + s*0.73, sy + s*0.50 + bob, s*0.11, s*0.18);
+    ctx.fillRect(sx + s*0.14, sy + s*0.46 + bob, s*0.12, s*0.30);
+    ctx.fillRect(sx + s*0.74, sy + s*0.46 + bob, s*0.12, s*0.30);
+  }
+  ctx.fillStyle = P_SKIN;
+  if (isSide) {
+    ctx.fillRect(sx + s*0.44, sy + s*0.74 + bob, s*0.12, s*0.08);
+  } else {
+    ctx.fillRect(sx + s*0.14, sy + s*0.74 + bob, s*0.12, s*0.08);
+    ctx.fillRect(sx + s*0.74, sy + s*0.74 + bob, s*0.12, s*0.08);
   }
   ctx.fillStyle = P_STEEL_L;
   if (isSide) {
-    ctx.fillRect(sx + s*0.39, sy + s*0.44 + bob, s*0.12, s*0.08);
-    ctx.fillRect(sx + s*0.51, sy + s*0.44 + bob, s*0.12, s*0.08);
+    ctx.fillRect(sx + s*0.43, sy + s*0.44 + bob, s*0.14, s*0.09);
   } else {
-    ctx.fillRect(sx + s*0.15, sy + s*0.44 + bob, s*0.13, s*0.09);
-    ctx.fillRect(sx + s*0.72, sy + s*0.44 + bob, s*0.13, s*0.09);
+    ctx.fillRect(sx + s*0.13, sy + s*0.44 + bob, s*0.14, s*0.09);
+    ctx.fillRect(sx + s*0.73, sy + s*0.44 + bob, s*0.14, s*0.09);
+  }
+
+  // ── Back view: the cape over her back ─────────────────
+  // From behind there is no breastplate, belt or buckle to see, only the cape
+  // falling from the shoulders, its right half in shadow the way the torso's is.
+  if (facing === 'up') {
+    ctx.fillStyle = P_CAPE;
+    ctx.beginPath();
+    ctx.moveTo(sx + s*0.24, sy + s*0.42 + bob);
+    ctx.lineTo(sx + s*0.76, sy + s*0.42 + bob);
+    ctx.lineTo(sx + s*0.80, sy + s*0.90 + bob);
+    ctx.lineTo(sx + s*0.20, sy + s*0.90 + bob);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = P_CAPE_D;
+    ctx.beginPath();
+    ctx.moveTo(sx + s*0.50, sy + s*0.42 + bob);
+    ctx.lineTo(sx + s*0.76, sy + s*0.42 + bob);
+    ctx.lineTo(sx + s*0.80, sy + s*0.90 + bob);
+    ctx.lineTo(sx + s*0.50, sy + s*0.90 + bob);
+    ctx.closePath(); ctx.fill();
   }
 
   // ── Round tree-emblem shield (idle only; hidden during swing/away) ──
-  if (facing !== 'up' && player.swordTimer <= 0 && player.punchTimer <= 0) {
+  // A bow in her hands means the shield is stowed.
+  if (facing !== 'up' && player.swordTimer <= 0 && player.punchTimer <= 0 && !bowOut) {
     const cxs = flipX ? sx + s*0.80 : sx + s*0.20;   // shield centre
     const cys = sy + s*0.62 + bob;
     const rr  = s*0.20;
@@ -488,10 +567,27 @@ function drawPlayer(ts) {
   // ── Long blonde hair (behind the head, flowing to the shoulders) ──
   ctx.fillStyle = P_HAIR_D;
   if (facing === 'up') {
-    // full mane covering the back of the head
+    // Back of the head: the same round skull the front view has, no face on it,
+    // with the hair falling down her back from it. The old single ellipse was an
+    // egg; this is the head at the villager's head height plus a fall.
     ctx.beginPath();
-    ctx.ellipse(sx + s/2, sy + s*0.34 + bob, s*0.26, s*0.30, 0, 0, Math.PI*2);
+    ctx.arc(sx + s/2, sy + s*0.28 + bob, s*0.19, 0, Math.PI*2);
     ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(sx + s*0.33, sy + s*0.30 + bob);
+    ctx.lineTo(sx + s*0.67, sy + s*0.30 + bob);
+    ctx.lineTo(sx + s*0.60, sy + s*0.64 + bob);
+    ctx.lineTo(sx + s*0.50, sy + s*0.70 + bob);
+    ctx.lineTo(sx + s*0.40, sy + s*0.64 + bob);
+    ctx.closePath(); ctx.fill();
+    // Crown of the hair catching the light, and the same bar of highlight the
+    // front view wears.
+    ctx.fillStyle = P_HAIR;
+    ctx.beginPath();
+    ctx.arc(sx + s/2, sy + s*0.24 + bob, s*0.13, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = P_HAIR_L;
+    ctx.fillRect(sx + s*0.42, sy + s*0.14 + bob, s*0.16, s*0.03);
   } else {
     // side locks framing the face and streaming down past the shoulders
     ctx.beginPath();
@@ -513,11 +609,11 @@ function drawPlayer(ts) {
     // skin with subtle shading
     ctx.fillStyle = P_SKIN_D;
     ctx.beginPath();
-    ctx.arc(sx + s/2, sy + s*0.29 + bob, s*0.19, 0, Math.PI*2);
+    ctx.arc(sx + s/2, sy + s*0.28 + bob, s*0.19, 0, Math.PI*2);
     ctx.fill();
     ctx.fillStyle = P_SKIN;
     ctx.beginPath();
-    ctx.arc(sx + s/2 - s*0.02, sy + s*0.28 + bob, s*0.16, 0, Math.PI*2);
+    ctx.arc(sx + s/2 - s*0.02, sy + s*0.27 + bob, s*0.16, 0, Math.PI*2);
     ctx.fill();
 
     // Pointed elf ears
@@ -578,6 +674,10 @@ function drawPlayer(ts) {
       ctx.fillRect(ex + (facing === 'right' ? s*0.05 : 0), sy + s*0.30 + bob, s*0.02, s*0.02);
     }
   }
+
+  // Every other facing carries the gear over the body, under the punch and the
+  // swing, which both redraw the arm that holds them.
+  if (facing !== 'up') drawCarried();
 
   // ── Punch (a jab, not an arc) ────────────────────────
   // The pre-weapon action (see doPunch). Deliberately a different shape from the
@@ -673,9 +773,9 @@ function drawPlayer(ts) {
   finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming);
 }
 
-// Tail shared by both drawPlayer paths (sprite sheet and procedural): the low-HP
-// tint, the ctx.restore that closes the swim clip, and the waterline ripple that
-// has to be drawn outside that clip so its full rings show.
+// Tail of drawPlayer: the low-HP tint, the ctx.restore that closes the swim
+// clip, and the waterline ripple that has to be drawn outside that clip so its
+// full rings show.
 function finishPlayerDraw(sx, sy, s, bob, lowHp, dangerPulse, swimming) {
   // ── Low-HP red flash overlay (drawn last so it tints the whole sprite) ──
   if (lowHp) {
