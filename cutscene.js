@@ -134,11 +134,16 @@ function _csBeginStep(s) {
   }
 
   // ─── Timed / awaited steps ───
+  // `say` types itself out, `wait`/`fade`/`letterbox`/`pan`/`emperorFly` run on
+  // `_csElapsed` and `ms`, `walkPlayer`/`awaitPlayerNear` wait on the hero, and
+  // `until` waits on a condition the beat owns — it stays blocking and advances
+  // when its function returns true.
   if (s.say) {
     startDialogue(s.say, () => { if (cutsceneActive) _csAdvance(); });
     return false;
   }
   if (s.wait !== undefined) return false;          // pure timer, handled below
+  if (s.until) return false;      // waits on a condition, handled below
   if (s.fade !== undefined) { _csFrom = fadeLevel; return false; }
   if (s.letterbox !== undefined) {
     _csFrom = letterboxLevel;
@@ -193,6 +198,13 @@ function stepCutscene(dt) {
 
   if (s.wait !== undefined) {
     if (_csElapsed >= s.wait) _csAdvance();
+    return;
+  }
+  if (s.until) {
+    // A blocking step with no clock on it: it holds the world until the beat
+    // itself says it is done (Beat 4 holds the strike open until the wall of
+    // flame has crossed the whole village).
+    if (s.until()) _csAdvance();
     return;
   }
   if (s.fade !== undefined) {
