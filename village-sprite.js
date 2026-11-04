@@ -25,9 +25,9 @@
 //     around it instead of ending at a hard seam.
 //   • Shared rock, sanctuary and sky-waterfall frames also live on this sheet.
 //     Their explicit hooks below work outside the forest building-skin gate.
-//   • Elderbrook's family home is NOT re-skinned. Its bespoke projected facade
-//     (the familyHome branch of drawForestHouseRoof) is the prologue's set
-//     piece and is tuned against beats this sheet knows nothing about.
+//   • Elderbrook's family home takes this art too. It used to be excluded while
+//     it had a bespoke projected front of its own; it now runs the same cottage
+//     body as every other house, at its larger footprint.
 
 const VILLAGE_SHEET_SRC = 'village-sheet.png';
 
@@ -238,6 +238,64 @@ function drawVillageDoorPanel(x, y, ts) {
   if (!villageSheetReady()) return false;
   vBlit('door_face', x, y, ts, ts);
   return true;
+}
+
+// A cottage window on an extruded wall face. The village's one window tile is
+// T.CASTLE_WINDOW, which is in DOORWAY_TILES, so the extrusion pass would
+// otherwise blit a door panel at the foot of the wall and the opening would read
+// as a second door. This hangs a glazed window on the wall instead, with plain
+// wall below it. Procedural rather than a sheet frame, because the sheet has no
+// window band that fits a face of arbitrary height. Sizes are in tiles; faceTop
+// and lift come from the caller's own face band.
+function drawVillageHouseWindow(x, faceTop, ts, lift) {
+  ctx.save();
+  const wx = x + ts * 0.08, wy = faceTop + lift * 0.20;
+  const w = ts * 0.84, h = ts * 1.00;
+
+  // Opening, oak casing, and a lit top edge on the casing.
+  ctx.fillStyle = '#25170f';
+  ctx.fillRect(wx, wy, w, h);
+  ctx.fillStyle = '#6b482e';
+  ctx.fillRect(wx, wy, w, ts * 0.09);
+  ctx.fillRect(wx, wy + h - ts * 0.09, w, ts * 0.09);
+  ctx.fillRect(wx, wy, ts * 0.09, h);
+  ctx.fillRect(wx + w - ts * 0.09, wy, ts * 0.09, h);
+  ctx.fillStyle = '#d1b27d';
+  ctx.fillRect(wx, wy, w, ts * 0.03);
+
+  // Glass and the treeline seen through it, both clipped to the pane.
+  const gx = wx + ts * 0.10, gy = wy + ts * 0.10;
+  const gw = w - ts * 0.20, gh = h - ts * 0.20;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(gx, gy, gw, gh); ctx.clip();
+  const glass = ctx.createLinearGradient(0, gy, 0, gy + gh);
+  glass.addColorStop(0, '#f2faff');
+  glass.addColorStop(0.55, '#bfe3f7');
+  glass.addColorStop(1, '#9fd0ee');
+  ctx.fillStyle = glass; ctx.fillRect(gx, gy, gw, gh);
+  const bandY = gy + gh * 0.80;
+  ctx.fillStyle = '#6fa36a'; ctx.fillRect(gx, bandY, gw, gh * 0.20);
+  ctx.fillStyle = '#5f9463';
+  for (const f of [0.20, 0.52, 0.82]) {
+    ctx.beginPath(); ctx.arc(gx + gw * f, bandY, ts * 0.12, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();   // drop the pane clip, keep the outer save
+
+  // Lead mullions across the panes, a glint on the near one, and a sill that
+  // overhangs the casing so the window reads as set into the wall.
+  ctx.strokeStyle = '#4a2c1b'; ctx.lineWidth = Math.max(1, ts * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(gx + gw * 0.5, gy); ctx.lineTo(gx + gw * 0.5, gy + gh);
+  ctx.moveTo(gx, gy + gh * 0.5); ctx.lineTo(gx + gw, gy + gh * 0.5);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.fillRect(gx + ts * 0.04, gy + ts * 0.04, ts * 0.14, ts * 0.05);
+  ctx.fillStyle = '#8a5a33';
+  ctx.fillRect(x + ts * 0.02, wy + h, ts * 0.96, ts * 0.10);
+  ctx.fillStyle = 'rgba(20,11,6,0.45)';
+  ctx.fillRect(x + ts * 0.02, wy + h + ts * 0.10, ts * 0.96, ts * 0.05);
+
+  ctx.restore();
 }
 
 // ─── The cottage facade's material (item A) ───────────────────────────────────
