@@ -224,6 +224,9 @@ const DEFAULT_PLAYER = {
   // Easy, normal or hard (DIFFICULTIES, enemies.js). Missing from an older save, so
   // it falls back to normal, which is what that save was played on.
   difficulty: 'normal',
+  // Missing from an older save, so it falls back to female: the only portrait there
+  // was when that save was made.
+  gender: 'female',
   // Lifetime death count — bumped in respawn() (player.js), shown on stats page.
   deaths: 0,
   x: EXIT_COL, y: EXIT_ROW,

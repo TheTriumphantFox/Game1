@@ -245,6 +245,7 @@ function dismissLoadingScreen() {
 let namePromptOpen = false;
 let namePromptConfirm = null;   // callback invoked with the chosen name
 let namePromptDifficulty = 'normal';   // committed to the player only on confirm
+let namePromptGender = 'female';       // same: committed only on confirm
 
 // The three buttons in the prompt. Picking one only moves the selection: nothing
 // reaches `player` until Begin Adventure, so Back still means "nothing happened".
@@ -262,6 +263,19 @@ function renderNamePromptDifficulty() {
     `${DIFFICULTIES[namePromptDifficulty].note} You can change this in Settings.`;
 }
 
+// The two picture cards. Same rule as difficulty: nothing reaches `player` until
+// Begin Adventure.
+function pickNamePromptGender(id) {
+  namePromptGender = id;
+  renderNamePromptGender();
+  document.getElementById('name-input').focus();
+}
+function renderNamePromptGender() {
+  document.querySelectorAll('#name-gender [data-gender]').forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.gender === namePromptGender));
+  });
+}
+
 function openNamePrompt(onConfirm) {
   namePromptOpen = true;
   namePromptConfirm = onConfirm;
@@ -269,6 +283,8 @@ function openNamePrompt(onConfirm) {
   input.value = '';
   namePromptDifficulty = 'normal';
   renderNamePromptDifficulty();
+  namePromptGender = 'female';
+  renderNamePromptGender();
   document.getElementById('name-overlay').classList.add('open');
   input.focus();
 }
@@ -286,6 +302,7 @@ function confirmNamePrompt() {
   // Commit the difficulty before anything can use it: boot already spawned map 0
   // at Normal, and setDifficulty is what moves those enemies.
   setDifficulty(namePromptDifficulty);
+  player.gender = namePromptGender;
   const cb = namePromptConfirm;
   closeNamePrompt();
   if (cb) cb(name);

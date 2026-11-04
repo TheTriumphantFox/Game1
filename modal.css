@@ -359,12 +359,56 @@
   line-height: 15px;
   color: #7a9a7a;
 }
+/* The hero choice. The crop centres on the face, which sits in the same place in both
+   paintings. */
+#name-gender {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 12px auto 4px;
+}
+.name-gender-btn {
+  width: 100px;
+  padding: 4px 4px 6px;
+  background: #060d06;
+  border: 2px solid #2a6a2a;
+  border-radius: 8px;
+  color: #7a9a7a;
+  font-family: monospace;
+  font-size: 13px;
+  cursor: pointer;
+}
+.name-gender-btn:hover { border-color: #4a9a4a; color: #cec; }
+.name-gender-btn[aria-pressed="true"] {
+  background: #254a25;
+  border-color: #6aca6a;
+  color: #efe;
+  font-weight: bold;
+}
+.name-gender-pic {
+  display: block;
+  height: 112px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  background-repeat: no-repeat;
+  background-size: 200%;
+  background-position: 50% 16%;
+}
+.name-gender-pic-female { background-image: url('hero-portrait.png'); }
+.name-gender-pic-male { background-image: url('hero-portrait-male.png'); }
+/* A short window: the crest goes and the pictures shrink. */
+@media (max-height: 640px) {
+  #name-crest { display: none; }
+  .name-gender-pic { height: 72px; background-position: 50% 14%; }
+}
 /* A phone held sideways: the prompt has to fit in about 375px, so the crest goes
    first and the buttons tighten. */
 @media (max-height: 480px) {
   #name-box { padding: 10px 24px; }
   #name-crest { display: none; }
   #name-tagline { margin-bottom: 6px; }
+  #name-gender { margin-top: 6px; }
+  .name-gender-pic { display: none; }
   #name-difficulty { margin-top: 6px; }
   #name-difficulty-note { margin-bottom: 4px; }
   #name-box .title-btn { margin: 4px auto; padding: 8px 18px; }
