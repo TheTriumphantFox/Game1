@@ -54,6 +54,14 @@
     <h2 id="name-heading">Name Your Hero</h2>
     <p id="name-tagline">Your saves will carry this name.</p>
     <input id="name-input" type="text" placeholder="Enter a name…" maxlength="20" autocomplete="off">
+    <div id="name-gender" role="group" aria-label="Hero">
+      <button type="button" class="name-gender-btn" data-gender="female" onclick="pickNamePromptGender('female')">
+        <span class="name-gender-pic name-gender-pic-female"></span>Female
+      </button>
+      <button type="button" class="name-gender-btn" data-gender="male" onclick="pickNamePromptGender('male')">
+        <span class="name-gender-pic name-gender-pic-male"></span>Male
+      </button>
+    </div>
     <div id="name-difficulty" role="group" aria-label="Difficulty">
       <button type="button" class="name-diff-btn" data-difficulty="easy" onclick="pickNamePromptDifficulty('easy')">Easy</button>
       <button type="button" class="name-diff-btn" data-difficulty="normal" onclick="pickNamePromptDifficulty('normal')">Normal</button>

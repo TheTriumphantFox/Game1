@@ -112,6 +112,9 @@ let player = {
   // Easy, normal or hard (DIFFICULTIES, enemies.js). Set by the name prompt and by
   // Settings; it lives here because it describes this playthrough, not the device.
   difficulty: 'normal',
+  // Which portrait the character sheet shows. Set by the name prompt. Portrait only:
+  // both share one sprite sheet, and the game's text calls the hero "you".
+  gender: 'female',
   // Lifetime death count — bumped in respawn(kind, killerName), shown on the stats page.
   deaths: 0,
   x: EXIT_COL, y: EXIT_ROW,

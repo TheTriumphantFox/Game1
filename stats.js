@@ -7,10 +7,11 @@
 // armor's block %), inventory tallies, and the full owned arsenal of elemental
 // swords & armors with their upgrade levels.
 //
-// The portrait is a painted illustration (hero-portrait.png) drawn into the
-// canvas and shown as-is — a static image with no element FX overlaid. If the
-// artwork ever fails to load, the page falls back to a hand-drawn vector
-// portrait (buildHeroPortrait) so it is never blank. No WebGL / external
+// The portrait is one of two painted illustrations (hero-portrait.png for a female
+// hero, hero-portrait-male.png for a male one) drawn into the canvas and shown
+// as-is: a static image with no element FX overlaid. If the artwork ever fails to
+// load, the page falls back to a hand-drawn vector portrait (buildHeroPortrait),
+// so it is never blank. No WebGL / external
 // libraries — just 2-D canvas, so it runs on file:// like the rest of the game.
 //
 // `statsPageOpen` gates gameplay input and freezes the world (see main.js),
@@ -19,21 +20,28 @@
 let statsPageOpen = false;
 
 // ─── Portrait artwork ─────────────────────────────────────────────────────────
-// The character-sheet portrait is a painted illustration (hero-portrait.png) drawn
-// into the stats canvas. It loads once, lazily; while it's loading — or if it ever
-// fails — we fall back to the hand-drawn procedural portrait below so the page is
-// never blank. The image is shown as-is (no element FX overlaid).
-const STATS_PORTRAIT_SRC = 'hero-portrait.png';
-let statsHeroImg = null;             // HTMLImageElement, once created
-let statsHeroImgState = 'idle';      // 'idle' | 'loading' | 'ready' | 'error'
+// The character-sheet portrait is one of two painted illustrations, picked by
+// player.gender. Each loads lazily the first time it is needed and is kept
+// afterwards; while one is loading, or if it ever fails, we fall back to the
+// hand-drawn procedural portrait below so the page is never blank. The image is
+// shown as-is (no element FX overlaid).
+const STATS_PORTRAIT_SRC = { female: 'hero-portrait.png', male: 'hero-portrait-male.png' };
+const statsHeroImgs = {};            // gender -> { img, state: 'loading' | 'ready' | 'error' }
 
+// Anything unexpected reads as female, the portrait every older save was made with.
+function statsPortraitGender() {
+  return player.gender === 'male' ? 'male' : 'female';
+}
+
+// Called each time the page opens, because a loaded save can change the gender.
 function ensureStatsHeroImg() {
-  if (statsHeroImg) return;
-  statsHeroImg = new Image();
-  statsHeroImgState = 'loading';
-  statsHeroImg.onload  = () => { statsHeroImgState = 'ready';  if (statsPageOpen) drawStatsModel(); };
-  statsHeroImg.onerror = () => { statsHeroImgState = 'error';  if (statsPageOpen) drawStatsModel(); };
-  statsHeroImg.src = STATS_PORTRAIT_SRC;
+  const gender = statsPortraitGender();
+  if (statsHeroImgs[gender]) return;
+  const entry = { img: new Image(), state: 'loading' };
+  statsHeroImgs[gender] = entry;
+  entry.img.onload  = () => { entry.state = 'ready';  if (statsPageOpen) drawStatsModel(); };
+  entry.img.onerror = () => { entry.state = 'error';  if (statsPageOpen) drawStatsModel(); };
+  entry.img.src = STATS_PORTRAIT_SRC[gender];
 }
 
 function openStatsPage() {
@@ -516,8 +524,9 @@ function drawStatsModel() {
   g2.setTransform(dpr, 0, 0, dpr, 0, 0);
   g2.clearRect(0, 0, cssW, cssH);
 
-  if (statsHeroImgState === 'ready' && statsHeroImg) {
-    drawStatsPortraitImage(g2, cssW, cssH);
+  const art = statsHeroImgs[statsPortraitGender()];
+  if (art && art.state === 'ready') {
+    drawStatsPortraitImage(g2, art.img, cssW, cssH);
   } else {
     drawStatsProceduralModel(g2, canvas, cssW, cssH, dpr);
   }
@@ -528,22 +537,22 @@ function drawStatsModel() {
 // sword or the tree shield. Instead we fill the frame edge-to-edge with a blurred
 // COVER copy (no letterbox bars), then lay the whole figure over it CONTAINED so
 // nothing is cropped. ──
-function drawStatsPortraitImage(g2, cssW, cssH) {
-  const iw = statsHeroImg.naturalWidth  || 1024;
-  const ih = statsHeroImg.naturalHeight || 1536;
+function drawStatsPortraitImage(g2, img, cssW, cssH) {
+  const iw = img.naturalWidth  || 1024;
+  const ih = img.naturalHeight || 1536;
 
   // Blurred cover fill so the surrounding forest bleeds to the edges.
   const covS = Math.max(cssW / iw, cssH / ih);
   const covW = iw * covS, covH = ih * covS;
   g2.save();
   g2.filter = `blur(${Math.max(4, cssW * 0.03)}px)`;
-  g2.drawImage(statsHeroImg, (cssW - covW) / 2, (cssH - covH) / 2, covW, covH);
+  g2.drawImage(img, (cssW - covW) / 2, (cssH - covH) / 2, covW, covH);
   g2.restore();
 
   // The whole figure, contained and centred — sword tip through shield all visible.
   const conS = Math.min(cssW / iw, cssH / ih);
   const dw = iw * conS, dh = ih * conS;
-  g2.drawImage(statsHeroImg, (cssW - dw) / 2, (cssH - dh) / 2, dw, dh);
+  g2.drawImage(img, (cssW - dw) / 2, (cssH - dh) / 2, dw, dh);
 }
 
 // ── Procedural fallback: the hand-drawn vector portrait (backdrop, pedestal,
