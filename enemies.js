@@ -746,7 +746,8 @@ function skeletonCap() {
 }
 const SKELETON_MUSTER_RADIUS = 8;    // a live enemy this close counts as a fight
 const SKELETON_SUMMON_MS = 1500;     // they rise one at a time
-const SKELETON_LINGER_MS = 4000;     // quiet for this long and they crumble
+const SKELETON_LINGER_MS = 4000;     // quiet for this long and they sink away
+const SKELETON_SINK_MS = 400;        // the rise played backwards (drawSkeletonAlly)
 // A fallen skeleton waits out a fixed 10 seconds before the next one rises, at
 // every armor level. Deliberately NOT scaled: the count is what levelling buys,
 // and a shrinking replacement timer on top of a growing crowd would compound into
@@ -764,11 +765,13 @@ let skeletonDeathCooldownMs = 0;
 let skeletonQuietMs = 0;
 let skeletonNextId = 0;
 
+// A sinking skeleton is already going back into the ground: it no longer blocks,
+// fights or takes hits, so every "is one standing here" question skips it.
 function skeletonAt(c, r) {
-  return allies.some(a => !a.dead && a.x === c && a.y === r);
+  return allies.some(a => !a.dead && !a.sinkAt && a.x === c && a.y === r);
 }
 function skeletonObjAt(c, r) {
-  return allies.find(a => !a.dead && a.x === c && a.y === r) || null;
+  return allies.find(a => !a.dead && !a.sinkAt && a.x === c && a.y === r) || null;
 }
 
 function nearestLiveEnemy(x, y, radius) {
@@ -785,7 +788,7 @@ function nearestLiveEnemy(x, y, radius) {
 function stepSkeletons(dt) {
   if (typeof player === 'undefined') return;
   const worn = typeof wearingElementalArmor === 'function' && wearingElementalArmor('necrotic');
-  if (!worn) { if (allies.length) crumbleAll(); return; }
+  if (!worn) { sinkAllies(); finishSinking(); return; }
 
   if (skeletonDeathCooldownMs > 0) skeletonDeathCooldownMs -= dt;
 
@@ -794,7 +797,8 @@ function stepSkeletons(dt) {
   if (fighting) {
     skeletonQuietMs = 0;
     skeletonSummonMs += dt;
-    if (allies.length < skeletonCap() && skeletonSummonMs >= SKELETON_SUMMON_MS &&
+    if (allies.filter(a => !a.sinkAt).length < skeletonCap() &&
+        skeletonSummonMs >= SKELETON_SUMMON_MS &&
         skeletonDeathCooldownMs <= 0) {
       skeletonSummonMs = 0;
       raiseSkeleton();
@@ -802,11 +806,11 @@ function stepSkeletons(dt) {
   } else {
     skeletonSummonMs = 0;
     skeletonQuietMs += dt;
-    if (allies.length && skeletonQuietMs >= SKELETON_LINGER_MS) crumbleAll();
+    if (allies.length && skeletonQuietMs >= SKELETON_LINGER_MS) sinkAllies();
   }
 
-  for (const a of allies) stepOneSkeleton(a, dt);
-  allies = allies.filter(a => !a.dead);
+  for (const a of allies) if (!a.sinkAt) stepOneSkeleton(a, dt);
+  finishSinking();
 }
 
 // Claw one up out of the ground beside the hero. Any open tile will do — they
@@ -926,12 +930,33 @@ function fellSkeleton(a) {
   skeletonSummonMs = 0;
 }
 
-function crumbleAll() {
+// The fight is over (or the armor came off): every skeleton still standing sinks
+// back into the ground it rose from, the rise played backwards over
+// SKELETON_SINK_MS. They wait down there until the next fight wakes them.
+function sinkAllies() {
+  const now = Date.now();
   for (const a of allies) {
-    if (a.dead) continue;
+    if (a.dead || a.sinkAt) continue;
+    a.sinkAt = now;
     const sp = screenPX(a.x, a.y);
-    spawnParticle(sp.x, sp.y, '#cfc8b4', 8, 3);
+    spawnParticle(sp.x, sp.y, '#7a5f8a', 6, 2);
   }
+  skeletonSummonMs = 0;
+  skeletonQuietMs = 0;
+}
+
+// Drop the fallen, and the sinkers once they are fully under.
+function finishSinking() {
+  const now = Date.now();
+  allies = allies.filter(a => !a.dead && !(a.sinkAt && now - a.sinkAt >= SKELETON_SINK_MS));
+}
+
+// A map change, a load or a new game: the skeletons go underground as the hero
+// leaves and do not follow onto the next map. Nothing is carried over, so on the
+// new map they rise again only when a fight there wakes them (stepSkeletons).
+// Called from spawnEnemiesForMap, which every map change, load and new game runs.
+// The death cooldown is kept: leaving a map is not a way to skip it.
+function alliesUnderground() {
   allies = [];
   skeletonSummonMs = 0;
   skeletonQuietMs = 0;
@@ -1383,6 +1408,7 @@ function saveEnemyStateToMap(mapId) {
 
 function spawnEnemiesForMap(mid) {
   noteMapArrival(mid);
+  alliesUnderground();
   const rm = worldMaps[mid];
   if (rm.savedEnemies) {
     // An arena that remembers being cleared, or the mid-fight roster a save

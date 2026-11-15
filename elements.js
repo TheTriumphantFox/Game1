@@ -312,12 +312,15 @@ function armorAbilityStep(elemId) {
 // and level 6 is a genuine 120% sprint.
 //
 // This is DELIBERATELY a regression at low levels, confirmed with the owner:
-// levels 1–4 are slower than the flat relief these armors grant today, and on a
-// DUNE levels 1–2 are slower than crossing it with no armor at all. Fire is left
-// that way on purpose — it buys quicksand safety and half the heat fill at the
-// same time, so the slow start costs a player something they are still gaining
-// elsewhere. Water and Earth have no unarmored comparison at all, since their
-// tiles are impassable without the armor.
+// levels 1–4 are slower than the flat relief these armors grant today. Water and
+// Earth have no unarmored comparison at all, since their tiles are impassable
+// without the armor.
+//
+// The one floor: Fire never crosses a DUNE or QUICKSAND slower than bare feet
+// (the owner, 2026-11-15). The curve gives level 1 20% and level 2 40% of full
+// speed, so each tile takes whichever is faster (player.js). On a dune (50%
+// bare) levels 1–2 match bare feet and level 3 (60%) is the first gain; in
+// quicksand (33% bare) level 1 matches bare feet and level 2 is already faster.
 //
 // ICE IS NOT ON THIS CURVE, and that is the one place the design moved after it
 // was built. Snow-drift relief was the whole of what Ice armor did on that tile,

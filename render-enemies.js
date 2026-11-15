@@ -63,8 +63,11 @@ function drawSkeletonAlly(a, ts) {
   const py = fb.y + bob;
   // Rising: the first 400ms are spent clawing up out of the ground, drawn by
   // clipping the body against a floor line that sweeps up as it emerges.
-  const age = Date.now() - (a.bornAt || 0);
-  const rise = Math.max(0, Math.min(1, age / 400));
+  // Sinking (enemies.js, sinkAllies) is the same sweep run backwards.
+  const now = Date.now();
+  const age = now - (a.bornAt || 0);
+  const sunk = a.sinkAt ? (now - a.sinkAt) / SKELETON_SINK_MS : 0;
+  const rise = Math.max(0, Math.min(1, age / 400, 1 - sunk));
 
   if (typeof groundShadow === 'function') groundShadow(a.renderX, a.renderY, 0, 0.24, 0.06, 0.32);
 

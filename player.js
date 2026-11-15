@@ -1049,6 +1049,16 @@ function tryTransition() {
   else if (player.y === MROWS - 1)  dir = 'down';
   if (!dir) return;
 
+  // The starting village is closed until the prologue is over: every beat of it
+  // happens inside Elderbrook, and the open world begins with the title card
+  // (prologue_complete, story.js). Placeholder line; the real one belongs in the
+  // prologue script.
+  if (currentMapId === 0 && !hasFlag('prologue_complete')) {
+    showMapMsg("You can't leave the village yet.");
+    transitionCooldown = 600;   // throttle the message
+    return;
+  }
+
   // Village is sealed: no exits while any enemy is still standing.
   if (currentMap().type === 'village' && enemies.some(e => !e.dead)) {
     showMapMsg('🔒 The village gates are sealed! Defeat every enemy here first.');
@@ -1980,9 +1990,10 @@ function stepPlayerMovement() {
   // full-speed walk at every level. It was on the shared curve to begin with, and
   // a curve that starts at 20% starts below the 50% an unarmored hero already
   // trudges a drift at — so a freshly forged Ice armor made the drifts WORSE. Fire
-  // has the same shape on a DUNE and is left as it is, because Fire buys quicksand
-  // safety and half the heat fill alongside it; Ice's drift relief was the whole
-  // of what the armor did here, so there was nothing left to be worth the loss.
+  // had the same shape on a DUNE and on QUICKSAND; there the curve is floored at
+  // the bare-feet pace instead (Math.min below). On a dune levels 1–2 match no
+  // armor and level 3 is the first gain; in quicksand (33% bare) only level 1 is
+  // lifted, and level 2 (40%) is already faster.
   // What Ice's level buys instead is traction on the ICE sheets themselves
   // (iceSlideMs, abilities.js).
   //
@@ -1991,8 +2002,8 @@ function stepPlayerMovement() {
   const armorMs = (id) => (typeof armorTerrainStepMs === 'function')
     ? armorTerrainStepMs(id, MOVE_MS) : null;
   const iceWalk = typeof wearingElementalArmor === 'function' && wearingElementalArmor('ice');
-  const terrainMs = standTile === T.QUICKSAND    ? (armorMs('fire')  ?? MOVE_MS * QUICKSAND_MOVE_MUL)
-                  : standTile === T.DUNE         ? (armorMs('fire')  ?? MOVE_MS * 2)
+  const terrainMs = standTile === T.QUICKSAND    ? Math.min(armorMs('fire') ?? Infinity, MOVE_MS * QUICKSAND_MOVE_MUL)
+                  : standTile === T.DUNE         ? Math.min(armorMs('fire') ?? Infinity, MOVE_MS * 2)
                   : standTile === T.SNOW_DRIFT   ? MOVE_MS * (iceWalk ? 1 : 2)
                   : standTile === T.MUD          ? MOVE_MS * 2
                   : standTile === T.BOG          ? MOVE_MS * 2
