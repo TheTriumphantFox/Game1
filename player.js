@@ -1049,6 +1049,16 @@ function tryTransition() {
   else if (player.y === MROWS - 1)  dir = 'down';
   if (!dir) return;
 
+  // The starting village is closed until the prologue is over: every beat of it
+  // happens inside Elderbrook, and the open world begins with the title card
+  // (prologue_complete, story.js). Placeholder line; the real one belongs in the
+  // prologue script.
+  if (currentMapId === 0 && !hasFlag('prologue_complete')) {
+    showMapMsg("You can't leave the village yet.");
+    transitionCooldown = 600;   // throttle the message
+    return;
+  }
+
   // Village is sealed: no exits while any enemy is still standing.
   if (currentMap().type === 'village' && enemies.some(e => !e.dead)) {
     showMapMsg('🔒 The village gates are sealed! Defeat every enemy here first.');

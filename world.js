@@ -164,7 +164,9 @@ function resetMapArrivalTracking() {
 function flushArrivalAutosave() {
   if (!arrivalAutosavePending || player.hp <= 0) return;
   arrivalAutosavePending = false;
-  if (player.flags && !hasFlag('prologue_complete')) return;
+  // Nothing autosaves before the prologue is over (the hero cannot leave the
+  // starting village until then anyway: tryTransition, player.js).
+  if (!hasFlag('prologue_complete')) return;
   const cm = currentMap();
   // Tower floors already write their own labelled autosave (tower.js, player.js).
   if (!cm || cm.type === 'castle_tower') return;
