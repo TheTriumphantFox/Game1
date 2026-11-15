@@ -772,6 +772,8 @@ function autoSave(label) {
       heroName: player.heroName || '',
       level: player.level,
       mapsVisited,
+      region: currentRegionIdx + 1,
+      regions: REGIONS.length,
       date: new Date().toLocaleDateString() + ' ' +
             new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
@@ -805,6 +807,17 @@ function reloadLastSave() {
 }
 
 // ─── Modal UI ─────────────────────────────────────────────────────────────────
+// How far a save has come, in numbers the game actually has. The world has no
+// fixed map total (maps are generated as the hero explores), so the one real
+// denominator is the region count. Slots written before the region was stored
+// show the map count alone.
+function slotProgressText(meta) {
+  const n = meta.mapsVisited || 0;
+  const maps = `${n} map${n === 1 ? '' : 's'}`;
+  if (typeof meta.region !== 'number' || !meta.regions) return maps;
+  return `Region ${meta.region}/${meta.regions} · ${maps}`;
+}
+
 function renderSlotList() {
   const idx = getSaveIndex();
   const list = document.getElementById('slot-list');
@@ -832,7 +845,7 @@ function renderSlotList() {
     const metaSpan = document.createElement('div');
     metaSpan.className = 'save-slot-meta';
     const hero = meta.heroName ? `🛡 ${meta.heroName} · ` : '';
-    metaSpan.textContent = `${hero}Lv${meta.level} · Map ${meta.mapsVisited}/232 · ${meta.date}`;
+    metaSpan.textContent = `${hero}Lv${meta.level} · ${slotProgressText(meta)} · ${meta.date}`;
 
     const btns = document.createElement('div');
     btns.className = 'save-slot-btns';
@@ -863,7 +876,7 @@ function renderSlotList() {
       // Show the hero's name when the slot name doesn't already carry it.
       const hero = (meta.heroName && meta.heroName !== meta.saveName)
         ? `🛡 ${meta.heroName} · ` : '';
-      metaSpan.textContent = `${hero}Lv${meta.level} · Map ${meta.mapsVisited}/232 · ${meta.date}`;
+      metaSpan.textContent = `${hero}Lv${meta.level} · ${slotProgressText(meta)} · ${meta.date}`;
 
       const btns = document.createElement('div');
       btns.className = 'save-slot-btns';
@@ -932,6 +945,8 @@ function doSave(slotIdx) {
       heroName: player.heroName || '',
       level: player.level,
       mapsVisited,
+      region: currentRegionIdx + 1,
+      regions: REGIONS.length,
       date: new Date().toLocaleDateString() + ' ' +
             new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
