@@ -16,14 +16,17 @@ const DRAGON_SHEET_SRC = 'dragon-sheet.png';
 const DRAGON_FRAME     = 168;   // frame box in the sheet, px
 const DRAGON_BODY      = 134;   // body box inside it == ts * e.size (2.8 tiles)
 const DRAGON_BODY_O    = 17;    // body box origin inside the frame
-const DRAGON_COLS      = 6;     // 42 frames laid out 6x7
+const DRAGON_COLS      = 6;     // 106 frames laid out 6x18
 
 // How long the breath animation plays once the flame fan spawns. Also used by
 // projectiles.js to set e.breathT — keep the two in step.
 const DRAGON_BREATH_ANIM_MS = 540;
 
 // anim -> [startIndex, frameCount, msPerFrame], indices running left-to-right,
-// top-to-bottom across the 6x6 grid.
+// top-to-bottom across the grid. The front rows come first; the back and side
+// views (2026-11-15) follow so no front index ever moved. Side frames are drawn
+// facing right and mirrored for left (drawDragonSprite). Dormant and the
+// cinematic flyfire are front-only.
 const DRAGON_ANIMS = {
   dormant: [0,  4, 220],
   awake:   [4,  8, 100],   // stationary hover
@@ -32,7 +35,26 @@ const DRAGON_ANIMS = {
   breathe: [24, 6,  90],   // 6 * 90 == DRAGON_BREATH_ANIM_MS
   fight:   [30, 6,  70],
   flyfire: [36, 6,  90],  // cinematic only; combat animations keep their indices
+  awake_back:   [42, 8, 100],
+  fly_back:     [50, 6,  90],
+  run_back:     [56, 6,  80],
+  breathe_back: [62, 6,  90],
+  fight_back:   [68, 6,  70],
+  awake_side:   [74, 8, 100],
+  fly_side:     [82, 6,  90],
+  run_side:     [88, 6,  80],
+  breathe_side: [94, 6,  90],
+  fight_side:   [100, 6, 70],
 };
+
+// The sheet row for an animation seen from `facing` (creatureFacing): 'down' is
+// the front, 'up' the back, 'left'/'right' the side. Falls back to the front for
+// any animation that has no such view.
+function dragonViewAnim(anim, facing) {
+  const suffix = facing === 'up' ? '_back'
+               : (facing === 'left' || facing === 'right') ? '_side' : '';
+  return (suffix && DRAGON_ANIMS[anim + suffix]) ? anim + suffix : anim;
+}
 
 // Distance thresholds (tiles) for picking a locomotion animation.
 const DRAGON_MELEE_RANGE = 2.4;   // inside this he claws rather than travels
@@ -91,7 +113,8 @@ function dragonPickAnim(e) {
 // — the same box the procedural art draws into, i.e. px/py and s = ts * e.size.
 // The extra margin is overhang for the crown, wings and lashing tail.
 // `t` is 0..1 progress for one-shot animations (breathe); omit it for loops.
-function drawDragonSprite(bx, by, s, anim, phase, t) {
+// `flip` mirrors the frame about the body box's centre (a side view facing left).
+function drawDragonSprite(bx, by, s, anim, phase, t, flip) {
   const [i0, n, ms] = DRAGON_ANIMS[anim];
   const fi = (t === undefined)
     ? Math.floor(Date.now() / ms + (phase || 0)) % n
@@ -100,6 +123,8 @@ function drawDragonSprite(bx, by, s, anim, phase, t) {
   const k  = s / DRAGON_BODY;
   const dw = DRAGON_FRAME * k;
   const smoothing = ctx.imageSmoothingEnabled;
+  ctx.save();
+  if (flip) { ctx.translate((bx + s / 2) * 2, 0); ctx.scale(-1, 1); }
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     dragonSheetImg,
@@ -107,6 +132,7 @@ function drawDragonSprite(bx, by, s, anim, phase, t) {
     Math.floor(idx / DRAGON_COLS) * DRAGON_FRAME,
     DRAGON_FRAME, DRAGON_FRAME,
     bx - DRAGON_BODY_O * k, by - DRAGON_BODY_O * k, dw, dw);
+  ctx.restore();
   ctx.imageSmoothingEnabled = smoothing;
 }
 

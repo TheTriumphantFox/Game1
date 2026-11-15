@@ -10,11 +10,15 @@
 -- tower.js rolls a gold circlet off his corpse, but the sprite never wore one.
 -- It is gold #ffd24a to match drawEmperorCrown.
 --
--- Enemies have no facing -- drawEnemy draws one pose, never flipped -- so this
--- sheet has no directions. Combat keeps frames 0-35; the cinematic fire
--- flyover occupies a new row, so existing animation indices never move.
+-- Facing: the front rows came first. Back and side views (2026-11-15) were
+-- appended after them so no existing index moved; the game picks one from
+-- creatureFacing and mirrors the side for left (dragon-sprite.js). Dormant and
+-- the cinematic flyfire stay front-only.
 --   dormant 0-3, awake 4-11, fly 12-17, run 18-23,
 --   breathe 24-29, fight 30-35, flyfire 36-41
+--   awake_back 42-49, fly_back 50-55, run_back 56-61, breathe_back 62-67,
+--   fight_back 68-73, awake_side 74-81, fly_side 82-87, run_side 88-93,
+--   breathe_side 94-99, fight_side 100-105
 --
 -- Soft additive FX are deliberately NOT baked in: the boss aura, chest furnace
 -- glow, rising embers and nostril smoke stay procedural in render-enemies.js so
@@ -36,7 +40,7 @@ local S       = 134.0        -- body box == ts * e.size (2.8 tiles at TILE_PX 48
 local OX, OY  = 17.0, 17.0
 local N_DORM, N_AWAKE = 4, 8
 local N_FLY, N_RUN, N_BREATH, N_FIGHT = 6, 6, 6, 6
-local SHEET_COLS = 6           -- 42 frames laid out 6x7, not one huge strip
+local SHEET_COLS = 6           -- 106 frames laid out 6x18, not one huge strip
 
 local lib = dofile("tools/aseprite-lib.lua")
 local hex = lib.hex
@@ -436,6 +440,259 @@ local function drawDragon(img, P)
 end
 
 ----------------------------------------------------------------------
+-- BACK and SIDE views (2026-11-15). The front art above is untouched; these
+-- are new frames appended after it. The game picks a view from the way he
+-- faces (creatureFacing, render-enemies.js): 'up' is his back, 'left' and
+-- 'right' the side, drawn facing right and mirrored at draw time. Dormant and
+-- the cinematic flyover stay front-only. Same palette, same body box, same
+-- pose curves (poseFor), so every animation moves the way its front does.
+----------------------------------------------------------------------
+
+-- Seen from behind: no face at all. The crown and the back of the skull, the
+-- spine ridge down the neck and back, the wings spread toward the viewer, and
+-- the tail coming down the screen at the camera.
+local function drawBackHead(img, P)
+  polyF(img, { {0.425,0.46}, {0.575,0.46}, {0.552,0.240}, {0.448,0.240} }, NECK)
+  polyF(img, { {0.50,0.46}, {0.575,0.46}, {0.552,0.240}, {0.50,0.240} }, BODY_D)
+  -- back of the skull, a darker band where the jaw sits out of sight
+  polyF(img, { {0.355,0.110}, {0.645,0.110}, {0.618,0.235}, {0.382,0.235} }, SKULL)
+  polyF(img, { {0.375,0.200}, {0.625,0.200}, {0.612,0.250}, {0.388,0.250} }, BODY_D)
+  -- the crest ridge down the middle of the skull and neck
+  polyF(img, { {0.488,0.115}, {0.512,0.115}, {0.508,0.240}, {0.492,0.240} }, SPINE)
+  for i = 0, 3 do
+    local yy = 0.255 + i * 0.050
+    polyF(img, { {0.474,yy+0.030}, {0.500,yy-0.012}, {0.526,yy+0.030} }, SPINE)
+  end
+  -- jaw corners just showing past the skull when he gapes
+  local j = P.jaw or 0
+  if j > 0.5 then
+    polyF(img, { {0.382,0.235}, {0.400,0.235}, {0.396,0.250 + (j-0.5)*0.03} }, BODY_D)
+    polyF(img, { {0.618,0.235}, {0.600,0.235}, {0.604,0.250 + (j-0.5)*0.03} }, BODY_D)
+  end
+  polyF(img, { {0.408,0.118}, {0.592,0.118}, {0.560,0.086}, {0.440,0.086} }, BODY_D)
+  drawCrown(img, 0.50, 0.068, 0.104, 0.028, 0.050)
+end
+
+local function drawBackTorso(img, P)
+  polyF(img, { {0.335,0.45}, {0.665,0.45}, {0.625,0.60}, {0.585,0.73}, {0.415,0.73}, {0.375,0.60} }, BODY_D)
+  polyF(img, { {0.335,0.45}, {0.50,0.45}, {0.50,0.73}, {0.415,0.73}, {0.375,0.60} }, BODY)
+  -- shoulder blades, where the wings root
+  polyF(img, { {0.30,0.49}, {0.37,0.41}, {0.47,0.45}, {0.41,0.55} }, BODY_L)
+  polyF(img, { {0.70,0.49}, {0.63,0.41}, {0.53,0.45}, {0.59,0.55} }, TORSO)
+  -- the spine ridge running down the back to the tail root
+  for i = 0, 5 do
+    local yy = 0.470 + i * 0.046
+    polyF(img, { {0.478,yy+0.034}, {0.500,yy-0.010}, {0.522,yy+0.034} }, SPINE)
+  end
+  for _, sgn in ipairs({ -1, 1 }) do
+    for i = 0, 2 do
+      lineF(img, 0.5 + sgn*0.06, 0.50 + i*0.060, 0.5 + sgn*0.15, 0.48 + i*0.060, 0.008, SPINE)
+    end
+  end
+end
+
+-- Breath seen from behind: the plume goes away from the camera, so all that
+-- shows is the flame rising past his head, narrowing as it recedes. It stops
+-- short of the frame's top edge (-OY/S, about -0.127) so it is never cut flat.
+local function drawBackPlume(img, P)
+  local f = P.fire or 0
+  if f <= 0 then return end
+  local base = 0.22
+  local len  = 0.10 + f * 0.22
+  local w1, w2 = 0.100 + f * 0.110, 0.012
+  local function cone(scale, col)
+    polyF(img, { {0.5 - w1*scale, base}, {0.5 + w1*scale, base},
+                 {0.5 + w2*scale, base - len}, {0.5 - w2*scale, base - len} }, col)
+  end
+  cone(1.00, hex('#ff5a18'))
+  cone(0.66, hex('#ffa02a'))
+  cone(0.34, hex('#ffe98a'))
+end
+
+local function drawDragonBack(img, P)
+  local oX, oY = OX, OY
+  local function lifted() OX = oX + (P.lean or 0) * S; OY = oY + (P.bodyY or 0) * S end
+  local function planted() OX, OY = oX, oY end
+  lifted();  drawForelimbs(img, P)      -- only the reach past his flanks shows
+  planted(); drawHindLegs(img, P)
+  lifted();  drawBackTorso(img, P)
+  drawWings(img, P)                     -- rooted on his back, nearer than his sides
+  drawBackHead(img, P)
+  planted(); drawTail(img, P)           -- last: it hangs toward the camera
+end
+
+-- Side, facing right. One eye, the snout out to the right, the far wing and
+-- far legs a shade darker behind the body, the near ones over it.
+local function sideWing(img, P, far)
+  local dx, dy = far and 0.07 or 0, far and -0.035 or 0
+  local wf, f = P.wf or 1, P.fold or 0
+  local function L(y) return y / wf end
+  local function at(spread, tucked) return lerpP({ spread[1] + dx, spread[2] + dy }, { tucked[1] + dx, tucked[2] + dy }, f) end
+  local shoulder = { 0.46 + dx, 0.44 + dy }
+  local elbow = at({0.34, L(0.16)}, {0.40, 0.40})
+  local wrist = at({0.20, L(0.04)}, {0.33, 0.50})
+  local edge = {
+    at({0.08, L(0.12)}, {0.29, 0.56}), at({0.16, L(0.24)}, {0.32, 0.59}),
+    at({0.11, L(0.33)}, {0.28, 0.63}), at({0.21, L(0.40)}, {0.33, 0.66}),
+    at({0.19, L(0.49)}, {0.30, 0.71}), at({0.29, 0.50},    {0.35, 0.72}),
+    at({0.31, 0.58},    {0.34, 0.76}), at({0.39, 0.55},    {0.40, 0.72}),
+  }
+  local poly = { shoulder }
+  append(poly, quad(shoulder, at({0.42, L(0.24)}, {0.44, 0.40}), elbow, 8), true)
+  append(poly, quad(elbow, at({0.26, L(0.06)}, {0.37, 0.44}), wrist, 8), true)
+  for _, p in ipairs(edge) do poly[#poly + 1] = p end
+  append(poly, quad(edge[8], { 0.44 + dx, 0.54 + dy }, shoulder, 6), true)
+  polyF(img, poly, far and WING_FD or WING)
+  if not far then
+    polyF(img, { shoulder, elbow, edge[2], edge[4], edge[6], { 0.42, 0.52 } }, WING_M)
+    polyF(img, { elbow, wrist, edge[1], edge[2] }, hex('#4e0a02'))
+  end
+  for _, t in ipairs({ wrist, edge[1], edge[3], edge[5], edge[7] }) do
+    linePx(img, X(shoulder[1]), Y(shoulder[2]), X(t[1]), Y(t[2]), 0.012 * S, SPINE)
+  end
+  linePx(img, X(shoulder[1]), Y(shoulder[2]), X(elbow[1]), Y(elbow[2]), 0.020 * S, SPINE)
+  polyF(img, { wrist, { wrist[1] - 0.045, wrist[2] - 0.045 }, { wrist[1] - 0.010, wrist[2] + 0.024 } }, TALON)
+end
+
+local function sideTail(img, P)
+  local t = P.tail or 0
+  local tail = quad({ 0.40, 0.70 }, { 0.12, 0.80 + t * 0.30 }, { 0.00, 0.98 + t * 0.10 }, 16)
+  for i = 1, #tail - 1 do
+    local w = 0.078 * (1 - (i - 1) / #tail * 0.72)
+    linePx(img, X(tail[i][1]), Y(tail[i][2]), X(tail[i + 1][1]), Y(tail[i + 1][2]), w * S, BODY_D)
+  end
+  for _, i in ipairs({ 4, 8, 12 }) do
+    local p = tail[i]
+    polyF(img, { { p[1] - 0.025, p[2] - 0.020 }, { p[1] - 0.005, p[2] - 0.075 }, { p[1] + 0.025, p[2] - 0.030 } }, SPINE)
+  end
+  local e = tail[#tail]
+  polyF(img, { { e[1] - 0.075, e[2] + 0.005 }, { e[1] + 0.015, e[2] - 0.055 }, { e[1] + 0.015, e[2] + 0.060 } }, WING)
+  polyF(img, { { e[1] - 0.040, e[2] + 0.004 }, { e[1] + 0.010, e[2] - 0.026 }, { e[1] + 0.010, e[2] + 0.030 } }, SPINE)
+end
+
+local function sideLeg(img, P, far)
+  local dx, dy = far and 0.06 or 0, far and -0.02 or 0
+  if P.legs == 'run' then
+    local ph = P.legPh * math.pi * 2 + (far and math.pi or 0)
+    dx = dx + math.sin(ph) * 0.070
+    dy = dy - math.max(0, math.sin(ph)) * 0.075
+  elseif P.legs == 'tuck' then
+    dx = dx - 0.050; dy = dy - 0.115
+  end
+  local function q(x, y) return { x + dx, y + dy } end
+  local A, B = far and TAIL_D or TORSO, far and hex('#6a1004') or BODY_D
+  polyF(img, { q(0.38,0.60), q(0.54,0.62), q(0.57,0.78), q(0.43,0.81) }, A)
+  polyF(img, { q(0.47,0.61), q(0.54,0.62), q(0.57,0.78), q(0.50,0.80) }, B)
+  polyF(img, { q(0.43,0.77), q(0.53,0.77), q(0.51,0.92), q(0.44,0.92) }, B)
+  polyF(img, { q(0.41,0.89), q(0.60,0.90), q(0.60,0.95), q(0.41,0.95) }, A)
+  for i = 0, 2 do
+    local bx = 0.535 + i * 0.030
+    polyF(img, { q(bx, 0.93), q(bx + 0.040, 1.000), q(bx + 0.020, 0.94) }, TALON)
+  end
+end
+
+local function sideForelimb(img, P, far)
+  local reach = P.claw or 0
+  local ex, ey = reach * 0.075, reach * 0.030
+  local dx, dy = far and 0.05 or 0, far and -0.02 or 0
+  local function q(x, y) return { x + dx, y + dy } end
+  local A, B = far and hex('#6a1004') or BODY_D, far and TAIL_D or TORSO
+  polyF(img, { q(0.56,0.48), q(0.64,0.50), q(0.68+ex,0.61+ey), q(0.62+ex,0.63+ey) }, A)
+  polyF(img, { q(0.63+ex,0.58+ey), q(0.70+ex*1.6,0.62+ey), q(0.72+ex*1.6,0.67+ey), q(0.64+ex,0.66+ey) }, B)
+  local cl = 0.060 + math.max(0, reach) * 0.040
+  for i = 0, 2 do
+    local bx = 0.665 + ex * 1.6 + i * 0.020
+    polyF(img, { q(bx, 0.665+ey), q(bx + 0.030, 0.665+ey+cl), q(bx + 0.016, 0.670+ey) }, TALON)
+  end
+end
+
+local function sideTorso(img, P)
+  polyF(img, { {0.38,0.43}, {0.56,0.41}, {0.65,0.49}, {0.64,0.61}, {0.57,0.73},
+               {0.42,0.75}, {0.35,0.64}, {0.35,0.50} }, BODY_D)
+  polyF(img, { {0.38,0.43}, {0.56,0.41}, {0.63,0.48}, {0.58,0.56}, {0.40,0.58}, {0.36,0.50} }, BODY)
+  -- belly plates down the front, chevrons stepping toward the hips
+  for i = 0, 4 do
+    local yy = 0.475 + i * 0.048
+    local xx = 0.640 - i * 0.016
+    polyF(img, { {xx - 0.060, yy}, {xx, yy + 0.004}, {xx - 0.008, yy + 0.034}, {xx - 0.060, yy + 0.028} }, BELLY)
+    lineF(img, xx - 0.060, yy + 0.030, xx - 0.008, yy + 0.034, 0.006, BELLY_L)
+  end
+  -- spines along the back
+  for i = 0, 4 do
+    local yy = 0.46 + i * 0.055
+    polyF(img, { {0.365,yy}, {0.320,yy + 0.012}, {0.360,yy + 0.040} }, SPINE)
+  end
+  for i = 0, 2 do
+    lineF(img, 0.42, 0.62 + i*0.035, 0.52, 0.60 + i*0.035, 0.008, SPINE)
+  end
+end
+
+local function sideNeckHead(img, P)
+  local j = P.jaw or 0
+  polyF(img, { {0.50,0.45}, {0.62,0.44}, {0.69,0.30}, {0.66,0.21}, {0.56,0.21}, {0.52,0.32} }, NECK)
+  polyF(img, { {0.50,0.45}, {0.55,0.45}, {0.56,0.32}, {0.59,0.21}, {0.56,0.21}, {0.52,0.32} }, BODY_D)
+  for i = 0, 2 do
+    local p = { 0.515 + i * 0.012, 0.40 - i * 0.075 }
+    polyF(img, { {p[1], p[2]}, {p[1] - 0.045, p[2] - 0.010}, {p[1] + 0.005, p[2] - 0.040} }, SPINE)
+  end
+  -- skull and upper snout, pointing right
+  polyF(img, { {0.56,0.135}, {0.67,0.100}, {0.75,0.135}, {0.77,0.205}, {0.60,0.245}, {0.555,0.195} }, SKULL)
+  polyF(img, { {0.70,0.150}, {0.895,0.195}, {0.900,0.235}, {0.700,0.250} }, SNOUT)
+  -- the mouth, opened by the lower jaw dropping from its hinge
+  local drop = j * 0.075
+  polyF(img, { {0.660,0.245}, {0.885,0.240}, {0.870,0.262 + drop}, {0.670,0.270} }, hex('#3a0a04'))
+  if j > 0.15 then
+    polyF(img, { {0.700,0.250}, {0.860,0.246}, {0.848,0.255 + drop * 0.8}, {0.705,0.262} }, MAW)
+  end
+  polyF(img, { {0.640,0.255}, {0.670,0.268}, {0.875,0.258 + drop}, {0.870,0.290 + drop}, {0.660,0.300} }, BODY_D)
+  for i = 0, 4 do
+    local bx = 0.725 + i * 0.034
+    polyF(img, { {bx, 0.244}, {bx + 0.010, 0.270}, {bx + 0.020, 0.243} }, TEETH)
+    if j > 0.3 then
+      polyF(img, { {bx + 0.006, 0.260 + drop}, {bx + 0.016, 0.236 + drop}, {bx + 0.026, 0.259 + drop} }, TEETH)
+    end
+  end
+  ellipseF(img, 0.872, 0.208, 0.011, 0.008, EYE_D)          -- nostril
+  -- brow, then the one eye
+  polyF(img, { {0.640,0.145}, {0.735,0.150}, {0.725,0.172}, {0.640,0.165} }, hex('#3a0802'))
+  polyF(img, { {0.660,0.168}, {0.720,0.170}, {0.712,0.192}, {0.664,0.188} }, EYE)
+  polyF(img, { {0.690,0.168}, {0.700,0.169}, {0.698,0.192}, {0.688,0.190} }, EYE_D)
+  -- the crest ridge, swept back off the skull
+  polyF(img, { {0.560,0.140}, {0.650,0.112}, {0.600,0.170} }, BODY_D)
+  drawCrown(img, 0.665, 0.090, 0.072, 0.026, 0.046)
+end
+
+local function drawSidePlume(img, P)
+  local f = P.fire or 0
+  if f <= 0 then return end
+  local x0, yc = 0.885, 0.262
+  local len = 0.06 + f * 0.18
+  local w1, w2 = 0.018 + f * 0.012, 0.040 + f * 0.120
+  local function cone(scale, col)
+    polyF(img, { {x0, yc - w1*scale}, {x0, yc + w1*scale},
+                 {x0 + len, yc + w2*scale}, {x0 + len, yc - w2*scale} }, col)
+  end
+  cone(1.00, hex('#ff5a18'))
+  cone(0.66, hex('#ffa02a'))
+  cone(0.34, hex('#ffe98a'))
+end
+
+local function drawDragonSide(img, P)
+  local oX, oY = OX, OY
+  local function lifted() OX = oX + (P.lean or 0) * S; OY = oY + (P.bodyY or 0) * S end
+  local function planted() OX, OY = oX, oY end
+  lifted();  sideWing(img, P, true)
+  planted(); sideTail(img, P); sideLeg(img, P, true)
+  lifted();  sideForelimb(img, P, true)
+             sideTorso(img, P)
+  planted(); sideLeg(img, P, false)
+  lifted();  sideWing(img, P, false)
+             sideNeckHead(img, P)
+             sideForelimb(img, P, false)
+  planted()
+end
+
+----------------------------------------------------------------------
 -- build
 ----------------------------------------------------------------------
 local spr = Sprite(W, H, ColorMode.RGB)
@@ -492,6 +749,8 @@ local function poseFor(kind, i, n)
   end
 end
 
+-- The fourth field is the view; the front rows come first and keep their
+-- indices, the back and side rows follow (tags named e.g. 'fly_back').
 local SEQ = {
   { 'dormant', N_DORM,  0.22 },
   { 'awake',   N_AWAKE, 0.10 },
@@ -501,6 +760,13 @@ local SEQ = {
   { 'fight',   N_FIGHT, 0.07 },
   { 'flyfire', N_FLY,   0.09 },
 }
+for _, view in ipairs({ 'back', 'side' }) do
+  SEQ[#SEQ + 1] = { 'awake',   N_AWAKE, 0.10, view }
+  SEQ[#SEQ + 1] = { 'fly',     N_FLY,   0.09, view }
+  SEQ[#SEQ + 1] = { 'run',     N_RUN,   0.08, view }
+  SEQ[#SEQ + 1] = { 'breathe', N_BREATH,0.09, view }
+  SEQ[#SEQ + 1] = { 'fight',   N_FIGHT, 0.07, view }
+end
 
 local total = 0
 for _, k in ipairs(SEQ) do total = total + k[2] end
@@ -508,7 +774,7 @@ while #spr.frames < total do spr:newFrame() end
 
 local cursor = 0
 for _, k in ipairs(SEQ) do
-  local kind, n, dur = k[1], k[2], k[3]
+  local kind, n, dur, view = k[1], k[2], k[3], k[4]
   for i = 1, n do
     local f = cursor + i
     local img = Image(W, H, ColorMode.RGB); img:clear()
@@ -516,6 +782,23 @@ for _, k in ipairs(SEQ) do
       -- breath swell: bw in [1, 1.035], matching the canvas source
       drawDormant(img, 1 + (math.sin((i-1)/n * math.pi*2) * 0.5 + 0.5) * 0.035)
       outlineSilhouette(img, OUTLINE)
+    elseif view == 'back' then
+      local P = poseFor(kind, i, n)
+      drawDragonBack(img, P)
+      outlineSilhouette(img, OUTLINE)
+      -- the fan rises past his head, then the head is laid back over it
+      if (P.fire or 0) > 0 then
+        drawBackPlume(img, P)
+        local oX, oY = OX, OY
+        OX = oX + (P.lean or 0) * S; OY = oY + (P.bodyY or 0) * S
+        drawBackHead(img, P)
+        OX, OY = oX, oY
+      end
+    elseif view == 'side' then
+      local P = poseFor(kind, i, n)
+      drawDragonSide(img, P)
+      outlineSilhouette(img, OUTLINE)
+      drawSidePlume(img, P)
     else
       local P = poseFor(kind, i, n)
       drawDragon(img, P)
@@ -528,7 +811,7 @@ for _, k in ipairs(SEQ) do
     spr.frames[f].duration = dur
   end
   local tag = spr:newTag(cursor + 1, cursor + n)
-  tag.name = kind
+  tag.name = view and (kind .. '_' .. view) or kind
   cursor = cursor + n
 end
 
