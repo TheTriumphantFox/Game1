@@ -259,11 +259,17 @@ function drawSharedCreature(e, ts, s, px, py, cx, cy, flap, phase, fb, bob, boxT
           const t = (anim === 'breathe')
             ? 1 - Math.max(0, Math.min(1, e.breathT / DRAGON_BREATH_ANIM_MS))
             : undefined;
-          drawDragonSprite(px, py, s, anim, phase, t);
+          // Which way he faces picks the view. A cutscene actor keeps the front
+          // pose its scene was staged for.
+          const facing = e.cutsceneActor ? 'down' : creatureFacing(e);
+          const view = dragonViewAnim(anim, facing);
+          drawDragonSprite(px, py, s, view, phase, t, facing === 'left');
           // The furnace glow sits in his chest, which the breath plume covers —
-          // skip it mid-breath so it doesn't burn through the flame.
-          if (anim !== 'breathe') {
-            dragonFurnace(cx, py, s, Math.sin(tt / 260 + phase) * 0.5 + 0.5);
+          // skip it mid-breath so it doesn't burn through the flame. From behind
+          // the chest is out of sight; in profile it sits forward, toward the snout.
+          if (anim !== 'breathe' && facing !== 'up') {
+            const side = facing === 'right' ? 1 : facing === 'left' ? -1 : 0;
+            dragonFurnace(cx + side * s * 0.10, py, s, Math.sin(tt / 260 + phase) * 0.5 + 0.5);
           }
           dragonEmbers(cx, py, s, tt, phase);
         }
