@@ -133,6 +133,9 @@ function composeSaveData() {
     mapSequence,
     worldGrid,
     worldSeed,
+    // The Emperor's crown, once it has rolled off him: the throne-room map and
+    // the spot it lies on (tower.js). null before the finale.
+    emperorCrown: (typeof crownSaveState === 'function') ? crownSaveState() : null,
     worldMapsLite: worldMaps.map(m => ({
       id: m.id, gx: m.gx, gy: m.gy,
       name: m.name, type: m.type, biome: m.biome, regionIdx: m.regionIdx, depth: m.depth,
@@ -731,6 +734,9 @@ function applyLoadDataUnsafe(data) {
   // A load is not an arrival: forget the cut journal the old session left in the
   // world and the pending flag spawnEnemiesForMap just set (see world.js).
   resetMapArrivalTracking();
+  // The crown lies where it fell, on its own map; absent in the save means no
+  // finale yet, so this also clears a crown left over from the previous run.
+  if (typeof restoreEmperorCrown === 'function') restoreEmperorCrown(data.emperorCrown || null);
   // Cancel any cutscene the load interrupted and restore the ambient state that
   // isn't in the flag bag (how hard the ruin is still burning). Without this, a
   // load from inside a scripted beat leaves the world frozen forever.
@@ -1106,6 +1112,8 @@ function resetGame(heroName) {
   spawnEnemiesForMap(0);
   spawnVillagersForMap(0);
   resetMapArrivalTracking();
+  // A new hero has not won anything yet: no crown on any floor.
+  if (typeof restoreEmperorCrown === 'function') restoreEmperorCrown(null);
   clampCam(true);
   updateHUD();
   setSaveStatus('', { toast: false });

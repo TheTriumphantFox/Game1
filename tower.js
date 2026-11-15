@@ -285,20 +285,41 @@ function drawEmperorFlicker(e, cx, cy, s) {
 
 // ─── The crown ────────────────────────────────────────────────────────────────
 // A drawn prop with a position and nothing else, exactly like the prologue's
-// Emperor (cutscene.js): there is no entity to collide with, nothing to pick up
-// and nothing to save. It rolls from wherever he fell to the hero's feet and
-// then simply stays on the floor of the throne room for the rest of the session.
-//   { x, y, tx, ty, t, ms } | null
+// Emperor (cutscene.js): there is no entity to collide with and nothing to pick
+// up. It rolls from wherever he fell to the hero's feet and then stays on the
+// floor of the throne room for good. It belongs to that one map (mapId), is
+// written into the save (crownSaveState / restoreEmperorCrown, called from
+// save.js) so it is still lying there after a Load, and New Game clears it.
+//   { mapId, x, y, tx, ty, t, ms } | null
 let emperorCrown = null;
 
 function rollEmperorCrown(from) {
   emperorCrown = {
+    mapId: currentMapId,
     x: from.x, y: from.y,
     tx: player.x, ty: player.y + 0.6,
     t: 0, ms: 2200,
   };
   const sp = screenPX(from.x, from.y);
   spawnParticle(sp.x, sp.y, '#ffd24a', 18, 3);
+}
+
+// What the save keeps: the map and the spot where it came to rest. Nothing about
+// the roll, because a loaded crown has long since stopped rolling.
+function crownSaveState() {
+  if (!emperorCrown) return null;
+  return { mapId: emperorCrown.mapId, x: emperorCrown.tx, y: emperorCrown.ty };
+}
+
+// Put the crown back from a save (or clear it: a save without one, and New Game,
+// both pass null). It comes back already at rest.
+function restoreEmperorCrown(saved) {
+  if (!saved || typeof saved.mapId !== 'number') { emperorCrown = null; return; }
+  emperorCrown = {
+    mapId: saved.mapId,
+    x: saved.x, y: saved.y, tx: saved.x, ty: saved.y,
+    t: 1, ms: 1,
+  };
 }
 
 function stepEmperorCrown(dt) {
@@ -309,7 +330,7 @@ function stepEmperorCrown(dt) {
 // Paint it, from render.js after the entities. A gold circlet seen edge-on while
 // it rolls (it spins, so its width pinches and swells) and flat once it stops.
 function drawEmperorCrown(ts) {
-  if (!emperorCrown) return;
+  if (!emperorCrown || emperorCrown.mapId !== currentMapId) return;
   const c = emperorCrown;
   const p = Math.min(1, c.t / c.ms);
   const e = 1 - Math.pow(1 - p, 3);          // rolls out fast, settles slow
