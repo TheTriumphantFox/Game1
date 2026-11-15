@@ -1990,9 +1990,10 @@ function stepPlayerMovement() {
   // full-speed walk at every level. It was on the shared curve to begin with, and
   // a curve that starts at 20% starts below the 50% an unarmored hero already
   // trudges a drift at — so a freshly forged Ice armor made the drifts WORSE. Fire
-  // had the same shape on a DUNE; there the curve is floored at the bare-feet
-  // trudge instead (Math.min below), so levels 1–2 walk a dune exactly as fast as
-  // no armor and level 3 is the first gain.
+  // had the same shape on a DUNE and on QUICKSAND; there the curve is floored at
+  // the bare-feet pace instead (Math.min below). On a dune levels 1–2 match no
+  // armor and level 3 is the first gain; in quicksand (33% bare) only level 1 is
+  // lifted, and level 2 (40%) is already faster.
   // What Ice's level buys instead is traction on the ICE sheets themselves
   // (iceSlideMs, abilities.js).
   //
@@ -2001,7 +2002,7 @@ function stepPlayerMovement() {
   const armorMs = (id) => (typeof armorTerrainStepMs === 'function')
     ? armorTerrainStepMs(id, MOVE_MS) : null;
   const iceWalk = typeof wearingElementalArmor === 'function' && wearingElementalArmor('ice');
-  const terrainMs = standTile === T.QUICKSAND    ? (armorMs('fire')  ?? MOVE_MS * QUICKSAND_MOVE_MUL)
+  const terrainMs = standTile === T.QUICKSAND    ? Math.min(armorMs('fire') ?? Infinity, MOVE_MS * QUICKSAND_MOVE_MUL)
                   : standTile === T.DUNE         ? Math.min(armorMs('fire') ?? Infinity, MOVE_MS * 2)
                   : standTile === T.SNOW_DRIFT   ? MOVE_MS * (iceWalk ? 1 : 2)
                   : standTile === T.MUD          ? MOVE_MS * 2

@@ -316,11 +316,11 @@ function armorAbilityStep(elemId) {
 // Earth have no unarmored comparison at all, since their tiles are impassable
 // without the armor.
 //
-// The one floor: Fire on a DUNE never walks slower than bare feet (the owner,
-// 2026-11-15). The curve gives level 1 20% and level 2 40% of full speed, below
-// the unarmored 50% trudge, so the dune takes whichever is faster (player.js):
-// levels 1–2 match bare feet, level 3 (60%) is the first real gain. Quicksand
-// keeps the plain curve.
+// The one floor: Fire never crosses a DUNE or QUICKSAND slower than bare feet
+// (the owner, 2026-11-15). The curve gives level 1 20% and level 2 40% of full
+// speed, so each tile takes whichever is faster (player.js). On a dune (50%
+// bare) levels 1–2 match bare feet and level 3 (60%) is the first gain; in
+// quicksand (33% bare) level 1 matches bare feet and level 2 is already faster.
 //
 // ICE IS NOT ON THIS CURVE, and that is the one place the design moved after it
 // was built. Snow-drift relief was the whole of what Ice armor did on that tile,
