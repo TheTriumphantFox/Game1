@@ -115,6 +115,7 @@ function playEmperorIntro(dragon) {
         const sp = screenPX(dragon.x, dragon.y);
         spawnParticle(sp.x, sp.y, '#ff6622', 24, 6);
         spawnParticle(sp.x, sp.y, '#ffd24a', 16, 4);
+        if (typeof playDragonRoar === 'function') playDragonRoar('wake');
       } },
     { shake: 6, ms: 900 },
     { say: [
@@ -169,6 +170,7 @@ function stepFinalBoss(dt) {
 
   if (frac <= EMPEROR_LINE_50 && !hasFlag('boss_line_50')) {
     setFlag('boss_line_50');
+    if (typeof playDragonRoar === 'function') playDragonRoar('wounded');
     sayNPC('THE EMPEROR',
       "Good. Good. You've spent your whole life practicing for this and didn't even know it.");
     return;

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Synthesize dragon-roar.wav for Hero of Stormdrift's prologue Beat 3.
 
+RETIRED 2026-11-16: the game now uses recorded roars cut by
+tools/cut-dragon-roars.py, and dragon-roar.wav is no longer in the repo.
+Kept as a record of how the first roar was made.
+
 The script's cue is "a long way off, a roar" — so this is deliberately a DISTANT
 roar: slow attack, heavy low-pass (air absorbs highs over distance), and a long
 reverberant tail off the treeline. Nothing here is sampled; it is built from

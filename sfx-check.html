@@ -54,6 +54,18 @@ const sb = document.createElement('button');
 sb.textContent = 'scream (bosses, recorded)';
 sb.onclick = () => { scream.volume = 0.5; scream.currentTime = 0; scream.play(); };
 groups.combat.appendChild(sb);
+// The four recorded dragon roars (DRAGON_ROARS in sfx.js).
+{
+  const h = document.createElement('h2'); h.textContent = 'dragon roars (recorded)';
+  const d = document.createElement('div');
+  $('groups').append(h, d);
+  for (const k of Object.keys(DRAGON_ROARS)) {
+    const rb = document.createElement('button');
+    rb.textContent = k;
+    rb.onclick = () => { unlockMusic(); playDragonRoar(k); };
+    d.appendChild(rb);
+  }
+}
 
 let musicOn = false;
 $('music').onclick = () => {

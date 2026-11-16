@@ -567,22 +567,8 @@ function startPrologue() {
 // The shadow was already staged (the emperor steps below). These are the other
 // three, as things the player watches rather than lines the player reads.
 
-// The roar. One voice, loaded the way the Wilhelm scream is (see SCREAM_POOL in
-// player.js): a media element loads by its own path, which works over file://,
-// where fetch + decodeAudioData does not. Bundled locally — the game has to run
-// with the machine offline.
-const ROAR_AUDIO = new Audio('dragon-roar.wav');
-ROAR_AUDIO.preload = 'auto';
-ROAR_AUDIO.volume = 0.55;
-function playDragonRoar() {
-  const vol = sfxGain(0.55);   // see playKillSound (player.js)
-  if (vol <= 0) return;
-  ROAR_AUDIO.volume = vol;
-  try { ROAR_AUDIO.currentTime = 0; } catch (_) {}
-  // Rejects if the player hasn't clicked yet; the beat plays on regardless.
-  ROAR_AUDIO.play().catch(() => {});
-  if (typeof musicDuck === 'function') musicDuck(2600, 0.2);
-}
+// The roar itself lives in sfx.js (playDragonRoar), beside every other effect,
+// because the tower plays it too.
 
 // Birds off the rooftops. Not enemies and not villagers — they exist for about
 // two seconds, have no collision and no state worth saving, so they are their
@@ -700,7 +686,7 @@ function playWarningBeat() {
     { wait: 700 },
     // The roar itself. Sound and shake together, then the line — the player
     // should hear it before they are told they heard it.
-    { run: () => playDragonRoar() },
+    { run: () => { if (typeof playDragonRoar === 'function') playDragonRoar('far'); } },
     { shake: 5, ms: 1400 },
     { say: [{ text: "Silence. Then, a long way off, a roar." }] },
     { wait: 500 },
@@ -743,7 +729,7 @@ function playAshfallBeat() {
     // nothing visible to do — it only guarantees the ruin is exactly what
     // charHomeVillage(52) has always produced, and refreshes the depth list for
     // the tiles the front changed.
-    { run: () => pgBreathe(C) },
+    { run: () => { if (typeof playDragonRoar === 'function') playDragonRoar('strike'); pgBreathe(C); } },
     { wait: 500 },
     { run: () => {
         burnLevel = 0.35;

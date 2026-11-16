@@ -291,6 +291,46 @@ function sfx(name) {
   if (def.duck && typeof musicDuck === 'function') musicDuck(def.duck[0], def.duck[1]);
 }
 
+// ─── The dragon's roar ────────────────────────────────────────────────────────
+// The one effect that is a recording: Breviceps, "Dragon: Several roars, growls
+// and snarls" (freesound.org/s/479380, CC0, public domain), cut into four
+// different roars so no moment repeats another. tools/cut-dragon-roars.py makes
+// the files from the original download. The far one is the same kind of cut,
+// muffled and given an echo, because Beat 3's line is "a long way off, a roar".
+//
+// Media elements, not fetch + decodeAudioData: an <audio> loads by its own path,
+// which works over file://, where fetching a sibling file does not. One element
+// per roar, decoded at load and rewound on replay (the scream's pattern,
+// SCREAM_POOL in player.js), so there is no decode lag at the cue.
+const DRAGON_ROARS = {
+  //        file                          base level  music duck [ms, depth]
+  // Levels set from measurement (every file is normalised to a 0.89 peak):
+  // strike is the loudest moment, the far roar matches the old generated one.
+  // Each duck holds for about the roar's length less its fade (the files run
+  // 5.7 / 5.4 / 3.7 / 2.2 s).
+  far:     { file: 'dragon-roar-far.wav',     vol: 0.65, duck: [3600, 0.2] },   // Beat 3, the warning
+  strike:  { file: 'dragon-roar-strike.wav',  vol: 0.7,  duck: [4200, 0.15] },  // Beat 4, with the breath
+  wake:    { file: 'dragon-roar-wake.wav',    vol: 0.9,  duck: [3000, 0.15] },  // throne room, the hoard uncoils
+  wounded: { file: 'dragon-roar-wounded.wav', vol: 0.65, duck: [1800, 0.2] },   // 50% HP, before his line
+};
+for (const k in DRAGON_ROARS) {
+  if (typeof Audio === 'undefined') break;
+  const a = new Audio(DRAGON_ROARS[k].file);
+  a.preload = 'auto';
+  DRAGON_ROARS[k].audio = a;
+}
+function playDragonRoar(kind) {
+  const r = DRAGON_ROARS[kind] || DRAGON_ROARS.far;
+  if (!r.audio) return;
+  const vol = (typeof sfxGain === 'function') ? sfxGain(r.vol) : r.vol;
+  if (vol <= 0) return;
+  r.audio.volume = Math.min(1, vol);
+  try { r.audio.currentTime = 0; } catch (_) {}
+  // Rejects before the first click or key; the scene plays on regardless.
+  r.audio.play().catch(() => {});
+  if (typeof musicDuck === 'function') musicDuck(r.duck[0], r.duck[1]);
+}
+
 // ─── Offline render (verification) ────────────────────────────────────────────
 // Render one sound at slider 100 to an AudioBuffer, for sfx-check.html's peak
 // table. Same play function as the game, on an OfflineAudioContext.
