@@ -95,10 +95,12 @@ const SFX = {
   // ── Combat ──
   swing: { group: 'combat', vol: 0.75, len: 0.14,
     play: (c, o, v, t) => sfxNoise(c, o, v.noiseLong, t, 0.14, 0.5, 1.2, 0.6, { bp: [700, 2600], q: 1.2, attack: 0.03 }) },
-  hit: { group: 'combat', vol: 0.45, len: 0.12,
+  // Mostly noise: a pitched sweep on top read as hollow (hm, 2026-11-16).
+  hit: { group: 'combat', vol: 0.5, len: 0.1,
     play: (c, o, v, t) => {
-      sfxNoise(c, o, v.noiseLong, t, 0.07, 0.6, 0.3, 0.7, { lp: [3000, 800] });
-      sfxOsc(c, o, v.triangle, t, 0.12, 260, 90, 0.9);
+      sfxNoise(c, o, v.noiseLong, t, 0.09, 0.9, 0.35, 0.9, { lp: [5000, 1200] });
+      sfxNoise(c, o, v.noiseShort, t, 0.025, 0.7, 0.5, 0.35);   // the crack on contact
+      sfxOsc(c, o, v.triangle, t, 0.045, 130, 55, 0.6);          // a short thump for weight
     } },
   punch: { group: 'combat', vol: 0.55, len: 0.1,
     play: (c, o, v, t) => {
@@ -115,11 +117,8 @@ const SFX = {
       sfxNoise(c, o, v.noiseShort, t, 0.04, 1.2, 0.8, 0.5);
       sfxOsc(c, o, v.triangle, t, 0.08, 420, 180, 0.8);
     } },
-  bombThrow: { group: 'combat', vol: 0.45, len: 0.16,
-    play: (c, o, v, t) => {
-      sfxOsc(c, o, v.triangle, t, 0.07, 200, 130, 0.9);
-      sfxNoise(c, o, v.noiseShort, t + 0.05, 0.11, 0.9, 0.9, 0.25, { hold: 0.6 });   // fuse fizz
-    } },
+  bombThrow: { group: 'combat', vol: 0.45, len: 0.08,
+    play: (c, o, v, t) => sfxOsc(c, o, v.triangle, t, 0.07, 200, 130, 0.9) },
   blast: { group: 'combat', vol: 0.34, len: 0.75, duck: [500, 0.35],
     play: (c, o, v, t) => {
       sfxOsc(c, o, v.triangle, t, 0.35, 120, 32, 1);
@@ -135,10 +134,13 @@ const SFX = {
       sfxOsc(c, o, v.pulse[0.25], t, 0.3, sfxHz('G6'), null, 0.35);
       sfxOsc(c, o, v.pulse[0.125], t + 0.03, 0.27, sfxHz('D7'), null, 0.25);
     } },
-  kill: { group: 'combat', vol: 0.5, len: 0.25,
+  // A hard, bright burst that drops fast, over a low punch.
+  kill: { group: 'combat', vol: 0.33, len: 0.3,
     play: (c, o, v, t) => {
-      sfxNoise(c, o, v.noiseLong, t, 0.25, 0.8, 0.15, 0.7, { lp: [4000, 400] });
-      sfxOsc(c, o, v.pulse[0.125], t, 0.16, 500, 90, 0.35);
+      sfxNoise(c, o, v.noiseLong, t, 0.3, 1.0, 0.12, 0.9, { lp: [9000, 600], attack: 0.001 });
+      sfxNoise(c, o, v.noiseShort, t, 0.06, 0.9, 0.4, 0.4, { attack: 0.001 });
+      sfxOsc(c, o, v.pulse[0.5], t, 0.13, 900, 70, 0.4, { attack: 0.001 });
+      sfxOsc(c, o, v.triangle, t, 0.16, 150, 38, 0.9, { attack: 0.001 });
     } },
   death: { group: 'combat', vol: 0.33, len: 1.5, duck: [1600, 0.15], gap: 1000,
     play: (c, o, v, t) => {
@@ -150,8 +152,14 @@ const SFX = {
       sfxOsc(c, o, v.triangle, t, 0.9, 50, 75, 1, { attack: 0.15, hold: 0.4 });
       sfxNoise(c, o, v.noiseLong, t, 0.9, 0.08, 0.12, 0.6, { lp: [500], attack: 0.15, hold: 0.4 });
     } },
-  bloom: { group: 'combat', vol: 0.4, len: 0.45,
-    play: (c, o, v, t) => sfxNoise(c, o, v.noiseLong, t, 0.45, 0.6, 0.25, 0.8, { lp: [6000, 700], attack: 0.01 }) },
+  // Soft and plant-like: a muffled pod pop, then a slow breathy puff of spores
+  // with a faint leafy rustle on top. Nothing bright or sharp.
+  bloom: { group: 'combat', vol: 0.4, len: 0.7,
+    play: (c, o, v, t) => {
+      sfxOsc(c, o, v.triangle, t, 0.09, 170, 115, 0.5, { attack: 0.01 });
+      sfxNoise(c, o, v.noiseLong, t + 0.02, 0.65, 0.35, 0.2, 0.7, { lp: [1400, 300], attack: 0.08 });
+      sfxNoise(c, o, v.noiseLong, t + 0.05, 0.45, 0.6, 0.4, 0.15, { bp: [2200, 1500], q: 0.8, attack: 0.06 });
+    } },
 
   // ── Progress ──
   pickup: { group: 'progress', vol: 0.35, len: 0.12, gap: 60,
@@ -212,10 +220,10 @@ const SFX = {
       sfxOsc(c, o, v.triangle, t, 0.1, 180, 70, 0.9);
       sfxNoise(c, o, v.noiseLong, t, 0.12, 0.4, 0.2, 0.45, { lp: [1800, 500] });
     } },
-  door: { group: 'world', vol: 0.4, len: 0.2,
+  door: { group: 'world', vol: 0.4, len: 0.1,
     play: (c, o, v, t) => {
-      sfxOsc(c, o, v.triangle, t, 0.06, 240, 200, 0.9);
-      sfxOsc(c, o, v.triangle, t + 0.1, 0.08, 180, 140, 0.9);
+      sfxOsc(c, o, v.triangle, t, 0.09, 210, 150, 0.9);
+      sfxNoise(c, o, v.noiseLong, t, 0.05, 0.3, 0.2, 0.25, { lp: [1500] });
     } },
 
   // ── Interface (quiet) ──
