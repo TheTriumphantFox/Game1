@@ -223,15 +223,18 @@ function controlsToggleStartScreen() {
 function settingsToggleMusicMute() {
   if (typeof musicSetMuted !== 'function') return;
   musicSetMuted(!musicPref.muted);
+  if (typeof sfx === 'function') sfx('toggle');
   renderSettingsWindow();
 }
 
 function settingsSetSfxVolume(v) {
   setDevicePref('sfxVolume', Math.max(0, Math.min(100, Math.round(Number(v) || 0))));
+  if (typeof sfx === 'function') sfx('toggle');   // a tick at the new level previews it
 }
 
 function settingsToggleSfxMute() {
   setDevicePref('sfxMuted', !devicePrefs.sfxMuted);
+  if (typeof sfx === 'function') sfx('toggle');   // heard only when it turns sound back on
   renderSettingsWindow();
 }
 
@@ -241,6 +244,7 @@ function settingsToggle(k) {
   setDevicePref(k, !devicePrefs[k]);
   if (k === 'screenShake' && !devicePrefs.screenShake) { shakeMag = 0; shakeMs = 0; }
   if (typeof buzz === 'function') buzz(8);
+  if (typeof sfx === 'function') sfx('toggle');
   renderSettingsWindow();
 }
 

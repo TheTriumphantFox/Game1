@@ -382,6 +382,7 @@ function sellElementalArmor(id) {
   if (player.armorUpgrades) delete player.armorUpgrades[id];   // drop its upgrade level — a re-forge starts at Lv 0
   if (player.activeArmorElement === id) player.activeArmorElement = null;
   addItem('rubies', ELEMENTAL_ARMOR_SELL_VALUE);
+  if (typeof sfx === 'function') sfx('sell');
   showMsg(`💰 Sold 🛡${elem.icon} ${elem.label} Armor for ${ELEMENTAL_ARMOR_SELL_VALUE} rubies`, 3000);
   renderBlacksmithContents();
   updateHUD();
@@ -393,6 +394,7 @@ function buyElementalArrows(id) {
   const cost = discountedCost(plain ? PLAIN_ARROW_PACK_COST : ARROW_PACK_COST);
   if (player.rubies < cost) return;
   player.rubies -= cost;
+  if (typeof sfx === 'function') sfx('buy');
   const gained = addArrow(id, ARROW_PACK_SIZE);
   const elem = plain ? { icon: '🏹', label: 'Plain' } : SWORD_ELEMENTS[id];
   const tail = gained < ARROW_PACK_SIZE ? ` — quiver capped at ${ITEM_CAP}` : '';
@@ -409,6 +411,7 @@ function sellElementalArrow(id) {
   player.arrows[id]--;
   const value = plain ? PLAIN_ARROW_SELL_VALUE : ARROW_SELL_VALUE;
   addItem('rubies', value);
+  if (typeof sfx === 'function') sfx('sell');
   if (player.arrows[id] <= 0 && player.activeArrowElement === id) {
     player.activeArrowElement = null;
   }
@@ -430,6 +433,7 @@ function sellElementalSword(id) {
   // If the player was wielding this sword, fall back to the base sword
   if (player.activeSwordElement === id) player.activeSwordElement = null;
   addItem('rubies', ELEMENTAL_SELL_VALUE);
+  if (typeof sfx === 'function') sfx('sell');
   showMsg(`💰 Sold ${elem.icon} ${elem.label} Sword for ${ELEMENTAL_SELL_VALUE} rubies`, 3000);
   renderStoreContents();
   updateHUD();
@@ -443,6 +447,7 @@ function sellTrophy(key) {
   player[key] = 0;
   const earned = count * t.value;
   addItem('rubies', earned);
+  if (typeof sfx === 'function') sfx('sell');
   showMsg(`💰 Sold ${count} ${t.icon} ${t.label}${count > 1 ? 's' : ''} for ${earned} rubies`, 3000);
   renderStoreContents();
   updateHUD();
@@ -454,6 +459,7 @@ function sellPotionItem(key) {
   if ((player[key] || 0) <= 0) return;
   player[key]--;
   addItem('rubies', p.value);
+  if (typeof sfx === 'function') sfx('sell');
   showMsg(`💰 Sold 1 ${p.icon} ${p.label} for ${p.value} rubies`, 2500);
   renderStoreContents();
   updateHUD();
@@ -466,6 +472,7 @@ function buyStoreItem(id) {
   const cost = discountedCost(it.cost);
   if (player.rubies < cost) return;
   player.rubies -= cost;
+  if (typeof sfx === 'function') sfx('buy');
   it.apply();
   showMsg(`🛒 Purchased ${it.label}!`, 3000);
   renderStoreContents();

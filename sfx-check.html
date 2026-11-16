@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>sfx check</title>
+<style>
+html,body{margin:0;background:#111;color:#ddd;font:13px monospace}
+main{padding:12px 16px;max-width:980px}
+h1{font-size:15px;margin:0 0 8px}
+h2{font-size:13px;margin:14px 0 6px;color:#9cf}
+button{font:inherit;background:#222;color:#ddd;border:1px solid #444;padding:4px 8px;margin:2px;cursor:pointer}
+button.on{background:#2a5;color:#fff;border-color:#3c6}
+table{border-collapse:collapse;margin-top:8px}
+td,th{border:1px solid #333;padding:2px 8px;text-align:right}
+td:first-child,th:first-child{text-align:left}
+.warn{color:#f88}
+.row{margin:4px 0}
+</style>
+<main>
+<h1>🔊 Hero of Stormdrift: sound board</h1>
+<div class="row">Not part of the game. Click once anywhere to let the browser make sound, then click a sound.
+Levels are what the game plays with the Sound effects slider at 100.
+Every value is in sfx.js (the SFX table).</div>
+<div class="row">
+  <button id="music">♪ forest music under (at your saved music volume)</button>
+  <button id="all">play every sound in turn</button>
+  <button id="measure">measure all (offline render)</button>
+</div>
+<div id="groups"></div>
+<div id="table"></div>
+</main>
+<script src="music-songs.js"></script>
+<script src="music.js"></script>
+<script src="sfx.js"></script>
+<script>
+// Dev harness, same family as music-check.html: loads only the music and sound
+// files, not the game. sfxGain lives in config.js, which is not loaded here, so
+// every sound plays at its slider-100 level (the SFX table's `vol`).
+const $ = id => document.getElementById(id);
+const groups = {};
+for (const [name, def] of Object.entries(SFX)) {
+  if (!groups[def.group]) {
+    const h = document.createElement('h2'); h.textContent = def.group;
+    const d = document.createElement('div');
+    $('groups').append(h, d);
+    groups[def.group] = d;
+  }
+  const b = document.createElement('button');
+  b.textContent = name;
+  b.onclick = () => { unlockMusic(); sfx(name); };
+  groups[def.group].appendChild(b);
+}
+// The boss scream, for comparing levels against a sound players already know.
+const scream = new Audio('wilhelm-scream.wav');
+const sb = document.createElement('button');
+sb.textContent = 'scream (bosses, recorded)';
+sb.onclick = () => { scream.volume = 0.5; scream.currentTime = 0; scream.play(); };
+groups.combat.appendChild(sb);
+
+let musicOn = false;
+$('music').onclick = () => {
+  unlockMusic();
+  musicOn = !musicOn;
+  // Uses the music volume saved by the game (same file:// storage); nothing is written.
+  if (musicOn) musicForce('forest', 'normal', {});
+  else musicStop();
+  $('music').classList.toggle('on', musicOn);
+};
+
+$('all').onclick = async () => {
+  unlockMusic();
+  for (const name of Object.keys(SFX)) {
+    sfx(name);
+    await new Promise(r => setTimeout(r, SFX[name].len * 1000 + 350));
+  }
+};
+
+// Peak and loudest-50ms RMS per sound. Anything over 0.9 peak would clip once
+// two sounds overlap; the table flags it.
+async function measureAll() {
+  const rows = [];
+  for (const name of Object.keys(SFX)) {
+    const m = sfxMeasure(await sfxRenderOffline(name));
+    rows.push({ name, group: SFX[name].group, len: SFX[name].len, ...m });
+  }
+  window.__sfxTable = rows;
+  const db = x => (20 * Math.log10(Math.max(x, 1e-6))).toFixed(1);
+  $('table').innerHTML = '<table><tr><th>sound</th><th>group</th><th>len s</th><th>audible s</th>' +
+    '<th>peak</th><th>peak dB</th><th>rms dB</th></tr>' +
+    rows.map(r => `<tr><td>${r.name}</td><td>${r.group}</td><td>${r.len.toFixed(2)}</td>` +
+      `<td>${r.audible.toFixed(2)}</td><td class="${r.peak > 0.9 ? 'warn' : ''}">${r.peak.toFixed(3)}</td>` +
+      `<td>${db(r.peak)}</td><td>${db(r.rms)}</td></tr>`).join('') + '</table>';
+  return rows;
+}
+$('measure').onclick = measureAll;
+</script>

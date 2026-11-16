@@ -206,6 +206,8 @@ function damagePlayer(rawDmg, hitElement) {
   const hpDmg = finalDmg - tempAbsorbed;
   player.hp -= hpDmg;
   if (hpDmg > 0 && typeof buzz === 'function') buzz([0, 35, 25, 35]);
+  // A hit that armor swallowed whole still makes a sound: the block, not the hurt.
+  if (typeof sfx === 'function') sfx(finalDmg > 0 ? 'hurt' : 'block');
 
   const psp = screenPX(player.x, player.y);
   if (finalDmg === 0) {
@@ -318,6 +320,7 @@ function firePlayerArrow() {
   // shows the draw/release action for the same window the player sees the bow.
   player.bowTimer = 280;
   if (typeof buzz === 'function') buzz(12);
+  if (typeof sfx === 'function') sfx('arrow');
   const elemColor = element ? SWORD_ELEMENTS[element]?.color : null;
   projectiles.push({
     tx: player.x + 0.5, ty: player.y + 0.5,
@@ -378,6 +381,7 @@ function placePlayerBomb() {
   player.bombs--;
   if (typeof updateHUD === 'function') updateHUD();
   if (typeof buzz === 'function') buzz(20);
+  if (typeof sfx === 'function') sfx('bombThrow');
   const bx = player.x + player.swordDir.x * 3;
   const by = player.y + player.swordDir.y * 3;
   // Unchanged landing point. It is kept on the projectile so the landing can be
@@ -442,14 +446,17 @@ const CUTTABLE_FOLIAGE = new Map([
 
 function doSwordSwing() {
   if (typeof buzz === 'function') buzz(15);
+  if (typeof sfx === 'function') sfx('swing');
   player.swordTimer = 180;
   player.weapon = 'sword';
   const tx = player.x + player.swordDir.x;
   const ty = player.y + player.swordDir.y;
   const sp = screenPX(tx, ty);
   spawnParticle(sp.x, sp.y, '#ffee88', 4, 3);
+  let hitAny = false;
   enemies.filter(e => !e.dead && !e.dormant).forEach(e => {
     if (inMeleeArc(player.x, player.y, player.swordDir.x, player.swordDir.y, e.x, e.y)) {
+      hitAny = true;
       // Base physical damage
       const baseDmg = player.swordLevel + Math.floor(Math.random() * 3);
       e.hp -= baseDmg;
@@ -489,6 +496,7 @@ function doSwordSwing() {
       if (e.hp <= 0) killEnemy(e);
     }
   });
+  if (hitAny && typeof sfx === 'function') sfx('hit');
 
   // Cut down soft foliage in the swing. Flowers, mushrooms, flowering cacti, and
   // bones all have 1 HP, so a single swing clears them. Same three tiles as the
@@ -584,6 +592,7 @@ function doPunch() {
     // even if that flee check is late.
     if (e.hp < 1) e.hp = 1;
   }
+  if (typeof sfx === 'function') sfx(connected ? 'punch' : 'swing');
   if (!connected && typeof showMsg === 'function') showMsg('👊 You swing at nothing.', 900);
 }
 
@@ -879,6 +888,7 @@ function stepFlyingProjectile(p, step, map) {
             spawnParticle(esp.x, esp.y, elem.color, 6, 2);
           }
         }
+        if (typeof sfx === 'function') sfx('arrowHit');
         if (e.hp <= 0) killEnemy(e);
         p.life = -999;
         // One arrow, one target: stop scanning so a single shot can't damage
@@ -955,6 +965,7 @@ function stepProjectiles(dt, map) {
       // ROCK tiles in range.
       const bsp = screenPX(p.tx, p.ty);
       spawnParticle(bsp.x, bsp.y, '#ff8800', 20, 6);
+      if (typeof sfx === 'function') sfx('blast');
       const BLAST = 2;
       // The blast is measured from the tile it landed on. Use floor (not round)
       // so the tile-centered bomb position (bx + 0.5) maps to its actual tile bx.
@@ -1296,6 +1307,7 @@ function stepDrops(dt) {
         showMsg(`🗡️ Claimed the ${nm}'s Head — bring it to the Guild recruiter.`, 3000);
       }
       d.collected = true;
+      if (typeof sfx === 'function') sfx('pickup');
     }
   }
   drops = drops.filter(d => !d.collected && d.life > 0);

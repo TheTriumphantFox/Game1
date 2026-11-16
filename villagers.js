@@ -472,6 +472,7 @@ function talkChronicler(v) {
   }
   if (typeof addItem === 'function') rewards.push(`💎 ${addItem('rubies', 100 * tier * N)} Rubies!`);
   if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  if (typeof sfx === 'function') sfx('reward');
   if (typeof updateHUD === 'function') updateHUD();
   // Speech first, then the haul as a toast once the player dismisses it — so the
   // reward list isn't competing with the line for the same read.
@@ -1551,6 +1552,7 @@ function talkLostParent(v) {
     q.status = 'done';
     player.bowLevel = (player.bowLevel || 1) + 1;   // each level = +2 bow damage
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+    if (typeof sfx === 'function') sfx('reward');
     if (typeof updateHUD === 'function') updateHUD();
     const lvl = player.bowLevel;
     if (typeof sayNPC === 'function')
@@ -1602,6 +1604,7 @@ function findTimmy(v) {
   reuniteTimmyInVillage(cm ? cm.regionIdx : null);
 
   if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  if (typeof sfx === 'function') sfx('reward');
   if (typeof showMapMsg === 'function') {
     showMapMsg(`👦 You found Timmy! He races home to the village — go tell his parent for your reward.`);
   } else if (typeof showMsg === 'function') {
@@ -1748,6 +1751,7 @@ function talkEscortGiver(v) {
     q.status = 'done';
     const rewardMsg = def.grant(rid);
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+    if (typeof sfx === 'function') sfx('reward');
     if (typeof updateHUD === 'function') updateHUD();
     say(def.done(), () => { if (typeof showMapMsg === 'function') showMapMsg(rewardMsg); });
     return;
@@ -1775,6 +1779,7 @@ function findEscortNpc(v) {
   if (cm) cm.savedVillagers = villagers.map(o => ({ ...o }));
   reuniteEscortInVillage(cm ? cm.regionIdx : null, def);
   if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  if (typeof sfx === 'function') sfx('reward');
   if (typeof showMapMsg === 'function') showMapMsg(def.found());
   else if (typeof showMsg === 'function') showMsg(def.found(), 4000);
 }

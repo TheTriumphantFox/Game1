@@ -224,6 +224,7 @@ function talkGuildRecruiter(v) {
   if (q.status === 'head') {
     q.status = 'done';
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+    if (typeof sfx === 'function') sfx('reward');
     let line, haul;
     if (!player.guildCard) {
       // First induction: hand over the Sword & Shield Guild membership card.
@@ -271,6 +272,7 @@ function talkGuildRecruiter(v) {
   if (as === 'held') {
     q.artifactStatus = 'done';
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+    if (typeof sfx === 'function') sfx('reward');
     // Bounty: 200 × region level rubies, 2d4 region Health Potions, 2d4 region ore.
     const d4 = () => 1 + Math.floor(Math.random() * 4);
     const rewards = [];
@@ -556,6 +558,7 @@ function rewardGuildBounty(rid, regionIdx, kind) {
   const b = player.guildQuests[rid].bounties[kind];
   b.status = 'done';
   if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  if (typeof sfx === 'function') sfx('reward');
   const N = (typeof regionNumberOf === 'function') ? regionNumberOf(rid) : 1;
   const d4 = () => 1 + Math.floor(Math.random() * 4);
   const rewards = [];

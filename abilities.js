@@ -215,6 +215,7 @@ function tryUpdraftGlide() {
         shrineDynamicSolidAt(currentMap(), x, y))) break;
     if (!sawGap) break;            // nothing was crossed; that is just walking
     if (enemies.some(e => !e.dead && e.x === x && e.y === y)) break;
+    if (typeof sfx === 'function') sfx('glide');
     landAbilityStep(x, y, '🜁 You ride the updraft across.', true);
     return true;
   }
@@ -239,6 +240,8 @@ function stepGlideVisual(dt) {
   player.renderX = g.fromX + (player.x - g.fromX) * eased;
   player.renderY = g.fromY + (player.y - g.fromY) * eased;
   g.lift = 1.65 * Math.sin(Math.PI * p);
+  // The thud goes with the feet arriving (travel complete), not the arc's tail.
+  if (travel >= 1 && !g.landed) { g.landed = true; if (typeof sfx === 'function') sfx('land'); }
   if (p >= 1) glideVisual = null;
   return true;
 }
@@ -365,6 +368,7 @@ function luminousAuraBlocks(px, py) {
   spawnParticle(sp.x, sp.y, '#ffe89a', 12, 4);
   spawnParticle(sp.x, sp.y, '#fff7d0', 8, 3);
   if (typeof buzz === 'function') buzz(8);
+  if (typeof sfx === 'function') sfx('block');
   return true;
 }
 
@@ -582,6 +586,7 @@ function hurtInMiasma(mapObj, dt) {
       color: '#a8d84a', life: 900, rise: -4 });
   }
   if (typeof buzz === 'function') buzz(16);
+  if (typeof sfx === 'function') sfx('hurt');
   if (player.hp <= 0) respawn('miasma');
 }
 
@@ -780,6 +785,7 @@ function stepRegionalHeat(dt) {
       color: '#ffb066', life: 900, rise: -4 });
   }
   if (typeof buzz === 'function') buzz(18);
+  if (typeof sfx === 'function') sfx('hurt');
   if (player.hp <= 0) respawn('heat');
 }
 
@@ -942,6 +948,7 @@ function stepCursedGround(dt) {
       color: '#a86ad8', life: 900, rise: -4 });
   }
   if (typeof buzz === 'function') buzz(18);
+  if (typeof sfx === 'function') sfx('hurt');
   if (player.hp <= 0) respawn('cursed');
 }
 

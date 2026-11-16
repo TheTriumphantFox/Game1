@@ -424,6 +424,7 @@ function radialFindItem(type) {
 function toggleRadialMenu() {
   if (radialMenuOpen) { closeRadialMenu(); return; }
   radialMenuOpen = true;
+  if (typeof sfx === 'function') sfx('uiOpen');
   radialMenuOpenTime = Date.now();
   // Reopen on the last-used ring; if it's since emptied, fall back to the first
   // ring that still has items so we never open on an empty ring.
@@ -441,6 +442,7 @@ function toggleRadialMenu() {
 function closeRadialMenu() {
   if (!radialMenuOpen) return;
   radialMenuOpen = false;
+  if (typeof sfx === 'function') sfx('uiClose');
   if (typeof clearAllKeys === 'function') clearAllKeys();
 }
 
