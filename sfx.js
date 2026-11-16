@@ -117,8 +117,11 @@ const SFX = {
       sfxNoise(c, o, v.noiseShort, t, 0.04, 1.2, 0.8, 0.5);
       sfxOsc(c, o, v.triangle, t, 0.08, 420, 180, 0.8);
     } },
-  bombThrow: { group: 'combat', vol: 0.45, len: 0.08,
-    play: (c, o, v, t) => sfxOsc(c, o, v.triangle, t, 0.07, 200, 130, 0.9) },
+  // An airy toss, falling in pitch as the bomb arcs away. No tone in it, so it
+  // can't be mistaken for the door's knock; lower and falling, unlike the
+  // sword swing's rising whoosh.
+  bombThrow: { group: 'combat', vol: 0.7, len: 0.18,
+    play: (c, o, v, t) => sfxNoise(c, o, v.noiseLong, t, 0.18, 0.9, 0.4, 0.8, { bp: [1800, 420], q: 1.6, attack: 0.015 }) },
   blast: { group: 'combat', vol: 0.34, len: 0.75, duck: [500, 0.35],
     play: (c, o, v, t) => {
       sfxOsc(c, o, v.triangle, t, 0.35, 120, 32, 1);
