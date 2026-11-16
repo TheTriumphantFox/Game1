@@ -502,6 +502,7 @@ function wakeGolem(e) {
     spawnParticle(sp.x, sp.y, e.color || '#888888', 10, 3);
   }
   if (typeof buzz === 'function') buzz([0, 40, 30, 60]);
+  if (typeof sfx === 'function') sfx('golem');
   if (typeof showMsg === 'function') {
     const base = (typeof DND_ENEMIES !== 'undefined' && DND_ENEMIES[e.type]) || null;
     const name = base ? base.name : 'golem';
@@ -1032,6 +1033,7 @@ function burstBloom(e) {
   if (warded) bloomWardCdMs = poisonWardIntervalMs(BLOOM_PULSE_MS);
   player.invincible = 900;
   if (typeof buzz === 'function') buzz([0, 30, 20, 40]);
+  if (typeof sfx === 'function') sfx('bloom');
   if (typeof showMsg === 'function') showMsg('\u2620 Spores burst around you!', 1400);
   if (player.hp <= 0 && typeof respawn === 'function') respawn('spores', e.name);
 }

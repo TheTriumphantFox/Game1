@@ -146,6 +146,7 @@ function brewHerbPotion() {
   player.mushrooms -= HERB_POTION_RECIPE.mushrooms;
   player.herbals   -= HERB_POTION_RECIPE.herbals;
   player.rubies    -= HERB_POTION_RECIPE.rubies;
+  if (typeof sfx === 'function') sfx('buy');
   addItem('potions', 1);
   showMsg(`🧪 The Herbalist brews you a ${regionPotionName('forest')}!`, 3000);
   renderHerbalistContents();
@@ -167,6 +168,7 @@ function brewRegionPotion(regionId, N) {
   const recipe = HERBALIST_RECIPES[regionId];
   for (const k of recipe.heal) player[k] -= 1;
   player.rubies -= 5 * N;
+  if (typeof sfx === 'function') sfx('buy');
   player.regionPotions = player.regionPotions || {};
   player.regionPotions[regionId] = Math.min(ITEM_CAP, (player.regionPotions[regionId] || 0) + 1);
   const name = regionId.charAt(0).toUpperCase() + regionId.slice(1);
@@ -189,6 +191,7 @@ function brewElixir(regionId, N) {
   const recipe = HERBALIST_RECIPES[regionId];
   for (const k of recipe.elixir) player[k] -= 1;
   player.rubies -= 5 * N;
+  if (typeof sfx === 'function') sfx('buy');
   player.elixirs = player.elixirs || {};
   player.elixirs[regionId] = Math.min(ITEM_CAP, (player.elixirs[regionId] || 0) + 1);
   const elem = SWORD_ELEMENTS[regionId];
@@ -323,6 +326,7 @@ function turnInCollectorQuest() {
   for (const type of q.targets) player[type + 's'] -= COLLECTOR_QTY;
   const reward = collectorReward(q);
   player.rubies += reward;
+  if (typeof sfx === 'function') sfx('reward');
   q.status = 'done';
   showMsg(`📜 Collection complete! The Collector pays 💰 ${reward}.`, 3500);
   renderCollectorContents();
@@ -408,6 +412,7 @@ function turnInTaxidermistQuest() {
   if (!taxidermistReady(regionIdx)) { renderTaxidermistContents(); return; }
   for (const type of taxidermistTargets(regionIdx)) player[type + 's'] -= 1;
   q.status = 'done';
+  if (typeof sfx === 'function') sfx('reward');
   player.trophyDropBonus = player.trophyDropBonus || {};
   player.trophyDropBonus[regionId] = (player.trophyDropBonus[regionId] || 0) + 1;
   const regionName = regionId.charAt(0).toUpperCase() + regionId.slice(1);
@@ -489,6 +494,7 @@ function turnInAlchemistOrder() {
   player[o.target + 's'] -= ALCHEMIST_QTY;
   const reward = alchemistReward(o);
   player.rubies += reward;
+  if (typeof sfx === 'function') sfx('reward');
   o.streak = (o.streak || 0) + 1;
   o.target = rollAlchemistTarget(regionIdx);   // roll the next order
   showMsg(`⚗️ Order filled! The Alchemist pays 💰 ${reward}. (Streak ${o.streak})`, 3500);

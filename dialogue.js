@@ -109,6 +109,7 @@ function advanceDialogue() {
     _updateDialoguePrompt();
     return;
   }
+  if (typeof sfx === 'function') sfx('talk');
   _dlgIndex++;
   if (_dlgIndex >= _dlgLines.length) { closeDialogue(); return; }
   _showDialogueLine();

@@ -145,10 +145,21 @@ function withCutFoliageRegrown(fn) {
 
 // Called from spawnEnemiesForMap, which every walked map change goes through. A
 // cutscene's jump cut (cutscene.js) skips it and is picked up at the next arrival.
+//
+// The door sound waits for the next unfrozen frame too (flushArrivalAutosave),
+// because a load also passes through here and resetMapArrivalTracking has to be
+// able to cancel it. tryTransition sets arrivalByEdge for an edge walk, which
+// makes no sound: it happens every few seconds and is not a door.
+let arrivalByEdge = false;
+let arrivalSfxPending = false;
 function noteMapArrival(mid) {
   const m = worldMaps[mid];
   if (foliageCuts.mapObj && foliageCuts.mapObj !== m) regrowCutFoliage();
-  if (mid !== arrivalMapId) { arrivalMapId = mid; arrivalAutosavePending = true; }
+  if (mid !== arrivalMapId) {
+    arrivalMapId = mid; arrivalAutosavePending = true;
+    arrivalSfxPending = !arrivalByEdge;
+  }
+  arrivalByEdge = false;
 }
 
 // A load or a new game is not an arrival. Forget any journal from the old world.
@@ -156,12 +167,15 @@ function resetMapArrivalTracking() {
   foliageCuts = { mapObj: null, cells: [] };
   arrivalMapId = currentMapId;
   arrivalAutosavePending = false;
+  arrivalSfxPending = false;
+  arrivalByEdge = false;
 }
 
 // The autosave cannot be written at the moment of arrival: transitions call
 // spawnEnemiesForMap BEFORE they place the hero, so the checkpoint would hold the old
 // coordinates on the new map. update() calls this on the next unfrozen frame instead.
 function flushArrivalAutosave() {
+  if (arrivalSfxPending) { arrivalSfxPending = false; if (typeof sfx === 'function') sfx('door'); }
   if (!arrivalAutosavePending || player.hp <= 0) return;
   arrivalAutosavePending = false;
   // Nothing autosaves before the prologue is over (the hero cannot leave the
@@ -876,6 +890,7 @@ function tryUnsealShrine(tc, tr, element) {
   q.status = 'done';
   if (firstTime) { player.maxHp += 2; player.hp = player.maxHp; }
   if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+  if (typeof sfx === 'function') sfx('shrineOpen');
   const sp = screenPX(tc, tr);
   spawnParticle(sp.x, sp.y, rElem ? rElem.color : '#aaffaa', 22, 5);
   spawnParticle(sp.x, sp.y, '#ffffff', 12, 4);

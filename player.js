@@ -295,6 +295,7 @@ function usePotion() {
   spawnParticle(sp.x, sp.y, '#ff66aa', 12, 3);
   spawnParticle(sp.x, sp.y, '#ffccdd', 8, 2);
   showMsg(`🧪 Quaffed a ${regionPotionName('forest')} — +${gained} HP!`, 2500);
+  if (typeof sfx === 'function') sfx('potion');
   updateHUD();
 }
 
@@ -355,6 +356,7 @@ function useRegionPotion(regionId) {
   spawnParticle(sp.x, sp.y, '#ff66aa', 12, 3);
   spawnParticle(sp.x, sp.y, '#ffccdd', 8, 2);
   showMsg(`🧪 Quaffed a ${regionPotionName(regionId)} — +${gained} HP!`, 2500);
+  if (typeof sfx === 'function') sfx('potion');
   updateHUD();
 }
 
@@ -376,6 +378,7 @@ function useElixir(elemId) {
   const elem = SWORD_ELEMENTS[elemId];
   const sp = screenPX(player.x, player.y);
   spawnParticle(sp.x, sp.y, elem ? elem.color : '#ffffff', 14, 3);
+  if (typeof sfx === 'function') sfx('potion');
   showMsg(`${elem ? elem.icon : '⚗️'} Immune to ${elem ? elem.label : elemId} for ${ELIXIR_IMMUNITY_MS / 1000}s!`, 2500);
   updateHUD();
 }
@@ -591,12 +594,14 @@ function gainXP(amt) {
     spawnParticle(lvlSp.x, lvlSp.y, '#ffee44', 24, 4);
     spawnParticle(lvlSp.x, lvlSp.y, '#ffffff', 16, 3);
     spawnParticle(lvlSp.x, lvlSp.y, '#88ddff', 12, 2);
+    if (typeof sfx === 'function') sfx('levelUp');
     showMsg(`⬆️ Level Up! Level ${player.level}! Max HP +2 — fully healed!`, 3000);
   }
 }
 
 // ─── Death / respawn ──────────────────────────────────────────────────────────
 function respawn(kind, killerName) {
+  if (typeof sfx === 'function') sfx('death');
   const deathLine = deathMessage(kind, killerName);
   // Lifetime death count, read before reloadLastSave() can overwrite `player`
   // wholesale from the checkpoint's own (older) `deaths` field. Adding 1 to the
@@ -809,7 +814,7 @@ const GOLEM_RUBY_MAX = 100;
 const GOLEM_RUBY_PER_REGION = 50; // times the region's progression order
 
 // ─── Kill sound ───────────────────────────────────────────────────────────────
-// Every kill plays the classic Wilhelm scream. The problem this solves is real
+// Boss kills play the classic Wilhelm scream (ordinary kills use sfx('kill')). The problem this solves is real
 // and was diagnosed correctly the first time: cloning an <audio> element
 // re-decodes the file on every play, which is what made the scream lag behind
 // the kill.
@@ -855,7 +860,11 @@ function playKillSound() {
 // ─── Kill enemy ───────────────────────────────────────────────────────────────
 function killEnemy(e) {
   e.dead = true;
-  playKillSound();
+  // Bosses (village bosses, guild quarries, bounty elites) keep the Wilhelm
+  // scream; everything else gets the synth kill (sfx.js). The Emperor gets
+  // neither: his death is the monologue scene (playEmperorDeath, tower.js).
+  if (e.boss && !e.finalBoss) playKillSound();
+  else if (!e.boss && typeof sfx === 'function') sfx('kill');
   const sp = screenPX(e.x, e.y);
   spawnParticle(sp.x, sp.y, e.color, 14, 5);
   spawnParticle(sp.x, sp.y, '#ffcc00', 6, 3);
@@ -1115,6 +1124,7 @@ function tryTransition() {
   // Before the spawns so a chest placed in an alcove is already there when the
   // roster is built, and idempotent — a re-entry never adds a second.
   if (typeof ensureAbilitySecret === 'function') ensureAbilitySecret(nm);
+  arrivalByEdge = true;   // walking off the edge is not a door: no door sound (world.js)
   spawnEnemiesForMap(nextId);
   spawnVillagersForMap(nextId);
 
@@ -1282,6 +1292,7 @@ function handlePickup(bnx, bny, map) {
     }
     showMsg(reward + oreNote + bombNote, 3000);
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
+    if (typeof sfx === 'function') sfx('chest');
     const sp = screenPX(bnx, bny);
     spawnParticle(sp.x, sp.y, '#ffcc00', 12, 4);
   }
@@ -1316,6 +1327,7 @@ function handlePickup(bnx, bny, map) {
       const ay = bny;
       if (!currentMap().openedChests.has(`big_${ax},${ay}`)) {
         currentMap().openedChests.add(`big_${ax},${ay}`);
+        if (typeof sfx === 'function') sfx('chest');
         const cm = currentMap();
         const regionId = regionIdForMap(cm);
         const d6 = () => 1 + Math.floor(Math.random() * 6);
@@ -1350,6 +1362,7 @@ function handlePickup(bnx, bny, map) {
         gq.artifactStatus = 'held';
         showMsg('🏺 You lift a rare and mysterious artifact from the chest! Return it to the Guild Recruiter.', 5000);
         if (typeof buzz === 'function') buzz([0, 30, 20, 40]);
+        if (typeof sfx === 'function') sfx('reward');
         const sp = screenPX(bnx, bny);
         spawnParticle(sp.x, sp.y, '#cc66ff', 24, 6);
         spawnParticle(sp.x, sp.y, '#ffffff', 16, 4);
@@ -1368,6 +1381,7 @@ function handlePickup(bnx, bny, map) {
       const ay = (tHere === T.BOSS_CHEST_BL || tHere === T.BOSS_CHEST_BR) ? bny - 1 : bny;
       if (!currentMap().openedChests.has(`boss_${ax},${ay}`)) {
         currentMap().openedChests.add(`boss_${ax},${ay}`);
+        if (typeof sfx === 'function') sfx('chest');
         const cm = currentMap();
         const regionId = regionIdForMap(cm);
         const lvl = regionNumberOf(regionId);

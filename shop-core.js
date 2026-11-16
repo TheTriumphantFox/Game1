@@ -43,6 +43,7 @@ function buyInnRest() {
   if (player.rubies < INN_REST_COST) return;
   if (player.hp >= player.maxHp) return;
   player.rubies -= INN_REST_COST;
+  if (typeof sfx === 'function') sfx('buy');
   player.hp = player.maxHp;
   showMsg('💤 You feel refreshed. Full HP restored.', 3000);
   renderInnContents();

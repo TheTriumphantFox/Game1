@@ -381,6 +381,7 @@ function setShrineSolved(cm) {
   if (!q || q.status === 'solved') return;
   q.status = 'solved';
   cm.map[75][91] = T.SHRINE_FLOOR;
+  if (typeof sfx === 'function') sfx('shrineSolved');
   showMsg('✦ The shrine gate opens.', 2400);
   minimapDirty = true;
   // The gate tile changed, so the renderer's memoized per-map tile scans have to
@@ -625,6 +626,7 @@ function claimShrineReward(cm) {
   if (q.rewardClaimed) { showMsg('The shrine reward has already been claimed.', 1400); return true; }
   const reward = SHRINE_REWARDS[cm.regionIdx];
   q.rewardClaimed = true;
+  if (typeof sfx === 'function') sfx('reward');
   player.abilities = Object.assign({}, SHRINE_ABILITY_DEFAULTS, player.abilities || {});
   if (reward.kind === 'heart') {
     // Stage 2's last open item, closed here. A hero who broke this region's

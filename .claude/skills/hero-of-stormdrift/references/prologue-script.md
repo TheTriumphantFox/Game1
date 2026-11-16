@@ -129,7 +129,7 @@ far to make out.
 > **VILLAGER** *(offscreen)*:
 > ...Do you feel that?
 
-*(The roar. A bundled local `dragon-roar.wav`, played on the cue, with a screen shake.)*
+*(The roar. A bundled local `dragon-roar-far.wav`, a recorded roar muffled for distance (playDragonRoar('far'), sfx.js), played on the cue, with a screen shake.)*
 
 > *(narration)*
 > Silence. Then, a long way off, a roar.

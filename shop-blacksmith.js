@@ -364,6 +364,7 @@ function upgradeRegionalSword(id) {
     consumeSmithVoucher();
   }
   player.swordUpgrades[id] = lv + 1;
+  if (typeof sfx === 'function') sfx('forge');   // paid or by voucher
   const elem = SWORD_ELEMENTS[id];
   showMsg(`🔨 Upgraded ⚔${elem.icon} ${elem.label} Sword → Lv ${lv + 1}: +${(lv + 1) * 2} ${elem.label} damage${free ? ' (free — the apprentice\'s thanks!)' : ''}`, 3800);
   renderBlacksmithContents();
@@ -426,6 +427,7 @@ function forgeOreArmor() {
   if (player.rubies < oa.rubyCost) return;
   player[oa.ore.id] -= oa.oreCost;
   player.rubies     -= oa.rubyCost;
+  if (typeof sfx === 'function') sfx('forge');
   player.armor = oa.armor;   // replace the lesser piece with this tier's value
   showMsg(`🔨 Forged ${oa.ore.label} Armor — Armor now +${player.armor}`, 3000);
   renderBlacksmithContents();
@@ -446,6 +448,7 @@ function forgeRegionalArmor() {
   if (player.rubies < rubyCost) return;
   if (!parts.every(t => (player[t + 's'] || 0) >= BLACKSMITH_ARMOR_PART_QTY)) return;
   player.rubies -= rubyCost;
+  if (typeof sfx === 'function') sfx('forge');
   for (const t of parts) player[t + 's'] -= BLACKSMITH_ARMOR_PART_QTY;
   player.armorElements.push(regionId);
   player.armorUpgrades = player.armorUpgrades || {};
@@ -471,6 +474,7 @@ function forgeRegionalSword() {
   if (player.rubies < rubyCost) return;
   if (!parts.every(t => (player[t + 's'] || 0) >= swordPartQty(t))) return;
   player.rubies -= rubyCost;
+  if (typeof sfx === 'function') sfx('forge');
   for (const t of parts) player[t + 's'] -= swordPartQty(t);
   player.swordElements.push(regionId);
   player.swordUpgrades = player.swordUpgrades || {};
@@ -505,6 +509,7 @@ function upgradeRegionalArmor(id) {
     consumeSmithVoucher();
   }
   player.armorUpgrades[id] = lv + 1;
+  if (typeof sfx === 'function') sfx('forge');   // paid or by voucher
   const elem = SWORD_ELEMENTS[id];
   showMsg(`🔨 Upgraded 🛡${elem.icon} ${elem.label} Armor → Lv ${lv + 1}: +${(lv + 1) * 2} def, blocks ${elementalBlockPctForLevel(lv + 1)}% ${elem.label}${free ? ' (free — the apprentice\'s thanks!)' : ''}`, 3800);
   renderBlacksmithContents();
@@ -588,6 +593,7 @@ function forgeDragonbane() {
   if (player.rubies < cost.rubies) return;
   if (cost.ore && (player[cost.ore.id] || 0) < cost.oreQty) return;
   player.rubies -= cost.rubies;
+  if (typeof sfx === 'function') sfx('forge');
   if (cost.ore) player[cost.ore.id] -= cost.oreQty;
   player.swordElements = player.swordElements || [];
   player.swordElements.push('dragonbane');
