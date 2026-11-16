@@ -772,6 +772,7 @@ function stepEnemyRanged(dt) {
       e.shootTimer = 2400 + Math.random() * 900;
       if (dist >= breathRange || dist === 0) continue;
       e.breathT = DRAGON_BREATH_ANIM_MS;      // cosmetic; see dragon-sprite.js
+      if (typeof playDragonRoar === 'function') playDragonRoar('breath');
       const base = Math.atan2(dy, dx);
       for (let k = -2; k <= 2; k++) {
         const a = base + k * 0.18;

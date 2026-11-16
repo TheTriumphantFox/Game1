@@ -312,6 +312,10 @@ const DRAGON_ROARS = {
   strike:  { file: 'dragon-roar-strike.wav',  vol: 0.7,  duck: [4200, 0.15] },  // Beat 4, with the breath
   wake:    { file: 'dragon-roar-wake.wav',    vol: 0.9,  duck: [3000, 0.15] },  // throne room, the hoard uncoils
   wounded: { file: 'dragon-roar-wounded.wav', vol: 0.65, duck: [1800, 0.2] },   // 50% HP, before his line
+  // Every fire breath in the fight, 2.4 to 3.3 s apart, so short (1.8 s), a
+  // little under the scripted roars, and no duck: a dip every few seconds
+  // would make the fight music pump.
+  breath:  { file: 'dragon-roar-breath.wav',  vol: 0.5,  duck: null },          // each breath in the fight
 };
 for (const k in DRAGON_ROARS) {
   if (typeof Audio === 'undefined') break;
@@ -328,7 +332,7 @@ function playDragonRoar(kind) {
   try { r.audio.currentTime = 0; } catch (_) {}
   // Rejects before the first click or key; the scene plays on regardless.
   r.audio.play().catch(() => {});
-  if (typeof musicDuck === 'function') musicDuck(r.duck[0], r.duck[1]);
+  if (r.duck && typeof musicDuck === 'function') musicDuck(r.duck[0], r.duck[1]);
 }
 
 // ─── Offline render (verification) ────────────────────────────────────────────

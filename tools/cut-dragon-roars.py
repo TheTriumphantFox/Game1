@@ -41,6 +41,8 @@ CUTS = {
     'wake':    (56.18, 59.88),   # 12: slowest to build, the only one rising in pitch
     'wounded': (8.16, 10.36),    # 02: short and bright, falls 790 -> 210 Hz like a cry
     'far':     (10.92, 14.68),   # 03: the deepest and steadiest; survives the muffling
+    'breath':  (36.78, 38.60),   # 08 cut to 1.8 s: the fastest attack; ends before
+                                 # the Emperor's next breath (2.4 to 3.3 s apart)
 }
 # The far roar: everything above this is "too close" (air eats highs over
 # distance), plus a few echoes off the treeline.
