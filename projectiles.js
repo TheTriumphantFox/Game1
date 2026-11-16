@@ -719,7 +719,7 @@ function stepEnemies(dt, map) {
       e.attackAllyT -= dt;
       if (e.attackAllyT <= 0) {
         e.attackAllyT = 700;
-        if (typeof damageSkeletonAt === 'function') damageSkeletonAt(nx, ny, e.dmg);
+        if (typeof damageSkeletonAt === 'function') damageSkeletonAt(nx, ny, rollEnemyDamage(e.dmg, enemyHitsFlat(e)));
       }
     }
     const moved = !blocked && !otherEnemy && !onPlayer && !onVillager && !onSkeleton;
@@ -734,7 +734,7 @@ function stepEnemies(dt, map) {
     // Melee contact damage (checked after the move, from where it now stands).
     if (!e.ranged && player.invincible <= 0 &&
         inMeleeArc(e.x, e.y, e.face.x, e.face.y, player.x, player.y)) {
-      damagePlayer(e.dmg, e.element);
+      damagePlayer(rollEnemyDamage(e.dmg, enemyHitsFlat(e)), e.element);
       player.invincible = 900;
       if (player.hp <= 0) respawn('melee', e.name);
     }
@@ -779,7 +779,7 @@ function stepEnemyRanged(dt) {
         projectiles.push({
           tx: e.x + 0.5, ty: e.y + 0.5,
           vx: Math.cos(a) * 0.30, vy: Math.sin(a) * 0.30,
-          dmg: e.dmg, type: 'enemy', life: 110, color: '#ff6622',
+          dmg: e.dmg, flatDmg: enemyHitsFlat(e), type: 'enemy', life: 110, color: '#ff6622',
           element: 'fire', overWalls: true,
           killer: e.name, breath: true
         });
@@ -792,7 +792,7 @@ function stepEnemyRanged(dt) {
     projectiles.push({
       tx: e.x + 0.5, ty: e.y + 0.5,
       vx: (dx / dist) * 0.25, vy: (dy / dist) * 0.25,
-      dmg: e.dmg, type: 'enemy', life: 130, color: e.color,
+      dmg: e.dmg, flatDmg: enemyHitsFlat(e), type: 'enemy', life: 130, color: e.color,
       element: e.element || null,
       killer: e.name
     });
@@ -908,7 +908,8 @@ function stepFlyingProjectile(p, step, map) {
       return;
     }
     if (projectileOnTile(p, player.x, player.y) && player.invincible <= 0) {
-      damagePlayer(p.dmg, p.element);
+      // An enemy shot carries its shooter's rating; the dice roll on impact.
+      damagePlayer(rollEnemyDamage(p.dmg, p.flatDmg), p.element);
       player.invincible = 800;
       p.life = -999;
       if (player.hp <= 0) respawn(p.breath ? 'breath' : 'shot', p.killer);

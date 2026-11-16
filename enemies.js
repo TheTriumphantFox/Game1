@@ -212,6 +212,47 @@ function difficultyHpMul() { return DIFFICULTIES[currentDifficulty()].hpMul; }
 // `baseHp` is the max HP at Normal. Always scale from it, never from a live value.
 function scaledEnemyHp(baseHp) { return Math.max(1, Math.round(baseHp * difficultyHpMul())); }
 
+// ─── Enemy damage dice ───────────────────────────────────────────────────────
+
+// An enemy's `dmg` is its damage RATING, not what a hit takes off. Each hit rolls
+// dice whose average is 75% of the rating, so the bell curve peaks there, with a
+// flat bonus making up the rest. The dice grow with the rating: one d4 for the
+// small hitters, up to four d8 for the dragon. The rating still carries every
+// multiplier (blight, the village Greater tier, guild elites, golems), so the
+// live `e.dmg` is what gets rolled and saves keep storing the same number.
+//
+// Creatures whose base entry deals 1 (the forest roster and Hendricks' dog) do
+// not roll at all: the forest keeps the cost of a mistake flat, so they hit for
+// exactly their rating, blighted (2) and Greater (3) included.
+const ENEMY_DMG_PEAK = 0.75;
+// [highest rating in the band, number of dice, die size]
+const ENEMY_DMG_BANDS = [
+  [6, 1, 4], [12, 2, 4], [18, 3, 4], [20, 3, 6], [32, 4, 6], [Infinity, 4, 8],
+];
+
+// The dice for a rating, e.g. 14 -> { n: 3, sides: 4, bonus: 3 } (3d4+3).
+// The bonus rounds half up, so the average lands within half a point of 75%.
+function enemyDamageDice(rating) {
+  const [, n, sides] = ENEMY_DMG_BANDS.find(b => rating <= b[0]);
+  const bonus = Math.floor(rating * ENEMY_DMG_PEAK - n * (sides + 1) / 2 + 0.5);
+  return { n, sides, bonus };
+}
+
+// True for creatures that hit for a flat amount (base damage 1).
+function enemyHitsFlat(e) {
+  const base = DND_ENEMIES[e.type];
+  return !!base && base.dmg <= 1;
+}
+
+// One hit's damage for a rating. Never below 1.
+function rollEnemyDamage(rating, flat) {
+  if (flat || rating <= 1) return rating;
+  const { n, sides, bonus } = enemyDamageDice(rating);
+  let total = bonus;
+  for (let i = 0; i < n; i++) total += 1 + Math.floor(Math.random() * sides);
+  return Math.max(1, total);
+}
+
 // Bring one enemy into line with the current difficulty. Current HP carries across
 // as a share of max, as it does for the blight (setEnemyCorrupted, corruption.js).
 // No baseHp means a save from before this setting existed, which was all Normal.
