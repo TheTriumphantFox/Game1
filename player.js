@@ -978,6 +978,8 @@ function killEnemy(e) {
     if (activateVillage(cm)) {
       minimapDirty = true;
       spawnVillagersForMap(currentMapId);
+      // A keeper can appear between a hero inside a shop and its door.
+      if (typeof freeHeroFromVillagers === 'function') freeHeroFromVillagers();
       // Seal the cleared region with dead-ends. If a next region exists, the
       // village's own exits stay open so they can connect into it as the player
       // walks out — otherwise the final village's exits get sealed too.
