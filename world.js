@@ -337,13 +337,25 @@ function makeOverworldMapAt(id, gx, gy, regionIdx, depth, openSides, placeDungeo
   };
 }
 
+// A village needs an empty grid cell beside it: the cell the player arrives from
+// is always built, and the next region grows out of an empty one. A full-game bot
+// run (2026-11-19) made Oasis of the Damned in a cell whose four neighbours were
+// all built already, so region 3 had nowhere to start and the game could not go
+// on. A boxed-in 21st cell becomes one more overworld map instead, and the next
+// new cell of the region tries again.
+function villageCellHasRoom(gx, gy) {
+  return ['left', 'right', 'up', 'down'].some(d =>
+    worldGrid[gridKey(gx + DIR_DELTA[d].dx, gy + DIR_DELTA[d].dy)] === undefined);
+}
+
 // Construct a map for the given region at (gx, gy). When the player has
 // already visited 20 maps in `regionIdx`, the next new neighbor becomes the
-// region's village (boss arena) instead of another overworld map.
+// region's village (boss arena) instead of another overworld map, provided its
+// cell has room to lead on (villageCellHasRoom).
 function createOverworldMap(id, gx, gy, regionIdx) {
   const visited = regionMapsVisited[regionIdx] || 0;
 
-  if (visited >= 20) {
+  if (visited >= 20 && villageCellHasRoom(gx, gy)) {
     // The 21st new area in a region is its village. The FINAL region's village
     // is special: exactly two exits — the one the player entered through, and
     // one leading out to the castle tower (see enterCastleTower). All earlier
@@ -718,6 +730,36 @@ function makeDeadEndMapAt(id, gx, gy, regionIdx, depth, openSides) {
   };
 }
 
+// The ring in sealRegion fills every empty cell that an open border of this
+// region's maps faces, and a cell beside the village usually faces another map of
+// the region too, so the ring could take every free side of the village and leave
+// the next region nowhere to grow (2026-11-19). When every empty cell the village
+// opens onto is one the ring would fill, build the next region's first map in one
+// of them now, the same map walking out of the village there would make.
+function keepVillageWayOn(regionIdx) {
+  const vid = findRegionVillageId(regionIdx);
+  const v = vid >= 0 ? worldMaps[vid] : null;
+  if (!v || worldGrid[gridKey(v.gx, v.gy)] !== v.id) return;
+  const dirs = ['left', 'right', 'up', 'down'];
+  let pick = null;
+  for (const dir of dirs) {
+    if (!mapEdgeOpen(v, dir)) continue;
+    const gx = v.gx + DIR_DELTA[dir].dx, gy = v.gy + DIR_DELTA[dir].dy;
+    if (worldGrid[gridKey(gx, gy)] !== undefined) continue;
+    const ringFills = dirs.some(d => {
+      const id = worldGrid[gridKey(gx + DIR_DELTA[d].dx, gy + DIR_DELTA[d].dy)];
+      const n = id === undefined ? null : worldMaps[id];
+      return !!n && n.id !== v.id && n.regionIdx === regionIdx && mapEdgeOpen(n, OPPOSITE_DIR[d]);
+    });
+    if (!ringFills) return;          // the ring leaves this cell alone: the way on is safe
+    if (!pick) pick = { gx, gy };
+  }
+  if (!pick) return;
+  const newId = worldMaps.length;
+  worldMaps.push(createOverworldMap(newId, pick.gx, pick.gy, regionIdx + 1));
+  worldGrid[gridKey(pick.gx, pick.gy)] = newId;
+}
+
 // Called whenever a region's village is cleared. Walks every overworld map in
 // `regionIdx` (and that region's village) and seals any remaining unused
 // border with a single-transition dead-end. Bounds the region to what the
@@ -728,6 +770,7 @@ function sealRegion(regionIdx) {
   const region = REGIONS[regionIdx];
   if (!region) return;
   const hasNextRegion = regionIdx + 1 < REGIONS.length;
+  if (hasNextRegion) keepVillageWayOn(regionIdx);
   const snapshot = worldMaps.slice();
   for (const src of snapshot) {
     if (src.regionIdx !== regionIdx) continue;
