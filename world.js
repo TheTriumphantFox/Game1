@@ -337,13 +337,77 @@ function makeOverworldMapAt(id, gx, gy, regionIdx, depth, openSides, placeDungeo
   };
 }
 
+// ─── Room for the next region ─────────────────────────────────────────────────
+// The next region grows out of the empty grid cells beside its village, so a
+// village needs open space beyond it, not just one free neighbour. Full-game bot
+// runs (2026-11-19) found both shapes of the problem: Oasis of the Damned made in a
+// cell whose four neighbours were all built, and Voltheart Bastion whose one free
+// side led into a single cell walled in by the region's own maps.
+//
+// WAY_ON_SPACE is how many empty cells must be reachable from one side of the
+// village. The next region needs 21 cells (20 maps and its village) plus the ones
+// its own dead-end ring will take, so 30 leaves a margin. Chosen by that count,
+// not measured.
+const WAY_ON_SPACE = 30;
+
+// The empty cells sealRegion's ring would fill for `regionIdx` as the world stands:
+// every empty cell that an open border of one of the region's grid maps faces. The
+// village is left out, as the ring leaves it out (its exits are the way on).
+function regionRingCells(regionIdx) {
+  const ring = new Set();
+  for (const src of worldMaps) {
+    if (!src || src.regionIdx !== regionIdx || src.type === 'village') continue;
+    if (worldGrid[gridKey(src.gx, src.gy)] !== src.id) continue;
+    for (const dir of ['left', 'right', 'up', 'down']) {
+      if (!mapEdgeOpen(src, dir)) continue;
+      const key = gridKey(src.gx + DIR_DELTA[dir].dx, src.gy + DIR_DELTA[dir].dy);
+      if (worldGrid[key] === undefined) ring.add(key);
+    }
+  }
+  return ring;
+}
+
+// Empty cells reachable from (gx, gy) through empty cells, not entering any key in
+// `skip` after the first step, counted up to `cap`. The start cell may itself be a
+// ring cell: keepVillageWayOn builds there before the ring runs.
+function openSpaceFrom(gx, gy, skip, cap) {
+  const start = gridKey(gx, gy);
+  if (worldGrid[start] !== undefined) return 0;
+  const seen = new Set([start]), q = [[gx, gy]];
+  for (let h = 0; h < q.length && seen.size < cap; h++) {
+    const [x, y] = q[h];
+    for (const d of ['left', 'right', 'up', 'down']) {
+      const nx = x + DIR_DELTA[d].dx, ny = y + DIR_DELTA[d].dy, k = gridKey(nx, ny);
+      if (seen.has(k) || worldGrid[k] !== undefined || skip.has(k)) continue;
+      seen.add(k); q.push([nx, ny]);
+      if (seen.size >= cap) break;
+    }
+  }
+  return seen.size;
+}
+
+// Can a village at (gx, gy) lead on? Some side must open onto WAY_ON_SPACE empty
+// cells that the region's ring will leave alone. The final region only needs one
+// empty side, for its castle gate. A cell without room becomes one more overworld
+// map instead, and the next new cell of the region tries again.
+function villageCellHasRoom(gx, gy, regionIdx) {
+  const sides = ['left', 'right', 'up', 'down'].map(d => [gx + DIR_DELTA[d].dx, gy + DIR_DELTA[d].dy]);
+  if (regionIdx === undefined || regionIdx >= REGIONS.length - 1) {
+    return sides.some(([x, y]) => worldGrid[gridKey(x, y)] === undefined);
+  }
+  const skip = regionRingCells(regionIdx);
+  skip.add(gridKey(gx, gy));
+  return sides.some(([x, y]) => openSpaceFrom(x, y, skip, WAY_ON_SPACE) >= WAY_ON_SPACE);
+}
+
 // Construct a map for the given region at (gx, gy). When the player has
 // already visited 20 maps in `regionIdx`, the next new neighbor becomes the
-// region's village (boss arena) instead of another overworld map.
+// region's village (boss arena) instead of another overworld map, provided its
+// cell has room to lead on (villageCellHasRoom).
 function createOverworldMap(id, gx, gy, regionIdx) {
   const visited = regionMapsVisited[regionIdx] || 0;
 
-  if (visited >= 20) {
+  if (visited >= 20 && villageCellHasRoom(gx, gy, regionIdx)) {
     // The 21st new area in a region is its village. The FINAL region's village
     // is special: exactly two exits — the one the player entered through, and
     // one leading out to the castle tower (see enterCastleTower). All earlier
@@ -718,6 +782,34 @@ function makeDeadEndMapAt(id, gx, gy, regionIdx, depth, openSides) {
   };
 }
 
+// The ring in sealRegion fills every empty cell that an open border of this
+// region's maps faces, and a cell beside the village usually faces another map of
+// the region too, so the ring could take every free side of the village and leave
+// the next region nowhere to grow (2026-11-19). Before the ring runs: if no side of
+// the village opens onto a cell the ring leaves alone with WAY_ON_SPACE beyond it,
+// build the next region's first map now, the same map walking out of the village
+// there would make, on the side with the most open space past the ring.
+function keepVillageWayOn(regionIdx) {
+  const vid = findRegionVillageId(regionIdx);
+  const v = vid >= 0 ? worldMaps[vid] : null;
+  if (!v || worldGrid[gridKey(v.gx, v.gy)] !== v.id) return;
+  const ring = regionRingCells(regionIdx);
+  const skip = new Set(ring); skip.add(gridKey(v.gx, v.gy));
+  let pick = null;
+  for (const dir of ['left', 'right', 'up', 'down']) {
+    if (!mapEdgeOpen(v, dir)) continue;
+    const gx = v.gx + DIR_DELTA[dir].dx, gy = v.gy + DIR_DELTA[dir].dy;
+    if (worldGrid[gridKey(gx, gy)] !== undefined) continue;
+    const space = openSpaceFrom(gx, gy, skip, WAY_ON_SPACE);
+    if (!ring.has(gridKey(gx, gy)) && space >= WAY_ON_SPACE) return;   // the way on is safe as it is
+    if (!pick || space > pick.space) pick = { gx, gy, space };
+  }
+  if (!pick) return;
+  const newId = worldMaps.length;
+  worldMaps.push(createOverworldMap(newId, pick.gx, pick.gy, regionIdx + 1));
+  worldGrid[gridKey(pick.gx, pick.gy)] = newId;
+}
+
 // Called whenever a region's village is cleared. Walks every overworld map in
 // `regionIdx` (and that region's village) and seals any remaining unused
 // border with a single-transition dead-end. Bounds the region to what the
@@ -728,6 +820,7 @@ function sealRegion(regionIdx) {
   const region = REGIONS[regionIdx];
   if (!region) return;
   const hasNextRegion = regionIdx + 1 < REGIONS.length;
+  if (hasNextRegion) keepVillageWayOn(regionIdx);
   const snapshot = worldMaps.slice();
   for (const src of snapshot) {
     if (src.regionIdx !== regionIdx) continue;

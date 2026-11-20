@@ -896,6 +896,47 @@ function spawnVillagersForMap(mid) {
   if (villagers.length) rm.savedVillagers = villagers.map(v => ({ ...v }));
 }
 
+// Clearing a village brings its people out where they belong, and a shopkeeper's
+// spot is the one tile between a shop's counter and its door (placeShopkeepers).
+// A hero who killed the last monster inside a shop, behind that spot, was walled
+// in for good: the hero cannot walk through villagers (handleMove's `blocked`,
+// player.js) and keepers never move. A full-game bot run (2026-11-19) ended that
+// way in the herbalist's house at Tideborn Refuge. Called right after the people
+// appear: if the hero can no longer reach any of the map's gates on foot, step
+// them to the nearest tile that can, and say so. Returns whether the hero moved.
+function freeHeroFromVillagers() {
+  const cm = currentMap(), m = cm && cm.map;
+  if (!m) return false;
+  const W = MCOLS, H = MROWS;
+  const open = (c, r) => c >= 0 && r >= 0 && c < W && r < H && !villagerAt(c, r) &&
+    ((typeof elementalArmorTraversesTile === 'function' && elementalArmorTraversesTile(m, c, r)) || !isSolid(m, c, r));
+  // Flood outward from the gates. Each edge is walked toward the gate in play,
+  // so the step-up check runs from the new tile back to the one it joins.
+  const seen = new Uint8Array(W * H), q = [];
+  for (const [c, r] of [[0, EXIT_ROW], [W - 1, EXIT_ROW], [EXIT_COL, 0], [EXIT_COL, H - 1]]) {
+    if (open(c, r) && !seen[r * W + c]) { seen[r * W + c] = 1; q.push(r * W + c); }
+  }
+  for (let h = 0; h < q.length; h++) {
+    const c = q[h] % W, r = (q[h] / W) | 0;
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc, nr = r + dr, ni = nr * W + nc;
+      if (!open(nc, nr) || seen[ni] || stepUpBlocked(m, nc, nr, c, r)) continue;
+      seen[ni] = 1; q.push(ni);
+    }
+  }
+  if (!q.length || seen[player.y * W + player.x]) return false;
+  let best = -1, bestD = Infinity;
+  for (const i of q) {
+    const d = Math.abs(i % W - player.x) + Math.abs(((i / W) | 0) - player.y);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  player.x = best % W; player.y = (best / W) | 0;
+  player.renderX = player.x; player.renderY = player.y;
+  // Placeholder line (hm writes the real one).
+  if (typeof showMsg === 'function') showMsg('You squeeze past the shopkeeper.', 2600);
+  return true;
+}
+
 function saveVillagersToMap(mid) {
   if (worldMaps[mid]) {
     worldMaps[mid].savedVillagers = villagers.map(v => ({ ...v }));
