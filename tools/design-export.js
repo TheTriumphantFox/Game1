@@ -267,7 +267,7 @@ function build() {
       class: klass,
       name: e.name,
       // What spawns at Normal: the table can hold a fractional authored HP
-      // (FOREST_HP_MUL), and every spawn path rounds through scaledEnemyHp.
+      // (ENEMY_HP_MUL), and every spawn path rounds through scaledEnemyHp.
       hp: G('scaledEnemyHp')(e.hp),
       damage: e.dmg,
       hitRoll: hitRollFor(e),

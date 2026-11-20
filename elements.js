@@ -214,19 +214,47 @@ function elemIconHTML(elem, px) {
 // ─── Elemental sword upgrades ─────────────────────────────────────────────────
 // Each owned elemental sword can be upgraded sequentially through the six ore
 // tiers at the Blacksmith (see shop.js), exactly like elemental armor. An upgrade
-// level (0–6, stored on player.swordUpgrades[id]) adds a flat +2 damage per level
-// to that sword's elemental hit — Lv0 +0 … Lv6 +12 on top of the base 1d4 roll
-// (see the swing in projectiles.js).
+// level (0–6, stored on player.swordUpgrades[id]) adds a flat SWORD_UPGRADE_DMG
+// damage per level to that sword's elemental hit: Lv0 +0 … Lv6 +24 on top of the
+// base 1d4 roll (see the swing in projectiles.js).
+//
+// 4 per level, up from 2 (hm, 2026-11-20). Ore is now the only way to raise sword
+// damage, since the General Store stopped selling sword levels.
+const SWORD_UPGRADE_DMG = 4;
 
 // Upgrade level (0–6) of an owned elemental sword; 0 if unowned / freshly dropped.
 function swordUpgradeLevel(elemId) {
   return (player && player.swordUpgrades && player.swordUpgrades[elemId]) || 0;
 }
 
-// Flat bonus damage an elemental sword adds at its upgrade level = level × 2,
-// matching the ore tier its last upgrade used (Grimsilver +2 … Voidsteel +12).
+// Flat bonus damage an elemental sword adds at its upgrade level.
 function elementalSwordBonus(elemId) {
-  return swordUpgradeLevel(elemId) * 2;
+  return swordUpgradeLevel(elemId) * SWORD_UPGRADE_DMG;
+}
+
+// ─── Plain sword upgrades ─────────────────────────────────────────────────────
+// Grandmother's plain sword climbs the same six ore tiers at the Blacksmith, in
+// order and at the same price as an elemental sword (hm, 2026-11-20, once the
+// General Store stopped selling sword levels). Its level (0–6) lives on
+// player.plainSwordUpgrade and adds SWORD_UPGRADE_DMG per level to the base
+// physical hit, which every swing deals, so it stacks under whichever elemental
+// sword is wielded the way the bought levels used to.
+//
+// It is kept apart from player.swordLevel on purpose. swordLevel also sets bomb
+// damage and the opposite-element dice (a die per 5 levels), so raising it by 4
+// a tier would give more than +4; and a save may still hold levels bought before
+// the store change, which must not count as ore tiers.
+function plainSwordUpgradeLevel() {
+  return (player && player.plainSwordUpgrade) || 0;
+}
+
+function plainSwordBonus() {
+  return plainSwordUpgradeLevel() * SWORD_UPGRADE_DMG;
+}
+
+// The low end of the base physical hit (the swing adds 0–2 on top).
+function swordBaseDmg() {
+  return ((player && player.swordLevel) || 1) + plainSwordBonus();
 }
 
 // ─── Elemental armor ─────────────────────────────────────────────────────────

@@ -1561,7 +1561,12 @@ function tryVillagerInteraction() {
 // A per-region errand: the village's Worried Parent asks the hero to find their
 // son Timmy, who wandered off to the region's 3rd dead-end map (seeded in
 // sealRegion). Reaching Timmy whisks him home beside the parent and rewards the
-// hero with +1 bow level.
+// hero with LOST_SON_BOW_LEVELS bow levels.
+
+// Two levels, so the reward is +4 bow damage (each level is +2, see the arrow in
+// projectiles.js). It was one level, +2 (hm, 2026-11-20: the General Store no
+// longer sells bow levels, so quests and ore are the only upgrades left).
+const LOST_SON_BOW_LEVELS = 2;
 
 // The region id of the map the player is standing on ('forest' … 'shadow'),
 // used to key player.lostSonQuests. Falls back through biome then forest.
@@ -1588,10 +1593,10 @@ function talkLostParent(v) {
   player.lostSonQuests = player.lostSonQuests || {};
   let q = player.lostSonQuests[rid];
 
-  // ── Reward turn-in: Timmy is home, hand over the +1 bow level ──────────────
+  // ── Reward turn-in: Timmy is home, hand over the bow levels ────────────────
   if (q && q.status === 'found') {
     q.status = 'done';
-    player.bowLevel = (player.bowLevel || 1) + 1;   // each level = +2 bow damage
+    player.bowLevel = (player.bowLevel || 1) + LOST_SON_BOW_LEVELS;
     if (typeof buzz === 'function') buzz([0, 20, 20, 40]);
     if (typeof sfx === 'function') sfx('reward');
     if (typeof updateHUD === 'function') updateHUD();

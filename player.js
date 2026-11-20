@@ -78,6 +78,7 @@ function applyStartingInventory(p) {
   // played that beat has only their fists (see doPunch in projectiles.js).
   p.swordElements = [];
   p.swordUpgrades = {};
+  p.plainSwordUpgrade = 0;
   p.armorElements = [];
   p.armorUpgrades = {};
   p.arrows = { plain: 0 };
@@ -92,6 +93,7 @@ function grantGodMode() {
   player.swordElements = swordIds.slice();
   player.swordUpgrades = {};
   for (const id of swordIds) player.swordUpgrades[id] = 6;
+  player.plainSwordUpgrade = 6;
   // Armor gets the 12 regional elements only. Dragonbane armor is not a thing:
   // no enemy attacks with that element, so a granted set would sit in the radial
   // ring at Lv6 advertising a resistance that can never once apply.
@@ -197,7 +199,8 @@ let player = {
   // Per-region "Find Timmy" quests (see the Worried Parent villager). Keyed by
   // region id → { status:'active'|'done', timmyMapId }. Seeded when a region is
   // sealed (its village cleared) — that's when the dead-end maps, and Timmy on
-  // the 3rd of them, come into being. Reward on reunion is +1 bow level.
+  // the 3rd of them, come into being. Reward on reunion is LOST_SON_BOW_LEVELS
+  // bow levels (villagers.js).
   lostSonQuests: {},
   // Per-region Sword & Shield Guild quests (see guild.js), keyed by region id →
   // { status:'active'|'head'|'done', creature, bossMapId }. Started by talking to
@@ -251,8 +254,9 @@ let player = {
   // Affects doSwordSwing — only the active elemental adds its 1d4 roll.
   activeSwordElement: null,
   // Each elemental sword's upgrade level (0–6) lives in swordUpgrades, keyed by
-  // element id; it adds +2 damage per level to that sword's hit (elements.js).
+  // element id; it adds SWORD_UPGRADE_DMG per level to that sword's hit (elements.js).
   swordUpgrades: {},
+  plainSwordUpgrade: 0,   // Grandmother's sword ore tier, 0-6 (elements.js)
   // Quantities of each elemental arrow the player owns, keyed by element id.
   // Bought / sold in the General Store. Firing an elemental arrow consumes
   // one and adds +1d4 of that element to the hit.

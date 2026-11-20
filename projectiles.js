@@ -457,8 +457,8 @@ function doSwordSwing() {
   enemies.filter(e => !e.dead && !e.dormant).forEach(e => {
     if (inMeleeArc(player.x, player.y, player.swordDir.x, player.swordDir.y, e.x, e.y)) {
       hitAny = true;
-      // Base physical damage
-      const baseDmg = player.swordLevel + Math.floor(Math.random() * 3);
+      // Base physical damage: sword level, the plain sword's ore upgrades, 0-2.
+      const baseDmg = swordBaseDmg() + Math.floor(Math.random() * 3);
       e.hp -= baseDmg;
       damageNumbers.push({ entity: e, val: baseDmg, color: '#ff4444', life: 1000, rise: 0 });
 
@@ -475,7 +475,7 @@ function doSwordSwing() {
       if (player.activeSwordElement) {
         const elem = SWORD_ELEMENTS[player.activeSwordElement];
         if (elem) {
-          // Elemental sword: 1d4 + a flat +2 per upgrade level. Dragonbane instead
+          // Elemental sword: 1d4 + SWORD_UPGRADE_DMG per upgrade level. Dragonbane instead
           // hits for its own capstone bonus (1d12 + 12), above any elemental ceiling.
           const elemDmg = dragon
             ? dragonbaneSwordBonus()

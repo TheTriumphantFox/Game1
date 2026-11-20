@@ -277,10 +277,73 @@ function renderBlacksmithContents() {
     <div class="shop-rubies">You have: 💰 <b>${player.rubies}</b> · 🛡 Armor +${player.armor || 0}</div>
     ${pieceRows}
     ${armorsRows}
+    ${blacksmithPlainSwordRow(oa)}
     ${swordsRows}
     ${dragonbaneRow()}
     <button class="shop-close" onclick="closeShopModals()">✕ Leave</button>
   `;
+}
+
+// Grandmother's plain sword at the forge: its own section and one row, upgraded
+// through the ore tiers exactly like an elemental sword (see plainSwordBonus in
+// elements.js). Nothing to show before the hero has the sword.
+function blacksmithPlainSwordRow(oa) {
+  if (!player.hasSword) return '';
+  const lv    = plainSwordUpgradeLevel();
+  const bonus = plainSwordBonus();
+  let btn, meta;
+  if (lv >= 6) {
+    btn  = `<button class="ssbtn" disabled>★ MAX</button>`;
+    meta = `+${bonus} dmg on every swing · fully forged`;
+  } else if (oa && oa.tier === lv) {
+    const haveOre = player[oa.ore.id] || 0;
+    const free    = smithVoucherActive();
+    const broke   = !free && (haveOre < oa.oreCost || player.rubies < oa.rubyCost);
+    const label   = free ? '🎟️ FREE' : `${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}`;
+    btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradePlainSword()">${label}</button>`;
+    meta = `+${bonus} dmg on every swing · upgrade → +${bonus + SWORD_UPGRADE_DMG} · have ${oa.ore.icon} ${haveOre}`;
+  } else {
+    const need = (typeof ORE_TYPES !== 'undefined') ? ORE_TYPES[lv] : null;
+    const needLbl = need ? `${need.icon} ${need.label}` : 'higher ore';
+    btn  = `<button class="ssbtn" disabled>needs ${needLbl}</button>`;
+    meta = `+${bonus} dmg on every swing · next upgrade needs ${needLbl}`;
+  }
+  return `
+    <div style="margin-top:14px;border-top:1px solid #4a3a2a;padding-top:10px;font-size:12px;color:#ffcf8c">
+      Sword${oa ? ` · upgrades here forge with ${oa.ore.icon} ${oa.ore.label}` : ''}
+    </div>
+    <div class="shop-row">
+      <div class="shop-item">
+        <div class="shop-item-name">⚔ Grandmother's Sword · Lv ${lv}/6</div>
+        <div class="shop-item-meta">${meta}</div>
+      </div>
+      ${btn}
+    </div>`;
+}
+
+// Upgrade the plain sword by one ore tier: this village's ore must be exactly its
+// next tier, and it costs the same ore + rubies (or the apprentice's voucher) as an
+// elemental sword's upgrade (upgradeRegionalSword).
+function upgradePlainSword() {
+  if (!player.hasSword) return;
+  const oa = smithOreArmor();
+  if (!oa) return;
+  const lv = plainSwordUpgradeLevel();
+  if (lv >= 6 || oa.tier !== lv) return;
+  const free = smithVoucherActive();
+  if (!free) {
+    if ((player[oa.ore.id] || 0) < oa.oreCost) return;
+    if (player.rubies < oa.rubyCost) return;
+    player[oa.ore.id] -= oa.oreCost;
+    player.rubies     -= oa.rubyCost;
+  } else {
+    consumeSmithVoucher();
+  }
+  player.plainSwordUpgrade = lv + 1;
+  if (typeof sfx === 'function') sfx('forge');
+  showMsg(`🔨 Upgraded ⚔ Grandmother's Sword → Lv ${lv + 1}: +${plainSwordBonus()} damage on every swing${free ? ' (free, the apprentice\'s thanks!)' : ''}`, 3800);
+  renderBlacksmithContents();
+  updateHUD();
 }
 
 // One Blacksmith row for an owned elemental sword: its level / flat bonus damage,
@@ -306,7 +369,7 @@ function blacksmithSwordRow(id, oa) {
   const elem = SWORD_ELEMENTS[id];
   if (!elem) return '';
   const lv    = swordUpgradeLevel(id);
-  const bonus = lv * 2;
+  const bonus = elementalSwordBonus(id);
   const wieldTag = player.activeSwordElement === id ? ' <span style="color:#88ccff">✓ wielded</span>' : '';
 
   let btn, meta;
@@ -320,7 +383,7 @@ function blacksmithSwordRow(id, oa) {
     const broke   = !free && (haveOre < oa.oreCost || player.rubies < oa.rubyCost);
     const label   = free ? '🎟️ FREE' : `${oa.ore.icon}${oa.oreCost} + 💰${oa.rubyCost}`;
     btn  = `<button class="ssbtn" ${broke ? 'disabled' : ''} onclick="upgradeRegionalSword('${id}')">${label}</button>`;
-    meta = `+${bonus} ${elem.label} dmg · upgrade → +${bonus + 2} dmg · have ${oa.ore.icon} ${haveOre}`;
+    meta = `+${bonus} ${elem.label} dmg · upgrade → +${bonus + SWORD_UPGRADE_DMG} dmg · have ${oa.ore.icon} ${haveOre}`;
   } else {
     // Next upgrade belongs to a different ore tier — point the hero at it.
     const need = (typeof ORE_TYPES !== 'undefined') ? ORE_TYPES[lv] : null;
@@ -342,8 +405,8 @@ function blacksmithSwordRow(id, oa) {
 // Upgrade an owned elemental sword by one ore tier. Sequential like armor: this
 // village's ore (oa.tier) must be exactly the sword's next tier (== its current
 // level), so each sword climbs Grimsilver→Eclipsium across the matching villages.
-// Costs the same ore + rubies as forging that tier's plain armor; adds +2 flat
-// elemental damage (elementalSwordBonus).
+// Costs the same ore + rubies as forging that tier's plain armor; adds
+// SWORD_UPGRADE_DMG flat elemental damage (elementalSwordBonus).
 function upgradeRegionalSword(id) {
   if (!SWORD_ELEMENTS[id]) return;
   player.swordElements = player.swordElements || [];
@@ -366,7 +429,7 @@ function upgradeRegionalSword(id) {
   player.swordUpgrades[id] = lv + 1;
   if (typeof sfx === 'function') sfx('forge');   // paid or by voucher
   const elem = SWORD_ELEMENTS[id];
-  showMsg(`🔨 Upgraded ⚔${elem.icon} ${elem.label} Sword → Lv ${lv + 1}: +${(lv + 1) * 2} ${elem.label} damage${free ? ' (free — the apprentice\'s thanks!)' : ''}`, 3800);
+  showMsg(`🔨 Upgraded ⚔${elem.icon} ${elem.label} Sword → Lv ${lv + 1}: +${elementalSwordBonus(id)} ${elem.label} damage${free ? ' (free — the apprentice\'s thanks!)' : ''}`, 3800);
   renderBlacksmithContents();
   updateHUD();
 }

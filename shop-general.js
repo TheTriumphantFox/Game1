@@ -4,14 +4,13 @@
 
 // ─── General Store ────────────────────────────────────────────────────────────
 // Armor is no longer sold here — the Blacksmith handles all armor (flat +
-// elemental). The General Store covers weapon levels, max HP, and arrows.
+// elemental). The General Store covers temporary HP, bombs and arrows.
+//
+// Weapon levels are not for sale either (hm, 2026-11-20). They come only from ore
+// at the Blacksmith (elemental sword upgrades) and from quests (the Lost Son's bow
+// levels). At a flat 50 rubies with no cap, the store let the full-game bot buy its
+// sword to level 209, which made every other source of damage irrelevant.
 const STORE_ITEMS = [
-  { id: 'sword', label: '⚔️ Sword Lv +1',  cost: 50,
-    desc: 'Increase melee damage',
-    apply: () => { player.swordLevel++; } },
-  { id: 'bow',   label: '🏹 Bow Lv +1',    cost: 50,
-    desc: 'Increase arrow damage',
-    apply: () => { player.bowLevel++; } },
   { id: 'temphp', label: '💚 Temp HP +1',  cost: 150,
     desc: '+1 temporary HP (green heart) — soaks damage before your HP',
     apply: () => { player.tempHp = (player.tempHp || 0) + 1; } },
