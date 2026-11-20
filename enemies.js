@@ -40,6 +40,8 @@ const DND_ENEMIES = {
   // power from forest (tier 0) up to the arcane mana region (tier 10).
 
   // ── Tier 0 · Forest — fey, beasts & plants. Gentlest region. ──
+  // HP here (and the FOREST LICH's) is authored; play uses 80% of it, see
+  // FOREST_HP_MUL below ENEMY_POOLS.
   // Every creature here deals exactly 1 damage. That is deliberate and not a
   // stub: forest is where the player learns to fight, so the roster varies by
   // HP, speed and reach while the cost of a mistake stays flat. Do not 'restore'
@@ -353,6 +355,15 @@ const ENEMY_POOLS = [
   ['nothic', 'helmed_horror', 'mind_flayer', 'githyanki', 'beholder', 'rakshasa'],    // 11 · Mana / Arcane
   ['shade', 'shadow_mastiff', 'bodak', 'nightmare', 'shadow_demon', 'nightwalker'],   // 12 · Shadow
 ];
+
+// Region 1 (forest) runs at 80% of the HP authored above: its six creatures and
+// its boss, the FOREST LICH (hm, 2026-11-16, after the full-game bot could not
+// clear the Village of the Lost). The table keeps the authored numbers; the base
+// becomes fractional (goblin 7 -> 5.6) and the spawn paths round only after their
+// multipliers, so blighted, Greater, guild and difficulty HP land within a point of
+// 80% (the blight path rounds before difficulty too: Easy Greater Dryad is 27, not 26).
+const FOREST_HP_MUL = 0.8;
+for (const k of [...ENEMY_POOLS[0], 'lich_boss']) DND_ENEMIES[k].hp *= FOREST_HP_MUL;
 
 // ─── Dormant golems ──────────────────────────────────────────────────────────
 // One state machine, three regions. Ice, Earth and Volcanic each get a golem

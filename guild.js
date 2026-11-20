@@ -413,9 +413,42 @@ function startGuildBounty(regionIdx, rid, kind) {
 // spawnEnemiesForMap once `enemies` is populated, and idempotent — a map whose
 // defs already produced the elite (the never-visited path in spawnGuildBossOnMap /
 // spawnBountyOnMap) is left alone.
+// Is the quest that owns this Guild elite still asking for it? Takes a live enemy
+// or a def: the quarry is `guildBoss` + `guildRegion` live and `guild` (the region
+// id) as a def; a bounty elite is `bounty` + `bountyRegion` in both. Anything that
+// is not a Guild elite is always wanted.
+function guildEliteWanted(x) {
+  const qs = (typeof player !== 'undefined' && player.guildQuests) || {};
+  if (x.guildBoss || x.guild) {
+    const q = qs[x.guildRegion || x.guild];
+    return !!q && q.status === 'active';
+  }
+  if (x.bounty) {
+    const q = qs[x.bountyRegion];
+    const b = q && q.bounties ? q.bounties[x.bounty] : null;
+    return !!b && b.status === 'active';
+  }
+  return true;
+}
+
+// A Guild elite placed on a map that regenerates lives in that map's `enemyDefs`
+// (spawnGuildBossOnMap / spawnBountyOnMap), and defs are replayed on every entry.
+// Once its quest has moved on, take it off the live roster and out of the map's
+// defs and saved roster for good. Without this the Board elite came back on every
+// visit after the bounty was done (full-game bot, 2026-11-16: 12 respawns on one
+// map). Also clears the same leftovers out of saves made before this fix.
+function dropFinishedGuildElites(rm) {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    if (!guildEliteWanted(enemies[i])) enemies.splice(i, 1);
+  }
+  if (Array.isArray(rm.enemyDefs))    rm.enemyDefs    = rm.enemyDefs.filter(guildEliteWanted);
+  if (Array.isArray(rm.savedEnemies)) rm.savedEnemies = rm.savedEnemies.filter(guildEliteWanted);
+}
+
 function ensureGuildElitesOnMap(rm) {
   if (!rm || !rm.map) return;
   if (typeof player === 'undefined' || !player.guildQuests) return;
+  dropFinishedGuildElites(rm);
   const push = (make) => {
     const spot = findOpenTileNearCentre(rm.map);
     const maxId = enemies.reduce((mx, e) => Math.max(mx, e.id || 0), -1);
