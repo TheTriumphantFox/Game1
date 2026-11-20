@@ -39,6 +39,7 @@ import re
 import subprocess
 import sys
 import unicodedata
+import zipfile
 from pathlib import Path
 
 try:
@@ -83,7 +84,7 @@ TABLES = [
         'Trophy Drop': 'trophy', 'Drop %': 'trophyPct',
         'Trophy Sell (rubies)': 'trophySell', 'Other Drops': 'otherDrops',
         'XP Awarded': 'xp', 'Speed (ms, lower=faster)': 'speed',
-        'Size': 'size', 'CR': 'cr',
+        'Size': 'size', 'CR': 'cr', 'Hit Roll': 'hitRoll',
     }),
     # "Type" (Bloom / Fern / Mineral / …) is a hand-authored taxonomy with no
     # counterpart in the code, so it is deliberately absent below.
@@ -118,7 +119,13 @@ TABLES = [
     Table('Armor Progression', 'armorForge', 'Element', 'element', {
         'Element': 'element', 'Rgn #': 'regionNum', 'Home Region': 'homeRegion',
         'Forge Cost (rubies)': 'forgeCost',
+        'Armor Power': 'powerLabel', 'What It Does': 'powerText',
     }, header_contains='Forge Cost (rubies)'),
+    Table('Armor Power by Level', 'armorPowers', 'Measure', 'measure', {
+        'Measure': 'measure', 'Armor': 'armor', 'Power': 'power', 'No Armor': 'bare',
+        'Lv 0': 'lv0', 'Lv 1': 'lv1', 'Lv 2': 'lv2', 'Lv 3': 'lv3',
+        'Lv 4': 'lv4', 'Lv 5': 'lv5', 'Lv 6': 'lv6',
+    }),
     Table('Armor Progression', 'ladder', 'To Level', 'level', {
         'To Level': 'level', 'Ore Tier Used': 'ore', 'Ore Cost': 'oreCost',
         'Ruby Cost': 'rubyCost', 'Physical Def': 'physDef',
@@ -134,6 +141,17 @@ TABLES = [
         'Heals / Effect': 'effect', 'Ingredients': 'ingredients',
         'Ruby Cost': 'cost', 'Immunity': 'immunity', 'Duration': 'duration',
     }, section='ELIXIRS'),
+    Table('Shrines & Abilities', 'shrines', 'Region', 'region', {
+        'Rgn #': 'regionNum', 'Region': 'region', 'Shrine': 'shrine',
+        'Reward': 'reward', 'Reward Type': 'rewardType', 'Ability Granted': 'ability',
+    }, header_contains='Ability Granted'),
+    Table('Difficulty & Settings', 'difficulties', 'Difficulty', 'difficulty', {
+        'Difficulty': 'difficulty', 'Enemy HP': 'hpPct', 'In-Game Note': 'note',
+    }),
+    Table('Music & Sound', 'music', 'Track', 'track', {
+        'Track': 'track', 'Title': 'title', 'Key': 'key', 'Scale': 'scale', 'BPM': 'bpm',
+    }),
+    Table('Music & Sound', 'sounds', 'Effect', 'effect', {'Effect': 'effect', 'Group': 'group'}),
     Table('Guild', 'guildQuarry', 'Region', 'region', {
         'Rgn#': 'regionNum', 'N': 'N', 'Region': 'region',
         'Guild Quarry creature': 'creature', 'Base HP': 'baseHp',
@@ -361,6 +379,23 @@ def audit_prose(ws, sheet, constants, checks, findings):
                 f'reworded and this check needs updating'))
 
 
+def images_would_be_lost(path):
+    """True when saving this workbook through openpyxl here would drop its images.
+
+    openpyxl only reads embedded images when it can import Pillow; without it they
+    are silently left out of the loaded workbook (reader/drawings.py), so the next
+    save writes a file with none. Found 2026-11-19 on the Yoga: a round trip took
+    the workbook from 142 images to 0.
+    """
+    try:
+        import PIL  # noqa: F401
+        return False
+    except ImportError:
+        pass
+    with zipfile.ZipFile(path) as z:
+        return any(n.startswith('xl/media/') for n in z.namelist())
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -402,6 +437,10 @@ def main():
             audit_prose(wb[sheet], sheet, export["constants"], checks, findings)
 
     fixed = 0
+    if args.fix and images_would_be_lost(args.workbook):
+        sys.exit('design-audit: refusing --fix. The workbook embeds images (the Image '
+                 'columns), and openpyxl drops every image on save when Pillow is not '
+                 'installed. Install Pillow (pip install pillow) or fix the cells by hand.')
     if args.fix:
         for f in findings:
             if f.kind == 'MISMATCH' and f.cell is not None:

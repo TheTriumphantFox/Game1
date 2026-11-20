@@ -141,13 +141,15 @@ function loadGame() {
 // have to come from the source text. Both extractors assert a plausible row
 // count — silence here would mean an empty Foliage audit.
 
-// doSwordSwing (projectiles.js): every cuttable tile, its forage drop and odds.
-function foliageCutTable() {
-  const src = fs.readFileSync(path.join(ROOT, 'projectiles.js'), 'utf8');
-  const re = /tile === T\.([A-Z_0-9]+)\)\s*\{\s*dropType = '([a-z_]+)';\s*dropChance = ([0-9.]+);/g;
-  const rows = [...src.matchAll(re)].map(m => ({ tile: m[1], drop: m[2], chance: +m[3] }));
-  if (rows.length < 20) die(`the foliage cut chain in doSwordSwing (projectiles.js) matched only ` +
-                           `${rows.length} rows — the pattern in foliageCutTable() needs updating`);
+// CUTTABLE_FOLIAGE (projectiles.js): every cuttable tile, its forage drop and
+// odds. It was an if-chain inside doSwordSwing until cbe06c0 made it a Map, so
+// it is read from the live game now rather than scraped from source.
+function foliageCutTable(G, tileById) {
+  const table = G('CUTTABLE_FOLIAGE');
+  const rows = [...table].map(([id, d]) => ({ tile: tileById[id], drop: d.type, chance: d.chance }));
+  if (rows.length < 20 || rows.some(r => !r.tile))
+    die(`CUTTABLE_FOLIAGE (projectiles.js) gave ${rows.length} rows, or a tile id with no T name; ` +
+        'see foliageCutTable()');
   return rows;
 }
 
@@ -236,6 +238,18 @@ function build() {
   // ── Enemies ────────────────────────────────────────────────────────────────
   // One row per pool member plus each region's boss, in the sheet's order
   // (region -> class -> name), then the castle-tower final boss.
+  // One hit as rollEnemyDamage rolls it (enemies.js): dice averaging 75% of the
+  // damage rating, shown with the range they can land. A base rating of 1 hits
+  // flat (enemyHitsFlat). The Toxic Bloom is the one rooted creature: it never
+  // swings, and its only attack is the flat BLOOM_DAMAGE burst.
+  function hitRollFor(e) {
+    if (e.rooted) return `Burst ${G('BLOOM_DAMAGE')} (flat)`;
+    if (e.dmg <= 1) return `${e.dmg} (flat)`;
+    const { n, sides, bonus } = G('enemyDamageDice')(e.dmg);
+    const lo = Math.max(1, n + bonus), hi = n * sides + bonus;
+    const b = bonus > 0 ? `+${bonus}` : bonus < 0 ? `${bonus}` : '';
+    return `${n}d${sides}${b} (${lo}-${hi})`;
+  }
   function enemyRow(type, regionIdx, klass) {
     const e = DND[type];
     const drops = DROPS[type] || [];
@@ -252,8 +266,11 @@ function build() {
       regionNum: regionIdx,
       class: klass,
       name: e.name,
-      hp: e.hp,
+      // What spawns at Normal: the table can hold a fractional authored HP
+      // (FOREST_HP_MUL), and every spawn path rounds through scaledEnemyHp.
+      hp: G('scaledEnemyHp')(e.hp),
       damage: e.dmg,
+      hitRoll: hitRollFor(e),
       element: e.element ? cap(e.element) : 'Physical',
       vulnerability: e.element && OPPOSITE[e.element] ? cap(OPPOSITE[e.element]) : NONE,
       swims: e.swims ? 'Yes' : null,
@@ -303,7 +320,7 @@ function build() {
   const T = G('T');
   const tileById = Object.fromEntries(Object.entries(T).map(([name, id]) => [id, name]));
   const tileName = t => t.split('_').map(w => cap(w.toLowerCase())).join(' ');
-  const cuttable = foliageCutTable();
+  const cuttable = foliageCutTable(G, tileById);
   const cutTiles = new Set(cuttable.map(r => r.tile));
 
   const growsIn = {};             // tile name -> [region index, ...] in region order
@@ -423,6 +440,8 @@ function build() {
     forgeCost: rubyPerRegion * (i + 1),
     parts: G('regionArmorPartTypes')(i, r.id).map(labelFor).join(', '),
     partQty,
+    powerLabel: G('ELEMENTAL_ARMOR_ABILITIES')[r.id].label,
+    powerText: G('ELEMENTAL_ARMOR_ABILITIES')[r.id].description,
   }));
   const ladder = [{ level: 0, ore: NONE, oreCost: 0, rubyCost: 0, damage: '+0', physDef: '+0', block: '40%' }];
   ORE_TYPES.forEach((o, tier) => ladder.push({
@@ -477,10 +496,94 @@ function build() {
     const type = G('guildCreatureFor')(i);
     return {
       regionNum: i, N: i + 1, region: SHEET_REGION_LABEL[r.id],
-      creature: DND[type].name, baseHp: DND[type].hp, quarryHp: Math.round(DND[type].hp * 3),
+      creature: DND[type].name, baseHp: G('scaledEnemyHp')(DND[type].hp),
+      quarryHp: G('scaledEnemyHp')(Math.round(DND[type].hp * 3)),   // as guild.js spawns it
       headToken: `${DND[type].name} head`,
     };
   });
+
+  // ── Armor powers by level ──────────────────────────────────────────────────
+  // Every armor power is a curve over the 0-6 upgrade level (armorAbilityStep,
+  // elements.js). Each cell comes from calling the game's own curve with that
+  // armor worn at that level, so nothing here restates a formula. The player is
+  // put back exactly as it was afterwards.
+  const armorPowers = (() => {
+    const saved = G('JSON.stringify({ a: player.activeArmorElement, u: player.armorUpgrades })');
+    const wear = (id, L) => G(`(() => { player.activeArmorElement = ${JSON.stringify(id)};
+      player.armorUpgrades = Object.assign({}, player.armorUpgrades, { [${JSON.stringify(id)}]: ${L} });
+      return 1; })()`);
+    const MOVE = G('MOVE_MS');
+    const pace = ms => `${Math.round(MOVE / ms * 100)}%`;
+    const secs = ms => `${+(ms / 1000).toFixed(1)}s`;
+    const tiles = t => `${+t.toFixed(1)} tiles`;
+    const H = G('HEAT_REGIONS');
+    const STORM_MIN = G('STORM_STRIKE_MIN_MS'), STORM_MAX = STORM_MIN + G('STORM_STRIKE_VAR_MS');
+    const rows = [
+      ['Fire: quicksand wading pace', 'fire', pace(MOVE * G('QUICKSAND_MOVE_MUL')),
+        () => pace(Math.min(G('armorTerrainStepMs')('fire', MOVE), MOVE * G('QUICKSAND_MOVE_MUL')))],
+      ['Fire: dune walking pace', 'fire', pace(MOVE * 2),
+        () => pace(Math.min(G('armorTerrainStepMs')('fire', MOVE), MOVE * 2))],
+      ['Fire: desert heat fill rate', 'fire', '100%',
+        () => `${G('HEAT_ARMOR_FILL_SCALE') * 100}%`],
+      ['Water: medium-water swim pace', 'water', 'Impassable',
+        () => pace(G('armorTerrainStepMs')('water', MOVE))],
+      ['Ice: snow-drift walking pace', 'ice', pace(MOVE * 2), () => pace(MOVE)],
+      ['Ice: slide after letting go on ice', 'ice', `${G('ICE_SLIDE_MS')} ms`,
+        () => `${Math.round(G('iceSlideMs')(G('ICE_SLIDE_MS')))} ms`],
+      ['Earth: ledge-face climbing pace', 'earth', 'Impassable',
+        () => pace(G('armorTerrainStepMs')('earth', MOVE))],
+      ['Volcanic: overheat fill rate', 'volcanic', '100%', () => {
+        const s = G('heatOwnArmorFillScale')(H.volcanic);
+        return s === 0 ? 'Immune' : `${+(s * 100).toFixed(1)}%`; }],
+      ['Air: Updraft Glide range', 'air', 'None', () => tiles(G('glideArmorRange')())],
+      ['Lightning: storm strike interval', 'lightning', `${STORM_MIN / 1000}-${STORM_MAX / 1000}s`, () => {
+        const k = G('stormStrikeDelayScale')();
+        return k === Infinity ? 'Off' : `${STORM_MIN * k / 1000}-${STORM_MAX * k / 1000}s`; }],
+      ['Luminous: shots burned per charge', 'luminous', 'None',
+        () => `${G('luminousBlockCapacity')()} per ${secs(G('luminousRechargeMs')())}`],
+      ['Necrotic: allied skeletons at once', 'necrotic', 'None', () => `${G('skeletonCap')()}`],
+      ['Poison: miasma damage', 'poison', `${G('MIASMA_DAMAGE')} HP per ${secs(G('MIASMA_DAMAGE_MS'))}`, () => {
+        const d = G('poisonWardDamage')(G('MIASMA_DAMAGE'));
+        return d === 0 ? 'Immune' : `${d} HP per ${secs(G('poisonWardIntervalMs')(G('MIASMA_DAMAGE_MS')))}`; }],
+      ['Poison: Toxic Bloom burst', 'poison', `${G('BLOOM_DAMAGE')} HP`, () => {
+        const d = G('poisonWardDamage')(G('BLOOM_DAMAGE'));
+        return d === 0 ? 'Immune' : `${d} HP`; }],
+      ['Mana: Arcane Mending', 'mana', 'None',
+        () => `1 HP per ${secs(G('manaRegenIntervalMs')())}`],
+      ['Shadow: Umbral Veil cut to detection', 'shadow', '0%',
+        () => `${Math.round((1 - G('shadowDetectionScale')()) * 100)}%`],
+      ['Shadow: golem wake radius', 'shadow', tiles(G('GOLEM_WAKE_RADIUS')),
+        () => tiles(G('veiledDetectionRange')(G('GOLEM_WAKE_RADIUS')))],
+      ['Shadow: range ranged enemies open fire', 'shadow', tiles(G('ENEMY_FIRE_RANGE')),
+        () => tiles(G('ENEMY_FIRE_RANGE') * G('shadowDetectionScale')())],
+    ];
+    const out = rows.map(([measure, id, bare, at]) => {
+      const row = { measure, armor: cap(id), power: G('ELEMENTAL_ARMOR_ABILITIES')[id].label, bare };
+      for (let L = 0; L <= 6; L++) { wear(id, L); row['lv' + L] = at(); }
+      return row;
+    });
+    G(`(() => { const s = ${saved}; player.activeArmorElement = s.a; player.armorUpgrades = s.u; return 1; })()`);
+    return out;
+  })();
+
+  // ── Shrines ────────────────────────────────────────────────────────────────
+  const SHRINE_REWARDS = G('SHRINE_REWARDS');
+  const shrines = REGIONS.map((r, i) => ({
+    regionNum: i, region: SHEET_REGION_LABEL[r.id], shrine: G('SHRINE_NAMES')[i],
+    reward: SHRINE_REWARDS[i].label,
+    rewardType: SHRINE_REWARDS[i].kind === 'heart' ? 'Heart' : 'Ability',
+    ability: SHRINE_REWARDS[i].kind === 'ability' ? SHRINE_REWARDS[i].label : NONE,
+  }));
+
+  // ── Difficulty, music and sound ────────────────────────────────────────────
+  const difficulties = G('DIFFICULTY_ORDER').map(id => {
+    const d = G('DIFFICULTIES')[id];
+    return { difficulty: d.label, hpPct: `${Math.round(d.hpMul * 100)}%`, note: d.note };
+  });
+  const music = Object.entries(G('MUSIC_SONGS')).map(([id, s]) => ({
+    track: id, title: s.title, key: s.key, scale: s.scale, bpm: s.bpm,
+  }));
+  const sounds = Object.entries(G('SFX')).map(([name, d]) => ({ effect: name, group: cap(d.group) }));
 
   return {
     generated: new Date().toISOString(),
@@ -488,6 +591,7 @@ function build() {
     enemies, foliage, regions, ores, progression,
     swordForge, armorForge, ladder, dragonbane,
     potions, elixirs, guildQuarry,
+    armorPowers, shrines, difficulties, music, sounds,
     // Loose numbers the prose sheets quote. The audit greps each sheet's notes
     // for these, which is the only automatic check possible on hand-written text.
     constants: {
