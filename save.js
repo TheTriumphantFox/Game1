@@ -313,6 +313,7 @@ const DEFAULT_PLAYER = {
   swordElements: [],
   activeSwordElement: null,
   swordUpgrades: {},
+  plainSwordUpgrade: 0,   // Grandmother's sword ore tier, 0-6 (elements.js)
   arrows: {},
   activeArrowElement: null,
   armorElements: [],
@@ -457,6 +458,7 @@ function applyLoadDataUnsafe(data) {
   player.forageBonus = { ...((data.player && data.player.forageBonus) || {}) };
   player.armorUpgrades = { ...((data.player && data.player.armorUpgrades) || {}) };
   player.swordUpgrades = { ...((data.player && data.player.swordUpgrades) || {}) };
+  player.plainSwordUpgrade = (data.player && data.player.plainSwordUpgrade) || 0;
   // The last four object-valued fields that were still being aliased. Object.assign
   // above copies DEFAULT_PLAYER's own literals by REFERENCE, so a save missing any of
   // these left `player` pointing straight at the shared default — and all four are
@@ -1115,7 +1117,7 @@ function resetGame(heroName) {
     chronicleMilestone: 0,
     guildCard: false,
     immunityElement: null, immunityTimer: 0,
-    swordElements: [], activeSwordElement: null, swordUpgrades: {},
+    swordElements: [], activeSwordElement: null, swordUpgrades: {}, plainSwordUpgrade: 0,
     arrows: {}, activeArrowElement: null,
     armorElements: [], armorUpgrades: {}, activeArmorElement: null,
     defeatedBoss: false,
