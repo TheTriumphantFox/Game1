@@ -346,6 +346,22 @@ function connectivityRepairPath(m, goals, reachable) {
   return path;
 }
 
+// A rescue corridor that reaches a raised shelf has to climb onto it. Carving
+// the shelf's face down to ordinary ground made a notch: the hero could step
+// down it off the shelf and never step back up (STEP_UP_MAX). That is how the
+// bot runs of 2026-11-19 got sealed into two desert shrine pockets, each joined
+// to the map only by a corridor cut through a causeway face. So a carved tile
+// touching a LEDGE becomes a CLIMB ramp instead, the way stampLedgeShelf's own
+// ramps replace face tiles, and the shelf tiles the corridor runs over keep
+// their height rather than being cut into a trench.
+function connectivityTouchesLedge(m, c, r) {
+  for (const [dc, dr] of MAP_CONNECTIVITY_DIRS8) {
+    const nc = c + dc, nr = r + dr;
+    if (connectivityInBounds(nc, nr) && m[nr][nc] === T.LEDGE) return true;
+  }
+  return false;
+}
+
 function connectivityApplyRepairPath(m, path, carve, keep) {
   for (const [c, r] of path || []) {
     const cell = connectivityCellIndex(c, r);
@@ -353,8 +369,42 @@ function connectivityApplyRepairPath(m, path, carve, keep) {
     const t = m[r][c];
     if (isChestTile(t) || connectivityIsFeatureTile(t)) continue;
     if (typeof isProtectedFeature === 'function' && isProtectedFeature(t)) continue;
-    m[r][c] = carve;
+    if (t === T.LEDGE || t === T.CLIMB) continue;
+    m[r][c] = connectivityTouchesLedge(m, c, r) ? T.CLIMB : carve;
   }
+}
+
+// The one step in the movement rules that goes only one way is dropping off a
+// LEDGE onto lower ground: any height down, never more than STEP_UP_MAX back up.
+// A drop the shelf's faces do not cover is therefore a pit or a pocket the hero
+// can enter and not leave. Every such edge has its ledge tile turned into a
+// CLIMB, which is walkable both ways to every neighbour (isRampStep), so after
+// this every legal step on the map can be retraced and nothing reachable is a
+// trap. Turning a ledge tile into a ramp never removes a route, which is why it
+// is the repair rather than facing the edge over.
+//
+// The generators should not leave drops in the first place (hazard blots and
+// rune trails keep off shelves, rescue corridors climb); this is the backstop for
+// whatever slips past them, and for maps stored in saves made before the fix.
+// Returns how many ledge tiles it turned into ramps.
+function rampLedgeDrops(m) {
+  let ramps = 0;
+  for (let r = 0; r < MROWS; r++) {
+    for (let c = 0; c < MCOLS; c++) {
+      if (m[r][c] !== T.LEDGE) continue;
+      for (const [dc, dr] of MAP_CONNECTIVITY_DIRS8) {
+        const nc = c + dc, nr = r + dr;
+        if (!connectivityInBounds(nc, nr)) continue;
+        if (connectivityStepAllowed(m, c, r, nc, nr, 'none') &&
+            !connectivityStepAllowed(m, nc, nr, c, r, 'none')) {
+          m[r][c] = T.CLIMB;
+          ramps++;
+          break;
+        }
+      }
+    }
+  }
+  return ramps;
 }
 
 function connectivityRepairTarget(m, goals, reachable, carve, keep) {
@@ -450,6 +500,10 @@ function ensureConnectivity(m, preserveFloor, sealTile, carveTile) {
                                  carve, connectivityFeatureKeepSet(m, c, r)))
       armored = connectivityReachableWithArmor(m, starts);
   }
+
+  // No one-way ledge drops survive generation. Ramps only add routes, and Earth
+  // armor already climbed every shelf, so `armored` is still exact for the seal.
+  rampLedgeDrops(m);
 
   // Seal only ordinary tiles that no armor route can reach. Armor-reachable
   // pockets, including Water shelves and Earth ledges, remain as optional

@@ -593,6 +593,10 @@ function stampHazardBlots(m, tile, blots, rMin, rMax, skip) {
         if (d2 > 0.64 && genRandom() < 0.35) continue;    // ragged rim
         const t = m[r][c];
         if (t === T.PATH) continue;                       // the road stays clean
+        // Nor on a raised shelf or its ramps. Every hazard tile is ground level,
+        // so a blot that crossed a causeway sank a pit into the top of it that
+        // the hero could drop into and not climb out of (bot run vt3, 2026-11-20).
+        if (t === T.LEDGE || t === T.CLIMB) continue;
         if (isProtectedFeature(t) || isSolid(m, c, r)) continue;
         if (skip && skip(t)) continue;
         m[r][c] = tile;
