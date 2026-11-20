@@ -1163,8 +1163,11 @@ function placeGlideIslet(mapObj) {
 // has been crossing them for hours.
 function placeRuneTrail(mapObj) {
   const m = mapObj.map;
+  // Not on a shelf or a ramp: a rune mark is ground level, so a trail laid along
+  // a causeway top would sink a pit into it that the hero could not climb out of.
   const open = (mm, c, r) => mm[r] && mm[r][c] !== undefined && !isSolid(mm, c, r) &&
-                             !isChestTile(mm[r][c]);
+                             !isChestTile(mm[r][c]) &&
+                             mm[r][c] !== T.LEDGE && mm[r][c] !== T.CLIMB;
   const spot = scanForSecretSpot(mapObj, (mm, c, r) => {
     for (let i = 0; i < 5; i++) if (!open(mm, c + i, r)) return false;
     // Away from anything else interesting: five plain ground tiles in a row.

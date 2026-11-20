@@ -593,6 +593,11 @@ function applyLoadDataUnsafe(data) {
                              lite.depth, lite.openSides, region, lite.placeDungeon);
     }
 
+    // Stored tiles from before ledge drops were mended can still hold one: a pit
+    // or a shrine pocket the hero drops into and cannot climb out of. Mend them
+    // here, so a saved world does not keep its softlocks (connectivity.js).
+    if (Array.isArray(md) && typeof rampLedgeDrops === 'function') rampLedgeDrops(md);
+
     // A rebuilt dead-end used to need its Hero's Cache stamped back on here. The
     // dead-end reward is an ordinary chest again (see world.js), which the builder
     // places itself, so a rebuilt map needs nothing extra. A save made before the
