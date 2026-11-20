@@ -14,6 +14,15 @@ const RUBY_CAP = Infinity;
 // constant — rubies, potions, herbals, mushrooms, and the granted trophies.
 const STARTING_ITEM_AMOUNT = 0;
 
+// Hearts (hm, 2026-11-20). One HUD heart is HP_PER_HEART max HP (updateHUD in
+// ui.js draws a pie per 6). A fresh hero starts with STARTING_HEARTS (it was 2,
+// 12 HP), and each village cleared adds VILLAGE_CLEAR_HEARTS more, which arrive
+// full (see the village wake-up in killEnemy below).
+const HP_PER_HEART = 6;
+const STARTING_HEARTS = 3;
+const STARTING_HP = STARTING_HEARTS * HP_PER_HEART;
+const VILLAGE_CLEAR_HEARTS = 2;
+
 // Fresh-player trophy counters, derived from the TROPHIES registry (config.js):
 // `granted` trophies (fang/finger/bone/wing) seed at STARTING_ITEM_AMOUNT, the
 // rest at 0. Shared by the live `player`, DEFAULT_PLAYER, and the newGame reset,
@@ -135,7 +144,7 @@ let player = {
   // shelf casts a normal shadow on the shelf instead of a shrivelled one on the
   // ground below.
   groundZ: 0,
-  hp: 12, maxHp: 12,
+  hp: STARTING_HP, maxHp: STARTING_HP,
   // Temporary HP — a green-heart buffer (bought at the General Store) that
   // absorbs damage before real HP. Not healed by potions/hearts/rest.
   tempHp: 0,
@@ -981,6 +990,12 @@ function killEnemy(e) {
   if (cm && cm.type === 'village' && !cm.activated && enemies.every(en => en.dead)) {
     if (activateVillage(cm)) {
       minimapDirty = true;
+      // Two more hearts for the clear, filled; given before the checkpoint autosave
+      // below so a death after the clear keeps them.
+      const heartHp = VILLAGE_CLEAR_HEARTS * HP_PER_HEART;
+      player.maxHp += heartHp;
+      player.hp = Math.min(player.maxHp, player.hp + heartHp);
+      if (typeof updateHUD === 'function') updateHUD();
       spawnVillagersForMap(currentMapId);
       // A keeper can appear between a hero inside a shop and its door.
       if (typeof freeHeroFromVillagers === 'function') freeHeroFromVillagers();
