@@ -67,12 +67,17 @@ const DND_ENEMIES = {
   hendricks_dog:  { name: "Hendricks' Dog",      hp: 3,   spd: 380,  dmg: 1,  xp: 0,     color: '#9a7b46', size: 0.55, cr: 0 },
 
   // ── Tier 1 · Fire / Desert — flame cultists, hounds & elementals of fire. ──
-  cultist:        { name: 'Cultist',             hp: 24,  spd: 600,  dmg: 4,  xp: 200,   color: '#884488', size: 0.75, ranged: true, cr: '1/8', element: 'fire' },
-  magma_mephit:   { name: 'Magma Mephit',        hp: 28,  spd: 600,  dmg: 4,  xp: 200,   color: '#cc4422', size: 0.6,  ranged: true, cr: '1/2', element: 'fire' },
-  gnoll:          { name: 'Gnoll',               hp: 32,  spd: 550,  dmg: 4,  xp: 200,   color: '#9a7838', size: 0.85, cr: '1/2' },
-  hell_hound:     { name: 'Hell Hound',          hp: 45,  spd: 450,  dmg: 5,  xp: 700,   color: '#aa3322', size: 0.85, ranged: true, cr: 3, element: 'fire' },
-  giant_scorpion: { name: 'Giant Scorpion',      hp: 50,  spd: 600,  dmg: 5,  xp: 700,   color: '#8a6a2a', size: 0.95, cr: 3, element: 'poison' },
-  salamander:     { name: 'Salamander',          hp: 58,  spd: 600,  dmg: 6,  xp: 1100,  color: '#dd5522', size: 1.0,  ranged: true, cr: 5, element: 'fire' },
+  // Softened 2026-11-20 (hm): the forest's flat 1 to fire's old dice was the
+  // biggest step in the game (average hit 1.0 to 3.7). Ratings 2,3,3,3,4,4 roll an
+  // average hit of 2.71 (1d4-1 floored at 1 = 1.75, 1d4 = 2.5, 1d4+1 = 3.5), was
+  // 4,4,4,5,5,6. The Hell Hound bites instead of shooting (was ranged).
+  // verify-2026-11-20/region_roster.py prints the average from this table.
+  cultist:        { name: 'Cultist',             hp: 24,  spd: 600,  dmg: 2,  xp: 200,   color: '#884488', size: 0.75, ranged: true, cr: '1/8', element: 'fire' },
+  magma_mephit:   { name: 'Magma Mephit',        hp: 28,  spd: 600,  dmg: 3,  xp: 200,   color: '#cc4422', size: 0.6,  ranged: true, cr: '1/2', element: 'fire' },
+  gnoll:          { name: 'Gnoll',               hp: 32,  spd: 550,  dmg: 3,  xp: 200,   color: '#9a7838', size: 0.85, cr: '1/2' },
+  hell_hound:     { name: 'Hell Hound',          hp: 45,  spd: 450,  dmg: 3,  xp: 700,   color: '#aa3322', size: 0.85, cr: 3, element: 'fire' },
+  giant_scorpion: { name: 'Giant Scorpion',      hp: 50,  spd: 600,  dmg: 4,  xp: 700,   color: '#8a6a2a', size: 0.95, cr: 3, element: 'poison' },
+  salamander:     { name: 'Salamander',          hp: 58,  spd: 600,  dmg: 4,  xp: 1100,  color: '#dd5522', size: 1.0,  ranged: true, cr: 5, element: 'fire' },
 
   // ── Tier 2 · Water — sahuagin, sea hags & elementals of the deep. ──
   sahuagin:       { name: 'Sahuagin',            hp: 34,  spd: 550,  dmg: 4,  xp: 450,   color: '#3a7a6a', size: 0.8,  cr: '1/2', element: 'water', swims: true },
@@ -274,9 +279,14 @@ function syncEnemyDifficulty(e) {
 // and each map's stored roster.
 function setDifficulty(id) {
   player.difficulty = DIFFICULTY_ORDER.includes(id) ? id : 'normal';
-  for (const e of enemies) syncEnemyDifficulty(e);
+  // Blight strength depends on difficulty too (Easy spares it, corruption.js).
+  const sync = e => {
+    syncEnemyDifficulty(e);
+    if (typeof refreshCorruptedStats === 'function') refreshCorruptedStats(e);
+  };
+  for (const e of enemies) sync(e);
   for (const m of worldMaps) {
-    if (m && Array.isArray(m.savedEnemies)) m.savedEnemies.forEach(syncEnemyDifficulty);
+    if (m && Array.isArray(m.savedEnemies)) m.savedEnemies.forEach(sync);
   }
 }
 

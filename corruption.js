@@ -163,8 +163,12 @@ function corruptedStatsFor(e, on) {
   if (!base) return null;
   const g = e.tier15 ? 2 : 1;                       // the Greater tier, if any
   const c = on ? 1 : 0;
-  const hpMul  = g * (c ? CORRUPTION_HP_MUL  : 1);
-  const dmgMul = g * (c ? CORRUPTION_DMG_MUL : 1);
+  // Easy keeps the blight's look, name and XP, but not its strength (hm,
+  // 2026-11-20). refreshCorruptedStats below moves live creatures when the
+  // difficulty changes.
+  const strong = c && !corruptionSparedByDifficulty();
+  const hpMul  = g * (strong ? CORRUPTION_HP_MUL  : 1);
+  const dmgMul = g * (strong ? CORRUPTION_DMG_MUL : 1);
   const xpMul  = g * (c ? CORRUPTION_XP_MUL  : 1);
   const greaterName = e.tier15 ? `Greater ${base.name}` : base.name;
   return {
@@ -176,6 +180,27 @@ function corruptedStatsFor(e, on) {
     xp:    Math.floor(base.xp * xpMul * 0.5),
     name:  c ? `Blighted ${greaterName}` : greaterName,
   };
+}
+
+// True on Easy: blighted creatures keep their unblighted HP and damage there.
+function corruptionSparedByDifficulty() {
+  return typeof currentDifficulty === 'function' && currentDifficulty() === 'easy';
+}
+
+// Re-apply a blighted creature's stats for the current difficulty, HP carried as
+// a share like setEnemyCorrupted. Called on map entry (syncEnemyListCorruption)
+// and from setDifficulty (enemies.js), so a difficulty change, or a save from
+// before Easy spared the blight, lands on the right numbers.
+function refreshCorruptedStats(e) {
+  if (!e || !e.corrupted || !isCorruptible(e)) return false;
+  const stats = corruptedStatsFor(e, true);
+  if (!stats || (e.baseHp === stats.baseHp && e.dmg === stats.dmg)) return false;
+  const pct = (e.maxHp > 0) ? (e.hp / e.maxHp) : 1;
+  e.baseHp = stats.baseHp;
+  e.maxHp = stats.maxHp;
+  e.hp = Math.max(1, Math.min(stats.maxHp, Math.round(pct * stats.maxHp)));
+  e.dmg = stats.dmg;
+  return true;
 }
 
 // Put the template on, or take it off. Current HP is carried across as a
@@ -207,7 +232,10 @@ function setEnemyCorrupted(e, on) {
 function syncEnemyListCorruption(list, on) {
   if (!list) return 0;
   let changed = 0;
-  for (const e of list) if (setEnemyCorrupted(e, on)) changed++;
+  for (const e of list) {
+    if (setEnemyCorrupted(e, on)) changed++;
+    else if (refreshCorruptedStats(e)) changed++;
+  }
   return changed;
 }
 
