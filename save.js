@@ -243,7 +243,7 @@ const DEFAULT_PLAYER = {
   // It is also recomputed from the tile on the first step after a load, so a
   // stale value cannot survive; this is what covers the frame before that.
   groundZ: 0,
-  hp: 12, maxHp: 12, tempHp: 0,
+  hp: STARTING_HP, maxHp: STARTING_HP, tempHp: 0,
   rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
   swordTimer: 0, swordDir: { x: 0, y: -1 },
   // Punch swing clock — the fists' twin of swordTimer (see player.js).
@@ -1089,7 +1089,7 @@ function resetGame(heroName) {
     heroName,
     deaths: 0,
     x: EXIT_COL, y: EXIT_ROW,
-    hp: 12, maxHp: 12, tempHp: 0,
+    hp: STARTING_HP, maxHp: STARTING_HP, tempHp: 0,
     rubies: STARTING_ITEM_AMOUNT, level: 1, xp: 0, xpNext: 500,
     swordTimer: 0, swordDir: { x: 0, y: -1 }, punchTimer: 0, bowTimer: 0, invincible: 0,
     // Cleared so a New Game started mid-session (no page reload) can't inherit the

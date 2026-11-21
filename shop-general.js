@@ -10,10 +10,18 @@
 // at the Blacksmith (elemental sword upgrades) and from quests (the Lost Son's bow
 // levels). At a flat 50 rubies with no cap, the store let the full-game bot buy its
 // sword to level 209, which made every other source of damage irrelevant.
+//
+// Temporary HP is capped at TEMP_HP_MAX (hm, 2026-11-20: 60, ten hearts' worth at
+// HP_PER_HEART 6). Uncapped, rubies with nothing else to buy turned into about a
+// thousand green hearts (the full-game bot ended one run with 162,574 rubies).
+// A hero already over the cap from an older save keeps what they have.
+const TEMP_HP_MAX = 60;
 const STORE_ITEMS = [
   { id: 'temphp', label: '💚 Temp HP +1',  cost: 150,
-    desc: '+1 temporary HP (green heart) — soaks damage before your HP',
-    apply: () => { player.tempHp = (player.tempHp || 0) + 1; } },
+    desc: `+1 temporary HP (green heart): soaks damage before your HP. Holds up to ${TEMP_HP_MAX}.`,
+    canBuy: () => (player.tempHp || 0) < TEMP_HP_MAX,
+    fullTag: `<span style="color:#88cc88">full (${TEMP_HP_MAX})</span>`,
+    apply: () => { player.tempHp = Math.min(TEMP_HP_MAX, (player.tempHp || 0) + 1); } },
   { id: 'bombs', label: '💣 Bombs ×5',    cost: 60,
     desc: 'A bundle of 5 bombs — lob to blast enemies & crack rocks',
     apply: () => { addItem('bombs', 5); } },
@@ -218,7 +226,7 @@ function renderStoreContents() {
     const broke = player.rubies < cost;
     const owned = it.canBuy ? !it.canBuy() : false;
     const disabled = broke || owned;
-    const tag = owned ? '<span style="color:#88cc88">✓ owned</span>' : '';
+    const tag = owned ? (it.fullTag || '<span style="color:#88cc88">✓ owned</span>') : '';
     return `
       <div class="shop-row">
         <div class="shop-item">

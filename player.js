@@ -14,6 +14,17 @@ const RUBY_CAP = Infinity;
 // constant — rubies, potions, herbals, mushrooms, and the granted trophies.
 const STARTING_ITEM_AMOUNT = 0;
 
+// Hearts (hm, 2026-11-20). One HUD heart is HP_PER_HEART max HP (updateHUD in
+// ui.js draws a pie per 6). A fresh hero starts with STARTING_HEARTS (it was 2,
+// 12 HP), and each village's King's Hoard adds KING_HOARD_HEARTS more, which arrive
+// full (see the boss chest in handlePickup below). Clearing the village itself adds
+// none since 2026-11-21 (hm: "Put the 6 hp from village clear into the horde chest").
+// The hoard vanishes if the hero leaves without opening it, and its hearts with it.
+const HP_PER_HEART = 6;
+const STARTING_HEARTS = 3;
+const STARTING_HP = STARTING_HEARTS * HP_PER_HEART;
+const KING_HOARD_HEARTS = 1;   // +6. History: clear +12, then clear +6 and hoard +4 (2026-11-20), now hoard +6 only
+
 // Fresh-player trophy counters, derived from the TROPHIES registry (config.js):
 // `granted` trophies (fang/finger/bone/wing) seed at STARTING_ITEM_AMOUNT, the
 // rest at 0. Shared by the live `player`, DEFAULT_PLAYER, and the newGame reset,
@@ -135,7 +146,7 @@ let player = {
   // shelf casts a normal shadow on the shelf instead of a shrivelled one on the
   // ground below.
   groundZ: 0,
-  hp: 12, maxHp: 12,
+  hp: STARTING_HP, maxHp: STARTING_HP,
   // Temporary HP — a green-heart buffer (bought at the General Store) that
   // absorbs damage before real HP. Not healed by potions/hearts/rest.
   tempHp: 0,
@@ -981,6 +992,8 @@ function killEnemy(e) {
   if (cm && cm.type === 'village' && !cm.activated && enemies.every(en => en.dead)) {
     if (activateVillage(cm)) {
       minimapDirty = true;
+      // No hearts for the clear itself (2026-11-21): they sit in the King's Hoard.
+      if (typeof updateHUD === 'function') updateHUD();
       spawnVillagersForMap(currentMapId);
       // A keeper can appear between a hero inside a shop and its door.
       if (typeof freeHeroFromVillagers === 'function') freeHeroFromVillagers();
@@ -1391,16 +1404,17 @@ function handlePickup(bnx, bny, map) {
         const cm = currentMap();
         const regionId = regionIdForMap(cm);
         const lvl = regionNumberOf(regionId);
-        // +4 Max HP (the four new hearts come filled), 250 × region level 💎, 2d4 of
-        // the region's Health Potion, and 1000 × region level XP — all guaranteed,
-        // nothing else.
-        player.maxHp = (player.maxHp || 6) + 4;
-        player.hp    = Math.min(player.maxHp, (player.hp || 0) + 4);
+        // KING_HOARD_HEARTS of max HP (+6, filled), 250 × region level 💎, 2d4 of the
+        // region's Health Potion, and 1000 × region level XP, all guaranteed, nothing
+        // else. This is the only max HP a village pays (2026-11-21, hm).
+        const heartHp = KING_HOARD_HEARTS * HP_PER_HEART;
+        player.maxHp = (player.maxHp || HP_PER_HEART) + heartHp;
+        player.hp    = Math.min(player.maxHp, (player.hp || 0) + heartHp);
         const rubyGot = addItem('rubies', 250 * lvl);
         const potN = (1 + Math.floor(Math.random() * 4)) + (1 + Math.floor(Math.random() * 4));
         const pot = addRegionPotions(regionId, potN);
         gainXP(1000 * lvl);
-        showMsg(`👑 The King's Hoard! +4 Max HP, ${rubyGot} 💎, ${pot.got} 🧪 ${pot.label}${pot.got === 1 ? '' : 's'}, ${1000 * lvl} XP!`, 7000);
+        showMsg(`👑 The King's Hoard! +${heartHp} Max HP, ${rubyGot} 💎, ${pot.got} 🧪 ${pot.label}${pot.got === 1 ? '' : 's'}, ${1000 * lvl} XP!`, 7000);
         const sp = screenPX(ax, ay);
         spawnParticle(sp.x, sp.y, '#ff66ff', 40, 8);
         spawnParticle(sp.x, sp.y, '#ffdd33', 32, 6);
